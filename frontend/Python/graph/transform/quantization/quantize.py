@@ -21,21 +21,16 @@
 #
 # ===---------------------------------------------------------------------------
 
-from ... import Graph, NodeType
-from ...operation import *
-from ... import DeviceType
-from torch.fx.immutable_collections import immutable_list
-from ...type import TensorDType
-
-from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Callable, TypeVar, Any
-from itertools import product
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+from ... import Graph
+from ...operation import *
+from ...type import TensorDType
 
 
 class QuantizationConstraint(ABC):
-
     gain: int = 1
 
     @abstractmethod
@@ -150,7 +145,8 @@ class Consumer(Unquantized, Rewritable):
     """
 
 
-class Quantization(ABC):
+# Base class of the quantization methods (a marker: no abstract methods).
+class Quantization(ABC):  # noqa: B024
     pass
 
 
@@ -191,7 +187,7 @@ def max_gain_quantization(
     )
     max_gain_constraint: QuantizationConstraint = None
     for constraint in backward_state.constraints:
-        if not (constraint.hash() in possible_quantizations):
+        if constraint.hash() not in possible_quantizations:
             continue
 
         if (max_gain_constraint is None) or (
@@ -394,18 +390,20 @@ QuantizationFunctionRegistry: dict = {}
 
 def validate_registry():
     for method, method_registry in QuantizationFunctionRegistry.items():
-        assert (
-            method_registry.dequantizer is not None
-        ), f"Each quantization method must register a dequantization function ({method})"
+        assert method_registry.dequantizer is not None, (
+            f"Each quantization method must register a dequantization function ({method})"
+        )
 
 
-def register_quantizer(quantization: QuantizationType, op_type: OpType):
+# The TypeVars below are used as plain annotations (and OpType is imported
+# by weight_only_channel_wise), not as generic parameters.
+def register_quantizer(quantization: QuantizationType, op_type: OpType):  # noqa: UP047
     def guard(cls: QuantizationMethodType):
         fn_obj = cls()
 
-        assert (
-            op_type not in QuantizationFunctionRegistry.keys()
-        ), f"Only one quantization function should be declared per operation ({op_type} has two)"
+        assert op_type not in QuantizationFunctionRegistry.keys(), (
+            f"Only one quantization function should be declared per operation ({op_type} has two)"
+        )
         QuantizationFunctionRegistry.setdefault(quantization, MethodRegistry())[
             op_type
         ] = fn_obj
@@ -413,10 +411,11 @@ def register_quantizer(quantization: QuantizationType, op_type: OpType):
     return guard
 
 
-def register_parameterized(quantization: QuantizationType, params: list[tuple]):
+def register_parameterized(  # noqa: UP047
+    quantization: QuantizationType, params: list[tuple]
+):
     def parameterized(cls: QuantizationMethodType):
         for op_type, param_dict in params:
-
             param_dict["buddy_op"] = op_type
 
             subclass_name = f"{cls.__name__}_{op_type.__name__}"
@@ -430,9 +429,9 @@ def register_parameterized(quantization: QuantizationType, params: list[tuple]):
     return parameterized
 
 
-def register_dequantizer(quantization_method: QuantizationMethodType):
+def register_dequantizer(quantization_method: QuantizationMethodType):  # noqa: UP047
     def guard(
-        fn: Callable[[Op, QuantizationContext], None | QuantizationState]
+        fn: Callable[[Op, QuantizationContext], None | QuantizationState],
     ):
         def guarded_fn(
             op: Op, context: QuantizationContext
@@ -445,7 +444,9 @@ def register_dequantizer(quantization_method: QuantizationMethodType):
                 quantization_method, MethodRegistry()
             ).dequantizer
             is None
-        ), f"Only one dequantizer is allowed per quantization method ({quantization_method})"
+        ), (
+            f"Only one dequantizer is allowed per quantization method ({quantization_method})"
+        )
         QuantizationFunctionRegistry.setdefault(
             quantization_method, MethodRegistry()
         ).dequantizer = guarded_fn
@@ -508,7 +509,7 @@ def get_dequantized(op: Op, context: QuantizationContext) -> Op:
     except KeyError:
         raise RuntimeError(
             f"No dequantizer registered for {type(context.quantization)}"
-        )
+        ) from None
 
 
 def rewrite_node(node: Op, context: QuantizationContext):
@@ -523,7 +524,6 @@ def rewrite_node(node: Op, context: QuantizationContext):
                     forward_quantizability := method.forward(node, context),
                     Quantizable,
                 ):
-
                     context.quantization_table[node_name] = (
                         reeval_state := max_gain_quantization(
                             node_requests, forward_quantizability
@@ -588,7 +588,7 @@ def sort_graph(graph: Graph):
         )
     param_nodes = orig_params + scaler_params
 
-    placeholder_ids = set(id(n) for n in param_nodes + input_nodes)
+    placeholder_ids = {id(n) for n in param_nodes + input_nodes}
 
     other_nodes = []
     output_nodes = []
