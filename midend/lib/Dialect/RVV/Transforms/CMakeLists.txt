@@ -1,5 +1,6 @@
 add_mlir_dialect_library(BuddyRVVTransforms
   LegalizeForLLVMExport.cpp
+  Arithmetic.cpp
 
   DEPENDS
   BuddyRVVConversionsIncGen

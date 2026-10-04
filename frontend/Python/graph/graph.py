@@ -770,8 +770,6 @@ class Graph:
             pm.add("canonicalize")
             pm.add("func.func(optimize-allocation-liveness)")
             pm.add("func.func(eliminate-memref-copy)")
-            pm.add("func.func(assume-tight-memref-layout)")
-            pm.add("func.func(staticize-memref-layout)")
             pm.add("matmul-vectorization")
             pm.add("convert-linalg-to-affine-loops")
             pm.add("convert-vector-to-scf")

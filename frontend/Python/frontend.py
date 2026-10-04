@@ -34,6 +34,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch._dynamo as dynamo
+from buddy_mlir import ir
 from buddy_mlir import runtime as rt
 from buddy_mlir.execution_engine import ExecutionEngine
 from torch._functorch.aot_autograd import aot_module_simplified
@@ -1371,7 +1372,32 @@ class DynamoCompiler:
 
             return os.path.join(lib_base_path, "libomp" + lib_extension)
 
-        graph.compile()
+        graph.lower_to_top_level_ir()
+        module = graph._imported_module
+        with module.context:
+            function = next(
+                op
+                for op in module.body.operations
+                if op.operation.name == "func.func"
+            )
+            attributes = []
+            for argument in function.regions[0].blocks[0].arguments:
+                shape = list(ir.RankedTensorType(argument.type).shape)
+                strides = [
+                    int(np.prod(shape[index + 1 :]))
+                    for index in range(len(shape))
+                ]
+                attributes.append(
+                    ir.DictAttr.get(
+                        {
+                            "bufferization.buffer_layout": ir.Attribute.parse(
+                                f"strided<{strides}, offset: ?>"
+                            )
+                        }
+                    )
+                )
+            function.attributes["arg_attrs"] = ir.ArrayAttr.get(attributes)
+        graph.lower_to_llvm_ir()
 
         # Collect dependency libraries.
         lib_extension = get_lib_extension()

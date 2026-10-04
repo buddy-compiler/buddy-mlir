@@ -223,8 +223,9 @@ void setGeneratedTraceAttrs(Operation *op, OpBuilder &builder, int64_t parent,
   }
 }
 
-void insertTraceAround(Operation *target, ::buddy::trace::StartOp parent,
-                       int64_t id, ArrayRef<int64_t> idPath, StringRef tag,
+void insertTraceAround(Operation *target, Operation *last,
+                       ::buddy::trace::StartOp parent, int64_t id,
+                       ArrayRef<int64_t> idPath, StringRef tag,
                        StringRef traceType, bool propagateBuckyball,
                        ArrayRef<std::string> buckyballInclude) {
   OpBuilder startBuilder(target);
@@ -237,10 +238,10 @@ void insertTraceAround(Operation *target, ::buddy::trace::StartOp parent,
                          idPath, level, traceType, buckyballInclude,
                          propagateBuckyball);
 
-  OpBuilder endBuilder(target->getBlock(), std::next(Block::iterator(target)));
+  OpBuilder endBuilder(last->getBlock(), std::next(Block::iterator(last)));
   Value input;
-  if (target->getNumResults() == 1)
-    input = target->getResult(0);
+  if (last->getNumResults() == 1)
+    input = last->getResult(0);
   else
     input = arith::ConstantIndexOp::create(endBuilder, target->getLoc(), 0);
 
@@ -313,13 +314,47 @@ public:
 
       int64_t ordinal = 0;
       for (Operation *target : targets) {
+        Operation *last = target;
+        auto kernelId = target->getAttrOfType<StringAttr>("mega_kernel_id");
+        if (dialect == "linalg" && kernelId) {
+          auto stage = target->getAttrOfType<IntegerAttr>("mega_kernel_stage");
+          auto size = target->getAttrOfType<IntegerAttr>("mega_kernel_size");
+          if (!stage || !size || size.getInt() <= 0) {
+            target->emitError("trace requires valid MegaKernel stage metadata");
+            signalPassFailure();
+            return;
+          }
+          if (stage.getInt() != 0)
+            continue;
+          int64_t count = 0;
+          for (Operation *candidate : targets) {
+            if (candidate->getAttrOfType<StringAttr>("mega_kernel_id") !=
+                kernelId)
+              continue;
+            auto index =
+                candidate->getAttrOfType<IntegerAttr>("mega_kernel_stage");
+            if (!index || index.getInt() != count++) {
+              candidate->emitError("trace requires ordered MegaKernel stages");
+              signalPassFailure();
+              return;
+            }
+            last = candidate;
+          }
+          if (count != size.getInt()) {
+            target->emitError(
+                "trace scope does not contain the full MegaKernel");
+            signalPassFailure();
+            return;
+          }
+        }
         SmallVector<int64_t> childPath(parentPath.begin(), parentPath.end());
         childPath.push_back(ordinal);
-        std::string tag = parentTag.str() + "." + dialect + "." +
-                          getShortOpName(target).str() + "." +
-                          std::to_string(ordinal);
-        insertTraceAround(target, start, nextId++, childPath, tag, dialect,
-                          propagateBuckyball, buckyballInclude);
+        std::string tag =
+            parentTag.str() + "." + dialect + "." +
+            (last == target ? getShortOpName(target).str() : "mega_kernel") +
+            "." + std::to_string(ordinal);
+        insertTraceAround(target, last, start, nextId++, childPath, tag,
+                          dialect, propagateBuckyball, buckyballInclude);
         ++ordinal;
       }
 
@@ -541,7 +576,8 @@ private:
   LogicalResult lowerEndOp(::buddy::trace::EndOp op) {
     if (modes.cycleTrace && failed(insertCycleEndCall(op)))
       return failure();
-    if (modes.tensorTrace && failed(insertTensorTraceCall(op)))
+    if (modes.tensorTrace && !hasUnitOrTrueAttr(op, kGeneratedAttrName) &&
+        failed(insertTensorTraceCall(op)))
       return failure();
 
     op.getOutput().replaceAllUsesWith(op.getInput());
@@ -561,8 +597,6 @@ private:
     bool buckyballStageTrace = op->hasAttr("buckyball.stage_trace");
     if (buckyballStageTrace && elemType.isInteger(8))
       funcName = kBuckyballStageTraceI8PathFuncName;
-    else if (buckyballStageTrace)
-      return op.emitError("Buckyball stage trace requires an i8 memref");
     else if (elemType.isF32())
       funcName = kTensorTraceF32PathFuncName;
     else if (elemType.isBF16())

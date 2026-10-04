@@ -32,7 +32,7 @@
 #include "RVV/Transforms.h"
 
 using namespace mlir;
-using namespace buddy;
+using namespace ::buddy;
 
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
@@ -70,17 +70,14 @@ void LowerRVVToLLVMPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
-  LLVMTypeConverter converter(context);
+  LowerToLLVMOptions options(context);
+  options.overrideIndexBitwidth(isOnRV32 ? 32 : 64);
+  LLVMTypeConverter converter(context, options);
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
 
-  int64_t RVVIndexBitwidth;
-  if (isOnRV32)
-    RVVIndexBitwidth = 32;
-  else
-    RVVIndexBitwidth = 64;
   configureRVVLegalizeForExportTarget(target);
-  populateRVVLegalizeForLLVMExportPatterns(converter, patterns, RVVIndexBitwidth);
+  populateRVVLegalizeForLLVMExportPatterns(converter, patterns);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
@@ -88,6 +85,9 @@ void LowerRVVToLLVMPass::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerLowerRVVPass() { PassRegistration<LowerRVVToLLVMPass>(); }
+void registerLowerRVVPass() {
+  registerVectorToRVVPass();
+  PassRegistration<LowerRVVToLLVMPass>();
+}
 } // namespace buddy
 } // namespace mlir

@@ -26,12 +26,7 @@
 #include "RVV/Transforms.h"
 
 using namespace mlir;
-using namespace buddy::rvv;
-
-// RVVTargetIndexBitwidth can be 64(by default) or 32(when rv32 option is set)
-// to configure the size of operands' type in lowering.
-
-static int64_t RVVTargetIndexBitwidth;
+using namespace ::buddy::rvv;
 
 template <typename SourceOp, typename TargetOp>
 class ConvertPassthruOperandOpToLLVMPattern
@@ -50,13 +45,13 @@ public:
     auto resultType = op->getResultTypes();
     Type packedType;
 
-    Value src1 = op.getOperand(0);
-    Value src2 = op.getOperand(1);
-    Value vl = op.getOperand(2);
-    Value vlCast = UnrealizedConversionCastOp::create(
-                       rewriter, op.getLoc(),
-                       rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
-                       .getResult(0);
+    Value src1 = adaptor.getOperands()[0];
+    Value src2 = adaptor.getOperands()[1];
+    Value vl = adaptor.getOperands()[2];
+    Value vlCast =
+        UnrealizedConversionCastOp::create(
+            rewriter, op.getLoc(), this->getTypeConverter()->getIndexType(), vl)
+            .getResult(0);
     SmallVector<Value, 6> operandsVector({src1, src2, vlCast});
 
     Value passthru = LLVM::UndefOp::create(rewriter, loc, resultType[0]);
@@ -113,21 +108,21 @@ struct RVVSetVlOpLowering : public ConvertOpToLLVMPattern<RVVSetVlOp> {
   LogicalResult
   matchAndRewrite(RVVSetVlOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto resultType = rewriter.getIntegerType(RVVTargetIndexBitwidth);
-    Value avl = op.getOperand(0);
+    auto resultType = this->getTypeConverter()->getIndexType();
+    Value avl = adaptor.getAvl();
     Value avlCast = UnrealizedConversionCastOp::create(
                         rewriter, op.getLoc(),
-                        rewriter.getIntegerType(RVVTargetIndexBitwidth), avl)
+                        this->getTypeConverter()->getIndexType(), avl)
                         .getResult(0);
-    Value sew = op.getOperand(1);
+    Value sew = adaptor.getSew();
     Value sewCast = UnrealizedConversionCastOp::create(
                         rewriter, op.getLoc(),
-                        rewriter.getIntegerType(RVVTargetIndexBitwidth), sew)
+                        this->getTypeConverter()->getIndexType(), sew)
                         .getResult(0);
-    Value lmul = op.getOperand(2);
+    Value lmul = adaptor.getLmul();
     Value lmulCast = UnrealizedConversionCastOp::create(
                          rewriter, op.getLoc(),
-                         rewriter.getIntegerType(RVVTargetIndexBitwidth), lmul)
+                         this->getTypeConverter()->getIndexType(), lmul)
                          .getResult(0);
     rewriter.replaceOpWithNewOp<RVVIntrSetVlIOp>(op, resultType, avlCast,
                                                  sewCast, lmulCast);
@@ -145,8 +140,6 @@ struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
     if (!isConvertibleAndHasIdentityMaps(type))
       return failure();
 
-    LLVMTypeConverter converter(loadOp.getContext());
-
     auto resultType = loadOp.getResult().getType();
     auto context = loadOp.getContext();
     Value passthru =
@@ -156,10 +149,10 @@ struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
                                          adaptor.getBase(), adaptor.getIndex());
     Value bitCastedPtr = LLVM::BitcastOp::create(rewriter, loadOp.getLoc(),
                                                  llvmDataTypePtr, dataPtr);
-    Value vl = loadOp.getOperand(2);
+    Value vl = adaptor.getLength();
     Value vlCast = UnrealizedConversionCastOp::create(
                        rewriter, loadOp.getLoc(),
-                       rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
+                       this->getTypeConverter()->getIndexType(), vl)
                        .getResult(0);
     rewriter.replaceOpWithNewOp<RVVIntrLoadEleOp>(loadOp, resultType, passthru,
                                                   bitCastedPtr, vlCast);
@@ -177,19 +170,16 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
     if (!isConvertibleAndHasIdentityMaps(type))
       return failure();
 
-    LLVMTypeConverter converter(storeOp.getContext());
-
-    auto resultType = storeOp.getValue().getType();
     auto context = storeOp.getContext();
     LLVM::LLVMPointerType llvmDataTypePtr = LLVM::LLVMPointerType::get(context);
     Value dataPtr = getStridedElementPtr(rewriter, storeOp.getLoc(), type,
                                          adaptor.getBase(), adaptor.getIndex());
     Value bitCastedPtr = LLVM::BitcastOp::create(rewriter, storeOp.getLoc(),
                                                  llvmDataTypePtr, dataPtr);
-    Value vl = storeOp.getOperand(3);
+    Value vl = adaptor.getLength();
     Value vlCast = UnrealizedConversionCastOp::create(
                        rewriter, storeOp.getLoc(),
-                       rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
+                       this->getTypeConverter()->getIndexType(), vl)
                        .getResult(0);
     rewriter.replaceOpWithNewOp<RVVIntrStoreEleOp>(storeOp, adaptor.getValue(),
                                                    bitCastedPtr, vlCast);
@@ -211,12 +201,12 @@ struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
 
     auto resultType = op.getResult().getType();
     Value passthru = LLVM::UndefOp::create(rewriter, op.getLoc(), resultType);
-    Value src = op.getOperand(0);
-    Value vl = op.getOperand(1);
-    Value vlCast = UnrealizedConversionCastOp::create(
-                       rewriter, op.getLoc(),
-                       rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
-                       .getResult(0);
+    Value src = adaptor.getSrc();
+    Value vl = adaptor.getLength();
+    Value vlCast =
+        UnrealizedConversionCastOp::create(
+            rewriter, op.getLoc(), this->getTypeConverter()->getIndexType(), vl)
+            .getResult(0);
     rewriter.replaceOpWithNewOp<IntrFrsqrt7Op>(op, resultType, passthru, src,
                                                vlCast);
     return success();
@@ -225,10 +215,9 @@ struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
 
 /// Populate the given list with patterns that convert from RVV to LLVM.
 void mlir::populateRVVLegalizeForLLVMExportPatterns(
-    LLVMTypeConverter &converter, OwningRewritePatternList &patterns,
-    int64_t RVVIndexBitwidth) {
+    LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
 
-  RVVTargetIndexBitwidth = RVVIndexBitwidth;
+  populateRVVArithmeticPatterns(converter, patterns);
   // clang-format off
   patterns.add<ForwardOperands<func::CallOp>,
                ForwardOperands<func::CallIndirectOp>,
@@ -250,12 +239,20 @@ void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
                     RVVIntrStoreEleOp,
                     IntrFrsqrt7Op,
                     RVVIntrAddOp,
-                    RVVIntrMulOp>();
+                    RVVIntrMulOp,
+                    RVVIntrFAddOp,
+                    RVVIntrFSubOp,
+                    RVVIntrFMulOp,
+                    RVVIntrFDivOp>();
   target.addIllegalOp<RVVSetVlOp,
                       RVVLoadOp,
                       RVVStoreOp,
                       RsqrtOp,
                       RVVAddOp,
-                      RVVMulOp>();
+                      RVVMulOp,
+                      RVVFAddOp,
+                      RVVFSubOp,
+                      RVVFMulOp,
+                      RVVFDivOp>();
   // clang-format on
 }
