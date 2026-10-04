@@ -61,6 +61,8 @@ set(RISCV_OMP_SHARED "" CACHE FILEPATH
   "Path to target OpenMP shared library for RVV link (e.g. libomp.so)")
 set(RISCV_MLIR_C_RUNNER_UTILS "" CACHE FILEPATH
   "Path to target mlir_c_runner_utils shared library for RVV link")
+set(RISCV_LLVM_BUILD_DIR "" CACHE PATH
+  "riscv64 LLVM/MLIR build dir for the RVV plugins (lib/libLLVMSupport.a, include/llvm/Config)")
 if(NOT DEFINED BUDDY_MLIR_BUILD_DIR)
   if(DEFINED BUDDY_BUILD_DIR)
     set(_BUDDY_MLIR_BUILD_DIR_DEFAULT "${BUDDY_BUILD_DIR}")
@@ -70,6 +72,112 @@ if(NOT DEFINED BUDDY_MLIR_BUILD_DIR)
   set(BUDDY_MLIR_BUILD_DIR "${_BUDDY_MLIR_BUILD_DIR_DEFAULT}" CACHE PATH
     "buddy-mlir build dir used to derive ../llvm/build/bin/clang(++)")
 endif()
+
+# ──────────────────────────────────────────────────────────────────────────────
+# _buddy_rvv_cross_plugins(<plugin target>...)
+#
+# IS_RVV_CROSSCOMPILE: the .rax must carry riscv64 plugins, but the plugin
+# targets are built by the host compiler (buddy-cli and the tests link their
+# static library ${LIB_TARGET}). This moves each host plugin to ${BIN}/host and
+# builds a riscv64 one in its place, ${BIN}/<OUTPUT_NAME>.so, with the cross
+# clang++: the plugin source, the sources of ${LIB_TARGET} and of
+# buddy_runtime_llm, compiled with the include directories of the host target
+# and linked with LLVMSupport from RISCV_LLVM_BUILD_DIR.
+# Reads the caller's variables; sets _BUDDY_RVV_PLUGIN_FILES in the caller.
+# ──────────────────────────────────────────────────────────────────────────────
+function(_buddy_rvv_cross_plugins)
+  set(_cxx "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
+  set(_dir "${BIN}/rv64")
+  set(_march "rv64gcv")
+  if(BUDDY_RISCV_ENABLE_ZFH_ZVFH)
+    string(APPEND _march "_zfh_zvfh")
+  endif()
+  set(_target_opts
+    --target=riscv64-unknown-linux-gnu
+    "--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot"
+    "--gcc-toolchain=${RISCV_GNU_TOOLCHAIN}")
+
+  # Header-only FlatBuffers: when it lives in /usr/include it is reached
+  # through a directory of its own, as /usr/include holds host headers.
+  set(_fb_dir "${_dir}/flatbuffers-include")
+  file(MAKE_DIRECTORY "${_fb_dir}")
+  file(CREATE_LINK "${FLATBUFFERS_INCLUDE_DIR}/flatbuffers"
+       "${_fb_dir}/flatbuffers" SYMBOLIC)
+
+  # The cross LLVM build's llvm/Config comes before the host build's.
+  set(_incs
+    "-I${RISCV_LLVM_BUILD_DIR}/include"
+    "-I${_fb_dir}"
+    "-I$<JOIN:$<FILTER:$<TARGET_PROPERTY:${LIB_TARGET},INCLUDE_DIRECTORIES>,EXCLUDE,^/usr(/local)?/include/?$>,$<SEMICOLON>-I>")
+  set(_cxxflags -std=c++17 -O2 -DNDEBUG -fPIC "-march=${_march}")
+
+  set(_srcs)
+  foreach(_src ${MDL_RUNTIME_SOURCES})
+    get_filename_component(_src "${_src}" ABSOLUTE
+                           BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    list(APPEND _srcs "${_src}")
+  endforeach()
+  if(NOT MDL_MODEL_KIND STREQUAL "single_forward")
+    get_target_property(_llm_dir buddy_runtime_llm SOURCE_DIR)
+    get_target_property(_llm_srcs buddy_runtime_llm SOURCES)
+    foreach(_src ${_llm_srcs})
+      list(APPEND _srcs "${_llm_dir}/${_src}")
+    endforeach()
+  endif()
+  # ModelSession.h is generated with ModelSession.cpp.
+  set(_gen_deps buddy-rax-gen)
+  if(NOT MDL_MODEL_KIND STREQUAL "single_forward")
+    list(APPEND _gen_deps "${GEN_SESS_CC}")
+  endif()
+
+  set(_objs)
+  foreach(_src ${_srcs})
+    get_filename_component(_name "${_src}" NAME_WE)
+    set(_obj "${_dir}/${_name}.o")
+    add_custom_command(
+      OUTPUT "${_obj}"
+      COMMAND "${_cxx}" ${_target_opts} ${_cxxflags} ${_incs}
+              -MD -MF "${_obj}.d" -c "${_src}" -o "${_obj}"
+      DEPENDS "${_src}" ${_gen_deps}
+      DEPFILE "${_obj}.d"
+      COMMENT "[${MDL_NAME}] riscv64: compiling ${_name}"
+      COMMAND_EXPAND_LISTS
+      VERBATIM)
+    list(APPEND _objs "${_obj}")
+  endforeach()
+
+  set(_files)
+  foreach(_plugin ${ARGN})
+    get_target_property(_out ${_plugin} OUTPUT_NAME)
+    get_target_property(_plugin_srcs ${_plugin} SOURCES)
+    set_target_properties(${_plugin} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${BIN}/host"
+      RUNTIME_OUTPUT_DIRECTORY "${BIN}/host")
+    set(_obj "${_dir}/${_out}.o")
+    set(_so "${BIN}/${_out}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    add_custom_command(
+      OUTPUT "${_obj}"
+      COMMAND "${_cxx}" ${_target_opts} ${_cxxflags} ${_incs}
+              -MD -MF "${_obj}.d" -c "${_plugin_srcs}" -o "${_obj}"
+      DEPENDS "${_plugin_srcs}" ${_gen_deps}
+      DEPFILE "${_obj}.d"
+      COMMENT "[${MDL_NAME}] riscv64: compiling ${_out}"
+      COMMAND_EXPAND_LISTS
+      VERBATIM)
+    add_custom_command(
+      OUTPUT "${_so}"
+      COMMAND "${_cxx}" ${_target_opts} -shared -fPIC -o "${_so}"
+              "${_obj}" ${_objs}
+              "${RISCV_LLVM_BUILD_DIR}/lib/libLLVMSupport.a"
+              "${RISCV_LLVM_BUILD_DIR}/lib/libLLVMDemangle.a"
+              -ldl -lpthread
+      DEPENDS "${_obj}" ${_objs}
+      COMMENT "[${MDL_NAME}] riscv64: linking ${_out}${CMAKE_SHARED_LIBRARY_SUFFIX}"
+      VERBATIM)
+    list(APPEND _files "${_so}")
+  endforeach()
+  set(_BUDDY_RVV_PLUGIN_FILES "${_files}" PARENT_SCOPE)
+endfunction()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # buddy_add_model(
@@ -305,6 +413,18 @@ function(buddy_add_model)
       message(FATAL_ERROR
         "IS_RVV_CROSSCOMPILE=ON requires RISCV_MLIR_C_RUNNER_UTILS (target mlir_c_runner_utils path).")
     endif()
+    if(NOT EXISTS "${RISCV_LLVM_BUILD_DIR}/lib/libLLVMSupport.a")
+      message(FATAL_ERROR
+        "IS_RVV_CROSSCOMPILE=ON requires RISCV_LLVM_BUILD_DIR, a riscv64 LLVM "
+        "build with lib/libLLVMSupport.a (the runtime plugins link it); "
+        "got '${RISCV_LLVM_BUILD_DIR}'.")
+    endif()
+    if(MDL_MODEL_KIND STREQUAL "qwen3_vl_multimodal" OR MDL_RUNTIME_LINK_LIBS)
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): IS_RVV_CROSSCOMPILE=ON does not build "
+        "the plugins of this model for riscv64 (MODEL_KIND "
+        "qwen3_vl_multimodal or RUNTIME_LINK_LIBS).")
+    endif()
 
     get_filename_component(RISCV_OMP_BASENAME "${RISCV_OMP_SHARED}" NAME)
     get_filename_component(RISCV_MLIR_RUNNER_BASENAME "${RISCV_MLIR_C_RUNNER_UTILS}" NAME)
@@ -316,25 +436,58 @@ function(buddy_add_model)
         "RISCV_MLIR_C_RUNNER_UTILS has no basename: ${RISCV_MLIR_C_RUNNER_UTILS}")
     endif()
 
-    set(RISCV_OMP_LOCAL "${BIN}/${RISCV_OMP_BASENAME}")
-    set(RISCV_MLIR_RUNNER_LOCAL "${BIN}/${RISCV_MLIR_RUNNER_BASENAME}")
+    # mlir_c_runner_utils needs other MLIR runtime libraries of its build
+    # (mlir_float16_utils; mlir_apfloat_wrappers since LLVM 22). They are packed
+    # as well, ahead of it: the runtime dlopens the dependencies in manifest
+    # order with RTLD_GLOBAL, which provides its DT_NEEDED entries.
+    get_filename_component(_riscv_mlir_lib_dir
+      "${RISCV_MLIR_C_RUNNER_UTILS}" DIRECTORY)
+    if(NOT CMAKE_READELF)
+      message(FATAL_ERROR
+        "IS_RVV_CROSSCOMPILE=ON needs readelf (CMAKE_READELF) to find the "
+        "libraries ${RISCV_MLIR_RUNNER_BASENAME} depends on.")
+    endif()
+    execute_process(
+      COMMAND "${CMAKE_READELF}" -d "${RISCV_MLIR_C_RUNNER_UTILS}"
+      OUTPUT_VARIABLE _riscv_mlir_dynamic
+      RESULT_VARIABLE _riscv_readelf_result)
+    if(NOT _riscv_readelf_result EQUAL 0)
+      message(FATAL_ERROR
+        "readelf -d failed on RISCV_MLIR_C_RUNNER_UTILS: ${RISCV_MLIR_C_RUNNER_UTILS}")
+    endif()
+    string(REGEX MATCHALL "Shared library: \\[libmlir_[A-Za-z0-9_.+-]+\\]"
+      _riscv_mlir_needed "${_riscv_mlir_dynamic}")
+    set(RISCV_DEP_LIBS)
+    foreach(_needed ${_riscv_mlir_needed})
+      string(REGEX REPLACE "^.*\\[(.*)\\]$" "\\1" _needed "${_needed}")
+      if(NOT EXISTS "${_riscv_mlir_lib_dir}/${_needed}")
+        message(FATAL_ERROR
+          "${RISCV_MLIR_RUNNER_BASENAME} needs ${_needed}, which is not in "
+          "${_riscv_mlir_lib_dir}")
+      endif()
+      list(APPEND RISCV_DEP_LIBS "${_riscv_mlir_lib_dir}/${_needed}")
+    endforeach()
+    list(APPEND RISCV_DEP_LIBS "${RISCV_OMP_SHARED}" "${RISCV_MLIR_C_RUNNER_UTILS}")
+
+    set(RISCV_DEP_LOCALS)
+    set(RISCV_DEP_COPIES)
+    foreach(_dep ${RISCV_DEP_LIBS})
+      get_filename_component(_dep_name "${_dep}" NAME)
+      list(APPEND RISCV_DEP_LOCALS "${BIN}/${_dep_name}")
+      list(APPEND RISCV_DEP_COPIES
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dep}" "${BIN}/${_dep_name}")
+      list(APPEND MDL_GEN_MANIFEST_ARGS --dep-shared-lib "file:${_dep_name}")
+    endforeach()
 
     add_custom_command(
-      OUTPUT "${RISCV_OMP_LOCAL}" "${RISCV_MLIR_RUNNER_LOCAL}"
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_OMP_SHARED}" "${RISCV_OMP_LOCAL}"
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_MLIR_C_RUNNER_UTILS}" "${RISCV_MLIR_RUNNER_LOCAL}"
-      DEPENDS "${RISCV_OMP_SHARED}" "${RISCV_MLIR_C_RUNNER_UTILS}"
+      OUTPUT ${RISCV_DEP_LOCALS}
+      ${RISCV_DEP_COPIES}
+      DEPENDS ${RISCV_DEP_LIBS}
       COMMENT "[${MDL_NAME}] Copying RVV runtime deps (omp/mlir_c_runner_utils)"
       VERBATIM
     )
 
-    list(APPEND MDL_GEN_MANIFEST_ARGS
-      --dep-shared-lib "file:${RISCV_OMP_BASENAME}"
-      --dep-shared-lib "file:${RISCV_MLIR_RUNNER_BASENAME}")
-
-    list(APPEND MDL_EXTRA_STAGE4_DEPS
-      "${RISCV_OMP_LOCAL}"
-      "${RISCV_MLIR_RUNNER_LOCAL}")
+    list(APPEND MDL_EXTRA_STAGE4_DEPS ${RISCV_DEP_LOCALS})
   endif()
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -735,6 +888,16 @@ function(buddy_add_model)
     target_compile_features(${TRANSCRIPTION_PLUGIN_TARGET} PRIVATE cxx_std_17)
     install(TARGETS ${TRANSCRIPTION_PLUGIN_TARGET}
       EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+  endif()
+
+  if(IS_RVV_CROSSCOMPILE)
+    _buddy_rvv_cross_plugins(
+      ${RUNNER_PLUGIN_TARGET}
+      ${SERVING_PLUGIN_TARGET}
+      ${EMBEDDING_PLUGIN_TARGET}
+      ${MASKED_LM_PLUGIN_TARGET}
+      ${TRANSCRIPTION_PLUGIN_TARGET})
+    list(APPEND MDL_EXTRA_STAGE4_DEPS ${_BUDDY_RVV_PLUGIN_FILES})
   endif()
 
   # Part 2: Model compilation pipeline (MLIR → .o → .so)
