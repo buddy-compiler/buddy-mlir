@@ -567,9 +567,16 @@ def sort_graph(graph: Graph):
     are appended at the end of _body. This function restores topological order:
       1. Params (in _fake_params order)
       2. Inputs (in _inputs order)
-      3. Remaining ops in topological order
+      3. Remaining ops in topological order: the ops that were already in the
+         graph keep their relative order, and each appended op goes right
+         before its first consumer
       4. OutputOps last
     It also rebuilds _fake_params and _inputs index lists.
+
+    Keeping the relative order matters beyond readability: GraphDriver
+    returns a subgraph's outputs in the order of the ops computing them, and
+    the generated model sessions rely on that order (e.g. the decode graph's
+    cache position and KV cache outputs, interleaved per layer).
     """
     param_nodes = [graph._body[idx] for idx in graph._fake_params]
     input_nodes = [graph._body[idx] for idx in graph._inputs]
@@ -619,14 +626,36 @@ def sort_graph(graph: Graph):
                 children_from_parents[p].append(n.name)
         in_degree[n.name] = deg
 
+    # Place each op no later than its earliest consumer: an appended op
+    # (e.g. a dequantize MulOp) takes the position of the first op that reads
+    # it. Ordering by body position alone would emit every ready op that
+    # precedes that consumer -- in the decode graph, the cache position ops of
+    # all later layers -- ahead of it, and so change the output order.
+    # Positions are lowered along a reverse topological order.
+    place = dict(original_order)
+    pending = dict(in_degree)
+    topo = [n.name for n in other_nodes if pending[n.name] == 0]
+    for name in topo:  # grows while it is walked (Kahn's algorithm)
+        for child_name in children_from_parents[name]:
+            if child_name in pending:
+                pending[child_name] -= 1
+                if pending[child_name] == 0:
+                    topo.append(child_name)
+    for name in reversed(topo):
+        for child_name in children_from_parents[name]:
+            if child_name in place:
+                place[name] = min(place[name], place[child_name])
+
     heap = []
     for n in other_nodes:
         if in_degree[n.name] == 0:
-            heapq.heappush(heap, (original_order[n.name], n.name))
+            heapq.heappush(
+                heap, (place[n.name], original_order[n.name], n.name)
+            )
 
     sorted_other = []
     while heap:
-        _, name = heapq.heappop(heap)
+        _, _, name = heapq.heappop(heap)
         sorted_other.append(node_map[name])
         remaining_set.discard(name)
         for child_name in children_from_parents[name]:
@@ -636,7 +665,8 @@ def sort_graph(graph: Graph):
                     heapq.heappush(
                         heap,
                         (
-                            original_order.get(child_name, len(other_nodes)),
+                            place[child_name],
+                            original_order[child_name],
                             child_name,
                         ),
                     )
