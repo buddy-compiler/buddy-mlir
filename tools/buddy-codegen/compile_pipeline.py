@@ -214,6 +214,12 @@ def build_stages(
                 "-affine-parallelize",
                 "-convert-vector-to-scf",
                 "-lower-affine",
+                # -affine-parallelize makes every parallel loop of a nest an
+                # scf.parallel dimension, the unit batch dimension too, and
+                # -convert-scf-to-openmp forks the threads over the outermost
+                # scf.parallel only: with one iteration, one thread runs the
+                # whole nest. -canonicalize drops single-iteration dimensions.
+                "-canonicalize",
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
                 "-cse",
             ]
@@ -227,6 +233,7 @@ def build_stages(
                 "-affine-parallelize",
                 "-convert-vector-to-scf",
                 "-lower-affine",
+                "-canonicalize",  # as for "subgraph" above
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
             ]
         )
