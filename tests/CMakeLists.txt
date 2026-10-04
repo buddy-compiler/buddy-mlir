@@ -1,4 +1,5 @@
 add_subdirectory(Interface)
+add_subdirectory(Runtime)
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
@@ -15,6 +16,7 @@ set(BUDDY_TEST_DEPENDS
   buddy-container-test
   buddy-audio-container-test
   buddy-text-container-test
+  buddy-sampler-test
   mlir-runner
   )
 
