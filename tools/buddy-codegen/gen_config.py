@@ -299,6 +299,47 @@ def derive_shapes(hf: dict, spec: dict) -> dict:
     }
 
 
+DEFAULT_PREFILL_CHUNK = 64
+
+
+def derive_prefill_chunk(spec: dict, shape: dict, tiered: bool) -> int:
+    """Opt-in chunked prefill: the number of prompt tokens per forward_prefill
+    call, or 0 (off, the default) for one call over max_token_len positions.
+
+    The spec sets `prefill_chunk` to a positive integer, or to `true` for
+    DEFAULT_PREFILL_CHUNK. When on, import_model.py traces forward_prefill
+    like forward_decode, with `prefill_chunk` tokens and their positions in
+    and the KV cache in and out, and the generated ModelSession::prefill()
+    walks the prompt chunk by chunk (see docs/ChunkedPrefill.md). Prefill
+    then costs about as much as the prompt is long, rounded up to whole
+    chunks, instead of always max_token_len positions.
+    """
+    raw = spec.get("prefill_chunk", 0)
+    if raw is True:
+        chunk = DEFAULT_PREFILL_CHUNK
+    elif raw is False or raw is None:
+        chunk = 0
+    elif isinstance(raw, int) and raw >= 0:
+        chunk = raw
+    else:
+        raise ValueError(
+            f"prefill_chunk must be true/false or a non-negative integer, "
+            f"got {raw!r}"
+        )
+    if chunk == 0:
+        return 0
+    if chunk > shape["max_token_len"]:
+        raise ValueError(
+            f"prefill_chunk ({chunk}) must not exceed max_token_len "
+            f"({shape['max_token_len']})"
+        )
+    if tiered:
+        raise ValueError(
+            "prefill_chunk and tiered_kv_cache are mutually exclusive"
+        )
+    return chunk
+
+
 def derive_decode_pack(hf: dict, spec: dict) -> dict:
     """Opt-in panel-packing of the decode matmul weights (see the
     pack_decode_matmul_weights graph transform). Off unless the spec sets
@@ -363,6 +404,9 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     weights = compute_weights(variant, param_counts)
     tiered_kv_cache = derive_tiered_kv_cache(spec)
     decode_pack = derive_decode_pack(hf, spec)
+    prefill_chunk = derive_prefill_chunk(
+        spec, shape, tiered_kv_cache["enabled"]
+    )
     if decode_pack["enabled"] and variant not in ("f32", "f16", "bf16"):
         raise RuntimeError(
             f"decode_pack_vector_size is only supported for f32/f16/bf16 "
@@ -404,6 +448,8 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         model_id = f"{model_id}_tiered_kv_cache"
     if decode_pack["enabled"]:
         model_id = f"{model_id}_packed_ffn"
+    if prefill_chunk:
+        model_id = f"{model_id}_prefill_chunk{prefill_chunk}"
 
     return {
         "model_family": model_family,
@@ -421,6 +467,8 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "tokens": tokens,
         "tiered_kv_cache": tiered_kv_cache,
         "decode_pack": decode_pack,
+        # >0: forward_prefill takes this many prompt tokens per call
+        "prefill_chunk": prefill_chunk,
         "cpp_types": {
             "kv": ELEMENT_TYPE_CPP[kv_type],
             "logits": ELEMENT_TYPE_CPP[precision["logits_type"]],

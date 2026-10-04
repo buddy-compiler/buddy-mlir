@@ -801,6 +801,132 @@ def gen_impl_tiered(config: dict) -> str:
     return out.getvalue()
 
 
+def _emit_chunked_prefill(
+    p, chunk, weights, dummy_groups, kv_sizeof, logits_sizeof
+):
+    """ModelSession::prefill() for chunked prefill (docs/ChunkedPrefill.md)."""
+    p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
+    p(f"  // Chunked prefill: forward_prefill has the decode ABI with {chunk}")
+    p("  // tokens per call. A call writes the keys and values of positions")
+    p(
+        "  // start .. start + C - 1 to the KV cache and returns the logits of its"
+    )
+    p("  // C rows. The prompt is walked chunk by chunk; the last chunk is")
+    p(
+        "  // right-aligned so that its last row is the last prompt token (the rows"
+    )
+    p(
+        "  // it recomputes get the same keys and values). A prompt shorter than C"
+    )
+    p(
+        "  // runs all its tokens but the last as one chunk, padded with copies of"
+    )
+    p("  // the last of them (their keys and values lie past the prompt: never")
+    p("  // attended to, overwritten by the next decode steps), and its last")
+    p("  // token as a decode step.")
+    p(f"  constexpr int C = {chunk};")
+    p("  const int n0 = (int)tokens.getTokenCnt();")
+    p("  if (n0 <= 0)")
+    p('    throw std::runtime_error("[BuddyRuntime] empty prompt");')
+    p("  if (n0 > cfg_.maxTokenLen)")
+    p("    throw std::runtime_error(")
+    p('        "[BuddyRuntime] prompt longer than the KV cache (" +')
+    p(
+        '        std::to_string(n0) + " > " + std::to_string(cfg_.maxTokenLen) + ")");'
+    )
+    p("  const int n = n0 < C ? n0 - 1 : n0; // prompt tokens run as chunks")
+    p()
+    p("  auto &state = impl_->decodeStateAbi;")
+    p("  auto &result = impl_->chunkResultAbi;")
+    p("  const uint64_t elemsPerLayer =")
+    p("      (uint64_t)cfg_.headNum * cfg_.maxTokenLen * cfg_.hiddenSize;")
+    p("  // Attention masks the positions not written yet by multiplying them")
+    p(
+        "  // with 0, so they must hold finite values: start from an empty cache."
+    )
+    p("  for (int i = 0; i < cfg_.kvLayers; ++i)")
+    p("    std::memset(state.kv(i).getData(), 0,")
+    p(f"                elemsPerLayer * {kv_sizeof});")
+    p()
+    p("  long long *chunkTokens = impl_->chunkTokens->getData();")
+    p("  int start = 0;")
+    p("  while (n > 0) {")
+    p("    if (start + C > n)")
+    p("      start = std::max(0, n - C);")
+    p("    for (int i = 0; i < C; ++i)")
+    p(
+        "      chunkTokens[i] = (long long)tokens.getData()[std::min(start + i, n - 1)];"
+    )
+    p("    cachePosition_->getData()[0] = (long long)start;")
+    p(f"    for (int i = 0; i < {dummy_groups}; ++i)")
+    p("      state.dummy(i).getData()[0] = (long long)start;")
+    call_parts = ["&result"]
+    call_parts += [f"{w['tag']}_.get()" for w in weights]
+    call_parts += ["impl_->chunkTokens.get()", "cachePosition_.get()"]
+    call_parts += ["&state.kv(0)", "&state.kv(1)"]
+    for i in range(dummy_groups):
+        call_parts += [
+            f"&state.dummy({i})",
+            f"&state.kv({2 + i * 2})",
+            f"&state.kv({3 + i * 2})",
+        ]
+    p("    impl_->prefillFn(")
+    line = "        "
+    for idx, part in enumerate(call_parts):
+        sep = ", " if idx < len(call_parts) - 1 else ");"
+        candidate = line + part + sep
+        if len(candidate) > 80 and line.strip():
+            p(line.rstrip(", ") + ",")
+            line = "        " + part + sep
+        else:
+            line = candidate
+    if line.strip():
+        p(line)
+    p()
+    p("    // The logits of the chunk row holding the last token run so far.")
+    p("    const int row = std::min(n, start + C) - 1 - start;")
+    p("    std::memcpy(state.logits().getData(),")
+    p(
+        "                result.logits().getData() + (size_t)row * cfg_.vocabSize,"
+    )
+    p(f"                (uint64_t)cfg_.vocabSize * {logits_sizeof});")
+    p("    for (int i = 0; i < cfg_.kvLayers; ++i) {")
+    p("      if (result.kv(i).getData() != state.kv(i).getData())")
+    p("        std::memcpy(state.kv(i).getData(), result.kv(i).getData(),")
+    p(f"                    elemsPerLayer * {kv_sizeof});")
+    p("    }")
+    p("    // As in decode(): results aliasing session memrefs are not freed.")
+    p("    releaseIfAliased(result.cachePositionOut(), *cachePosition_);")
+    p(
+        "    releaseIfAliased(result.cachePositionOut(), state.cachePositionOut());"
+    )
+    p(f"    for (int i = 0; i < {dummy_groups}; ++i)")
+    p("      releaseIfAliased(result.dummy(i), state.dummy(i));")
+    p("    for (int i = 0; i < cfg_.kvLayers; ++i)")
+    p("      releaseIfAliased(result.kv(i), state.kv(i));")
+    p(
+        "    intptr_t kvShape[4] = {1, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize};"
+    )
+    p("    intptr_t logitsShape[3] = {1, C, cfg_.vocabSize};")
+    p("    intptr_t pshape[1] = {1};")
+    p("    resetDecodeResultABI(result, kvShape, logitsShape, pshape);")
+    p()
+    p("    if (start + C >= n)")
+    p("      break;")
+    p("    start += C;")
+    p("  }")
+    p()
+    p("  if (n < n0) {")
+    p("    position_ = n;")
+    p("    decode((int)tokens.getData()[n0 - 1]);")
+    p("    return;")
+    p("  }")
+    p("  impl_->lastLogitsAreDecode = true;")
+    p("  position_ = n;")
+    p("}")
+    p()
+
+
 def gen_impl(config: dict) -> str:
     if _is_tiered_kv_cache(config):
         return gen_impl_tiered(config)
@@ -823,6 +949,9 @@ def gen_impl(config: dict) -> str:
     logits_memref = config["cpp_types"]["logits_memref"]
     need_logits_conv = logits_cpp != "float"
     is_quantized = variant.startswith("w")
+    # >0: chunked prefill (gen_config.derive_prefill_chunk). forward_prefill
+    # then has the decode ABI with `chunk` tokens, there is no PrefillABI.
+    chunk = int(config.get("prefill_chunk", 0))
 
     p(_CPP_FILE_PROLOGUE)
     p('#include "buddy/runtime/models/ModelSession.h"')
@@ -877,11 +1006,18 @@ def gen_impl(config: dict) -> str:
     )
     p("// structs")
     p("//")
-    p("// _mlir_ciface_forward_prefill writes:")
-    p(
-        f"//   [kv0..kv{kv_layers - 1} : {kv_memref} x {kv_layers}]"
-        f"[logits : {logits_memref}]"
-    )
+    if chunk:
+        p(
+            "// _mlir_ciface_forward_prefill (chunked prefill, "
+            f"{chunk} tokens per call)"
+        )
+        p("// writes a DecodeABI, with logits of shape {1, chunk, vocab}.")
+    else:
+        p("// _mlir_ciface_forward_prefill writes:")
+        p(
+            f"//   [kv0..kv{kv_layers - 1} : {kv_memref} x {kv_layers}]"
+            f"[logits : {logits_memref}]"
+        )
     p("//")
     p("// _mlir_ciface_forward_decode writes:")
     p(
@@ -905,22 +1041,23 @@ def gen_impl(config: dict) -> str:
     p(f"using KV4Ref = {kv_memref};")
     p(f"using Logits3Ref = {logits_memref};")
     p()
-    p("struct PrefillABI {")
-    p(f"  alignas({kv_memref}) char kv_[sizeof({kv_memref}) *")
-    p(f"                                     {mp}_KV_LAYERS];")
-    p(f"  alignas({logits_memref}) char logits_[sizeof({logits_memref})];")
-    p()
-    p(f"  {kv_memref} &kv(int i) {{")
-    p(f"    return *std::launder(reinterpret_cast<{kv_memref} *>(")
-    p(f"        kv_ + i * sizeof({kv_memref})));")
-    p("  }")
-    p(f"  {logits_memref} &logits() {{")
-    p(
-        f"    return *std::launder(reinterpret_cast<{logits_memref} *>(logits_));"
-    )
-    p("  }")
-    p("};")
-    p()
+    if not chunk:
+        p("struct PrefillABI {")
+        p(f"  alignas({kv_memref}) char kv_[sizeof({kv_memref}) *")
+        p(f"                                     {mp}_KV_LAYERS];")
+        p(f"  alignas({logits_memref}) char logits_[sizeof({logits_memref})];")
+        p()
+        p(f"  {kv_memref} &kv(int i) {{")
+        p(f"    return *std::launder(reinterpret_cast<{kv_memref} *>(")
+        p(f"        kv_ + i * sizeof({kv_memref})));")
+        p("  }")
+        p(f"  {logits_memref} &logits() {{")
+        p(
+            f"    return *std::launder(reinterpret_cast<{logits_memref} *>(logits_));"
+        )
+        p("  }")
+        p("};")
+        p()
     p("struct DecodeABI {")
     p("  alignas(Dummy1Ref) char cachePositionOut_[sizeof(Dummy1Ref)];")
     p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
@@ -975,10 +1112,11 @@ def gen_impl(config: dict) -> str:
         f"MemRef<{w['cpp_type']}, 1> *" for w in weights
     )
 
-    p(
-        f"using PrefillFn = void (*)(PrefillABI *, {weight_ptr_types}, Text<size_t, 2> *);"
-    )
-    p()
+    if not chunk:
+        p(
+            f"using PrefillFn = void (*)(PrefillABI *, {weight_ptr_types}, Text<size_t, 2> *);"
+        )
+        p()
 
     kv4 = "KV4Ref *"
     p(f"using KV4 = {kv4};")
@@ -1006,14 +1144,19 @@ def gen_impl(config: dict) -> str:
     if line.strip():
         p(line.rstrip())
     p()
+    if chunk:
+        p("// Chunked prefill: forward_prefill has the decode ABI.")
+        p("using PrefillFn = DecodeFn;")
+        p()
 
     p("namespace {")
-    p("void destroyPrefillABI(PrefillABI &abi) {")
-    p(f"  for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
-    p("    abi.kv(i).~KV4Ref();")
-    p("  abi.logits().~Logits3Ref();")
-    p("}")
-    p()
+    if not chunk:
+        p("void destroyPrefillABI(PrefillABI &abi) {")
+        p(f"  for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
+        p("    abi.kv(i).~KV4Ref();")
+        p("  abi.logits().~Logits3Ref();")
+        p("}")
+        p()
     p("void destroyDecodeABI(DecodeABI &abi) {")
     p("  abi.cachePositionOut().~Dummy1Ref();")
     p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
@@ -1023,14 +1166,15 @@ def gen_impl(config: dict) -> str:
     p("  abi.logits().~Logits3Ref();")
     p("}")
     p()
-    p("void resetPrefillResultABI(PrefillABI &abi, intptr_t kvShape[4],")
-    p("                           intptr_t logitsShape[3]) {")
-    p("  destroyPrefillABI(abi);")
-    p(f"  for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
-    p("    new (&abi.kv(i)) KV4Ref(kvShape, false, 0);")
-    p("  new (&abi.logits()) Logits3Ref(logitsShape, false, 0);")
-    p("}")
-    p()
+    if not chunk:
+        p("void resetPrefillResultABI(PrefillABI &abi, intptr_t kvShape[4],")
+        p("                           intptr_t logitsShape[3]) {")
+        p("  destroyPrefillABI(abi);")
+        p(f"  for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
+        p("    new (&abi.kv(i)) KV4Ref(kvShape, false, 0);")
+        p("  new (&abi.logits()) Logits3Ref(logitsShape, false, 0);")
+        p("}")
+        p()
     p("void resetDecodeResultABI(DecodeABI &abi, intptr_t kvShape[4],")
     p(
         "                          intptr_t logitsShape[3], intptr_t pshape[1]) {"
@@ -1065,10 +1209,14 @@ def gen_impl(config: dict) -> str:
     p(
         "  // Session-owned state read by logitsData() and reused as decode inputs."
     )
-    p("  PrefillABI prefillStateAbi;")
+    if not chunk:
+        p("  PrefillABI prefillStateAbi;")
     p("  DecodeABI decodeStateAbi;")
     p("  // Temporary result structs populated by _mlir_ciface_forward_*.")
-    p("  PrefillABI prefillResultAbi;")
+    if chunk:
+        p("  DecodeABI chunkResultAbi;  // forward_prefill, one chunk")
+    else:
+        p("  PrefillABI prefillResultAbi;")
     p("  DecodeABI decodeResultAbi;")
     p("  bool abiInitialized = false;  // placement-new has been called")
     p("  void *soHandle = nullptr;")
@@ -1076,15 +1224,22 @@ def gen_impl(config: dict) -> str:
     p("  PrefillFn prefillFn = nullptr;")
     p("  DecodeFn decodeFn = nullptr;")
     p("  bool lastLogitsAreDecode = false;")
+    if chunk:
+        p("  // The token ids of one prefill chunk.")
+        p("  std::unique_ptr<MemRef<long long, 2>> chunkTokens;")
     p()
     p("  ~Impl() {")
     p(
         "    // Explicitly destroy placement-new'd objects before releasing the .so."
     )
     p("    if (abiInitialized) {")
-    p("      destroyPrefillABI(prefillStateAbi);")
-    p("      destroyDecodeABI(decodeStateAbi);")
-    p("      destroyPrefillABI(prefillResultAbi);")
+    if chunk:
+        p("      destroyDecodeABI(decodeStateAbi);")
+        p("      destroyDecodeABI(chunkResultAbi);")
+    else:
+        p("      destroyPrefillABI(prefillStateAbi);")
+        p("      destroyDecodeABI(decodeStateAbi);")
+        p("      destroyPrefillABI(prefillResultAbi);")
     p("      destroyDecodeABI(decodeResultAbi);")
     p("    }")
     p("    if (soHandle) {")
@@ -1201,6 +1356,10 @@ def gen_impl(config: dict) -> str:
     p(
         "    new (&impl_->decodeResultAbi.cachePositionOut()) Dummy1Ref(pshape, false, 0);"
     )
+    if chunk:
+        p(
+            "    new (&impl_->chunkResultAbi.cachePositionOut()) Dummy1Ref(pshape, false, 0);"
+        )
     p("  }")
     p()
     p("  for (int i = 0; i < cfg_.kvLayers; ++i) {")
@@ -1211,10 +1370,14 @@ def gen_impl(config: dict) -> str:
     p("    desc.bytes = bytesPerLayer;")
     p("    desc.id = (uint32_t)(100 + i);")
     p()
-    p("    new (&impl_->prefillStateAbi.kv(i))")
-    p(f"        {kv_memref}(kvShape, false, 0);")
-    p("    new (&impl_->prefillResultAbi.kv(i))")
-    p(f"        {kv_memref}(kvShape, false, 0);")
+    if chunk:
+        p("    new (&impl_->chunkResultAbi.kv(i))")
+        p(f"        {kv_memref}(kvShape, false, 0);")
+    else:
+        p("    new (&impl_->prefillStateAbi.kv(i))")
+        p(f"        {kv_memref}(kvShape, false, 0);")
+        p("    new (&impl_->prefillResultAbi.kv(i))")
+        p(f"        {kv_memref}(kvShape, false, 0);")
     p("    new (&impl_->decodeStateAbi.kv(i))")
     p(f"        {kv_memref}(kvShape);")
     p("    new (&impl_->decodeResultAbi.kv(i))")
@@ -1228,29 +1391,46 @@ def gen_impl(config: dict) -> str:
     p("    new (&impl_->decodeStateAbi.dummy(i)) Dummy1Ref(pshape, 0LL);")
     p("    impl_->decodeStateAbi.dummy(i).getData()[0] = 0LL;")
     p("    new (&impl_->decodeResultAbi.dummy(i)) Dummy1Ref(pshape, false, 0);")
+    if chunk:
+        p(
+            "    new (&impl_->chunkResultAbi.dummy(i)) Dummy1Ref(pshape, false, 0);"
+        )
     p("  }")
     p()
-    p("  // --- Logits: prefill shape {1, maxTokenLen, vocabSize} ---")
-    p("  const uint64_t prefillLogitsBytes =")
-    p(f"      (uint64_t)cfg_.maxTokenLen * cfg_.vocabSize * {logits_sizeof};")
-    p("  {")
-    p("    BufferDesc desc;")
-    p('    desc.name = "prefill_logits";')
-    p("    desc.role = BufferRole::Output;")
-    p("    desc.lifetime = BufferLifetime::Session;")
-    p("    desc.bytes = prefillLogitsBytes;")
-    p("    desc.id = 200;")
-    p()
-    p("    intptr_t lshape[3] = {1, cfg_.maxTokenLen, cfg_.vocabSize};")
-    p("    new (&impl_->prefillStateAbi.logits())")
-    p(f"        {logits_memref}(lshape);")
-    p("    new (&impl_->prefillResultAbi.logits())")
-    p(f"        {logits_memref}(lshape, false, 0);")
-    p("    pool_.registerExternal(desc.name, desc.role, desc.lifetime,")
-    p("                           impl_->prefillStateAbi.logits().getData(),")
-    p("                           desc.bytes, desc.id);")
-    p("  }")
-    p()
+    if chunk:
+        p("  // --- Logits of one prefill chunk: {1, chunk, vocabSize} ---")
+        p("  {")
+        p(f"    intptr_t lshape[3] = {{1, {chunk}, cfg_.vocabSize}};")
+        p("    new (&impl_->chunkResultAbi.logits())")
+        p(f"        {logits_memref}(lshape, false, 0);")
+        p("  }")
+        p()
+    else:
+        p("  // --- Logits: prefill shape {1, maxTokenLen, vocabSize} ---")
+        p("  const uint64_t prefillLogitsBytes =")
+        p(
+            f"      (uint64_t)cfg_.maxTokenLen * cfg_.vocabSize * {logits_sizeof};"
+        )
+        p("  {")
+        p("    BufferDesc desc;")
+        p('    desc.name = "prefill_logits";')
+        p("    desc.role = BufferRole::Output;")
+        p("    desc.lifetime = BufferLifetime::Session;")
+        p("    desc.bytes = prefillLogitsBytes;")
+        p("    desc.id = 200;")
+        p()
+        p("    intptr_t lshape[3] = {1, cfg_.maxTokenLen, cfg_.vocabSize};")
+        p("    new (&impl_->prefillStateAbi.logits())")
+        p(f"        {logits_memref}(lshape);")
+        p("    new (&impl_->prefillResultAbi.logits())")
+        p(f"        {logits_memref}(lshape, false, 0);")
+        p("    pool_.registerExternal(desc.name, desc.role, desc.lifetime,")
+        p(
+            "                           impl_->prefillStateAbi.logits().getData(),"
+        )
+        p("                           desc.bytes, desc.id);")
+        p("  }")
+        p()
     p("  {")
     p("    BufferDesc desc;")
     p('    desc.name = "decode_logits";')
@@ -1277,6 +1457,13 @@ def gen_impl(config: dict) -> str:
     p("    decodeTokenInput_ = std::make_unique<MemRef<long long, 2>>(tshape);")
     p("    cachePosition_ = std::make_unique<MemRef<long long, 1>>(pshape);")
     p("  }")
+    if chunk:
+        p("  {")
+        p(f"    intptr_t tshape[2] = {{1, {chunk}}};")
+        p(
+            "    impl_->chunkTokens = std::make_unique<MemRef<long long, 2>>(tshape);"
+        )
+        p("  }")
     p("}")
     p()
     p(
@@ -1342,32 +1529,39 @@ def gen_impl(config: dict) -> str:
     # ── prefill ──────────────────────────────────────────────────────────────
     weight_addrs_internal = ", ".join(f"{w['tag']}_.get()" for w in weights)
 
-    p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
-    p(
-        f"  impl_->prefillFn(&impl_->prefillResultAbi, {weight_addrs_internal}, &tokens);"
-    )
-    p("  const uint64_t elemsPerLayer =")
-    p("      (uint64_t)cfg_.headNum * cfg_.maxTokenLen * cfg_.hiddenSize;")
-    p("  const uint64_t prefillLogitsElems =")
-    p("      (uint64_t)cfg_.maxTokenLen * cfg_.vocabSize;")
-    p("  std::memcpy(impl_->prefillStateAbi.logits().getData(),")
-    p("              impl_->prefillResultAbi.logits().getData(),")
-    p(f"              prefillLogitsElems * {logits_sizeof});")
-    p("  for (int i = 0; i < cfg_.kvLayers; ++i) {")
-    p("    std::memcpy(impl_->decodeStateAbi.kv(i).getData(),")
-    p("                impl_->prefillResultAbi.kv(i).getData(),")
-    p(f"                elemsPerLayer * {kv_sizeof});")
-    p("  }")
-    p(
-        "  intptr_t kvShape[4] = {1, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize};"
-    )
-    p("  intptr_t logitsShape[3] = {1, cfg_.maxTokenLen, cfg_.vocabSize};")
-    p("  resetPrefillResultABI(impl_->prefillResultAbi, kvShape, logitsShape);")
-    p("  impl_->lastLogitsAreDecode = false;")
-    p("  int tokenCount = (int)tokens.getTokenCnt();")
-    p("  position_ = tokenCount;")
-    p("}")
-    p()
+    if chunk:
+        _emit_chunked_prefill(
+            p, chunk, weights, dummy_groups, kv_sizeof, logits_sizeof
+        )
+    else:
+        p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
+        p(
+            f"  impl_->prefillFn(&impl_->prefillResultAbi, {weight_addrs_internal}, &tokens);"
+        )
+        p("  const uint64_t elemsPerLayer =")
+        p("      (uint64_t)cfg_.headNum * cfg_.maxTokenLen * cfg_.hiddenSize;")
+        p("  const uint64_t prefillLogitsElems =")
+        p("      (uint64_t)cfg_.maxTokenLen * cfg_.vocabSize;")
+        p("  std::memcpy(impl_->prefillStateAbi.logits().getData(),")
+        p("              impl_->prefillResultAbi.logits().getData(),")
+        p(f"              prefillLogitsElems * {logits_sizeof});")
+        p("  for (int i = 0; i < cfg_.kvLayers; ++i) {")
+        p("    std::memcpy(impl_->decodeStateAbi.kv(i).getData(),")
+        p("                impl_->prefillResultAbi.kv(i).getData(),")
+        p(f"                elemsPerLayer * {kv_sizeof});")
+        p("  }")
+        p(
+            "  intptr_t kvShape[4] = {1, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize};"
+        )
+        p("  intptr_t logitsShape[3] = {1, cfg_.maxTokenLen, cfg_.vocabSize};")
+        p(
+            "  resetPrefillResultABI(impl_->prefillResultAbi, kvShape, logitsShape);"
+        )
+        p("  impl_->lastLogitsAreDecode = false;")
+        p("  int tokenCount = (int)tokens.getTokenCnt();")
+        p("  position_ = tokenCount;")
+        p("}")
+        p()
     p(
         "//===----------------------------------------------------------------------===//"
     )
@@ -1514,7 +1708,24 @@ def gen_impl(config: dict) -> str:
     p()
 
     # ── logitsData ───────────────────────────────────────────────────────────
-    if need_logits_conv:
+    if chunk:
+        # A chunked prefill keeps the logits of the last prompt token only, in
+        # the decode logits buffer: tokenOffset is not used.
+        p("const float *ModelSession::logitsData(int /*tokenOffset*/) const {")
+        if need_logits_conv:
+            p("  const int n = cfg_.vocabSize;")
+            p("  if ((int)logitsFloat_.size() != n)")
+            p("    logitsFloat_.resize(n);")
+            p(
+                f"  const {logits_cpp} *raw = impl_->decodeStateAbi.logits().getData();"
+            )
+            p("  for (int i = 0; i < n; ++i)")
+            p("    logitsFloat_[i] = halfToFloat(raw[i]);")
+            p("  return logitsFloat_.data();")
+        else:
+            p("  return impl_->decodeStateAbi.logits().getData();")
+        p("}")
+    elif need_logits_conv:
         p("const float *ModelSession::logitsData(int tokenOffset) const {")
         p("  const int n = cfg_.vocabSize;")
         p("  if ((int)logitsFloat_.size() != n)")

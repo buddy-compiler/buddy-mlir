@@ -207,6 +207,86 @@ def compile_graphs(model, config: dict):
     return graphs_prefill, graphs_decode, params
 
 
+def _warmed_static_cache(model, max_token_len: int):
+    """A StaticCache whose layers are allocated: StaticCache allocates them on
+    the first update, and a cache passed to a trace must already hold its
+    tensors so that they become graph inputs. Allocated by a one-token call
+    at position 0, which also advances the cache by one token."""
+    cache = StaticCache(config=model.config, max_cache_len=max_token_len)
+    model(
+        input_ids=torch.zeros((1, 1), dtype=torch.int64),
+        past_key_values=cache,
+        use_cache=True,
+        cache_implementation="static",
+    )
+    return cache
+
+
+def compile_chunk_graphs(model, config: dict):
+    """Like compile_graphs, for chunked prefill (config["prefill_chunk"]):
+    forward_prefill is traced like forward_decode, with prefill_chunk tokens
+    and their start position in and the KV cache in and out, so that the
+    session prefills a prompt chunk by chunk (docs/ChunkedPrefill.md). Both
+    graphs have the decode ABI and differ in the number of tokens only.
+
+    Each trace gets its own cache: tracing runs the model and advances the
+    cache it is given. forward_prefill is traced on an empty cache (allocated,
+    then reset) at positions 0 .. prefill_chunk - 1, which are in range for
+    any prefill_chunk <= max_token_len. forward_decode is traced as in
+    compile_graphs."""
+    max_token_len = config["shape"]["max_token_len"]
+    chunk = int(config["prefill_chunk"])
+    if not 0 < chunk <= max_token_len:
+        raise ValueError(
+            f"prefill_chunk ({chunk}) must be in 1 .. max_token_len "
+            f"({max_token_len})"
+        )
+
+    prefill_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_prefill",
+    )
+    decode_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_decode",
+    )
+
+    with torch.no_grad():
+        past_kv_prefill = _warmed_static_cache(model, max_token_len)
+        past_kv_prefill.reset()  # logically empty: no tokens, zero K/V
+        graphs_prefill = prefill_compiler.importer(
+            model,
+            input_ids=torch.zeros((1, chunk), dtype=torch.int64),
+            use_cache=True,
+            cache_position=torch.arange(chunk, dtype=torch.int64),
+            past_key_values=past_kv_prefill,
+            cache_implementation="static",
+        )
+
+        past_kv_decode = _warmed_static_cache(model, max_token_len)
+        graphs_decode = decode_compiler.importer(
+            model,
+            input_ids=torch.zeros((1, 1), dtype=torch.int64),
+            use_cache=True,
+            cache_position=torch.tensor([200], dtype=torch.int64),
+            past_key_values=past_kv_decode,
+            cache_implementation="static",
+        )
+
+    assert len(graphs_prefill) == 1
+    assert len(graphs_decode) == 1
+
+    params = prefill_compiler.imported_params[graphs_prefill[0]]
+    print(
+        f"[import] Graphs imported (prefill chunk {chunk}): "
+        f"{len(params)} parameters",
+        file=sys.stderr,
+    )
+    return graphs_prefill, graphs_decode, params
+
+
 def is_tiered_kv_cache(config: dict) -> bool:
     return bool(config.get("tiered_kv_cache", {}).get("enabled", False))
 
@@ -530,13 +610,17 @@ def apply_pre_transforms(graph_prefill, graph_decode):
     )
 
 
-def apply_fusion(graph_prefill, graph_decode):
+def apply_fusion(graph_prefill, graph_decode, chunked_prefill=False):
     """Apply fusion patterns and rename subgraphs."""
     pattern_prefill = [
         simply_fuse,
         apply_classic_fusion,
         flash_attention_prefill,
     ]
+    if chunked_prefill:
+        # The chunk attends to the KV cache, like decode; flash attention
+        # covers the full-prompt prefill graph.
+        pattern_prefill = [simply_fuse, apply_classic_fusion]
     pattern_decode = [simply_fuse, apply_classic_fusion, gqa_attention_fusion]
 
     graph_prefill.fuse_ops(pattern_prefill)
@@ -1225,6 +1309,13 @@ def import_model(
     os.makedirs(output_dir, exist_ok=True)
     variant = config["variant"]
     is_quantized = variant.startswith("w")
+    chunked_prefill = bool(config.get("prefill_chunk"))
+    if chunked_prefill and (
+        export_layer_partitioned or export_template_partitioned
+    ):
+        raise ValueError(
+            "prefill_chunk is not supported with partitioned exports"
+        )
 
     # 1. Load model
     with timed_import_step("load_model"):
@@ -1272,8 +1363,10 @@ def import_model(
 
     # 2. Compile graphs
     with timed_import_step("compile_graphs"):
-        graphs_prefill, graphs_decode, original_params = compile_graphs(
-            model, config
+        graphs_prefill, graphs_decode, original_params = (
+            compile_chunk_graphs(model, config)
+            if chunked_prefill
+            else compile_graphs(model, config)
         )
 
     # 3. Pre-fusion transforms
@@ -1325,7 +1418,9 @@ def import_model(
 
     # 6. Fusion + subgraph rename
     with timed_import_step("fusion"):
-        apply_fusion(graphs_prefill[0], graphs_decode[0])
+        apply_fusion(
+            graphs_prefill[0], graphs_decode[0], chunked_prefill=chunked_prefill
+        )
 
     if export_layer_partitioned:
         with timed_import_step("export_layer_partitioned_mlir"):
