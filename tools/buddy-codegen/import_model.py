@@ -172,7 +172,7 @@ def compile_graphs(model, config: dict):
             "input_ids": torch.zeros((1, max_token_len), dtype=torch.int64)
         }
         data_decode = {"input_ids": torch.zeros((1, 1), dtype=torch.int64)}
-        cache_position = torch.tensor([200], dtype=torch.int64)
+        cache_position = decode_trace_position(max_token_len)
 
         graphs_prefill = prefill_compiler.importer(
             model,
@@ -207,6 +207,16 @@ def compile_graphs(model, config: dict):
     return graphs_prefill, graphs_decode, params
 
 
+def decode_trace_position(max_token_len: int) -> torch.Tensor:
+    """The cache position forward_decode is traced at: 1, right after the
+    one-token call that allocates the StaticCache before the trace, so that
+    it is in range for any cache of 2 positions or more (0 for a cache of
+    one). The position is an input of the traced graph, which does not
+    depend on its value; tracing at a position past the cache did not
+    always fail, but ran the model on indices out of range."""
+    return torch.tensor([min(1, max_token_len - 1)], dtype=torch.int64)
+
+
 def _warmed_static_cache(model, max_token_len: int):
     """A StaticCache whose layers are allocated: StaticCache allocates them on
     the first update, and a cache passed to a trace must already hold its
@@ -233,7 +243,7 @@ def compile_chunk_graphs(model, config: dict):
     cache it is given. forward_prefill is traced on an empty cache (allocated,
     then reset) at positions 0 .. prefill_chunk - 1, which are in range for
     any prefill_chunk <= max_token_len. forward_decode is traced as in
-    compile_graphs."""
+    compile_graphs, at decode_trace_position()."""
     max_token_len = config["shape"]["max_token_len"]
     chunk = int(config["prefill_chunk"])
     if not 0 < chunk <= max_token_len:
@@ -270,7 +280,7 @@ def compile_chunk_graphs(model, config: dict):
             model,
             input_ids=torch.zeros((1, 1), dtype=torch.int64),
             use_cache=True,
-            cache_position=torch.tensor([200], dtype=torch.int64),
+            cache_position=decode_trace_position(max_token_len),
             past_key_values=past_kv_decode,
             cache_implementation="static",
         )
@@ -461,10 +471,7 @@ def compile_and_export_tiered_graphs(
 
         with torch.no_grad():
             past_kv = StaticCache(config=model.config, max_cache_len=cache_size)
-            cache_position = torch.tensor(
-                [min(200 * cache_size // 1024, cache_size - 1)],
-                dtype=torch.int64,
-            )
+            cache_position = decode_trace_position(cache_size)
 
             model(
                 input_ids=data_decode["input_ids"],
