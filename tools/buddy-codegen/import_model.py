@@ -885,6 +885,69 @@ def export_template_partitioned_mlir(
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
+    """w4g32: every Linear layer and the attention of both graphs become calls
+    to the int4 kernels of graph/transform/k3_w4.py, which are written to
+    k3_kernels-w4g32.mlir (compile_pipeline.py pipeline "kernels").
+
+    Prefill (prefill_chunk rows) and decode (one row) get the same parameter
+    rewrite: they share the weights."""
+    from buddy.compiler.graph.transform.k3_w4 import gen_kernels, k3_w4_rewrite
+
+    threads = config["compilation"]["num_threads"]
+    specs = {}
+    for graph, rows in (
+        (graph_prefill, config["prefill_chunk"]),
+        (graph_decode, 1),
+    ):
+        # inputs: the token ids, then the start position
+        for spec in k3_w4_rewrite(graph, rows, graph.inputs[1].name, threads):
+            specs[spec["name"]] = spec
+
+    def shapes(graph):
+        return [
+            (tuple(p.tensor_meta["shape"]), p.tensor_meta["dtype"])
+            for p in graph.params
+        ]
+
+    if shapes(graph_prefill) != shapes(graph_decode):
+        raise RuntimeError("w4g32: prefill and decode parameters differ")
+    path = os.path.join(output_dir, "k3_kernels-w4g32.mlir")
+    with open(path, "w") as f:
+        f.write(gen_kernels(specs.values()))
+    print(
+        f"[import] Written: {os.path.basename(path)} ({len(specs)} kernels)",
+        file=sys.stderr,
+    )
+
+
+def extract_k3_weights(graph, config: dict) -> dict[str, numpy.ndarray]:
+    """w4g32: the f32 parameters and the packed int4 weights, each in
+    parameter order, as the forward functions take them."""
+    from buddy.compiler.graph.type import TensorDType
+
+    f32, i8 = [], []
+    for node, ref in zip(graph.params, graph._params_ref):
+        data = ref.detach().contiguous().numpy().reshape(-1)
+        if node.tensor_meta["dtype"] == TensorDType.Int8:
+            i8.append(data.astype(numpy.int8, copy=False))
+        else:
+            f32.append(data.astype(numpy.float32, copy=False))
+    buckets = {
+        "f32_params": numpy.concatenate(f32),
+        "i8_params": numpy.concatenate(i8),
+    }
+    # gen_config.w4g32_param_counts sized the session's buffers.
+    for w in config["weights"]:
+        actual = len(buckets[w["tag"]])
+        if actual != w["num_elements"]:
+            raise RuntimeError(
+                f"w4g32: {w['tag']} has {actual} elements, gen_config "
+                f"expected {w['num_elements']}"
+            )
+    return buckets
+
+
 def apply_quantization(graph_prefill, graph_decode, variant: str):
     """Apply quantization transforms based on the variant name."""
     if variant in ("w8a32", "w8a16"):
@@ -1393,7 +1456,10 @@ def import_model(
             pack_decode_weights(graphs_decode[0], decode_pack)
 
     # 4. Quantization (if applicable)
-    if is_quantized:
+    if variant == "w4g32":
+        with timed_import_step("k3_w4"):
+            apply_k3_w4(graphs_prefill[0], graphs_decode[0], config, output_dir)
+    elif is_quantized:
         with timed_import_step("quantization"):
             apply_quantization(graphs_prefill[0], graphs_decode[0], variant)
 
@@ -1413,6 +1479,8 @@ def import_model(
                     "--skip-weights is only supported for f32/f16/bf16"
                 )
             weight_buckets = {}
+        elif variant == "w4g32":
+            weight_buckets = extract_k3_weights(graphs_prefill[0], config)
         elif is_quantized:
             weight_buckets = extract_quantized_weights(
                 graphs_prefill[0], original_params, config

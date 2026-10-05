@@ -46,6 +46,8 @@ VARIANT_PRECISION = {
     "w8a16": {"kv_type": "f16", "logits_type": "f16", "activation_type": "f16"},
     "w8a8": {"kv_type": "f32", "logits_type": "f32", "activation_type": "f32"},
     "w4a16": {"kv_type": "f16", "logits_type": "f16", "activation_type": "f16"},
+    # int4 in 32-row groups, kernels for RVV VLEN 1024 (graph/transform/k3_w4.py)
+    "w4g32": {"kv_type": "f32", "logits_type": "f32", "activation_type": "f32"},
 }
 
 VARIANT_WEIGHT_TEMPLATES = {
@@ -67,6 +69,10 @@ VARIANT_WEIGHT_TEMPLATES = {
     "w4a16": [
         {"tag": "f16_params", "suffix": "-w4a16-f16", "element_type": "f16"},
         {"tag": "i4_params", "suffix": "-w4a16-i4packed", "element_type": "i8"},
+    ],
+    "w4g32": [
+        {"tag": "f32_params", "suffix": "-w4g32-f32", "element_type": "f32"},
+        {"tag": "i8_params", "suffix": "-w4g32-q4", "element_type": "i8"},
     ],
 }
 
@@ -223,6 +229,8 @@ def compute_weights(variant: str, param_counts: dict) -> list[dict]:
 
         if variant in ("f32", "f16", "bf16"):
             num_elements = param_counts["total"]
+        elif variant == "w4g32":
+            num_elements = param_counts[f"{etype}_elements"]
         elif (
             variant in ("w8a32", "w8a16")
             or variant == "w8a8"
@@ -251,6 +259,46 @@ def compute_weights(variant: str, param_counts: dict) -> list[dict]:
         )
 
     return weights
+
+
+def w4g32_param_counts(hf: dict, spec: dict) -> dict:
+    """w4g32 (graph/transform/k3_w4.py) buffer sizes, from the HF config of a
+    Qwen2 model: every Linear weight [K, N] becomes K * N * 9 / 16 bytes of
+    int4 tiles with their f16 scales; the embedding, the norms, the q / k / v
+    biases and the RoPE inv_freq stay f32."""
+    arch = (hf.get("architectures") or ["?"])[0]
+    if arch != "Qwen2ForCausalLM":
+        raise ValueError(f"w4g32 supports Qwen2ForCausalLM models, not {arch}")
+    if hf.get("tie_word_embeddings"):
+        raise ValueError("w4g32 does not support tie_word_embeddings")
+    if not spec.get("prefill_chunk"):
+        raise ValueError("w4g32 needs prefill_chunk")
+    h = hf["hidden_size"]
+    heads = hf["num_attention_heads"]
+    d = hf.get("head_dim", h // heads)
+    kv = hf.get("num_key_value_heads", heads) * d
+    inter = hf["intermediate_size"]
+    vocab = hf["vocab_size"]
+    layers = hf["num_hidden_layers"]
+    linears = [
+        (h, heads * d),  # q, k, v: one weight, one tile range each
+        (h, kv),
+        (h, kv),
+        (heads * d, h),  # o
+        (h, inter),  # gate
+        (h, inter),  # up
+        (inter, h),  # down
+    ]
+    for k, n in linears + [(h, vocab)]:
+        if k % 32 or n % 128:
+            raise ValueError(
+                f"w4g32 needs Linear weights [K, N] with K % 32 == 0 and "
+                f"N % 128 == 0, got [{k}, {n}]"
+            )
+    per_layer = sum(k * n for k, n in linears)
+    i8 = (layers * per_layer + h * vocab) * 9 // 16
+    f32 = vocab * h + layers * (2 * h + heads * d + 2 * kv) + h + d // 2
+    return {"f32_elements": f32, "i8_elements": i8}
 
 
 def derive_tiered_kv_cache(spec: dict) -> dict:
@@ -432,7 +480,11 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     shape = derive_shapes(hf, spec)
     tokens = derive_tokens(hf, spec)
     precision = VARIANT_PRECISION.get(variant, VARIANT_PRECISION["f32"])
-    param_counts = count_params(spec)
+    param_counts = (
+        w4g32_param_counts(hf, spec)
+        if variant == "w4g32"
+        else count_params(spec)
+    )
     weights = compute_weights(variant, param_counts)
     tiered_kv_cache = derive_tiered_kv_cache(spec)
     decode_pack = derive_decode_pack(hf, spec)
@@ -524,6 +576,7 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
                 "subgraph_prefill": "subgraph",
                 "forward_decode": "standard",
                 "subgraph_decode": "subgraph_decode",
+                **({"k3_kernels": "kernels"} if variant == "w4g32" else {}),
             },
         },
     }
