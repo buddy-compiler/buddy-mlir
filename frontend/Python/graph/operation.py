@@ -728,6 +728,7 @@ class CallExternalOp(Op):
         args_index: list[int],
         tensor_meta: dict,
         name: str = None,
+        written_args: list[int] = None,
     ) -> None:
         super().__init__()
         if name is not None:
@@ -736,6 +737,14 @@ class CallExternalOp(Op):
         self._arguments = list(args)
         self._args_index = list(args_index)
         self.tensor_meta = tensor_meta
+        # The indices of the arguments the function writes, or None if
+        # unknown. With a list, the declaration marks every argument
+        # {bufferization.access = "read" | "read-write"}: one-shot
+        # bufferization then copies none of the arguments that are only read
+        # (by default it assumes an external function writes all of them).
+        self.written_args = (
+            None if written_args is None else sorted(set(written_args))
+        )
         self._op_type = OpType.Unfusable
 
 

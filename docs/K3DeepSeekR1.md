@@ -85,6 +85,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | Kernels built per shape with the MLIR Python bindings (scf / vector / memref, `scf.parallel` over the threads), written to `k3_kernels-w4g32.mlir` | `k3_w4.py` (`build_kernels`) |
 | Their compilation, linked into the model library | `compile_pipeline.py` (pipeline `kernels`), `buddy_model.cmake` |
 | The KV caches of a prefill chunk updated in place (`-eliminate-memref-copy`, as for decode) | `compile_pipeline.py` |
+| The kernel calls say which arguments they write (`CallExternalOp.written_args`: none, or the attention's KV caches); their declarations carry `bufferization.access`, so one-shot bufferization copies no argument | `k3_w4.py`, `graph.py` (`_generate_external_func_decl`) |
 | `prefill_ime`: the IME weight layout, the prefill tiles on the matrix engine (`ime.intr.vmadot.hp` of the IME dialect) and their step, in a module of their own | `k3_w4.py` (`pack_ime`, `_ime_tile_fn`, `_ime_step_fn`, `build_kernels(..., "ime")`) |
 | `prefill_ime`: the prefill attention with Q K^T and P V on the matrix engine (`ime.intr.vfmadot`, fp16); its two matrix loops are in the IME module | `k3_w4.py` (`_attn_prefill_ime_fn`, `_attn_mma_fns`) |
 | Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024`: the exact VLEN of the A100 is part of the pipeline, a build for another `BUDDY_RISCV_VLEN` is refused) | `compile_pipeline.py` (pipeline `kernels_ime`, `a100_llc_args`) |
@@ -136,7 +137,7 @@ SpacemiT K3, 8 A100 cores, `buddy-cli`, greedy:
 
 | | prefill, 458 tokens | decode after 458 tokens | decode after a short prompt |
 | --- | --- | --- | --- |
-| buddy-mlir `w4g32` | 2.30 s (199 tok/s) | 23.7 tok/s | 26.6 tok/s |
+| buddy-mlir `w4g32` | 1.60 s (286 tok/s) | 23.7 tok/s | 26.6 tok/s |
 | llama.cpp-tools-spacemit 0.1.9, Q4_0 | 1.96 s (pp458: 234 tok/s) | | 25.0 tok/s (tg128) |
 
 llama.cpp was measured on the same board; `llama-bench` decodes from an empty
@@ -146,7 +147,12 @@ faster than llama.cpp. Prefill runs the layers' matmuls on the matrix engine,
 458: 9.6 -> 2.58 s, 900: 17.7 -> 5.03 s), and its attention too, which saves
 more the longer the prompt (64 tokens: 0.70 -> 0.69 s, 458: 2.57 -> 2.30 s,
 900: 5.02 -> 4.28 s): the attention of a chunk at position 960 takes 1.8
-instead of 4.4 ms per layer.
+instead of 4.4 ms per layer. The kernels are declared as reading their
+arguments (only the attention writes, its KV caches), so bufferization no
+longer copies the arguments of each kernel call (five single-threaded copies
+per layer), and the arena faults its pages in when the model is loaded: 64
+tokens 0.69 -> 0.42 s, 458: 2.29 -> 1.60 s, 900: 4.28 -> 3.09 s, faster
+than llama.cpp.
 
 The matrix engine computes the products of a group in fp16 and the activation
 scales are f16, so the logits differ slightly from those of the RVV tiles,

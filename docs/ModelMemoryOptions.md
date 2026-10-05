@@ -62,7 +62,7 @@ Environment variables read by the model library:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `BUDDY_ARENA_RESERVE_MB` | 16384 | Address range reserved (only touched pages use memory). A call that needs more stops with a message. |
-| `BUDDY_ARENA_PREFAULT_MB` | 0 | Pages faulted in when the library is loaded, instead of during the first call. |
+| `BUDDY_ARENA_PREFAULT_MB` | 512 | Pages faulted in when the library is loaded, instead of during the first call, whose threads would otherwise serialize on page faults (K3, int4 DeepSeek R1: the first 64-token prefill call 0.69 -> 0.57 s). `0` turns it off. |
 | `BUDDY_ARENA_STATS` | unset | `1`: print the largest call's usage at exit. |
 
 ### When it pays off

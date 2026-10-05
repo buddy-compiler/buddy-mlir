@@ -107,6 +107,20 @@ for name, graph in (("prefill", prefill[0]), ("decode", decode[0])):
 # CHECK: prefill: CallExternalOp 11, MatmulOp 0, AddMMOp 0, attention 0
 # CHECK-NEXT: decode: CallExternalOp 11, MatmulOp 0, AddMMOp 0, attention 0
 
+# The kernels write no argument but the attention's KV caches (arguments 3
+# and 4), so bufferization copies none of their arguments.
+for name, graph in (("prefill", prefill[0]), ("decode", decode[0])):
+    written = sorted(
+        {
+            (n.call_func_name.split("_")[1], str(n.written_args))
+            for n in graph.body
+            if type(n).__name__ == "CallExternalOp"
+        }
+    )
+    print(f"{name} written_args:", ", ".join(f"{k} {w}" for k, w in written))
+# CHECK: prefill written_args: attn [3, 4], q4 []
+# CHECK-NEXT: decode written_args: attn [3, 4], q4 []
+
 with open(os.path.join(work, "k3_kernels-w4g32.mlir")) as f:
     kernels = f.read()
 for name in sorted(re.findall(r"func\.func @(\w+)\(", kernels)):
