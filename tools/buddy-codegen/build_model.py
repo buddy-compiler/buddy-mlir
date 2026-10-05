@@ -150,6 +150,13 @@ def main() -> int:
         help="Path to target mlir_c_runner_utils shared library used for RVV Stage 3 linking",
     )
     ap.add_argument(
+        "--riscv-llvm-build-dir",
+        type=Path,
+        default=None,
+        help="riscv64 LLVM build dir (lib/libLLVMSupport.a, include/llvm/Config) "
+        "linked into the RVV runtime plugins",
+    )
+    ap.add_argument(
         "--buddy-mlir-build-dir",
         type=Path,
         default=None,
@@ -203,6 +210,7 @@ def main() -> int:
     rvv_toolchain: Path | None = None
     rvv_omp_shared: Path | None = None
     rvv_mlir_runner_utils: Path | None = None
+    rvv_llvm_build_dir: Path | None = None
     rvv_build_dir: Path | None = None
     if args.is_rvv_crosscompile:
         if args.riscv_gnu_toolchain is None:
@@ -244,6 +252,21 @@ def main() -> int:
         if not rvv_mlir_runner_utils.is_file():
             print(
                 f"error: --riscv-mlir-c-runner-utils is not a file: {rvv_mlir_runner_utils}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if args.riscv_llvm_build_dir is None:
+            print(
+                "error: --is-rvv-crosscompile requires --riscv-llvm-build-dir",
+                file=sys.stderr,
+            )
+            return 1
+        rvv_llvm_build_dir = resolve_from_cwd(args.riscv_llvm_build_dir)
+        if not (rvv_llvm_build_dir / "lib" / "libLLVMSupport.a").is_file():
+            print(
+                "error: --riscv-llvm-build-dir has no lib/libLLVMSupport.a: "
+                f"{rvv_llvm_build_dir}",
                 file=sys.stderr,
             )
             return 1
@@ -370,6 +393,7 @@ def main() -> int:
                 f"-DRISCV_GNU_TOOLCHAIN={rvv_toolchain}",
                 f"-DRISCV_OMP_SHARED={rvv_omp_shared}",
                 f"-DRISCV_MLIR_C_RUNNER_UTILS={rvv_mlir_runner_utils}",
+                f"-DRISCV_LLVM_BUILD_DIR={rvv_llvm_build_dir}",
                 f"-DBUDDY_MLIR_BUILD_DIR={rvv_build_dir}",
             ]
         )
