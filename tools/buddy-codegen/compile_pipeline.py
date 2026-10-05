@@ -82,6 +82,35 @@ BUFFER_DEALLOCATION = [
 ]
 
 
+# The matrix-engine code of the SpacemiT K3 A100 cores (pipeline
+# "kernels_ime") is written for exactly this VLEN: vscale 16, at which
+# vector<[8]xi8> is one 8 x 16 int8 tile of smt.vmadot.
+A100_VLEN = 1024
+
+
+def a100_llc_args(llc_base_args: list[str]) -> list[str]:
+    """llc options of the A100 code, on top of the build's: the IME
+    extension, the exact VLEN (whatever BUDDY_RISCV_VLEN gives the other
+    kernels; an option llc accepts once is not repeated) and the A100
+    scheduling model, top down (it issues the weight load of an IME step
+    first and unpacks it while the activations load)."""
+    vmax = f"-riscv-v-vector-bits-max={A100_VLEN}"
+    given = [
+        a for a in llc_base_args if a.startswith("-riscv-v-vector-bits-max=")
+    ]
+    if any(a != vmax for a in given):
+        raise ValueError(
+            f"the A100 IME kernels need VLEN {A100_VLEN}, the build gives "
+            f"{given[-1]}"
+        )
+    return [
+        f"-mattr=+xsmtvdotii,+zvl{A100_VLEN}b",
+        "-mcpu=spacemit-a100",
+        "-misched-prera-direction=topdown",
+        *([] if given else [vmax]),
+    ]
+
+
 def lower_to_llvm(arena: bool) -> list[str]:
     """LOWER_TO_LLVM. With the arena (gen_config.derive_memory_options),
     allocations and frees call _mlir_memref_to_llvm_alloc / _aligned_alloc /
@@ -129,9 +158,7 @@ def build_stages(
         # Generated kernels (graph/transform/k3_w4.py): scf / vector /
         # memref, scf.parallel for the threads. "kernels_ime": the prefill
         # tiles on the matrix engine of the SpacemiT K3 A100 cores (IME
-        # dialect), for the A100 only: llc schedules for the A100 and top
-        # down, which issues the weight load of an IME step first and unpacks
-        # it while the activations load.
+        # dialect), for the A100 only (a100_llc_args).
         ime = pipeline_type == "kernels_ime"
         lower = lower_to_llvm(arena)
         i = lower.index("-convert-vector-to-llvm") + 1
@@ -157,16 +184,11 @@ def build_stages(
         else:
             stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
         stages.append(("llvm-as", []))
-        a100 = [
-            "-mattr=+xsmtvdotii",
-            "-mcpu=spacemit-a100",
-            "-misched-prera-direction=topdown",
-        ]
         stages.append(
             (
                 "llc",
                 llc_base_args
-                + (a100 if ime else [])
+                + (a100_llc_args(llc_base_args) if ime else [])
                 + ["-filetype=obj", "-relocation-model=pic", "-O3"],
             )
         )

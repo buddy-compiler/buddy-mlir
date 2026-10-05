@@ -86,7 +86,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | Their compilation, linked into the model library | `compile_pipeline.py` (pipeline `kernels`), `buddy_model.cmake` |
 | The KV caches of a prefill chunk updated in place (`-eliminate-memref-copy`, as for decode) | `compile_pipeline.py` |
 | `prefill_ime`: the IME weight layout, the prefill tiles on the matrix engine (`ime.intr.vmadot.hp` of the IME dialect) and their step, in a module of their own | `k3_w4.py` (`pack_ime`, `_ime_tile_fn`, `_ime_step_fn`, `build_kernels(..., "ime")`) |
-| Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc -mattr=+xsmtvdotii -mcpu=spacemit-a100 -misched-prera-direction=topdown`) | `compile_pipeline.py` (pipeline `kernels_ime`) |
+| Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024`: the exact VLEN of the A100 is part of the pipeline, a build for another `BUDDY_RISCV_VLEN` is refused) | `compile_pipeline.py` (pipeline `kernels_ime`, `a100_llc_args`) |
 
 Weight layout: the columns of a weight `[K, N]` are split into tiles of 128
 (one e8 register at VLEN 1024), each one contiguous block, group by group:

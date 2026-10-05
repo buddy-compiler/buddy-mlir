@@ -407,6 +407,14 @@ function(buddy_add_model)
       "buddy_add_model (${MDL_NAME}): \"prefill_ime\" targets the SpacemiT "
       "K3 (RISC-V); build it with --is-rvv-crosscompile or on the board.")
   endif()
+  # compile_pipeline.py compiles the IME kernels for VLEN 1024 (A100_VLEN)
+  # whatever BUDDY_RISCV_VLEN says; a build for another VLEN cannot run them.
+  if(MDL_PREFILL_IME AND BUDDY_RISCV_VLEN AND
+     NOT BUDDY_RISCV_VLEN EQUAL 1024)
+    message(FATAL_ERROR
+      "buddy_add_model (${MDL_NAME}): \"prefill_ime\" needs the VLEN of "
+      "the K3 A100 cores, 1024; BUDDY_RISCV_VLEN is ${BUDDY_RISCV_VLEN}.")
+  endif()
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MDL_SPEC}")
   if(MDL_ARENA AND (NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" OR
                     MDL_LAYER_PARTITION))

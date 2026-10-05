@@ -89,12 +89,23 @@ print(
 # CHECK-NEXT: IME ops in main: 0 in ime: 8
 
 # The "kernels_ime" pipeline: -lower-ime target=k3, buddy-translate, llc for
-# the A100.
+# the A100, the exact VLEN included whatever the build gives the other
+# kernels (an equal one is not repeated, another one is refused).
 stages = compile_pipeline.build_stages("kernels_ime", 8, "", "w4g32")
 print("tools:", " ".join(tool for tool, _ in stages))
 print("llc:", " ".join(stages[-1][1]))
 # CHECK: tools: buddy-opt buddy-translate llvm-as llc
-# CHECK-NEXT: llc: -code-model=large -mattr=+xsmtvdotii -mcpu=spacemit-a100 -misched-prera-direction=topdown -filetype=obj -relocation-model=pic -O3
+# CHECK-NEXT: llc: -code-model=large -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024 -filetype=obj -relocation-model=pic -O3
+for given in ("-riscv-v-vector-bits-max=1024", "-riscv-v-vector-bits-max=256"):
+    try:
+        llc = compile_pipeline.build_stages("kernels_ime", 8, given, "w4g32")[
+            -1
+        ][1]
+        print(f"{given}: given once {llc.count(given) == 1}")
+    except ValueError as e:
+        print(f"{given}: ValueError: {e}")
+# CHECK-NEXT: -riscv-v-vector-bits-max=1024: given once True
+# CHECK-NEXT: -riscv-v-vector-bits-max=256: ValueError: the A100 IME kernels need VLEN 1024, the build gives -riscv-v-vector-bits-max=256
 lowered = subprocess.run(
     [BUDDY_OPT, *stages[0][1]],
     input=ime,
@@ -118,11 +129,8 @@ print(
 work = tempfile.mkdtemp()
 with open(os.path.join(work, "ime.ll"), "w") as f:
     f.write(llvm_ir)
-attrs = [
-    "-mtriple=riscv64-unknown-linux-gnu",
-    "-mattr=+m,+d,+v,+zfh,+zvfh,+zvl1024b",
-    "-riscv-v-vector-bits-max=1024",
-]
+# the build's options without any VLEN: the pipeline brings its own
+attrs = ["-mtriple=riscv64-unknown-linux-gnu", "-mattr=+m,+d,+v,+zfh,+zvfh"]
 obj = os.path.join(work, "ime.o")
 subprocess.run(
     [
