@@ -438,6 +438,17 @@ def derive_memory_options(spec: dict, tiered: bool, prefill_chunk: int) -> dict:
     return options
 
 
+def derive_thread_pool(spec: dict) -> bool:
+    """Opt-in "thread_pool": the model library runs its parallel loops on a
+    pinned pool of spinning threads (runtime/threadpool/BuddyThreadPool.c,
+    linked in place of libomp by buddy_model.cmake; docs/ModelThreadPool.md).
+    """
+    raw = spec.get("thread_pool", False)
+    if not isinstance(raw, bool):
+        raise ValueError(f"thread_pool must be true or false, got {raw!r}")
+    return raw
+
+
 def derive_decode_pack(hf: dict, spec: dict) -> dict:
     """Opt-in panel-packing of the decode matmul weights (see the
     pack_decode_matmul_weights graph transform). Off unless the spec sets
@@ -574,6 +585,7 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "decode_pack": decode_pack,
         "arena": memory_options["arena"],
         "hugepages": memory_options["hugepages"],
+        "thread_pool": derive_thread_pool(spec),
         # >0: forward_prefill takes this many prompt tokens per call
         "prefill_chunk": prefill_chunk,
         "cpp_types": {

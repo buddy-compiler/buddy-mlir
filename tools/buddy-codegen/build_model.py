@@ -141,7 +141,8 @@ def main() -> int:
         "--riscv-omp-shared",
         type=Path,
         default=None,
-        help="Path to target OpenMP shared library used for RVV Stage 3 linking",
+        help="Path to target OpenMP shared library used for RVV Stage 3 linking "
+        '(not needed with "thread_pool" in the spec)',
     )
     ap.add_argument(
         "--riscv-mlir-c-runner-utils",
@@ -219,7 +220,9 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        if args.riscv_omp_shared is None:
+        # A model with "thread_pool" links no libomp (docs/ModelThreadPool.md).
+        needs_omp = spec_data.get("thread_pool") is not True
+        if args.riscv_omp_shared is None and needs_omp:
             print(
                 "error: --is-rvv-crosscompile requires --riscv-omp-shared",
                 file=sys.stderr,
@@ -240,8 +243,9 @@ def main() -> int:
             )
             return 1
 
-        rvv_omp_shared = resolve_from_cwd(args.riscv_omp_shared)
-        if not rvv_omp_shared.is_file():
+        if args.riscv_omp_shared is not None:
+            rvv_omp_shared = resolve_from_cwd(args.riscv_omp_shared)
+        if rvv_omp_shared is not None and not rvv_omp_shared.is_file():
             print(
                 f"error: --riscv-omp-shared is not a file: {rvv_omp_shared}",
                 file=sys.stderr,
@@ -391,7 +395,7 @@ def main() -> int:
             [
                 "-DIS_RVV_CROSSCOMPILE=ON",
                 f"-DRISCV_GNU_TOOLCHAIN={rvv_toolchain}",
-                f"-DRISCV_OMP_SHARED={rvv_omp_shared}",
+                f"-DRISCV_OMP_SHARED={rvv_omp_shared or ''}",
                 f"-DRISCV_MLIR_C_RUNNER_UTILS={rvv_mlir_runner_utils}",
                 f"-DRISCV_LLVM_BUILD_DIR={rvv_llvm_build_dir}",
                 f"-DBUDDY_MLIR_BUILD_DIR={rvv_build_dir}",
