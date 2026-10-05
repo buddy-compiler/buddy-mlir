@@ -57,7 +57,8 @@ memory options of [ModelMemoryOptions.md](ModelMemoryOptions.md); with
 `thread_pool` ([ModelThreadPool.md](ModelThreadPool.md)) the parallel loops run
 on a pinned pool of threads instead of libomp, so `--riscv-omp-shared` is not
 needed. With `prefill_ime`, the prefill tiles of the layers and the prefill
-attention run on the matrix engine of the A100 cores (below); it needs `prefill_chunk` 64 and a RISC-V
+attention run on the matrix engine of the A100 cores, the tiles reading
+their activations from the TCM of the core pairs (below); it needs `prefill_chunk` 64 and a RISC-V
 target, and gives each layer's weights a second copy in the IME layout (the
 LM head, which prefill computes for one row, has none): 1.74 instead of
 0.87 GB of int4 weights. The variant
@@ -87,6 +88,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | The KV caches of a prefill chunk updated in place (`-eliminate-memref-copy`, as for decode) | `compile_pipeline.py` |
 | The kernel calls say which arguments they write (`CallExternalOp.written_args`: none, or the attention's KV caches); their declarations carry `bufferization.access`, so one-shot bufferization copies no argument | `k3_w4.py`, `graph.py` (`_generate_external_func_decl`) |
 | `prefill_ime`: the IME weight layout, the prefill tiles on the matrix engine (`ime.intr.vmadot.hp` of the IME dialect) and their step, in a module of their own | `k3_w4.py` (`pack_ime`, `_ime_tile_fn`, `_ime_step_fn`, `build_kernels(..., "ime")`) |
+| `prefill_ime`: the activations of the IME tiles copied into the TCM of every core pair (`/dev/tcm`), in passes over K that fit in it | `k3_w4.py` (`_ime_stage`, `_ime_pass_groups`), `runtime/tcm/BuddyTcm.c` |
 | `prefill_ime`: the prefill attention with Q K^T and P V on the matrix engine (`ime.intr.vfmadot`, fp16); its two matrix loops are in the IME module | `k3_w4.py` (`_attn_prefill_ime_fn`, `_attn_mma_fns`) |
 | Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024`: the exact VLEN of the A100 is part of the pipeline, a build for another `BUDDY_RISCV_VLEN` is refused) | `compile_pipeline.py` (pipeline `kernels_ime`, `a100_llc_args`) |
 
@@ -117,6 +119,24 @@ a chunk stay in L1. llc schedules the A100 code top down, which issues the
 weight load of a step first and unpacks it while the activations load (59
 instead of 75 ns per group on one A100 core).
 
+The activations come from the TCM (tightly coupled memory) of the core pair a
+tile runs on. Each pair of A100 cores (CPUs 8-9, 10-11, 12-13, 14-15) has
+768 KiB of it, which the K3 kernel exposes as `/dev/tcm`. A core loads 1 KiB
+from its pair's TCM in ~9 ns whatever the other cores do; cached loads share
+a path per cluster of 4 cores and take ~40 ns per KiB when 3 or 4 of them
+load, which bounded the step (8 cores: 102 ns per group from memory, 61 with
+the activations in the TCM and the weights still streamed from memory). After
+quantizing, an IME call copies the activations and their scales into the TCM
+of each pair, one half per core of the pair (`_ime_stage`), and the tiles of
+a pair read that copy (`runtime/tcm/BuddyTcm.c` maps the TCM and gives each
+CPU its pair's). A copy must fit in 768 KiB: K = 1536 takes one pass of
+144 KiB; K = 8960 two passes of 140 groups (420 KiB), the second one resuming
+the sums of the first from the output, so that the results are those of one
+pass, bit for bit. Without the TCM (another process holds it, or
+`BUDDY_TCM=0`) the tiles read the activations from memory, with the same
+results. Programs that use the TCM otherwise, such as SpacemiT's spine
+runtime, must not run at the same time as the model.
+
 Prefill attention on the matrix engine (`prefill_ime`, head_dim a multiple
 of 64 and a KV cache length a multiple of 64; otherwise the RVV kernel):
 `smt.vfwmadot` multiplies two 8 x 8 fp16 blocks into f32. The f32 KV caches
@@ -137,7 +157,7 @@ SpacemiT K3, 8 A100 cores, `buddy-cli`, greedy:
 
 | | prefill, 458 tokens | decode after 458 tokens | decode after a short prompt |
 | --- | --- | --- | --- |
-| buddy-mlir `w4g32` | 1.60 s (286 tok/s) | 23.7 tok/s | 26.6 tok/s |
+| buddy-mlir `w4g32` | 1.27 s (360 tok/s) | 23.7 tok/s | 26.6 tok/s |
 | llama.cpp-tools-spacemit 0.1.9, Q4_0 | 1.96 s (pp458: 234 tok/s) | | 25.0 tok/s (tg128) |
 
 llama.cpp was measured on the same board; `llama-bench` decodes from an empty
@@ -152,7 +172,10 @@ arguments (only the attention writes, its KV caches), so bufferization no
 longer copies the arguments of each kernel call (five single-threaded copies
 per layer), and the arena faults its pages in when the model is loaded: 64
 tokens 0.69 -> 0.42 s, 458: 2.29 -> 1.60 s, 900: 4.28 -> 3.09 s, faster
-than llama.cpp.
+than llama.cpp. The tiles reading their activations from the TCM take the
+IME kernels of a layer from 5.3 to 4.0 ms (64 tokens 0.42 -> 0.34 s, 458:
+1.59 -> 1.27 s, 900: 3.08 -> 2.48 s), with the same text; without the TCM
+(`BUDDY_TCM=0`) 458 tokens take 1.65 s.
 
 The matrix engine computes the products of a group in fp16 and the activation
 scales are f16, so the logits differ slightly from those of the RVV tiles,
@@ -181,7 +204,8 @@ decodes 68-81 tok/s.
   no Linear or attention op left, the kernels generated, the weight buffers of
   the sizes `gen_config.py` computed; and the same with `prefill_ime`.
 - `tests/Python/test_k3_w4_ime.py`: the IME weight layout read back, the two
-  kernel modules (IME tiles and attention loops), and the `kernels_ime`
+  kernel modules (IME tiles and attention loops), the passes over K of the
+  TCM copies, and the `kernels_ime`
   pipeline down to the IME intrinsics and a riscv64 object. The host cannot
   run the IME instructions: the kernels' results are checked on a board, as
   above.

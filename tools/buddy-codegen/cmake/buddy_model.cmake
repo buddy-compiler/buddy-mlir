@@ -387,7 +387,8 @@ function(buddy_add_model)
   #   runtime/threadpool/BuddyThreadPool.c instead of libomp;
   # - "prefill_ime": true (docs/K3DeepSeekR1.md): the model library gets the
   #   prefill tiles for the matrix engine of the K3 A100 cores,
-  #   k3_kernels_ime.o.
+  #   k3_kernels_ime.o, and runtime/tcm/BuddyTcm.c for the TCM they read
+  #   their activations from.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
             "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime'))"
@@ -1377,6 +1378,10 @@ function(buddy_add_model)
   set(_mdl_runtime_srcs)
   if(MDL_ARENA)
     list(APPEND _mdl_runtime_srcs "${BUDDY_SOURCE_DIR}/runtime/arena/BuddyArena.c")
+  endif()
+  if(MDL_PREFILL_IME)
+    # The IME prefill tiles read their activations from the A100 TCM.
+    list(APPEND _mdl_runtime_srcs "${BUDDY_SOURCE_DIR}/runtime/tcm/BuddyTcm.c")
   endif()
   if(MDL_THREAD_POOL)
     list(APPEND _mdl_runtime_srcs
