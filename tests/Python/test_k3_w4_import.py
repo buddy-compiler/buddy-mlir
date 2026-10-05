@@ -130,3 +130,45 @@ for name in sorted(re.findall(r"func\.func @(\w+)\(", kernels)):
 buckets = import_model.extract_k3_weights(prefill[0], config)
 print({k: (len(v), str(v.dtype)) for k, v in buckets.items()})
 # CHECK: {'f32_params': (100640, 'float32'), 'i8_params': (718848, 'int8')}
+
+
+# "prefill_ime": the prefill kernels of 64 rows run on the matrix engine, on
+# a second, IME-layout copy of their weights; the LM head (one row in
+# prefill) and decode keep the tile layout.
+# CHECK: ime chunk 32: ValueError: prefill_ime needs prefill_chunk 64, got 32
+print("ime chunk 32:", error(prefill_ime=True))
+# CHECK-NEXT: ime f32: ValueError: prefill_ime needs the variant w4g32
+print(
+    "ime f32:",
+    error(variant="f32", prefill_ime=True, weights_override={"total": 1}),
+)
+ime_config = gen_config.gen_config(
+    {**spec, "prefill_chunk": 64, "prefill_ime": True}, hf_path
+)
+for w in ime_config["weights"]:
+    print(f"ime {w['tag']}: {w['num_elements']}")
+ime_pipelines = ime_config["compilation"]["pipelines"]
+print("ime pipelines:", ", ".join(f"{k}={v}" for k, v in ime_pipelines.items()))
+# the layers' int4 twice, the LM head once: (2 x 2 x 589824 + 98304) x 9 / 16
+# CHECK: ime f32_params: 100640
+# CHECK-NEXT: ime i8_params: 1382400
+# CHECK-NEXT: ime pipelines: {{.*}}k3_kernels=kernels, k3_kernels_ime=kernels_ime
+
+ime_work = tempfile.mkdtemp()
+prefill, decode, _ = import_model.compile_chunk_graphs(model, ime_config)
+import_model.apply_pre_transforms(prefill[0], decode[0])
+import_model.apply_k3_w4(prefill[0], decode[0], ime_config, ime_work)
+for name in ("k3_kernels-w4g32.mlir", "k3_kernels_ime-w4g32.mlir"):
+    with open(os.path.join(ime_work, name)) as f:
+        text = f.read()
+    defined = sorted(
+        re.findall(r"func\.func (?:private )?@(\w+)\(.*\{$", text, re.M)
+    )
+    print(
+        name + ":", ", ".join(d for d in defined if "_m64_" in d or "ime" in d)
+    )
+# CHECK: k3_kernels-w4g32.mlir: k3_attn_m64_h4_kv2_d64_c64, k3_q4_glu_m64_k256_n512_ime_rms, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms, k3_q4_plain_m64_k256_n256_ime, k3_q4_plain_m64_k512_n256_ime
+# CHECK-NEXT: k3_kernels_ime-w4g32.mlir: k3_ime_hp_step, k3_q4_glu_m64_k256_n512_ime_rms__tile, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms__tile, k3_q4_plain_m64_k256_n256_ime__tile, k3_q4_plain_m64_k512_n256_ime__tile
+buckets = import_model.extract_k3_weights(prefill[0], ime_config)
+print("ime weights:", {k: len(v) for k, v in buckets.items()})
+# CHECK: ime weights: {'f32_params': 100640, 'i8_params': 1382400}
