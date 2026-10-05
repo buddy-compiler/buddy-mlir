@@ -56,8 +56,8 @@ use the same kernels with 64 rows and one row. `arena` and `hugepages` are the
 memory options of [ModelMemoryOptions.md](ModelMemoryOptions.md); with
 `thread_pool` ([ModelThreadPool.md](ModelThreadPool.md)) the parallel loops run
 on a pinned pool of threads instead of libomp, so `--riscv-omp-shared` is not
-needed. With `prefill_ime`, the prefill tiles of the layers run on the matrix
-engine of the A100 cores (below); it needs `prefill_chunk` 64 and a RISC-V
+needed. With `prefill_ime`, the prefill tiles of the layers and the prefill
+attention run on the matrix engine of the A100 cores (below); it needs `prefill_chunk` 64 and a RISC-V
 target, and gives each layer's weights a second copy in the IME layout (the
 LM head, which prefill computes for one row, has none): 1.74 instead of
 0.87 GB of int4 weights. The variant
@@ -86,6 +86,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | Their compilation, linked into the model library | `compile_pipeline.py` (pipeline `kernels`), `buddy_model.cmake` |
 | The KV caches of a prefill chunk updated in place (`-eliminate-memref-copy`, as for decode) | `compile_pipeline.py` |
 | `prefill_ime`: the IME weight layout, the prefill tiles on the matrix engine (`ime.intr.vmadot.hp` of the IME dialect) and their step, in a module of their own | `k3_w4.py` (`pack_ime`, `_ime_tile_fn`, `_ime_step_fn`, `build_kernels(..., "ime")`) |
+| `prefill_ime`: the prefill attention with Q K^T and P V on the matrix engine (`ime.intr.vfmadot`, fp16); its two matrix loops are in the IME module | `k3_w4.py` (`_attn_prefill_ime_fn`, `_attn_mma_fns`) |
 | Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024`: the exact VLEN of the A100 is part of the pipeline, a build for another `BUDDY_RISCV_VLEN` is refused) | `compile_pipeline.py` (pipeline `kernels_ime`, `a100_llc_args`) |
 
 Weight layout: the columns of a weight `[K, N]` are split into tiles of 128
@@ -115,21 +116,37 @@ a chunk stay in L1. llc schedules the A100 code top down, which issues the
 weight load of a step first and unpacks it while the activations load (59
 instead of 75 ns per group on one A100 core).
 
+Prefill attention on the matrix engine (`prefill_ime`, head_dim a multiple
+of 64 and a KV cache length a multiple of 64; otherwise the RVV kernel):
+`smt.vfwmadot` multiplies two 8 x 8 fp16 blocks into f32. The f32 KV caches
+stay what decode reads; a prefill call first packs the keys up to the last
+row of the chunk into fp16 B operands, K by 8-dimension chunks and V by
+blocks of 8 keys. A work item is 8 query rows of a head: RoPE, the scale and
+fp16 give the A operands of Q; `k3_attn_ime_qk` computes S = Q K^T for 8 key
+blocks per call (one Q and one K load per 8 dimensions, 8 `vfwmadot`); the
+causal softmax runs on the vector units in f32 and writes P in fp16, which
+is already the A layout of P V; `k3_attn_ime_pv` computes 64 dimensions of
+O = P V per call, scaled by 1 / l into the output. The two matrix loops are
+functions of the IME module; the host tests define them without the IME
+(`build_kernels(..., emulate_ime=True)`).
+
 ## Results
 
 SpacemiT K3, 8 A100 cores, `buddy-cli`, greedy:
 
 | | prefill, 458 tokens | decode after 458 tokens | decode after a short prompt |
 | --- | --- | --- | --- |
-| buddy-mlir `w4g32` | 2.58 s (178 tok/s) | 23.7 tok/s | 26.6 tok/s |
+| buddy-mlir `w4g32` | 2.30 s (199 tok/s) | 23.7 tok/s | 26.6 tok/s |
 | llama.cpp-tools-spacemit 0.1.9, Q4_0 | 1.96 s (pp458: 234 tok/s) | | 25.0 tok/s (tg128) |
 
 llama.cpp was measured on the same board; `llama-bench` decodes from an empty
 context. Decode streams the weights from DRAM (868 MB per token) and is 6%
 faster than llama.cpp. Prefill runs the layers' matmuls on the matrix engine,
 3.4 to 3.7 times faster than with the RVV tiles (64 tokens: 2.40 -> 0.70 s,
-458: 9.6 -> 2.58 s, 900: 17.7 -> 5.03 s); its attention still runs on the
-vector units.
+458: 9.6 -> 2.58 s, 900: 17.7 -> 5.03 s), and its attention too, which saves
+more the longer the prompt (64 tokens: 0.70 -> 0.69 s, 458: 2.57 -> 2.30 s,
+900: 5.02 -> 4.28 s): the attention of a chunk at position 960 takes 1.8
+instead of 4.4 ms per layer.
 
 The matrix engine computes the products of a group in fp16 and the activation
 scales are f16, so the logits differ slightly from those of the RVV tiles,
@@ -137,7 +154,10 @@ and greedy decoding departs from the RVV text after a few dozen tokens (the
 three prompts above: after 116 to 328 characters), with an equally coherent
 text. Each IME kernel was run on a board against a numpy reference of the
 exact int8 x int4 products: largest error 3e-4 relative to the largest
-output, while int4 weights are 8% (RMS) off the float products.
+output, while int4 weights are 8% (RMS) off the float products. The IME
+attention rounds Q, K, V and the probabilities to fp16: against a float
+reference on a board, largest error 6e-4 relative to the largest output; its
+text departs from that of the RVV attention after 95 to 328 characters.
 
 The kernels also run on other targets, more slowly: on x86 (48 threads of a
 Xeon Platinum 8575C) the same build prefills the 458 tokens in 1.7 s and
@@ -148,11 +168,14 @@ decodes 68-81 tok/s.
 - `tests/Python/test_k3_w4_kernels.py`: the kernels, compiled for the host by
   the `kernels` pipeline and run against numpy references (int4 matmuls
   plain / with bias / with RMSNorm / q, k, v / gate, up; one row and several;
-  attention for decode and for a prefill chunk, KV cache update included).
+  attention for decode and for a prefill chunk, KV cache update included;
+  the `prefill_ime` attention with its two matrix loops emulated, against a
+  reference rounded to fp16 like it).
 - `tests/Python/test_k3_w4_import.py`: a tiny random Qwen2 through the import:
   no Linear or attention op left, the kernels generated, the weight buffers of
   the sizes `gen_config.py` computed; and the same with `prefill_ime`.
 - `tests/Python/test_k3_w4_ime.py`: the IME weight layout read back, the two
-  kernel modules, and the `kernels_ime` pipeline down to the IME intrinsics and
-  a riscv64 object. The host cannot run `smt.vmadot`: the kernels' results are
-  checked on a board, as above.
+  kernel modules (IME tiles and attention loops), and the `kernels_ime`
+  pipeline down to the IME intrinsics and a riscv64 object. The host cannot
+  run the IME instructions: the kernels' results are checked on a board, as
+  above.

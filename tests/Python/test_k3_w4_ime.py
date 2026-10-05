@@ -1,11 +1,14 @@
 # RUN: %PYTHON %s buddy-opt buddy-translate 2>&1 | FileCheck %s
 #
 # "prefill_ime" in graph/transform/k3_w4.py: the prefill tiles on the matrix
-# engine of the SpacemiT K3 A100 cores. The host cannot run smt.vmadot, so
-# this checks what it can: the IME weight layout, the two modules (the main
-# one declares the IME tiles, the IME one defines them and their step), and
-# the "kernels_ime" pipeline down to the IME intrinsics and a riscv64 object.
-# (docs/K3DeepSeekR1.md gives the check of the kernels' results on a board.)
+# engine of the SpacemiT K3 A100 cores, and the prefill attention's matrix
+# loops. The host cannot run smt.vmadot / smt.vfwmadot, so this checks what
+# it can: the IME weight layout, the two modules (the main one declares the
+# IME tiles and the attention's matrix loops, the IME one defines them and
+# the tiles' step), and the "kernels_ime" pipeline down to the IME
+# intrinsics and a riscv64 object. (test_k3_w4_kernels.py runs the IME
+# attention with its matrix loops emulated; docs/K3DeepSeekR1.md gives the
+# check of the kernels' results on a board.)
 
 import os
 import shutil
@@ -56,6 +59,17 @@ specs = [
     ),
     k3_w4.kernel_spec("glu", 64, 96, [256], False, 8, ime=True),
     k3_w4.kernel_spec("plain", 1, 96, [128], False, 8),
+    {
+        "name": "k3_attn_m64_ime",
+        "kind": "attn",
+        "m": 64,
+        "heads": 4,
+        "kv_heads": 2,
+        "dim": 128,
+        "scale": 128**-0.5,
+        "ctx": 128,
+        "ime": True,
+    },
 ]
 specs[1]["name"] += "_rms"
 main = k3_w4.gen_kernels(specs, "main")
@@ -82,11 +96,14 @@ print(
     main.count("ime."),
     "in ime:",
     ime.count("ime.intr.vmadot.hp"),
+    "vmadot.hp,",
+    ime.count("ime.intr.vfmadot"),
+    "vfmadot",
 )
-# CHECK: main: k3_q4_glu_m64_k96_n256_ime, k3_q4_multi_m64_k96_n128_128_128_b_ime_rms, k3_q4_plain_m1_k96_n128, k3_q4_plain_m64_k96_n128_ime
-# CHECK-NEXT: main private: k3_q4_glu_m64_k96_n256_ime__tile (declaration), k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile (declaration), k3_q4_plain_m1_k96_n128__tile, k3_q4_plain_m64_k96_n128_ime__tile (declaration)
-# CHECK-NEXT: ime private: k3_ime_hp_step, k3_q4_glu_m64_k96_n256_ime__tile, k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile, k3_q4_plain_m64_k96_n128_ime__tile
-# CHECK-NEXT: IME ops in main: 0 in ime: 8
+# CHECK: main: k3_attn_m64_ime, k3_q4_glu_m64_k96_n256_ime, k3_q4_multi_m64_k96_n128_128_128_b_ime_rms, k3_q4_plain_m1_k96_n128, k3_q4_plain_m64_k96_n128_ime
+# CHECK-NEXT: main private: k3_attn_ime_pv (declaration), k3_attn_ime_qk (declaration), k3_q4_glu_m64_k96_n256_ime__tile (declaration), k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile (declaration), k3_q4_plain_m1_k96_n128__tile, k3_q4_plain_m64_k96_n128_ime__tile (declaration)
+# CHECK-NEXT: ime private: k3_attn_ime_pv, k3_attn_ime_qk, k3_ime_hp_step, k3_q4_glu_m64_k96_n256_ime__tile, k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile, k3_q4_plain_m64_k96_n128_ime__tile
+# CHECK-NEXT: IME ops in main: 0 in ime: 8 vmadot.hp, 16 vfmadot
 
 # The "kernels_ime" pipeline: -lower-ime target=k3, buddy-translate, llc for
 # the A100, the exact VLEN included whatever the build gives the other
@@ -123,8 +140,10 @@ llvm_ir = subprocess.run(
 print(
     "vmadot.hp calls:",
     llvm_ir.count("call <vscale x 4 x half> @llvm.riscv.ime.vmadot.hp"),
+    "vfmadot calls:",
+    llvm_ir.count("call <vscale x 4 x float> @llvm.riscv.ime.vfmadot"),
 )
-# CHECK: vmadot.hp calls: 8
+# CHECK: vmadot.hp calls: 8 vfmadot calls: 16
 
 work = tempfile.mkdtemp()
 with open(os.path.join(work, "ime.ll"), "w") as f:

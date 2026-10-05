@@ -5,7 +5,8 @@
 # against numpy references: the int4 matmul kernels (plain, with bias, with a
 # fused RMSNorm, q / k / v, gate / up / SiLU), one decode row and a block of
 # prefill rows; and the attention kernels (RoPE, KV cache update, causal
-# attention), decode and prefill.
+# attention), decode and prefill, and the prefill one of "prefill_ime" with
+# its two matrix loops emulated (the host has no IME).
 
 import ctypes
 import os
@@ -32,13 +33,13 @@ THREADS = 3
 rng = numpy.random.default_rng(0)
 
 
-def jit(specs):
+def jit(specs, emulate_ime=False):
     """The kernels of `specs`, lowered like compile_pipeline.py does."""
     stages = compile_pipeline.build_stages("kernels", THREADS, "", "w4g32")
     passes = next(args for tool, args in stages if tool == "buddy-opt")
     llvm = subprocess.run(
         [BUDDY_OPT, *passes],
-        input=k3_w4.gen_kernels(specs),
+        input=k3_w4.gen_kernels(specs, emulate_ime=emulate_ime),
         capture_output=True,
         text=True,
         check=True,
@@ -194,9 +195,15 @@ def heads(x, d):
     return x.reshape(m, -1, d).transpose(1, 0, 2)[None]
 
 
-def ref_attention(q, k, v, kc, vc, start, inv_freq, scale):
+def f16(x):
+    return x.astype(numpy.float16).astype(numpy.float64)
+
+
+def ref_attention(q, k, v, kc, vc, start, inv_freq, scale, ime=False):
     """q / k / v as the projections give them ([m, heads * d]); returns the
-    output in the same layout and the updated caches."""
+    output in the same layout and the updated caches. With `ime`, rounded
+    like the IME kernel: the scaled q, the keys, the values and the
+    probabilities in fp16."""
     d = kc.shape[3]
     q, k, v = heads(q, d), heads(k, d), heads(v, d)
     m, group = q.shape[2], q.shape[1] // k.shape[1]
@@ -209,41 +216,56 @@ def ref_attention(q, k, v, kc, vc, start, inv_freq, scale):
     for hh in range(q.shape[1]):
         for i in range(m):
             keys = kc[0, hh // group, : start + i + 1]
+            vals = vc[0, hh // group, : start + i + 1]
+            if ime:
+                s = f16(keys) @ f16(qr[hh, i] * scale)
+                p = numpy.exp(s - s.max())
+                out[0, hh, i] = f16(p) @ f16(vals) / p.sum()
+                continue
             s = keys @ qr[hh, i] * scale
             p = numpy.exp(s - s.max())
-            out[0, hh, i] = p @ vc[0, hh // group, : start + i + 1] / p.sum()
+            out[0, hh, i] = p @ vals / p.sum()
     return out[0].transpose(1, 0, 2).reshape(m, -1), kc, vc
 
 
-H, KVH, D, CTX = 4, 2, 128, 96
-inv_freq = (10000.0 ** (-numpy.arange(0, D, 2) / D)).astype(numpy.float32)
-for m, start in ((1, 0), (1, 70), (32, 0), (32, 41)):
+H, KVH, CTX = 4, 2, 96
+# (m, start, ctx, head dim, ime); the IME kernel needs ctx % 64 == 0 and a
+# head dim that is a multiple of 64
+CASES = [(1, 0, CTX, 128, False), (1, 70, CTX, 128, False)]
+CASES += [(32, 0, CTX, 128, False), (32, 41, CTX, 128, False)]
+CASES += [(64, 0, 128, 128, True), (64, 41, 128, 128, True)]
+CASES += [(64, 64, 128, 128, True), (64, 41, 128, 64, True)]
+for m, start, ctx, D, ime in CASES:
+    inv_freq = (10000.0 ** (-numpy.arange(0, D, 2) / D)).astype(numpy.float32)
     spec = {
-        "name": f"k3_attn_m{m}_s{start}",
+        "name": f"k3_attn_m{m}_s{start}_d{D}",
         "kind": "attn",
         "m": m,
         "heads": H,
         "kv_heads": KVH,
         "dim": D,
         "scale": D**-0.5,
-        "ctx": CTX,
+        "ctx": ctx,
     }
-    ee = jit([spec])
+    if ime:
+        spec.update(name=spec["name"] + "_ime", ime=True)
+    ee = jit([spec], emulate_ime=ime)
     q = rng.standard_normal((m, H * D)).astype(numpy.float32)
     k = rng.standard_normal((m, KVH * D)).astype(numpy.float32)
     v = rng.standard_normal((m, KVH * D)).astype(numpy.float32)
-    kc = numpy.zeros((1, KVH, CTX, D), numpy.float32)
-    vc = numpy.zeros((1, KVH, CTX, D), numpy.float32)
+    kc = numpy.zeros((1, KVH, ctx, D), numpy.float32)
+    vc = numpy.zeros((1, KVH, ctx, D), numpy.float32)
     kc[0, :, :start] = rng.standard_normal((KVH, start, D))
     vc[0, :, :start] = rng.standard_normal((KVH, start, D))
     want, want_k, want_v = ref_attention(
-        q, k, v, kc, vc, start, inv_freq, D**-0.5
+        q, k, v, kc, vc, start, inv_freq, D**-0.5, ime
     )
     pos = numpy.array([start], numpy.int64)
     o, _, kco, vco = call(
         ee, spec["name"], 4, [2, 3, 4, 4], q, k, v, kc, vc, pos, inv_freq
     )
-    report(f"attention m{m} start {start}", o, want, 1e-5)
+    label = f"attention m{m} start {start}" + (" ime" if ime else "")
+    report(label, o, want, 5e-4 if ime else 1e-5)
     # the caches are updated in place and returned
     print(
         f"  caches: k {numpy.allclose(kc, want_k, atol=1e-5)}, "
@@ -257,4 +279,12 @@ for m, start in ((1, 0), (1, 70), (32, 0), (32, 41)):
 # CHECK-NEXT: attention m32 start 0: (32, 512) error ok
 # CHECK-NEXT: caches: k True, v True, returned True
 # CHECK-NEXT: attention m32 start 41: (32, 512) error ok
+# CHECK-NEXT: caches: k True, v True, returned True
+# CHECK-NEXT: attention m64 start 0 ime: (64, 512) error ok
+# CHECK-NEXT: caches: k True, v True, returned True
+# CHECK-NEXT: attention m64 start 41 ime: (64, 512) error ok
+# CHECK-NEXT: caches: k True, v True, returned True
+# CHECK-NEXT: attention m64 start 64 ime: (64, 512) error ok
+# CHECK-NEXT: caches: k True, v True, returned True
+# CHECK-NEXT: attention m64 start 41 ime: (64, 256) error ok
 # CHECK-NEXT: caches: k True, v True, returned True

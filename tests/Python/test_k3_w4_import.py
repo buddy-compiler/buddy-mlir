@@ -133,8 +133,8 @@ print({k: (len(v), str(v.dtype)) for k, v in buckets.items()})
 
 
 # "prefill_ime": the prefill kernels of 64 rows run on the matrix engine, on
-# a second, IME-layout copy of their weights; the LM head (one row in
-# prefill) and decode keep the tile layout.
+# a second, IME-layout copy of their weights, and so does the prefill
+# attention; the LM head (one row in prefill) and decode keep the tile layout.
 # CHECK: ime chunk 32: ValueError: prefill_ime needs prefill_chunk 64, got 32
 print("ime chunk 32:", error(prefill_ime=True))
 # CHECK-NEXT: ime f32: ValueError: prefill_ime needs the variant w4g32
@@ -167,8 +167,8 @@ for name in ("k3_kernels-w4g32.mlir", "k3_kernels_ime-w4g32.mlir"):
     print(
         name + ":", ", ".join(d for d in defined if "_m64_" in d or "ime" in d)
     )
-# CHECK: k3_kernels-w4g32.mlir: k3_attn_m64_h4_kv2_d64_c64, k3_q4_glu_m64_k256_n512_ime_rms, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms, k3_q4_plain_m64_k256_n256_ime, k3_q4_plain_m64_k512_n256_ime
-# CHECK-NEXT: k3_kernels_ime-w4g32.mlir: k3_ime_hp_step, k3_q4_glu_m64_k256_n512_ime_rms__tile, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms__tile, k3_q4_plain_m64_k256_n256_ime__tile, k3_q4_plain_m64_k512_n256_ime__tile
+# CHECK: k3_kernels-w4g32.mlir: k3_attn_m64_h4_kv2_d64_c64_ime, k3_q4_glu_m64_k256_n512_ime_rms, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms, k3_q4_plain_m64_k256_n256_ime, k3_q4_plain_m64_k512_n256_ime
+# CHECK-NEXT: k3_kernels_ime-w4g32.mlir: k3_attn_ime_pv, k3_attn_ime_qk, k3_ime_hp_step, k3_q4_glu_m64_k256_n512_ime_rms__tile, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms__tile, k3_q4_plain_m64_k256_n256_ime__tile, k3_q4_plain_m64_k512_n256_ime__tile
 buckets = import_model.extract_k3_weights(prefill[0], ime_config)
 print("ime weights:", {k: len(v) for k, v in buckets.items()})
 # CHECK: ime weights: {'f32_params': 100640, 'i8_params': 1382400}
