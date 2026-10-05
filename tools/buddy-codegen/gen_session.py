@@ -811,7 +811,7 @@ def _emit_chunked_prefill(
     p(
         "  // start .. start + C - 1 to the KV cache and returns the logits of its"
     )
-    p("  // C rows. The prompt is walked chunk by chunk; the last chunk is")
+    p("  // last row. The prompt is walked chunk by chunk; the last chunk is")
     p(
         "  // right-aligned so that its last row is the last prompt token (the rows"
     )
@@ -885,12 +885,11 @@ def _emit_chunked_prefill(
     if line.strip():
         p(line)
     p()
-    p("    // The logits of the chunk row holding the last token run so far.")
-    p("    const int row = std::min(n, start + C) - 1 - start;")
-    p("    std::memcpy(state.logits().getData(),")
     p(
-        "                result.logits().getData() + (size_t)row * cfg_.vocabSize,"
+        "    // The logits of the chunk's last row: those of the last prompt token"
     )
+    p("    // after the last, right-aligned chunk (unused after the others).")
+    p("    std::memcpy(state.logits().getData(), result.logits().getData(),")
     p(f"                (uint64_t)cfg_.vocabSize * {logits_sizeof});")
     p("    for (int i = 0; i < cfg_.kvLayers; ++i) {")
     p("      if (result.kv(i).getData() != state.kv(i).getData())")
@@ -909,7 +908,7 @@ def _emit_chunked_prefill(
     p(
         "    intptr_t kvShape[4] = {1, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize};"
     )
-    p("    intptr_t logitsShape[3] = {1, C, cfg_.vocabSize};")
+    p("    intptr_t logitsShape[3] = {1, 1, cfg_.vocabSize};")
     p("    intptr_t pshape[1] = {1};")
     p("    resetDecodeResultABI(result, kvShape, logitsShape, pshape);")
     p()
@@ -1018,7 +1017,8 @@ def gen_impl(config: dict) -> str:
             "// _mlir_ciface_forward_prefill (chunked prefill, "
             f"{chunk} tokens per call)"
         )
-        p("// writes a DecodeABI, with logits of shape {1, chunk, vocab}.")
+        p("// writes a DecodeABI, with the logits of the chunk's last row,")
+        p("// {1, 1, vocab}.")
     else:
         p("// _mlir_ciface_forward_prefill writes:")
         p(
@@ -1453,9 +1453,11 @@ def gen_impl(config: dict) -> str:
     p("  }")
     p()
     if chunk:
-        p("  // --- Logits of one prefill chunk: {1, chunk, vocabSize} ---")
+        p(
+            "  // --- Logits of one prefill chunk (its last row): {1, 1, vocabSize} ---"
+        )
         p("  {")
-        p(f"    intptr_t lshape[3] = {{1, {chunk}, cfg_.vocabSize}};")
+        p("    intptr_t lshape[3] = {1, 1, cfg_.vocabSize};")
         p("    new (&impl_->chunkResultAbi.logits())")
         p(f"        {logits_memref}(lshape, false, 0);")
         p("  }")

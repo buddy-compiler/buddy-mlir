@@ -104,19 +104,21 @@ print(prefill)
 # CHECK: cachePosition_->getData()[0] = (long long)start;
 # CHECK: impl_->prefillFn(
 # CHECK-NEXT: &result, params_.get(), impl_->chunkTokens.get(), cachePosition_.get(),
-# CHECK: const int row = std::min(n, start + C) - 1 - start;
-# CHECK: intptr_t logitsShape[3] = {1, C, cfg_.vocabSize};
+# The chunk returns the logits of its last row only.
+# CHECK: std::memcpy(state.logits().getData(), result.logits().getData(),
+# CHECK: intptr_t logitsShape[3] = {1, 1, cfg_.vocabSize};
 # CHECK: if (n < n0) {
 # CHECK-NEXT: position_ = n;
 # CHECK-NEXT: decode((int)tokens.getData()[n0 - 1]);
 
-# The manifest: chunk tokens, their start position, chunk logits.
+# The manifest: chunk tokens, their start position, the logits of the
+# chunk's last row.
 manifest = gen_manifest.gen_manifest(config(prefill_chunk=32), "model.so")
 for line in manifest.splitlines():
     if "prefill" in line and ("rhal.buffer" in line or "inputs" in line):
         print(line.strip())
 # CHECK: rhal.buffer @prefill_tokens {space = "host", type = tensor<1x32xi64>}
-# CHECK: rhal.buffer @logits_prefill {space = "host", type = tensor<1x32x1000xf32>}
+# CHECK: rhal.buffer @logits_prefill {space = "host", type = tensor<1x1x1000xf32>}
 
 # compile_pipeline.py: with chunks, the prefill subgraph updates the KV caches
 # it gets in place (-eliminate-memref-copy), as the decode subgraph does.

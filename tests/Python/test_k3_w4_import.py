@@ -111,8 +111,9 @@ with open(os.path.join(work, "k3_kernels-w4g32.mlir")) as f:
     kernels = f.read()
 for name in sorted(re.findall(r"func\.func @(\w+)\(", kernels)):
     print(name)
-# The RMSNorms before q / k / v, gate / up and lm_head are computed by those
-# kernels.
+# The RMSNorms before q / k / v, gate / up and the decode lm_head are
+# computed by those kernels. The lm_head of a prefill chunk gets its last
+# row only (one row, after the final norm of the whole chunk).
 # CHECK: k3_attn_m1_h4_kv2_d64_c64
 # CHECK-NEXT: k3_attn_m32_h4_kv2_d64_c64
 # CHECK-NEXT: k3_q4_glu_m1_k256_n512_rms
@@ -120,10 +121,10 @@ for name in sorted(re.findall(r"func\.func @(\w+)\(", kernels)):
 # CHECK-NEXT: k3_q4_multi_m1_k256_n256_128_128_b_rms
 # CHECK-NEXT: k3_q4_multi_m32_k256_n256_128_128_b_rms
 # CHECK-NEXT: k3_q4_plain_m1_k256_n256
+# CHECK-NEXT: k3_q4_plain_m1_k256_n384
 # CHECK-NEXT: k3_q4_plain_m1_k256_n384_rms
 # CHECK-NEXT: k3_q4_plain_m1_k512_n256
 # CHECK-NEXT: k3_q4_plain_m32_k256_n256
-# CHECK-NEXT: k3_q4_plain_m32_k256_n384_rms
 # CHECK-NEXT: k3_q4_plain_m32_k512_n256
 
 buckets = import_model.extract_k3_weights(prefill[0], config)
