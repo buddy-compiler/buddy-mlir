@@ -106,3 +106,29 @@ try:
 except ValueError as e:
     print(e)
 # CHECK: external function 'onednn_matmul_f32' is called with written_args None, but it is already declared with written_args []
+
+# The first argument written, the second only read.
+graph = import_chain(8)
+for n in calls(graph):
+    n.written_args = [0]
+graph.lower_to_top_level_ir()
+print(
+    "written:",
+    [
+        line.strip()
+        for line in str(graph._imported_module).splitlines()
+        if "private" in line
+    ][0],
+)
+# CHECK: written: func.func private @onednn_matmul_f32(tensor<4x8xf32> {bufferization.access = "read-write"}, tensor<8x8xf32> {bufferization.access = "read"}) -> tensor<4x8xf32>
+
+# written_args must be indices of the arguments.
+for bad in ([-1], [3], [True], [0.0]):
+    try:
+        CallExternalOp("f", ["a", "b", "c"], [0, 0, 0], {}, written_args=bad)
+    except ValueError as e:
+        print(e)
+# CHECK: CallExternalOp 'f': written_args must be argument indices in [0, 3), got -1
+# CHECK-NEXT: CallExternalOp 'f': written_args must be argument indices in [0, 3), got 3
+# CHECK-NEXT: CallExternalOp 'f': written_args must be argument indices in [0, 3), got True
+# CHECK-NEXT: CallExternalOp 'f': written_args must be argument indices in [0, 3), got 0.0

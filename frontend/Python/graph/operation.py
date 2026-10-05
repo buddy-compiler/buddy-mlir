@@ -742,6 +742,20 @@ class CallExternalOp(Op):
         # {bufferization.access = "read" | "read-write"}: one-shot
         # bufferization then copies none of the arguments that are only read
         # (by default it assumes an external function writes all of them).
+        # An index out of range would mark a written argument "read": reject
+        # it here rather than miscompile.
+        if written_args is not None:
+            for i in written_args:
+                if (
+                    not isinstance(i, int)
+                    or isinstance(i, bool)
+                    or not 0 <= i < len(self._arguments)
+                ):
+                    raise ValueError(
+                        f"CallExternalOp '{call_func_name}': written_args "
+                        f"must be argument indices in [0, "
+                        f"{len(self._arguments)}), got {i!r}"
+                    )
         self.written_args = (
             None if written_args is None else sorted(set(written_args))
         )
