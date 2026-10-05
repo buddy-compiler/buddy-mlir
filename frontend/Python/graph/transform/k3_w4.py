@@ -616,6 +616,14 @@ class _Rewriter:
                 "scale": scale,
                 "ctx": ctx,
             }
+            if (
+                self.use_ime
+                and m == IME_ROWS
+                and dim % ATTN_IME_DIMS == 0
+                and ctx % ATTN_IME_KEYS == 0
+            ):
+                spec["name"] += "_ime"
+                spec["ime"] = True
             self.kernels[spec["name"]] = spec
             args = [
                 q2,
@@ -1796,30 +1804,424 @@ def _ime_tile_fn(ty, spec):
         func.ReturnOp([])
 
 
+# ---------------------------------------------------------------------------
+# Prefill attention on the matrix engine ("prefill_ime")
+# ---------------------------------------------------------------------------
+#
+# smt.vfwmadot vd, vs1, vs2 (ime.intr.vfmadot; fp16 x fp16 -> f32, VLEN 1024):
+#   C[8r + c] += sum_k A[8r + k] * B[8c + k],  r, c, k = 0..7
+# with A and B one register of 64 f16 and C 64 f32 (a register pair).
+#
+# The f32 KV caches stay the source of truth (decode reads them). A prefill
+# call packs the keys 0 .. len - 1 of each KV head into fp16 operands:
+#   K: kp[dc][kb][8k + dd] = K[8kb + k][8dc + dd]   (B of S = Q K^T)
+#   V: vp[kb][8i + k]      = V[8kb + k][i]          (B of O = P V)
+# (dc: chunk of 8 dimensions, kb: block of 8 keys, i: dimension). A work item
+# is 8 query rows of a head: Q in fp16 A operands, S = Q K^T for all keys in
+# f32, the causal softmax, P in fp16 (exactly the A layout of P V), and
+# O = P V / l.
+
+# The IME attention needs head_dim % ATTN_IME_DIMS == 0 (the columns of one
+# P V call) and ctx % ATTN_IME_KEYS == 0 (the keys of one Q K^T call);
+# k3_w4_rewrite falls back to the RVV kernel otherwise.
+ATTN_IME_DIMS = 64
+ATTN_IME_KEYS = 64
+ATTN_QK_FN = "k3_attn_ime_qk"
+ATTN_PV_FN = "k3_attn_ime_pv"
+
+
+def _const_vec(t, values):
+    """A constant vector of the given values."""
+    elt = t.element_type
+    if isinstance(elt, ir.FloatType):
+        dtype = numpy.float16 if elt.width == 16 else numpy.float32
+    else:
+        dtype = {32: numpy.int32, 64: numpy.int64}[elt.width]
+    attr = ir.DenseElementsAttr.get(numpy.array(values, dtype=dtype), type=t)
+    return arith.ConstantOp(t, attr).result
+
+
+def _ptr_i64(ty, mem):
+    """The aligned pointer of `mem` as an i64."""
+    return arith.IndexCastOp(
+        ty.i64, memref.ExtractAlignedPointerAsIndexOp(mem).result
+    ).result
+
+
+def _attn_mma_fns(ty, emulate=False):
+    """The two matrix loops of the IME attention, functions of raw pointers
+    and sizes (i64), with Q and P as A operands (8 rows) and C stored as
+    8 blocks of 64 f32 at `out`:
+      k3_attn_ime_qk(q, k, out, chunks, kstride): S of 8 key blocks,
+        out[64j + 8r + c] = sum_dc sum_dd q[64dc + 8r + dd] k_dc[64j + 8c + dd]
+        with k_dc = k + dc * kstride bytes, over `chunks` chunks dc;
+      k3_attn_ime_pv(p, v, out, blocks, vstride): O of 64 dimensions,
+        out[64j + 8r + c] = sum_kb sum_k p[64kb + 8r + k] v_kb[64j + 8c + k]
+        with v_kb = v + kb * vstride bytes, over `blocks` key blocks kb.
+    Both are the same loop: per step one A load (64 f16), one B load (8
+    blocks of 64 f16) and 8 smt.vfwmadot. With `emulate`, the same with
+    scalar f32 arithmetic, without the IME (tests on a host)."""
+    for name in (ATTN_QK_FN, ATTN_PV_FN):
+        _attn_mma_fn(ty, name, emulate)
+
+
+def _attn_mma_fn(ty, name, emulate):
+    """One of the loops of _attn_mma_fns."""
+    i64, ptr = ty.i64, _llvm_ptr()
+    v4h, v4f, v32h = _svec(4, ty.f16), _svec(4, ty.f32), _svec(32, ty.f16)
+    fn = _Fn(name, [i64] * 5, [], public=False)
+    ap, bp, outp, steps, bstride = fn.args
+    with ir.InsertionPoint(fn.entry):
+        a = llvm.IntToPtrOp(ptr, ap).result
+        b = llvm.IntToPtrOp(ptr, bp).result
+        out = llvm.IntToPtrOp(ptr, outp).result
+        n = arith.IndexCastOp(ty.index, steps).result
+        c0, c1, c8 = fn.idx(0), fn.idx(1), fn.idx(8)
+        if emulate:
+            f0 = fn.const(ty.f32, 0.0)
+
+            def f16_at(base, index):
+                p = _gep(base, _muli(index, fn.const(i64, 2)))
+                v = llvm.LoadOp(ty.f16, p, alignment=2).result
+                return arith.ExtFOp(ty.f32, v).result
+
+            def i64_of(v):
+                return arith.IndexCastOp(i64, v).result
+
+            jl = scf.ForOp(c0, c8, c1)
+            with ir.InsertionPoint(jl.body):
+                j = i64_of(jl.induction_variable)
+                rl = scf.ForOp(c0, c8, c1)
+                with ir.InsertionPoint(rl.body):
+                    r = i64_of(rl.induction_variable)
+                    cl = scf.ForOp(c0, c8, c1)
+                    with ir.InsertionPoint(cl.body):
+                        c = i64_of(cl.induction_variable)
+                        sl = scf.ForOp(c0, n, c1, [f0])
+                        with ir.InsertionPoint(sl.body):
+                            st = i64_of(sl.induction_variable)
+                            bs = _gep(b, _muli(st, bstride))
+                            kl = scf.ForOp(c0, c8, c1, [sl.inner_iter_args[0]])
+                            with ir.InsertionPoint(kl.body):
+                                k = i64_of(kl.induction_variable)
+                                ai = _addi(
+                                    _muli(st, fn.const(i64, 64)),
+                                    _addi(_muli(r, fn.const(i64, 8)), k),
+                                )
+                                bi = _addi(
+                                    _muli(j, fn.const(i64, 64)),
+                                    _addi(_muli(c, fn.const(i64, 8)), k),
+                                )
+                                acc = _fma(
+                                    f16_at(a, ai),
+                                    f16_at(bs, bi),
+                                    kl.inner_iter_args[0],
+                                )
+                                scf.YieldOp([acc])
+                            scf.YieldOp([kl.results[0]])
+                        at = _addi(
+                            _muli(j, fn.const(i64, 64)),
+                            _addi(_muli(r, fn.const(i64, 8)), c),
+                        )
+                        llvm.StoreOp(
+                            sl.results[0],
+                            _gep(out, _muli(at, fn.const(i64, 4))),
+                            alignment=4,
+                        )
+                        scf.YieldOp([])
+                    scf.YieldOp([])
+                scf.YieldOp([])
+        else:
+            zero = fn.const(v4f, 0.0)
+            sl = scf.ForOp(c0, n, c1, [zero] * 8)
+            with ir.InsertionPoint(sl.body):
+                st = arith.IndexCastOp(i64, sl.induction_variable).result
+                av = llvm.LoadOp(
+                    v4h, _gep(a, _muli(st, fn.const(i64, 128))), alignment=2
+                ).result
+                bv = llvm.LoadOp(
+                    v32h, _gep(b, _muli(st, bstride)), alignment=2
+                ).result
+                accs = []
+                for j, acc in enumerate(sl.inner_iter_args):
+                    bj = vector.ScalableExtractOp(v4h, bv, 4 * j).result
+                    accs.append(
+                        ir.Operation.create(
+                            "ime.intr.vfmadot",
+                            results=[v4f],
+                            operands=[acc, av, bj],
+                        ).result
+                    )
+                scf.YieldOp(accs)
+            for j, acc in enumerate(sl.results):
+                llvm.StoreOp(
+                    acc, _gep(out, fn.const(i64, 256 * j)), alignment=4
+                )
+        func.ReturnOp([])
+
+
+def _attn_prefill_ime_fn(ty, spec):
+    """Prefill attention on the matrix engine (spec["ime"]): RoPE and the KV
+    cache update as in _attn_fn, the fp16 packing of the keys 0 .. len - 1
+    in parallel over (KV head, range of key blocks), then in parallel over
+    (head, 8 query rows) S = Q K^T, the causal softmax and O = P V with the
+    matrix loops of _attn_mma_fns."""
+    m, h, kvh, d, ctx = (
+        spec["m"],
+        spec["heads"],
+        spec["kv_heads"],
+        spec["dim"],
+        spec["ctx"],
+    )
+    assert m % 8 == 0 and d % ATTN_IME_DIMS == 0, spec
+    assert ctx % ATTN_IME_KEYS == 0, spec
+    kbs = ctx // 8  # key blocks per KV head
+    hd = h * d  # row stride of q and o
+    half = d // 2  # RoPE halves
+    fn, a, outs = _attn_fn(ty, spec)
+    i1, i32, i64, f16, f32 = ty.i1, ty.i32, ty.i64, ty.f16, ty.f32
+    c0, c1 = fn.idx(0), fn.idx(1)
+    v64f, v64i = _vec(64, f32), _vec(64, i32)
+    vhf, vhh = _vec(half, f32), _vec(half, f16)
+    f0 = fn.const(f32, 0.0)
+
+    def i64_of(v):
+        return arith.IndexCastOp(i64, v).result
+
+    with ir.InsertionPoint(fn.entry):
+        length = _addi(a["start"], fn.idx(m))
+        nkb = _divui(_addi(length, fn.idx(7)), fn.idx(8))
+        # the packed operands; K as i64 (4 f16 each) for 64-bit scatters
+        kpk = _alloc(_memref([kvh * kbs * d * 2], i64))
+        vpk = _alloc(_memref([kvh * kbs * d * 8], f16))
+        # K row: i64 element e (dimensions 4e .. 4e + 3) goes to chunk e / 2,
+        # half e % 2 of a key; V row: dimension i to 8i
+        k_idx = _const_vec(
+            _vec(d // 4, i32),
+            [(e // 2) * kbs * 16 + e % 2 for e in range(d // 4)],
+        )
+        v_idx = _const_vec(_vec(d, i32), [8 * i for i in range(d)])
+        k_mask = fn.const(_vec(d // 4, i1), 1)
+        v_mask = fn.const(_vec(d, i1), 1)
+        zero_row = fn.const(_vec(d, f16), 0.0)
+        len32 = arith.IndexCastOp(i32, length).result
+        body, (kh, part) = _parallel(fn, [fn.idx(kvh), fn.idx(8)])
+        with ir.InsertionPoint(body):
+            per = _divui(_addi(nkb, fn.idx(7)), fn.idx(8))
+            kb0 = arith.MinUIOp(_muli(part, per), nkb).result
+            kb1 = arith.MinUIOp(_addi(kb0, per), nkb).result
+            bl = scf.ForOp(kb0, kb1, c1)
+            with ir.InsertionPoint(bl.body):
+                kb = bl.induction_variable
+                for k in range(8):
+                    key = _addi(_muli(kb, fn.idx(8)), fn.idx(k))
+                    inside = arith.CmpIOp(
+                        arith.CmpIPredicate.ult,
+                        arith.IndexCastOp(i32, key).result,
+                        len32,
+                    ).result
+                    rows = []
+                    for cache in ("kc", "vc"):
+                        row = _read(
+                            _vec(d, f32), a[cache], [c0, kh, key, c0], f0
+                        )
+                        row = arith.TruncFOp(_vec(d, f16), row).result
+                        rows.append(
+                            arith.SelectOp(inside, row, zero_row).result
+                        )
+                    k_at = _addi(
+                        _muli(kh, fn.idx(kbs * d * 2)),
+                        _addi(_muli(kb, fn.idx(16)), fn.idx(2 * k)),
+                    )
+                    k64 = vector.BitCastOp(_vec(d // 4, i64), rows[0]).result
+                    vector.ScatterOp(None, kpk, [k_at], k_idx, k_mask, k64)
+                    v_at = _addi(
+                        _muli(kh, fn.idx(kbs * d * 8)),
+                        _addi(_muli(kb, fn.idx(d * 8)), fn.idx(k)),
+                    )
+                    vector.ScatterOp(None, vpk, [v_at], v_idx, v_mask, rows[1])
+                scf.YieldOp([])
+            scf.ReduceOp([], 0)
+
+        o_flat = memref.CollapseShapeOp(
+            _memref([m * hd], f32), a["o"], [[0, 1]]
+        ).result
+        kp_base, vp_base = _ptr_i64(ty, kpk), _ptr_i64(ty, vpk)
+        lanes = range(64)
+        row_of = _const_vec(v64i, [i // 8 for i in lanes])
+        col_of = _const_vec(v64i, [i % 8 for i in lanes])
+        o_idx = _const_vec(v64i, [(i // 8) * hd + i % 8 for i in lanes])
+        # Q, per RoPE half of a row: i64 element e goes to chunk e / 2 of the
+        # half, half e % 2 of the row's 8 dimensions
+        q_idx = _const_vec(
+            _vec(d // 8, i32), [(e // 2) * 16 + e % 2 for e in range(d // 8)]
+        )
+        q_mask = fn.const(_vec(d // 8, i1), 1)
+        o_mask = fn.const(_vec(64, i1), 1)
+        neg_inf = fn.const(v64f, float("-inf"))
+        zero64 = fn.const(v64f, 0.0)
+        scale = fn.const(vhf, spec["scale"])
+
+        def per_row(v, op):
+            """op over lanes 8r .. 8r + 7 of v, in each of them."""
+            for by in (4, 2, 1):
+                moved = [i + by if i + by < 64 else i for i in lanes]
+                v = op(v, vector.ShuffleOp(v, v, moved).result)
+            return vector.ShuffleOp(v, v, [i & ~7 for i in lanes]).result
+
+        def vmax(x, y):
+            return arith.MaximumFOp(x, y).result
+
+        body, (hh, rb) = _parallel(fn, [fn.idx(h), fn.idx(m // 8)])
+        with ir.InsertionPoint(body):
+            kh = _divui(hh, fn.idx(h // kvh))
+            r0 = _muli(rb, fn.idx(8))
+            p0 = _addi(a["start"], r0)
+            qp = memref.AllocaOp(_memref([d * 2], i64), [], [], alignment=128)
+            ob = memref.AllocaOp(_memref([512], f32), [], [], alignment=128)
+            qp, ob = qp.result, ob.result
+            s = _alloc(_memref([kbs * 64], f32))
+            pb = _alloc(_memref([kbs * 64], f16))
+            # Q: RoPE, scale, fp16 A operands qp[dc][8r + dd]
+            col = _muli(hh, fn.idx(d))
+            for r in range(8):
+                row = _addi(r0, fn.idx(r))
+                qa = _read(vhf, a["q"], [row, col], f0)
+                qb = _read(vhf, a["q"], [row, _addi(col, fn.idx(half))], f0)
+                cv = vector.LoadOp(vhf, a["cs"], [row, c0]).result
+                sv = vector.LoadOp(vhf, a["sn"], [row, c0]).result
+                lo = _fma(qa, cv, arith.NegFOp(_mulf(qb, sv)).result)
+                hi = _fma(qb, cv, _mulf(qa, sv))
+                for part, val in enumerate((lo, hi)):
+                    val = arith.TruncFOp(vhh, _mulf(val, scale)).result
+                    q64 = vector.BitCastOp(_vec(d // 8, i64), val).result
+                    at = fn.idx(part * d + 2 * r)
+                    vector.ScatterOp(None, qp, [at], q_idx, q_mask, q64)
+            # S = Q K^T, 8 key blocks per call
+            kh64 = i64_of(kh)
+            kp_h = _addi(kp_base, _muli(kh64, fn.const(i64, kbs * d * 16)))
+            vp_h = _addi(vp_base, _muli(kh64, fn.const(i64, kbs * d * 16)))
+            qp_i, s_i = _ptr_i64(ty, qp), _ptr_i64(ty, s)
+            groups = _divui(_addi(nkb, fn.idx(7)), fn.idx(8))
+            gl = scf.ForOp(c0, groups, c1)
+            with ir.InsertionPoint(gl.body):
+                g = i64_of(gl.induction_variable)
+                func.CallOp(
+                    [],
+                    ATTN_QK_FN,
+                    [
+                        qp_i,
+                        _addi(kp_h, _muli(g, fn.const(i64, 8 * 128))),
+                        _addi(s_i, _muli(g, fn.const(i64, 8 * 256))),
+                        fn.const(i64, d // 8),
+                        fn.const(i64, kbs * 128),
+                    ],
+                )
+                scf.YieldOp([])
+            # softmax of row r over the keys <= p0 + r
+            pos = _addi(_bcast(v64i, arith.IndexCastOp(i32, p0).result), row_of)
+
+            def visible(kb):
+                first = arith.IndexCastOp(i32, _muli(kb, fn.idx(8))).result
+                key = _addi(_bcast(v64i, first), col_of)
+                return arith.CmpIOp(arith.CmpIPredicate.ule, key, pos).result
+
+            ml = scf.ForOp(c0, nkb, c1, [neg_inf])
+            with ir.InsertionPoint(ml.body):
+                kb = ml.induction_variable
+                sv = vector.LoadOp(v64f, s, [_muli(kb, fn.idx(64))]).result
+                mx = ml.inner_iter_args[0]
+                new = arith.SelectOp(visible(kb), vmax(mx, sv), mx).result
+                scf.YieldOp([new])
+            mx = per_row(ml.results[0], vmax)
+            ll = scf.ForOp(c0, nkb, c1, [zero64])
+            with ir.InsertionPoint(ll.body):
+                kb = ll.induction_variable
+                at = [_muli(kb, fn.idx(64))]
+                sv = vector.LoadOp(v64f, s, at).result
+                ev = _exp(fn, ty, _subf(sv, mx), 64)
+                ev = arith.SelectOp(visible(kb), ev, zero64).result
+                vector.StoreOp(arith.TruncFOp(_vec(64, f16), ev).result, pb, at)
+                scf.YieldOp([_addf(ll.inner_iter_args[0], ev)])
+            total = per_row(ll.results[0], _addf)
+            inv = _divf(fn.const(v64f, 1.0), total)
+            # lse of the 8 rows (not used by the model)
+            firsts = [8 * i for i in range(8)]
+            lse = _addf(
+                math.LogOp(
+                    vector.ShuffleOp(total, total, firsts).result
+                ).result,
+                vector.ShuffleOp(mx, mx, firsts).result,
+            )
+            vector.StoreOp(lse, a["lse"], [c0, hh, r0])
+            # O = P V / l, 64 dimensions per call
+            pb_i, ob_i = _ptr_i64(ty, pb), _ptr_i64(ty, ob)
+            for dg in range(d // ATTN_IME_DIMS):
+                func.CallOp(
+                    [],
+                    ATTN_PV_FN,
+                    [
+                        pb_i,
+                        _addi(vp_h, fn.const(i64, dg * 1024)),
+                        ob_i,
+                        i64_of(nkb),
+                        fn.const(i64, d * 16),
+                    ],
+                )
+                for j in range(8):
+                    ov = vector.LoadOp(v64f, ob, [fn.idx(64 * j)]).result
+                    at = _addi(
+                        _muli(r0, fn.idx(hd)),
+                        _addi(col, fn.idx(ATTN_IME_DIMS * dg + 8 * j)),
+                    )
+                    vector.ScatterOp(
+                        None, o_flat, [at], o_idx, o_mask, _mulf(ov, inv)
+                    )
+            memref.DeallocOp(s)
+            memref.DeallocOp(pb)
+            scf.ReduceOp([], 0)
+        memref.DeallocOp(kpk)
+        memref.DeallocOp(vpk)
+        _attn_epilogue(fn, a, outs)
+
+
 def _declare(ty, name, types):
     """A private declaration of a function defined in another module."""
     op = func.FuncOp(name, ir.FunctionType.get(types, []))
     op.attributes["sym_visibility"] = ir.StringAttr.get("private")
 
 
-def build_kernels(specs, part: str = "main") -> ir.Module:
+def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
     """The module of the kernels `specs` (k3_w4_rewrite) describe, in the
     active context; verified. part "main": the kernels, with the RVV tiles
-    and declarations of the IME tiles; part "ime": the IME tiles and their
-    step (compiled for the A100 cores)."""
+    and declarations of the IME functions; part "ime": the IME tiles, their
+    step and the matrix loops of the IME attention (compiled for the A100
+    cores). With `emulate_ime`, the main module defines the attention's
+    matrix loops without the IME instead (tests on a host)."""
     ty = _Types()
     module = ir.Module.create()
+    ime_attn = any(s["kind"] == "attn" and s.get("ime") for s in specs)
     with ir.InsertionPoint(module.body):
         if part == "ime":
             _ime_step_fn(ty)
+            if ime_attn:
+                _attn_mma_fns(ty)
+        elif ime_attn:
+            if emulate_ime:
+                _attn_mma_fns(ty, emulate=True)
+            else:
+                for name in (ATTN_QK_FN, ATTN_PV_FN):
+                    _declare(ty, name, [ty.i64] * 5)
         for s in specs:
             ime = bool(s.get("ime"))
             if part == "ime":
-                if ime:
+                if ime and s["kind"] != "attn":
                     _ime_tile_fn(ty, s)
             elif s["kind"] == "attn":
                 if s["m"] == 1:
                     _attn_decode_fn(ty, s)
+                elif ime:
+                    _attn_prefill_ime_fn(ty, s)
                 else:
                     _attn_prefill_fn(ty, s)
             else:
@@ -1833,7 +2235,7 @@ def build_kernels(specs, part: str = "main") -> ir.Module:
     return module
 
 
-def gen_kernels(specs, part: str = "main") -> str:
+def gen_kernels(specs, part: str = "main", emulate_ime=False) -> str:
     """build_kernels() in a context of its own, as MLIR text."""
     with ir.Context(), ir.Location.unknown():
-        return str(build_kernels(specs, part))
+        return str(build_kernels(specs, part, emulate_ime))
