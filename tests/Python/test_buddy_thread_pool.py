@@ -6,7 +6,8 @@
 # linked with the pool and without libomp, which only links if the pool has
 # every entry point they call, and run: each iteration runs once, on several
 # threads; BUDDY_THREAD_POOL_THREADS limits them; a nested parallel loop runs
-# serially inside the outer one.
+# serially inside the outer one; two application threads that run parallel
+# loops of different thread counts at the same time each get their own count.
 
 import os
 import shutil
@@ -181,3 +182,189 @@ for limit in (None, 2, 1):
 # CHECK: limit None: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
 # CHECK: limit 2: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
 # CHECK: limit 1: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
+
+
+# Two application threads at once, with loops lowered for 2 and for 3
+# threads: every call must run on its own count (at most one per CPU), the
+# pool growing to the larger one.
+TEAM = """
+func.func private @record{n}(index)
+func.func @team{n}(%out: memref<?xi64>) {{
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %len = memref.dim %out, %c0 : memref<?xi64>
+  scf.parallel (%i) = (%c0) to (%len) step (%c1) {{
+    func.call @record{n}(%i) : (index) -> ()
+    scf.reduce
+  }}
+  return
+}}
+"""
+
+CONCURRENT = r"""
+#include <pthread.h>
+#include <stdint.h>
+#include <stdio.h>
+
+typedef struct {
+  int64_t *allocated, *aligned;
+  intptr_t offset, size, stride;
+} Vec;
+extern void _mlir_ciface_team2(Vec *out);
+extern void _mlir_ciface_team3(Vec *out);
+
+#define N 60
+#define CALLS 2000
+static pthread_t who2[N], who3[N];
+void _mlir_ciface_record2(intptr_t i) { who2[i] = pthread_self(); }
+void _mlir_ciface_record3(intptr_t i) { who3[i] = pthread_self(); }
+
+static int distinct(pthread_t *who) {
+  int count = 0;
+  for (int i = 0; i < N; ++i) {
+    int seen = 0;
+    for (int j = 0; j < i && !seen; ++j)
+      seen = pthread_equal(who[i], who[j]);
+    count += !seen;
+  }
+  return count;
+}
+
+struct Caller {
+  void (*team)(Vec *);
+  pthread_t *who;
+  int expected, wrong;
+};
+
+static void *caller(void *arg) {
+  struct Caller *c = arg;
+  static int64_t v[2][N];
+  for (int k = 0; k < CALLS; ++k) {
+    Vec out = {v[c->expected == 3], v[c->expected == 3], 0, N, 1};
+    c->team(&out);
+    c->wrong += distinct(c->who) != c->expected;
+  }
+  return NULL;
+}
+
+// The interleaving of the review of this runtime, forced: A pushes 2
+// threads, B pushes 3, then A forks, then B. Each region must get the count
+// its own thread pushed.
+typedef struct ident ident_t;
+typedef void (*microtask_t)(int32_t *, int32_t *, ...);
+extern void __kmpc_push_num_threads(ident_t *, int32_t, int32_t);
+extern void __kmpc_fork_call(ident_t *, int32_t, microtask_t, ...);
+static void count(int32_t *gtid, int32_t *btid, int *team) {
+  (void)gtid, (void)btid;
+  __atomic_add_fetch(team, 1, __ATOMIC_RELAXED);
+}
+static int pushedA, pushedB, forkedA, teamA, teamB;
+static void wait(int *flag) {
+  while (!__atomic_load_n(flag, __ATOMIC_ACQUIRE))
+    ;
+}
+static void *threadA(void *arg) {
+  (void)arg;
+  __kmpc_push_num_threads(NULL, 0, 2);
+  __atomic_store_n(&pushedA, 1, __ATOMIC_RELEASE);
+  wait(&pushedB);
+  __kmpc_fork_call(NULL, 1, (microtask_t)count, &teamA);
+  __atomic_store_n(&forkedA, 1, __ATOMIC_RELEASE);
+  return NULL;
+}
+static void *threadB(void *arg) {
+  (void)arg;
+  wait(&pushedA);
+  __kmpc_push_num_threads(NULL, 0, 3);
+  __atomic_store_n(&pushedB, 1, __ATOMIC_RELEASE);
+  wait(&forkedA);
+  __kmpc_fork_call(NULL, 1, (microtask_t)count, &teamB);
+  return NULL;
+}
+
+int main(int argc, char **argv) {
+  int cpus = argc > 1 ? atoi(argv[1]) : 1;
+  pthread_t pa, pb;
+  pthread_create(&pa, NULL, threadA, NULL);
+  pthread_create(&pb, NULL, threadB, NULL);
+  pthread_join(pa, NULL);
+  pthread_join(pb, NULL);
+  printf("interleaved: A pushed 2, team as expected %d; B pushed 3, team as "
+         "expected %d\n",
+         teamA == (cpus < 2 ? cpus : 2), teamB == (cpus < 3 ? cpus : 3));
+
+  struct Caller a = {_mlir_ciface_team2, who2, cpus < 2 ? cpus : 2, 0};
+  struct Caller b = {_mlir_ciface_team3, who3, cpus < 3 ? cpus : 3, 0};
+  pthread_t ta, tb;
+  pthread_create(&ta, NULL, caller, &a);
+  pthread_create(&tb, NULL, caller, &b);
+  pthread_join(ta, NULL);
+  pthread_join(tb, NULL);
+  printf("concurrent: 2-thread calls with a wrong team %d, 3-thread calls "
+         "with a wrong team %d\n", a.wrong, b.wrong);
+  return 0;
+}
+"""
+
+
+def lower(mlir, threads, name):
+    passes = [
+        f"-convert-scf-to-openmp=num-threads={threads}",
+        *compile_pipeline.lower_to_llvm(arena=False),
+    ]
+    ir = subprocess.run(
+        [sys.argv[1], *passes],
+        input=mlir,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    ir = subprocess.run(
+        [shutil.which("mlir-translate"), "-mlir-to-llvmir"],
+        input=ir,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    with open(path(f"{name}.ll"), "w") as f:
+        f.write(ir)
+    subprocess.run(
+        [shutil.which("llc"), "-filetype=obj", "-relocation-model=pic"]
+        + [path(f"{name}.ll"), "-o", path(f"{name}.o")],
+        check=True,
+    )
+    return path(f"{name}.o")
+
+
+objs = [lower(TEAM.format(n=n), n, f"team{n}") for n in (2, 3)]
+with open(path("concurrent.c"), "w") as f:
+    f.write(
+        CONCURRENT.replace(
+            "#include <stdio.h>", "#include <stdio.h>\n#include <stdlib.h>"
+        )
+    )
+pool = os.environ.get(
+    "POOL_SOURCE",
+    os.path.join(SRC, "runtime", "threadpool", "BuddyThreadPool.c"),
+)
+subprocess.run(
+    [
+        cc,
+        "-O2",
+        path("concurrent.c"),
+        *objs,
+        pool,
+        "-lpthread",
+        "-o",
+        path("concurrent"),
+    ],
+    check=True,
+)
+env = dict(os.environ)
+env.pop("BUDDY_THREAD_POOL_THREADS", None)
+run = subprocess.run(
+    [path("concurrent"), str(cpus)], capture_output=True, text=True, env=env
+)
+print(run.stdout.strip(), run.stderr)
+# CHECK: interleaved: A pushed 2, team as expected 1; B pushed 3, team as expected 1
+# CHECK-NEXT: concurrent: 2-thread calls with a wrong team 0, 3-thread calls with a wrong team 0

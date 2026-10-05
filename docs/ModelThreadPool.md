@@ -21,10 +21,11 @@ The generated code calls six libomp entry points: `__kmpc_fork_call`,
 these and nothing else. Its symbols are hidden, so the model library binds to
 them when it is linked.
 
-- **Startup.** The first parallel region starts the pool. It creates as many
-  threads as the region asks for (`num_threads` of the spec), with at most one
-  per CPU the process may run on (`BUDDY_THREAD_POOL_THREADS` lowers the
-  limit). Each thread is pinned to its CPU, the calling thread included.
+- **Size.** The pool has as many threads as the largest parallel region so
+  far asked for (`num_threads` of the spec), and at most one per CPU the
+  process may run on (`BUDDY_THREAD_POOL_THREADS` lowers the limit). The first
+  region starts the pool; a region that asks for more threads adds them. Each
+  thread is pinned to its CPU, and so is the first caller.
 - **Waiting.** The threads wait for work by spinning. A region therefore starts
   and ends a few microseconds sooner than with libomp, which matters when a
   decode step runs a few hundred short regions. After about 16 M spins without
@@ -34,7 +35,9 @@ them when it is linked.
 - **Nesting.** Nested parallel regions run serially, as they do with libomp by
   default.
 - **Concurrency.** Parallel regions that different application threads start
-  wait for each other.
+  wait for each other. The thread count an application thread asks for
+  (`__kmpc_push_num_threads`) is kept per thread and applies to its own next
+  region.
 - **Stack size.** `OMP_STACKSIZE` sets the stack of the pool threads. The
   default is 256 MiB of virtual memory.
 
@@ -71,4 +74,7 @@ runs them and checks that:
 
 - every iteration runs once, on the expected number of threads;
 - `BUDDY_THREAD_POOL_THREADS` lowers that number;
-- a nested parallel loop computes the right result.
+- a nested parallel loop computes the right result;
+- two application threads that ask for 2 and 3 threads get their own count,
+  with the interleaving push A, push B, fork A, fork B forced, and over 2000
+  concurrent calls each.

@@ -25,13 +25,16 @@
 // runs hundreds of short regions. The symbols are hidden, so the model
 // library binds to them when it is linked and does not need libomp.
 //
-//   - The pool is started by the first parallel region, with as many threads
-//     as it asks for (num_threads of the lowering) and at most one per CPU the
-//     process may run on; the caller is thread 0 and is pinned too.
+//   - The pool has as many threads as the largest parallel region so far
+//     asked for (num_threads of the lowering), and at most one per CPU the
+//     process may run on: the first region starts it, a larger one adds
+//     threads. The caller of a region is its thread 0; the first caller is
+//     pinned too.
 //   - Static schedules only (what omp.wsloop without a schedule uses).
 //   - Nested parallel regions run serially, as with libomp by default.
 //   - One parallel region at a time: regions forked by different application
-//     threads wait for each other.
+//     threads wait for each other. The thread count a thread pushes applies
+//     to its own next region.
 //
 // Environment:
 //   BUDDY_THREAD_POOL_THREADS  at most this many threads
@@ -57,11 +60,17 @@
 typedef struct ident ident_t;
 typedef void (*microtask_t)(int32_t *, int32_t *, ...);
 
-static int poolSize;  // threads in the pool, the caller included
-static int *poolCpus; // the CPU of each thread
-static pthread_t *poolThreads;
+// The pool; changed with forkLock held and no region running.
 static pthread_mutex_t forkLock = PTHREAD_MUTEX_INITIALIZER;
-static int pushedThreads; // num_threads of the next region
+static int poolSize;  // threads in the pool, thread 0 (a region's caller) too
+static int poolLimit; // at most this many: allowed CPUs, environment
+static int *poolCpus; // the CPU of each thread (poolLimit entries)
+static pthread_t *poolThreads;
+static unsigned *poolStart; // the job generation a worker starts after
+static size_t poolStack;
+
+static _Thread_local int pushedThreads; // num_threads of this thread's next
+                                        // region
 
 static _Thread_local int threadNum; // in the current team
 static _Thread_local int teamSize = 1;
@@ -129,7 +138,7 @@ static void pin(int cpu) {
 static void *worker(void *arg) {
   int id = (int)(intptr_t)arg;
   pin(poolCpus[id]);
-  unsigned seen = 0;
+  unsigned seen = poolStart[id];
   for (;;) {
     unsigned generation;
     long spins = 0;
@@ -151,44 +160,57 @@ static void *worker(void *arg) {
   }
 }
 
-static void startPool(int requested) {
+static void initPool(void) {
   cpu_set_t allowed;
   sched_getaffinity(0, sizeof allowed, &allowed);
-  int limit = requested;
+  int limit = CPU_SETSIZE;
   const char *env = getenv("BUDDY_THREAD_POOL_THREADS");
-  if (env && atoi(env) > 0 && atoi(env) < limit)
+  if (env && atoi(env) > 0)
     limit = atoi(env);
   poolCpus = malloc(sizeof(int) * CPU_SETSIZE);
-  for (int c = 0; c < CPU_SETSIZE && poolSize < limit; c++)
+  for (int c = 0; c < CPU_SETSIZE && poolLimit < limit; c++)
     if (CPU_ISSET(c, &allowed))
-      poolCpus[poolSize++] = c;
-  if (poolSize == 0) {
-    poolCpus[0] = sched_getcpu();
-    poolSize = 1;
-  }
+      poolCpus[poolLimit++] = c;
+  if (poolLimit == 0)
+    poolCpus[poolLimit++] = sched_getcpu();
+  poolThreads = malloc(sizeof(pthread_t) * poolLimit);
+  poolStart = malloc(sizeof(unsigned) * poolLimit);
   pin(poolCpus[0]);
+  poolSize = 1;
   // Virtual size: only the touched pages take memory.
-  size_t stack = 256ull << 20;
+  poolStack = 256ull << 20;
   env = getenv("OMP_STACKSIZE");
   if (env) {
     char *end;
-    stack = strtoull(env, &end, 10);
-    stack <<= (*end == 'G' || *end == 'g')   ? 30
-              : (*end == 'K' || *end == 'k') ? 10
-              : (*end == 'B' || *end == 'b') ? 0
-                                             : 20;
+    poolStack = strtoull(env, &end, 10);
+    poolStack <<= (*end == 'G' || *end == 'g')   ? 30
+                  : (*end == 'K' || *end == 'k') ? 10
+                  : (*end == 'B' || *end == 'b') ? 0
+                                                 : 20;
   }
+}
+
+// Threads up to n (at most poolLimit). With forkLock held and no region
+// running: a new worker runs the jobs after the current generation.
+static void growPool(int n) {
+  if (n > poolLimit)
+    n = poolLimit;
+  if (n <= poolSize)
+    return;
   pthread_attr_t attr;
   pthread_attr_init(&attr);
-  pthread_attr_setstacksize(&attr, stack);
-  poolThreads = malloc(sizeof(pthread_t) * poolSize);
-  for (int i = 1; i < poolSize; i++) {
+  pthread_attr_setstacksize(&attr, poolStack);
+  unsigned generation =
+      atomic_load_explicit(&jobGeneration, memory_order_relaxed);
+  for (int i = poolSize; i < n; i++) {
+    poolStart[i] = generation;
     if (pthread_create(&poolThreads[i], &attr, worker, (void *)(intptr_t)i)) {
       perror("[BuddyThreadPool] pthread_create");
       abort();
     }
   }
   pthread_attr_destroy(&attr);
+  poolSize = n;
 }
 
 // The model library may be unloaded (dlclose): stop the workers before their
@@ -234,11 +256,12 @@ API void __kmpc_fork_call(ident_t *loc, int32_t argc, microtask_t fn, ...) {
     threadNum = savedNum, teamSize = savedSize;
     return;
   }
-  pthread_mutex_lock(&forkLock);
   int n = pushedThreads > 0 ? pushedThreads : CPU_SETSIZE;
   pushedThreads = 0;
+  pthread_mutex_lock(&forkLock);
   if (!poolSize)
-    startPool(n);
+    initPool();
+  growPool(n);
   if (n > poolSize)
     n = poolSize;
   job.fn = fn, job.argc = argc, job.threads = n;
@@ -287,7 +310,7 @@ API void __kmpc_for_static_init_8u(ident_t *loc, int32_t gtid, int32_t sched,
   uint64_t trip = upper - lower + 1; // 0 for an empty loop (upper = lower - 1)
   if (sched == kSchedStatic) {
     uint64_t each = trip / n, extra = trip % n;
-    uint64_t first = id * each + ((uint64_t)id < extra ? id : extra);
+    uint64_t first = id * each + ((uint64_t)id < extra ? (uint64_t)id : extra);
     uint64_t count = each + ((uint64_t)id < extra);
     *plower = lower + first;
     *pupper = lower + first + count - 1; // count 0: no iterations
