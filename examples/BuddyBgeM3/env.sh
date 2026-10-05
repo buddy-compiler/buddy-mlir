@@ -15,8 +15,8 @@
 #
 # ===----------------------------------------------------------------------===//
 #
-# Usage: source ~/buddy-k3/buddy-mlir/examples/BuddyBgeM3/k3/env.sh
-# All k3/ scripts source this file automatically.
+# Usage: source ~/buddy-k3/buddy-mlir/examples/BuddyBgeM3/env.sh
+# All scripts in this directory source this file automatically.
 
 export ROOT="${ROOT:-$HOME/buddy-k3}"
 export REPO="${REPO:-$ROOT/buddy-mlir}"
@@ -33,9 +33,11 @@ export RESULTS="$APP/results"  # raw benchmark data
 export PROFILE="$APP/profile"  # RVV instruction statistics
 
 # rv64 llc options (same as buddy_model.cmake cross mode; works natively).
-# Default-value semantics: callers may pre-export LLC_ATTRS (e.g. exp_g2.sh).
+# Default-value semantics: callers may pre-export LLC_ATTRS.
 export LLC_ATTRS="${LLC_ATTRS:--march=riscv64 -mattr=+m,+d,+v \
   -mtriple=riscv64-unknown-linux-gnu}"
+# llc optimization level for model objects (use -O1 to speed up debug builds).
+export LLC_OPT="${LLC_OPT:--O3}"
 
 # Runtime library lookup for dlopen'ed model .so files: libomp.so and
 # libmlir_c_runner_utils.so live in the LLVM build tree; add their dirs to

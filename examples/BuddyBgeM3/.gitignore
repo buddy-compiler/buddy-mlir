@@ -1,14 +1,12 @@
-# Model weights and generated artifacts (2.27 GB) are not committed.
-dist/
-
-# Optional local x86 environment file (contains personal paths).
-/env.sh
-
-# Local archives and logs.
-/archive/
+# Generated artifacts and raw outputs (multi-GB) are not committed.
+/dist/
+/out/
+/out_x86/
+/results/
+/results_x86/
+/profile/
+/src/
 /logs/
 
-# Bulky per-request server responses are kept locally, not committed.
-/results/**/resp_*.json
-/results/**/warm_resp.json
-/results/**/cli_err.txt
+# Optional local x86 environment file (contains personal paths).
+/export/env_x86.sh

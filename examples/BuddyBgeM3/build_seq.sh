@@ -76,10 +76,34 @@ AS="$LLVMBIN/llvm-as"
 LLC="$LLVMBIN/llc"
 CXX="$LLVMBIN/clang++"
 
+# A100 offload knobs for the bge-m3-matmul-a100 pass.
+# NOTE: offloading ALL 144 seq128 matmuls triggers a machine-code-level
+# miscompile of the giant subgraph function in the K3 llc (layer-input
+# buffers end up zeroed; embedding cos drops to ~0.27). Leaving ONE small
+# matmul (the first, 0.27 GFLOP) on the X100 vector path keeps the function
+# under the threshold: cos = 1.0. Override via A100_PASS_OPTS.
+export A100_PASS_OPTS="${A100_PASS_OPTS:--bge-m3-a100-start=1}"
+
+echo "[seq$SEQ/$TAG] 0/4 compile A100 offload kernel (spine-runtime)"
+SPERT_SDK="$HOME/spine-sdk/usr"
+"$CXX" -std=c++17 -O3 -march=rv64gcv -fPIC \
+  -I"$SPERT_SDK/include" \
+  -c "$HERE/a100_kernel.cpp" -o "$OUTD/a100_kernel.o" 2>/dev/null \
+  || echo "warning: A100 kernel compile failed; continuing without offload"
+A100_OBJ=""
+[ -f "$OUTD/a100_kernel.o" ] && A100_OBJ="$OUTD/a100_kernel.o"
+
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║ ★ Optimization knob: edit this block, then rerun the script. ★          ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
-# Baseline (same as x86; verified cos = 1.0):
+# Two chains are provided:
+#   BGE_M3_BASELINE=1  -> the original scalarized chain (PR #934 baseline)
+#   (default)          -> the x86-verified optimized chain (#12/#13)
+#
+# The optimized chain is the x86-verified version ported to K3: attention
+# batch matmuls + tiled transposes, no -convert-vector-to-scf (fixed
+# vector<64xf32> lowers straight through convert-vector-to-llvm).
+if [ "${BGE_M3_BASELINE:-0}" = "1" ]; then
 SUB_PASSES="
   -arith-expand
   -eliminate-empty-tensors
@@ -114,6 +138,48 @@ SUB_PASSES="
   -convert-func-to-llvm
   -reconcile-unrealized-casts
 "
+else
+SUB_PASSES="
+  -arith-expand
+  -eliminate-empty-tensors
+  -convert-elementwise-to-linalg
+  -empty-tensor-to-alloc-tensor
+  -one-shot-bufferize=bufferize-function-boundaries
+  -ownership-based-buffer-deallocation
+  -buffer-deallocation-simplification
+  -bufferization-lower-deallocations
+  -bge-m3-matmul-a100 ${A100_PASS_OPTS:-}
+  -matmul-parallel-vectorization-optimize
+  -batchmatmul-optimize
+  -bge-m3-batchmatmul-transpose-b-vec=vector-size=64
+  -linalg-transpose-tile=tile-size=8
+  -convert-linalg-to-affine-loops
+  -affine-loop-fusion
+  -affine-parallelize
+  -lower-affine
+  -convert-scf-to-openmp
+  -convert-linalg-to-loops
+  -expand-strided-metadata
+  -lower-affine
+  -cse
+  -convert-vector-to-llvm
+  -memref-expand
+  -convert-arith-to-llvm
+  -finalize-memref-to-llvm
+  -convert-scf-to-cf
+  -convert-cf-to-llvm
+  -llvm-request-c-wrappers
+  -convert-openmp-to-llvm
+  -convert-arith-to-llvm
+  -convert-math-to-llvm
+  -convert-math-to-libm
+  -convert-func-to-llvm
+  -reconcile-unrealized-casts
+"
+fi
+# If cos fails on K3 (fixed 64-lane vectors may misbehave on RVV VLEN=256),
+# fall back to vector-size=8 (single VLEN register) or set
+# BGE_M3_BASELINE=1 to recover the old scalarized chain.
 # Experiment A (scalable + static layout; must drop -convert-vector-to-scf):
 #   Replace "-matmul-parallel-vectorization-optimize" with:
 #     -eliminate-memref-copy -assume-tight-memref-layout
@@ -151,7 +217,7 @@ echo "[seq$SEQ/$TAG] 2/4 subgraph0.mlir -> subgraph0.o (slowest, be patient)"
 | "$MOPT" -test-linalg-transform-patterns=test-decompose-pad-tensor \
 | "$BOPT" $SUB_PASSES \
 | "$MTR" -mlir-to-llvmir | "$AS" \
-| "$LLC" $LLC_ATTRS -filetype=obj -relocation-model=pic -O3 \
+| "$LLC" $LLC_ATTRS -filetype=obj -relocation-model=pic $LLC_OPT \
   -o "$OUTD/subgraph0.o"
 
 echo "[seq$SEQ/$TAG] 3/4 link bge_m3_model.so"
@@ -168,12 +234,17 @@ RUN_DIR="$(dirname "$RUNNER")"
 "$CXX" -shared -fPIC -Wl,-soname,bge_m3_model.so \
   -Wl,--allow-multiple-definition \
   -o "$OUTD/bge_m3_model.so" "$OUTD/forward.o" "$OUTD/subgraph0.o" \
+  ${A100_OBJ} \
   "$OMP" "$RUNNER" \
-  -Wl,-rpath,"$OMP_DIR" -Wl,-rpath,"$RUN_DIR" -Wl,-rpath,'$ORIGIN' -lm
+  -L"$SPERT_SDK/lib" -lspert -lspine_tcm \
+  -Wl,-rpath,"$OMP_DIR" -Wl,-rpath,"$RUN_DIR" -Wl,-rpath,'$ORIGIN' \
+  -Wl,-rpath,"$SPERT_SDK/lib" -lm
 # rpath includes $ORIGIN: copy runtime libs next to the .so, otherwise
 # dlopen fails and the model returns empty output.
 cp -f "$OMP"    "$OUTD/libomp.so"
 cp -f "$RUNNER" "$OUTD/libmlir_c_runner_utils.so"
+cp -f "$SPERT_SDK/lib/libspert.so"* "$OUTD/" 2>/dev/null || true
+cp -f "$SPERT_SDK/lib/libspine_tcm.so"* "$OUTD/" 2>/dev/null || true
 if ldd "$OUTD/bge_m3_model.so" 2>/dev/null | grep -q 'not found'; then
   echo "warning: unresolved deps:"
   ldd "$OUTD/bge_m3_model.so" | grep 'not found'
@@ -208,5 +279,4 @@ echo
 echo "Next steps:"
 echo "  correctness: python3 $HERE/cos.py <baseline-emb> <new-emb>"
 echo "  benchmark  : bash $HERE/bench.sh $SEQ $TAG"
-echo "  RVV profile: bash $HERE/profile.sh $SEQ $TAG"
 

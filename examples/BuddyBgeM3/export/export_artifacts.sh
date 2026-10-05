@@ -41,7 +41,7 @@ REPO="$(cd "$APP/../.." && pwd)"
 cd "$REPO"
 
 # Optional local x86 environment (defines PY / LOCAL_BGE_M3).
-[ -f "$APP/env.sh" ] && source "$APP/env.sh"
+[ -f "$HERE/env_x86.sh" ] && source "$HERE/env_x86.sh"
 PY="${PY:-python3}"
 LOCAL_BGE_M3="${LOCAL_BGE_M3:-$HOME/buddy-models/bge-m3}"
 
