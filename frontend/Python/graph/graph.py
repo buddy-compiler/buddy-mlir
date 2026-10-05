@@ -865,6 +865,7 @@ class GraphImporter:
         # Name -> ir.FunctionType of the external functions declared in
         # self._module, so that each one is declared once.
         self._external_func_types = {}
+        self._external_func_written = {}
 
     def _verbose_output(self):
         if self._verbose_path is None:
@@ -1207,6 +1208,7 @@ class GraphImporter:
             inputs=arg_types, results=result_types
         )
 
+        written = getattr(call_node, "written_args", None)
         declared_type = self._external_func_types.get(func_name)
         if declared_type is not None:
             if declared_type != function_type:
@@ -1216,8 +1218,15 @@ class GraphImporter:
                     f"{declared_type}; call sites with different signatures "
                     "need different function names"
                 )
+            if self._external_func_written[func_name] != written:
+                raise ValueError(
+                    f"external function '{func_name}' is called with "
+                    f"written_args {written}, but it is already declared "
+                    f"with written_args {self._external_func_written[func_name]}"
+                )
             return
         self._external_func_types[func_name] = function_type
+        self._external_func_written[func_name] = written
 
         # Create private function declaration
         with ir.InsertionPoint(self._module.body):
@@ -1226,6 +1235,22 @@ class GraphImporter:
             )
             # Add llvm.emit_c_interface attribute for C ABI compatibility
             func_decl.attributes["llvm.emit_c_interface"] = ir.UnitAttr.get()
+            # What the function does with its arguments, when the call says
+            # (CallExternalOp.written_args): one-shot bufferization reads it
+            # instead of assuming that every argument is written.
+            if written is not None:
+                func_decl.attributes["arg_attrs"] = ir.ArrayAttr.get(
+                    [
+                        ir.DictAttr.get(
+                            {
+                                "bufferization.access": ir.StringAttr.get(
+                                    "read-write" if i in written else "read"
+                                )
+                            }
+                        )
+                        for i in range(len(arg_types))
+                    ]
+                )
 
     def _import_op(self, node: Op):
         """

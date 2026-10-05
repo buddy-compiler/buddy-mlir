@@ -356,6 +356,7 @@ class _Rewriter:
                 ),
             },
             name=f"k3call_{self.uid}",
+            written_args=[],  # the kernels only read their arguments
         )
         self.insert_before(anchor, node)
         self.link(node, args)
@@ -520,6 +521,7 @@ class _Rewriter:
                     "dtype": TensorDType.Float32,
                 },
                 name=node.name,
+                written_args=[],
             )
             self.kernels[spec["name"]] = spec
             self.replace(node, call)
@@ -644,6 +646,8 @@ class _Rewriter:
                     "dtype": [TensorDType.Float32] * 4,
                 },
                 name=f"k3attn_{self.uid}",
+                # the KV caches, updated in place
+                written_args=[3, 4],
             )
             first = min(self.g.body.index(kput), self.g.body.index(vput))
             self.insert_before(self.g.body[first], call)
