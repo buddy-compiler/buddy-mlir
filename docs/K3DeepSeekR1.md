@@ -22,7 +22,6 @@ python3 tools/buddy-codegen/build_model.py \
   --cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON \
   --is-rvv-crosscompile \
   --riscv-gnu-toolchain ${BUILD_RISCV_GNU_TOOLCHAIN_DIR} \
-  --riscv-omp-shared ${RISCV_OMP_SHARED} \
   --riscv-mlir-c-runner-utils ${RISCV_MLIR_C_RUNNER_UTILS} \
   --riscv-llvm-build-dir ${RISCV_LLVM_BUILD_DIR} \
   --buddy-mlir-build-dir ${BUDDY_MLIR_BUILD_DIR}
@@ -44,14 +43,18 @@ The spec (`models/deepseek_r1/specs/k3_w4g32.json`):
   "num_threads": 8,
   "prefill_chunk": 64,
   "arena": true,
-  "hugepages": true
+  "hugepages": true,
+  "thread_pool": true
 }
 ```
 
 `w4g32` needs `prefill_chunk` ([ChunkedPrefill.md](ChunkedPrefill.md)): the
 prefill graph is traced like decode with 64 tokens per call, and both graphs
 use the same kernels with 64 rows and one row. `arena` and `hugepages` are the
-memory options of [ModelMemoryOptions.md](ModelMemoryOptions.md). The variant
+memory options of [ModelMemoryOptions.md](ModelMemoryOptions.md); with
+`thread_pool` ([ModelThreadPool.md](ModelThreadPool.md)) the parallel loops run
+on a pinned pool of threads instead of libomp, so `--riscv-omp-shared` is not
+needed. The variant
 supports Qwen2 models (`Qwen2ForCausalLM`, untied embeddings) whose Linear
 layers are `[K, N]` with K a multiple of 32 and N a multiple of 128;
 `gen_config.py` checks this and computes the weight buffer sizes from the
@@ -96,12 +99,12 @@ SpacemiT K3, 8 A100 cores, `buddy-cli`, greedy:
 
 | | prefill, 458 tokens | decode after 458 tokens | decode after a short prompt |
 | --- | --- | --- | --- |
-| buddy-mlir `w4g32` | 10.2 s (45 tok/s) | 22.5 tok/s | 25.1 tok/s |
+| buddy-mlir `w4g32` | 9.5 s (48 tok/s) | 23.8 tok/s | 26.6 tok/s |
 | llama.cpp-tools-spacemit 0.1.9, Q4_0 | 1.96 s (pp458: 234 tok/s) | | 25.0 tok/s (tg128) |
 
 llama.cpp was measured on the same board; `llama-bench` decodes from an empty
-context. Decode streams the weights from DRAM (868 MB per token) and is on par
-with llama.cpp. Prefill runs the same RVV kernels with 64 rows per call (and
+context. Decode streams the weights from DRAM (868 MB per token) and is 6%
+faster than llama.cpp. Prefill runs the same RVV kernels with 64 rows per call (and
 the LM head on the last row of a chunk only); it does not use the matrix
 engine of the A100 cores yet.
 

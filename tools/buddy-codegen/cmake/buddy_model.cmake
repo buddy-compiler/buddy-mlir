@@ -382,10 +382,12 @@ function(buddy_add_model)
   #   runtime/arena/BuddyArena.c (Stage 3), which the session generated for
   #   llm_prefill_decode resets before each forward call;
   # - "variant": "w4g32" (docs/K3DeepSeekR1.md): the model library gets the
-  #   generated kernels, k3_kernels.o.
+  #   generated kernels, k3_kernels.o;
+  # - "thread_pool": true (docs/ModelThreadPool.md): the model library gets
+  #   runtime/threadpool/BuddyThreadPool.c instead of libomp.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
-            "import json,sys; s=json.load(open(sys.argv[1])); print(('ON' if s.get('arena') is True else 'OFF') + ';' + str(s.get('variant', '')))"
+            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool'))"
             "${MDL_SPEC}"
     OUTPUT_VARIABLE _mdl_spec_fields
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -395,12 +397,18 @@ function(buddy_add_model)
   endif()
   list(GET _mdl_spec_fields 0 MDL_ARENA)
   list(GET _mdl_spec_fields 1 MDL_VARIANT)
+  list(GET _mdl_spec_fields 2 MDL_THREAD_POOL)
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MDL_SPEC}")
   if(MDL_ARENA AND (NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" OR
                     MDL_LAYER_PARTITION))
     message(FATAL_ERROR
       "buddy_add_model (${MDL_NAME}): \"arena\" needs MODEL_KIND "
       "llm_prefill_decode without layer partitioning.")
+  endif()
+  if(MDL_THREAD_POOL AND MDL_LAYER_PARTITION)
+    message(FATAL_ERROR
+      "buddy_add_model (${MDL_NAME}): \"thread_pool\" is not supported "
+      "with layer partitioning.")
   endif()
 
   set(MDL_GEN_MANIFEST_ARGS)
@@ -439,7 +447,7 @@ function(buddy_add_model)
       message(FATAL_ERROR
         "IS_RVV_CROSSCOMPILE=ON requires RISCV_GNU_TOOLCHAIN (toolchain root with sysroot).")
     endif()
-    if(NOT RISCV_OMP_SHARED)
+    if(NOT RISCV_OMP_SHARED AND NOT MDL_THREAD_POOL)
       message(FATAL_ERROR
         "IS_RVV_CROSSCOMPILE=ON requires RISCV_OMP_SHARED (target OpenMP shared library path).")
     endif()
@@ -462,7 +470,7 @@ function(buddy_add_model)
 
     get_filename_component(RISCV_OMP_BASENAME "${RISCV_OMP_SHARED}" NAME)
     get_filename_component(RISCV_MLIR_RUNNER_BASENAME "${RISCV_MLIR_C_RUNNER_UTILS}" NAME)
-    if(RISCV_OMP_BASENAME STREQUAL "")
+    if(RISCV_OMP_BASENAME STREQUAL "" AND NOT MDL_THREAD_POOL)
       message(FATAL_ERROR "RISCV_OMP_SHARED has no basename: ${RISCV_OMP_SHARED}")
     endif()
     if(RISCV_MLIR_RUNNER_BASENAME STREQUAL "")
@@ -501,7 +509,10 @@ function(buddy_add_model)
       endif()
       list(APPEND RISCV_DEP_LIBS "${_riscv_mlir_lib_dir}/${_needed}")
     endforeach()
-    list(APPEND RISCV_DEP_LIBS "${RISCV_OMP_SHARED}" "${RISCV_MLIR_C_RUNNER_UTILS}")
+    if(NOT MDL_THREAD_POOL)
+      list(APPEND RISCV_DEP_LIBS "${RISCV_OMP_SHARED}")
+    endif()
+    list(APPEND RISCV_DEP_LIBS "${RISCV_MLIR_C_RUNNER_UTILS}")
 
     set(RISCV_DEP_LOCALS)
     set(RISCV_DEP_COPIES)
@@ -1337,24 +1348,36 @@ function(buddy_add_model)
       -lm)
   endif()
 
-  set(MDL_STAGE3_EXTRA_OBJS)
+  # Runtime support compiled into the model library (spec fields above).
+  set(_mdl_runtime_srcs)
   if(MDL_ARENA)
-    set(_arena_src "${BUDDY_SOURCE_DIR}/runtime/arena/BuddyArena.c")
-    set(_arena_obj "${BIN}/buddy_arena.o")
-    set(_arena_opts)
+    list(APPEND _mdl_runtime_srcs "${BUDDY_SOURCE_DIR}/runtime/arena/BuddyArena.c")
+  endif()
+  if(MDL_THREAD_POOL)
+    list(APPEND _mdl_runtime_srcs
+      "${BUDDY_SOURCE_DIR}/runtime/threadpool/BuddyThreadPool.c")
+    # The pool implements the OpenMP entry points the model calls.
+    list(REMOVE_ITEM MDL_STAGE3_LIBS
+      -lomp "${BUDDY_OPENMP_RUNTIME_LIBRARY}" "${RISCV_OMP_SHARED}")
+    list(APPEND MDL_STAGE3_LIBS -lpthread)
+  endif()
+  set(MDL_STAGE3_EXTRA_OBJS)
+  foreach(_src ${_mdl_runtime_srcs})
+    get_filename_component(_name "${_src}" NAME_WE)
+    set(_obj "${BIN}/${_name}.o")
+    set(_opts)
     if(IS_RVV_CROSSCOMPILE)
-      set(_arena_opts ${RISCV_LINK_OPTS})
+      set(_opts ${RISCV_LINK_OPTS})
     endif()
     add_custom_command(
-      OUTPUT "${_arena_obj}"
-      COMMAND "${CMAKE_C_COMPILER}" ${_arena_opts} -O2 -fPIC
-              -c "${_arena_src}" -o "${_arena_obj}"
-      DEPENDS "${_arena_src}"
-      COMMENT "[${MDL_NAME}] Compiling the model's arena (BuddyArena.c)"
+      OUTPUT "${_obj}"
+      COMMAND "${CMAKE_C_COMPILER}" ${_opts} -O2 -fPIC -c "${_src}" -o "${_obj}"
+      DEPENDS "${_src}"
+      COMMENT "[${MDL_NAME}] Compiling ${_name}.c into the model library"
       VERBATIM
     )
-    list(APPEND MDL_STAGE3_EXTRA_OBJS "${_arena_obj}")
-  endif()
+    list(APPEND MDL_STAGE3_EXTRA_OBJS "${_obj}")
+  endforeach()
 
   if(APPLE)
     set(_BUDDY_MODEL_LINK_FLAGS

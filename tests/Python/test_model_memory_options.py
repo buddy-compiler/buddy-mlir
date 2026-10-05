@@ -67,6 +67,15 @@ print("no chunks:", error(arena=True))
 print("hugepages alone:", config(hugepages=True)["hugepages"])
 # CHECK: tiered: ValueError: arena and tiered_kv_cache are mutually exclusive
 print("tiered:", error(arena=True, tiered_kv_cache=True, cache_sizes=[256]))
+# "thread_pool" (docs/ModelThreadPool.md) is validated the same way.
+# CHECK: thread_pool: False True
+print(
+    "thread_pool:",
+    config()["thread_pool"],
+    config(thread_pool=True)["thread_pool"],
+)
+# CHECK: thread_pool not a bool: ValueError: thread_pool must be true or false, got 'yes'
+print("thread_pool not a bool:", error(thread_pool="yes"))
 
 
 # compile_pipeline.py: with the arena, the allocations call the generic MLIR
