@@ -237,7 +237,9 @@ def compile_chunk_graphs(model, config: dict):
     forward_prefill is traced like forward_decode, with prefill_chunk tokens
     and their start position in and the KV cache in and out, so that the
     session prefills a prompt chunk by chunk (docs/ChunkedPrefill.md). Both
-    graphs have the decode ABI and differ in the number of tokens only.
+    graphs have the decode ABI and differ in the number of tokens only;
+    forward_prefill returns the logits of the chunk's last row only
+    (logits_to_keep=1), the only row the session uses.
 
     Each trace gets its own cache: tracing runs the model and advances the
     cache it is given. forward_prefill is traced on an empty cache (allocated,
@@ -273,6 +275,8 @@ def compile_chunk_graphs(model, config: dict):
             cache_position=torch.arange(chunk, dtype=torch.int64),
             past_key_values=past_kv_prefill,
             cache_implementation="static",
+            # the session uses the logits of the chunk's last row only
+            logits_to_keep=1,
         )
 
         past_kv_decode = _warmed_static_cache(model, max_token_len)

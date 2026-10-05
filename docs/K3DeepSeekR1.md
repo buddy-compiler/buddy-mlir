@@ -96,14 +96,14 @@ SpacemiT K3, 8 A100 cores, `buddy-cli`, greedy:
 
 | | prefill, 458 tokens | decode after 458 tokens | decode after a short prompt |
 | --- | --- | --- | --- |
-| buddy-mlir `w4g32` | 11 s (42 tok/s) | 22.5 tok/s | 25.1 tok/s |
+| buddy-mlir `w4g32` | 10.2 s (45 tok/s) | 22.5 tok/s | 25.1 tok/s |
 | llama.cpp-tools-spacemit 0.1.9, Q4_0 | 1.96 s (pp458: 234 tok/s) | | 25.0 tok/s (tg128) |
 
 llama.cpp was measured on the same board; `llama-bench` decodes from an empty
 context. Decode streams the weights from DRAM (868 MB per token) and is on par
-with llama.cpp. Prefill runs the same RVV kernels with 64 rows per call: it
-computes the logits of all 64 rows of each chunk although only the last one is
-used, and it does not use the matrix engine of the A100 cores yet.
+with llama.cpp. Prefill runs the same RVV kernels with 64 rows per call (and
+the LM head on the last row of a chunk only); it does not use the matrix
+engine of the A100 cores yet.
 
 The kernels also run on other targets, more slowly: on x86 (48 threads of a
 Xeon Platinum 8575C) the same build prefills the 458 tokens in 1.7 s and

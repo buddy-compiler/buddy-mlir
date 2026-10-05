@@ -181,7 +181,9 @@ def gen_manifest(
         p(f'  rhal.buffer @kv{i}{pad} {{space = "dram", type = {kv_tensor}}}')
     p()
 
-    logits_pfx = f"tensor<1x{prefill_len}x{vocab_size}x{logits_mlir}>"
+    # chunked prefill: the logits of the chunk's last row only
+    logits_rows = 1 if chunk else max_token_len
+    logits_pfx = f"tensor<1x{logits_rows}x{vocab_size}x{logits_mlir}>"
     logits_dec = f"tensor<1x1x{vocab_size}x{logits_mlir}>"
     p(f'  rhal.buffer @logits_prefill {{space = "host", type = {logits_pfx}}}')
     p(f'  rhal.buffer @logits_decode  {{space = "host", type = {logits_dec}}}')

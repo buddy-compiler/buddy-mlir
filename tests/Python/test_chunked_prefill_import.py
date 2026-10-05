@@ -58,9 +58,10 @@ for chunk in (8, MAX_TOKEN_LEN):
     prefill, decode, params = import_model.compile_chunk_graphs(model, config)
     print(f"chunk {chunk}: prefill {shapes(prefill[0])}")
     print(f"chunk {chunk}: decode {shapes(decode[0])}")
-# CHECK: chunk 8: prefill ([(1, 8)], [(1, 8, 128)])
+# forward_prefill returns the logits of the chunk's last row only.
+# CHECK: chunk 8: prefill ([(1, 8)], [(1, 1, 128)])
 # CHECK: chunk 8: decode ([(1, 1)], [(1, 1, 128)])
-# CHECK: chunk 32: prefill ([(1, 32)], [(1, 32, 128)])
+# CHECK: chunk 32: prefill ([(1, 32)], [(1, 1, 128)])
 # CHECK: chunk 32: decode ([(1, 1)], [(1, 1, 128)])
 
 try:

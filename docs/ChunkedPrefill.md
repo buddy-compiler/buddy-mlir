@@ -41,9 +41,11 @@ computes `max_token_len` positions.
 
 With chunks, `import_model.py` traces `forward_prefill` like `forward_decode`,
 with `prefill_chunk` tokens instead of one: the token ids `[1, C]`, the start
-position, and the KV cache in and out; it returns the logits `[1, C, vocab]`.
-The two functions have the same ABI, and the generated `ModelSession` calls
-`forward_prefill` through the decode function type.
+position, and the KV cache in and out. It returns the logits of the chunk's
+last row only, `[1, 1, vocab]` (traced with `logits_to_keep=1`: the LM head
+runs on that row only), as the session uses no other row. The two functions
+have the same ABI, and the generated `ModelSession` calls `forward_prefill`
+through the decode function type.
 
 `ModelSession::prefill()`:
 
@@ -52,8 +54,8 @@ The two functions have the same ABI, and the generated `ModelSession` calls
 2. runs the prompt in chunks of `C` tokens at positions `0, C, 2C, ...`. The
    last chunk is right-aligned, so that its last row is the last prompt token;
    the rows it recomputes get the same keys and values;
-3. keeps the logits of the last prompt token only (`logitsData()` ignores its
-   `tokenOffset` in this mode).
+3. keeps the logits of the last prompt token only: those the last chunk
+   returns (`logitsData()` ignores its `tokenOffset` in this mode).
 
 A prompt shorter than `C` runs all its tokens but the last as one chunk, padded
 with copies of the last of them, and its last token as a decode step. The
@@ -88,3 +90,11 @@ machine, while one call over all 1024 positions takes 5.7 s: chunks are faster
 for prompts up to a few hundred tokens and slower for long ones. A prompt
 shorter than the chunk size also pays for the first decode step (63 tokens:
 1.6 s, 64 tokens: 0.9 s).
+
+These numbers were measured when `forward_prefill` still computed the logits
+of all the rows of a chunk. Computing the last row only does not change them
+measurably on this machine: the f32 LM head of 64 rows is a few tens of
+milliseconds here. It matters more where the LM head is a larger share of a
+call: the int4 build for the SpacemiT K3 ([K3DeepSeekR1.md](K3DeepSeekR1.md))
+prefills 8% to 18% faster (64 tokens: 3.05 -> 2.70 s, 458 tokens: 11.4 ->
+10.2 s, 900 tokens: 21.6 -> 17.6 s).

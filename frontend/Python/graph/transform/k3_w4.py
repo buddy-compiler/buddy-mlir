@@ -410,14 +410,16 @@ class _Rewriter:
             self.drop_param(wu)
 
     def rewrite_plain(self):
-        """Every other Linear -> one "plain" kernel."""
+        """Every other Linear -> one "plain" kernel, with the rows of its
+        input (the lm_head of a prefill chunk sees its last row only)."""
         for node in list(self.g.body):
             if not isinstance(node, MatmulOp) or not self.is_linear(node):
                 continue
             w = str(node.args[1])
             W = self.weight(w)
             kdim, n = W.shape
-            spec = kernel_spec("plain", self.m, kdim, [n], False, self.threads)
+            rows = list(node.tensor_meta["shape"])[0]
+            spec = kernel_spec("plain", rows, kdim, [n], False, self.threads)
             lhs = str(node.args[0])
             self.unlink(node)
             node._parents = []
@@ -427,7 +429,7 @@ class _Rewriter:
                 args=[lhs, w],
                 args_index=[0, 0],
                 tensor_meta={
-                    "shape": [self.m, n],
+                    "shape": [rows, n],
                     "dtype": TensorDType.Float32,
                 },
                 name=node.name,
