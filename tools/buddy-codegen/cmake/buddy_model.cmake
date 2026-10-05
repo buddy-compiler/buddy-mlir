@@ -369,6 +369,27 @@ function(buddy_add_model)
     endif()
   endif()
 
+  # "arena": true in the spec (docs/ModelMemoryOptions.md): the model library
+  # gets runtime/arena/BuddyArena.c (Stage 3), which the session generated for
+  # llm_prefill_decode resets before each forward call.
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -c
+            "import json,sys; print('ON' if json.load(open(sys.argv[1])).get('arena') is True else 'OFF')"
+            "${MDL_SPEC}"
+    OUTPUT_VARIABLE MDL_ARENA
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _mdl_arena_result)
+  if(NOT _mdl_arena_result EQUAL 0)
+    message(FATAL_ERROR "buddy_add_model (${MDL_NAME}): cannot read ${MDL_SPEC}")
+  endif()
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MDL_SPEC}")
+  if(MDL_ARENA AND (NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" OR
+                    MDL_LAYER_PARTITION))
+    message(FATAL_ERROR
+      "buddy_add_model (${MDL_NAME}): \"arena\" needs MODEL_KIND "
+      "llm_prefill_decode without layer partitioning.")
+  endif()
+
   set(MDL_GEN_MANIFEST_ARGS)
   set(MDL_EXTRA_STAGE4_DEPS)
   if(MDL_SERVING_PLUGIN_SRC AND NOT MDL_SERVING_LIBRARY)
@@ -1300,6 +1321,25 @@ function(buddy_add_model)
       -lm)
   endif()
 
+  set(MDL_STAGE3_EXTRA_OBJS)
+  if(MDL_ARENA)
+    set(_arena_src "${BUDDY_SOURCE_DIR}/runtime/arena/BuddyArena.c")
+    set(_arena_obj "${BIN}/buddy_arena.o")
+    set(_arena_opts)
+    if(IS_RVV_CROSSCOMPILE)
+      set(_arena_opts ${RISCV_LINK_OPTS})
+    endif()
+    add_custom_command(
+      OUTPUT "${_arena_obj}"
+      COMMAND "${CMAKE_C_COMPILER}" ${_arena_opts} -O2 -fPIC
+              -c "${_arena_src}" -o "${_arena_obj}"
+      DEPENDS "${_arena_src}"
+      COMMENT "[${MDL_NAME}] Compiling the model's arena (BuddyArena.c)"
+      VERBATIM
+    )
+    list(APPEND MDL_STAGE3_EXTRA_OBJS "${_arena_obj}")
+  endif()
+
   if(APPLE)
     set(_BUDDY_MODEL_LINK_FLAGS
       "-Wl,-install_name,@rpath/${MODEL_SO_BASENAME}"
@@ -1330,10 +1370,11 @@ function(buddy_add_model)
                 ${_BUDDY_MODEL_LINK_FLAGS}
                 -o "${MODEL_SO}"
                 ${OBJ_FILES}
+                ${MDL_STAGE3_EXTRA_OBJS}
                 ${MDL_STAGE3_LINK_DIR_ARGS}
                 ${MDL_STAGE3_RPATH_ARGS}
                 ${MDL_STAGE3_LIBS}
-      DEPENDS ${OBJ_FILES}
+      DEPENDS ${OBJ_FILES} ${MDL_STAGE3_EXTRA_OBJS}
       COMMENT "[${MDL_NAME}] Stage 3: linking ${MDL_NAME}_model.so"
       VERBATIM
     )

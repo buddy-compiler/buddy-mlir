@@ -340,6 +340,38 @@ def derive_prefill_chunk(spec: dict, shape: dict, tiered: bool) -> int:
     return chunk
 
 
+def derive_memory_options(spec: dict, tiered: bool, prefill_chunk: int) -> dict:
+    """Opt-in memory options of the model library and session, both off by
+    default (see docs/ModelMemoryOptions.md):
+
+    arena      every buffer the model allocates during a forward call comes
+               from a bump arena (runtime/arena/BuddyArena.c, linked into the
+               model library); frees are no-ops and the session resets the
+               arena before each call. compile_pipeline.py lowers the
+               allocations to the generic MLIR allocation functions and drops
+               the buffer deallocation passes. The arena holds all the buffers
+               of a call, so it needs chunked prefill: one prefill call over
+               max_token_len positions allocates tens of GiB (42 GiB for f32
+               DeepSeek-R1-Distill-Qwen-1.5B).
+    hugepages  the session asks for 2 MiB pages (madvise MADV_HUGEPAGE) for
+               the weight buffers before reading the weights in.
+    """
+    options = {}
+    for key in ("arena", "hugepages"):
+        raw = spec.get(key, False)
+        if not isinstance(raw, bool):
+            raise ValueError(f"{key} must be true or false, got {raw!r}")
+        options[key] = raw
+    if options["arena"] and tiered:
+        raise ValueError("arena and tiered_kv_cache are mutually exclusive")
+    if options["arena"] and not prefill_chunk:
+        raise ValueError(
+            "arena needs prefill_chunk: a prefill call over max_token_len "
+            "positions allocates too much to keep all of it"
+        )
+    return options
+
+
 def derive_decode_pack(hf: dict, spec: dict) -> dict:
     """Opt-in panel-packing of the decode matmul weights (see the
     pack_decode_matmul_weights graph transform). Off unless the spec sets
@@ -407,6 +439,9 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     prefill_chunk = derive_prefill_chunk(
         spec, shape, tiered_kv_cache["enabled"]
     )
+    memory_options = derive_memory_options(
+        spec, tiered_kv_cache["enabled"], prefill_chunk
+    )
     if decode_pack["enabled"] and variant not in ("f32", "f16", "bf16"):
         raise RuntimeError(
             f"decode_pack_vector_size is only supported for f32/f16/bf16 "
@@ -467,6 +502,8 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "tokens": tokens,
         "tiered_kv_cache": tiered_kv_cache,
         "decode_pack": decode_pack,
+        "arena": memory_options["arena"],
+        "hugepages": memory_options["hugepages"],
         # >0: forward_prefill takes this many prompt tokens per call
         "prefill_chunk": prefill_chunk,
         "cpp_types": {

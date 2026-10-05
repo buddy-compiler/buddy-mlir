@@ -802,7 +802,7 @@ def gen_impl_tiered(config: dict) -> str:
 
 
 def _emit_chunked_prefill(
-    p, chunk, weights, dummy_groups, kv_sizeof, logits_sizeof
+    p, chunk, weights, dummy_groups, kv_sizeof, logits_sizeof, arena=False
 ):
     """ModelSession::prefill() for chunked prefill (docs/ChunkedPrefill.md)."""
     p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
@@ -870,6 +870,8 @@ def _emit_chunked_prefill(
             f"&state.kv({2 + i * 2})",
             f"&state.kv({3 + i * 2})",
         ]
+    if arena:
+        p("    impl_->arenaReset();")
     p("    impl_->prefillFn(")
     line = "        "
     for idx, part in enumerate(call_parts):
@@ -952,6 +954,9 @@ def gen_impl(config: dict) -> str:
     # >0: chunked prefill (gen_config.derive_prefill_chunk). forward_prefill
     # then has the decode ABI with `chunk` tokens, there is no PrefillABI.
     chunk = int(config.get("prefill_chunk", 0))
+    # Memory options (gen_config.derive_memory_options).
+    arena = bool(config.get("arena", False))
+    hugepages = bool(config.get("hugepages", False))
 
     p(_CPP_FILE_PROLOGUE)
     p('#include "buddy/runtime/models/ModelSession.h"')
@@ -962,6 +967,8 @@ def gen_impl(config: dict) -> str:
     p("#include <fstream>")
     p("#include <stdexcept>")
     p("#include <string>")
+    if hugepages:
+        p("#include <sys/mman.h>")
     p()
     p(
         "// std::launder is in <new> (C++17). Use it when accessing a MemRef object"
@@ -1157,6 +1164,36 @@ def gen_impl(config: dict) -> str:
         p("  abi.logits().~Logits3Ref();")
         p("}")
         p()
+    if arena:
+        # gen_config.derive_memory_options: the arena comes with chunked
+        # prefill, so every forward call returns a DecodeABI.
+        p(
+            "// The results of a forward call live in the model's arena, which the"
+        )
+        p("// next call reuses: they are released, not freed.")
+        p("void releaseDecodeABI(DecodeABI &abi) {")
+        p("  (void)abi.cachePositionOut().release();")
+        p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
+        p("    (void)abi.dummy(i).release();")
+        p(f"  for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
+        p("    (void)abi.kv(i).release();")
+        p("  (void)abi.logits().release();")
+        p("}")
+        p()
+    if hugepages:
+        p("// Asks for 2 MiB pages for the whole 2 MiB pages of [p, p + n).")
+        p("void adviseHugePages(void *p, size_t n) {")
+        p("#ifdef MADV_HUGEPAGE")
+        p("  const uintptr_t huge = uintptr_t(2) << 20;")
+        p(
+            "  uintptr_t a = (reinterpret_cast<uintptr_t>(p) + huge - 1) & ~(huge - 1);"
+        )
+        p("  uintptr_t e = (reinterpret_cast<uintptr_t>(p) + n) & ~(huge - 1);")
+        p("  if (e > a)")
+        p("    madvise(reinterpret_cast<void *>(a), e - a, MADV_HUGEPAGE);")
+        p("#endif")
+        p("}")
+        p()
     p("void destroyDecodeABI(DecodeABI &abi) {")
     p("  abi.cachePositionOut().~Dummy1Ref();")
     p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
@@ -1179,6 +1216,8 @@ def gen_impl(config: dict) -> str:
     p(
         "                          intptr_t logitsShape[3], intptr_t pshape[1]) {"
     )
+    if arena:
+        p("  releaseDecodeABI(abi);")
     p("  destroyDecodeABI(abi);")
     p("  new (&abi.cachePositionOut()) Dummy1Ref(pshape, false, 0);")
     p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
@@ -1223,6 +1262,10 @@ def gen_impl(config: dict) -> str:
     p("  std::vector<void *> depSoHandles;")
     p("  PrefillFn prefillFn = nullptr;")
     p("  DecodeFn decodeFn = nullptr;")
+    if arena:
+        p("  // Resets the model's arena (runtime/arena/BuddyArena.c); called")
+        p("  // before each forward call.")
+        p("  void (*arenaReset)() = nullptr;")
     p("  bool lastLogitsAreDecode = false;")
     if chunk:
         p("  // The token ids of one prefill chunk.")
@@ -1296,6 +1339,18 @@ def gen_impl(config: dict) -> str:
         '          "[BuddyRuntime] symbol not found: _mlir_ciface_forward_decode\\n  " +'
     )
     p("          std::string(dlerror()));")
+    if arena:
+        p()
+        p("    arenaReset = reinterpret_cast<void (*)()>(")
+        p('        dlsym(soHandle, "buddy_arena_reset"));')
+        p("    if (!arenaReset)")
+        p("      throw std::runtime_error(")
+        p(
+            '          "[BuddyRuntime] symbol not found: buddy_arena_reset (model "'
+        )
+        p(
+            '          "built without the arena?)\\n  " + std::string(dlerror()));'
+        )
     p("  }")
     p("};")
     p()
@@ -1501,6 +1556,11 @@ def gen_impl(config: dict) -> str:
         p("  {")
         p(f"    intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
         p(f"    {member} = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
+        if hugepages:
+            p(
+                f"    adviseHugePages({member}->getData(), "
+                f"sizeof({cpp_type}) * {member}->getSize());"
+            )
         p(f"    std::ifstream f(paths[{idx}], std::ios::binary);")
         p("    if (!f)")
         p(
@@ -1531,7 +1591,7 @@ def gen_impl(config: dict) -> str:
 
     if chunk:
         _emit_chunked_prefill(
-            p, chunk, weights, dummy_groups, kv_sizeof, logits_sizeof
+            p, chunk, weights, dummy_groups, kv_sizeof, logits_sizeof, arena
         )
     else:
         p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
@@ -1598,6 +1658,8 @@ def gen_impl(config: dict) -> str:
             ]
         )
 
+    if arena:
+        p("  impl_->arenaReset();")
     p("  impl_->decodeFn(")
     line = "      "
     for idx, part in enumerate(call_parts):
