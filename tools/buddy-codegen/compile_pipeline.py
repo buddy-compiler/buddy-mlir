@@ -60,7 +60,7 @@ LOWER_TO_LLVM = [
     "-arith-expand",
     "-convert-vector-to-llvm",
     "-convert-arith-to-llvm",
-    "-finalize-memref-to-llvm",
+    "-finalize-memref-to-llvm",  # see lower_to_llvm()
     "-convert-scf-to-cf",
     "-convert-cf-to-llvm",
     "-llvm-request-c-wrappers",
@@ -73,6 +73,32 @@ LOWER_TO_LLVM = [
 ]
 
 
+# The buffer deallocation passes, left out with the arena.
+BUFFER_DEALLOCATION = [
+    "-ownership-based-buffer-deallocation",
+    "-canonicalize",
+    "-buffer-deallocation-simplification",
+    "-bufferization-lower-deallocations",
+]
+
+
+def lower_to_llvm(arena: bool) -> list[str]:
+    """LOWER_TO_LLVM. With the arena (gen_config.derive_memory_options),
+    allocations and frees call _mlir_memref_to_llvm_alloc / _aligned_alloc /
+    _free, which runtime/arena/BuddyArena.c implements, instead of malloc /
+    aligned_alloc / free."""
+    if not arena:
+        return list(LOWER_TO_LLVM)
+    return [
+        (
+            "-finalize-memref-to-llvm=use-generic-functions=true"
+            if p == "-finalize-memref-to-llvm"
+            else p
+        )
+        for p in LOWER_TO_LLVM
+    ]
+
+
 def build_stages(
     pipeline_type: str,
     num_threads: int,
@@ -80,6 +106,7 @@ def build_stages(
     variant: str = "f32",
     tiered: bool = False,
     decode_pack: dict | None = None,
+    arena: bool = False,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -106,7 +133,7 @@ def build_stages(
                     "-canonicalize",
                     "-cse",
                 ]
-                + LOWER_TO_LLVM,
+                + lower_to_llvm(arena),
             )
         )
         stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
@@ -145,10 +172,8 @@ def build_stages(
         [
             "-one-shot-bufferize=bufferize-function-boundaries",
             "-expand-strided-metadata",
-            "-ownership-based-buffer-deallocation",
-            "-canonicalize",
-            "-buffer-deallocation-simplification",
-            "-bufferization-lower-deallocations",
+            # With the arena, nothing is freed before the session resets it.
+            *([] if arena else BUFFER_DEALLOCATION),
             "-convert-bufferization-to-memref",
             "-cse",
             "-canonicalize",
@@ -240,7 +265,7 @@ def build_stages(
         if tiered:
             opts.append("-cse")
 
-    opts.extend(LOWER_TO_LLVM)
+    opts.extend(lower_to_llvm(arena))
     stages.append(("buddy-opt", opts))
 
     # ── Stage 4–6: LLVM backend ─────────────────────────────────────────────
@@ -409,6 +434,7 @@ def _compile_one(task: dict) -> str:
         task.get("variant", "f32"),
         task.get("tiered", False),
         task.get("decode_pack"),
+        task.get("arena", False),
     )
     run_pipeline(
         stages,
@@ -458,6 +484,7 @@ def compile_all(
                 "variant": variant,
                 "tiered": is_tiered_kv_cache(config),
                 "decode_pack": decode_pack,
+                "arena": bool(config.get("arena", False)),
                 "input": input_path,
                 "output": output_path,
                 "buddy_opt": buddy_opt,
@@ -653,6 +680,7 @@ def compile_partitioned(
                 "variant": variant,
                 "decode_pack": decode_pack,
                 "tiered": is_tiered_kv_cache(config),
+                "arena": bool(config.get("arena", False)),
                 "input": mlir_name
                 if os.path.isabs(mlir_name)
                 else os.path.join(mlir_dir, mlir_name),
@@ -965,6 +993,7 @@ def main():
             variant,
             is_tiered_kv_cache(config),
             config.get("decode_pack"),
+            bool(config.get("arena", False)),
         )
 
         print(
