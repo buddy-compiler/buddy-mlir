@@ -125,15 +125,21 @@ def build_stages(
     ):
         llc_base_args.append("-code-model=large")
 
-    if pipeline_type == "kernels":
+    if pipeline_type in ("kernels", "kernels_ime"):
         # Generated kernels (graph/transform/k3_w4.py): scf / vector /
-        # memref, scf.parallel for the threads.
+        # memref, scf.parallel for the threads. "kernels_ime": the prefill
+        # tiles on the matrix engine of the SpacemiT K3 A100 cores (IME
+        # dialect), for the A100 only: llc schedules for the A100 and top
+        # down, which issues the weight load of an IME step first and unpacks
+        # it while the activations load.
+        ime = pipeline_type == "kernels_ime"
         lower = lower_to_llvm(arena)
         i = lower.index("-convert-vector-to-llvm") + 1
         stages.append(
             (
                 "buddy-opt",
-                [
+                (["-lower-ime=target=k3"] if ime else [])
+                + [
                     f"-convert-scf-to-openmp=num-threads={num_threads}",
                     "-expand-strided-metadata",
                     "-convert-vector-to-scf",
@@ -145,12 +151,22 @@ def build_stages(
                 + lower[i:],
             )
         )
-        stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
+        # buddy-translate also translates the IME intrinsics.
+        if ime:
+            stages.append(("buddy-translate", ["--buddy-to-llvmir"]))
+        else:
+            stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
         stages.append(("llvm-as", []))
+        a100 = [
+            "-mattr=+xsmtvdotii",
+            "-mcpu=spacemit-a100",
+            "-misched-prera-direction=topdown",
+        ]
         stages.append(
             (
                 "llc",
                 llc_base_args
+                + (a100 if ime else [])
                 + ["-filetype=obj", "-relocation-model=pic", "-O3"],
             )
         )
@@ -329,6 +345,8 @@ def build_stages(
 def _resolve_tool(name: str, buddy_opt: str, llvm_dir: str) -> str:
     if name == "buddy-opt":
         return buddy_opt
+    if name == "buddy-translate":
+        return os.path.join(os.path.dirname(buddy_opt), name)
     return os.path.join(llvm_dir, name)
 
 
@@ -393,6 +411,7 @@ MLIR_FILE_MAP = {
     "subgraph_prefill": ("subgraph0_prefill.mlir", "subgraph_prefill.o"),
     "forward_decode": ("forward_decode.mlir", "forward_decode.o"),
     "k3_kernels": ("k3_kernels.mlir", "k3_kernels.o"),
+    "k3_kernels_ime": ("k3_kernels_ime.mlir", "k3_kernels_ime.o"),
     "subgraph_decode": ("subgraph0_decode.mlir", "subgraph_decode.o"),
 }
 

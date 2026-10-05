@@ -384,10 +384,13 @@ function(buddy_add_model)
   # - "variant": "w4g32" (docs/K3DeepSeekR1.md): the model library gets the
   #   generated kernels, k3_kernels.o;
   # - "thread_pool": true (docs/ModelThreadPool.md): the model library gets
-  #   runtime/threadpool/BuddyThreadPool.c instead of libomp.
+  #   runtime/threadpool/BuddyThreadPool.c instead of libomp;
+  # - "prefill_ime": true (docs/K3DeepSeekR1.md): the model library gets the
+  #   prefill tiles for the matrix engine of the K3 A100 cores,
+  #   k3_kernels_ime.o.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
-            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool'))"
+            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime'))"
             "${MDL_SPEC}"
     OUTPUT_VARIABLE _mdl_spec_fields
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -398,6 +401,12 @@ function(buddy_add_model)
   list(GET _mdl_spec_fields 0 MDL_ARENA)
   list(GET _mdl_spec_fields 1 MDL_VARIANT)
   list(GET _mdl_spec_fields 2 MDL_THREAD_POOL)
+  list(GET _mdl_spec_fields 3 MDL_PREFILL_IME)
+  if(MDL_PREFILL_IME AND NOT IS_RVV_CROSSCOMPILE AND NOT HAVE_LOCAL_RVV)
+    message(FATAL_ERROR
+      "buddy_add_model (${MDL_NAME}): \"prefill_ime\" targets the SpacemiT "
+      "K3 (RISC-V); build it with --is-rvv-crosscompile or on the board.")
+  endif()
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MDL_SPEC}")
   if(MDL_ARENA AND (NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" OR
                     MDL_LAYER_PARTITION))
@@ -988,6 +997,9 @@ function(buddy_add_model)
     if(MDL_VARIANT STREQUAL "w4g32")
       list(APPEND OBJ_FILES "${BIN}/k3_kernels.o")
     endif()
+    if(MDL_PREFILL_IME)
+      list(APPEND OBJ_FILES "${BIN}/k3_kernels_ime.o")
+    endif()
   endif()
 
   if(MDL_MODEL_KIND STREQUAL "single_forward")
@@ -1281,6 +1293,11 @@ function(buddy_add_model)
       )
     else()
       # ── Stage 2: MLIR → .o via compile_pipeline.py ───────────────────────
+      # "prefill_ime": the IME kernels go through buddy-translate.
+      set(_mdl_tools buddy-opt)
+      if(MDL_PREFILL_IME)
+        list(APPEND _mdl_tools buddy-translate)
+      endif()
       add_custom_command(
         OUTPUT ${OBJ_FILES}
         COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
@@ -1293,7 +1310,7 @@ function(buddy_add_model)
                 "--llc-attrs=${MDL_LLC_ATTRS}"
                 -j "${MDL_COMPILE_JOBS}"
         DEPENDS
-          buddy-opt
+          ${_mdl_tools}
           "${GEN_CONFIG}"
           "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
           ${MLIR_COMPILE_DEPS}

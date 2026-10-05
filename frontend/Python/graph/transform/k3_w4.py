@@ -51,7 +51,7 @@
 import numpy
 import torch
 from buddy_mlir import ir
-from buddy_mlir.dialects import arith, func, math, memref, scf, vector
+from buddy_mlir.dialects import arith, func, llvm, math, memref, scf, vector
 
 from .. import Graph
 from ..operation import (
@@ -84,6 +84,9 @@ PREFILL_MB = 4
 # (which also makes it a multiple of PREFILL_MB) and head_dim % ATTN_DIMS == 0.
 ATTN_ROWS = 32
 ATTN_DIMS = 16
+# "prefill_ime": the matrix-engine tiles cover this many rows (two halves of
+# 32, 4 row blocks of 8 each); gen_config.py requires prefill_chunk == 64.
+IME_ROWS = 64
 
 
 # ---------------------------------------------------------------------------
@@ -146,13 +149,48 @@ def pack_q4(w: numpy.ndarray) -> numpy.ndarray:
     return pack_tiles(*quantize_q4(w))
 
 
-def pack_glu(wg: numpy.ndarray, wu: numpy.ndarray) -> numpy.ndarray:
-    """Gate and up tiles interleaved: g0, u0, g1, u1, ..."""
+# The IME layout of the prefill tiles ("prefill_ime"): per block of 8
+# columns, per group: 128 bytes, byte c * 16 + j holding W[32g + j][8b + c]
+# (low nibble) and W[32g + 16 + j][8b + c] (high nibble), i.e. the two 8 x 16
+# int8 B operands of smt.vmadot, then the 8 f16 scales of the block.
+IME_BLOCK = 128 + 16
+
+
+def pack_ime(q, scale) -> numpy.ndarray:
+    """The IME layout of an int4 matrix (quantize_q4)."""
+    groups, _, n = q.shape
+    b = ((q[:, :16, :] & 0x0F) | ((q[:, 16:, :] & 0x0F) << 4)).astype(
+        numpy.uint8
+    )
+    b = b.reshape(groups, 16, n // 8, 8).transpose(2, 0, 3, 1)  # nb, g, c, j
+    sc = scale.reshape(groups, n // 8, 8).transpose(1, 0, 2)  # nb, g, c
+    sc = numpy.ascontiguousarray(sc).view(numpy.uint8)  # nb, g, 16
+    out = numpy.concatenate([b.reshape(n // 8, groups, 128), sc], axis=2)
+    return out.reshape(-1).view(numpy.int8)
+
+
+def pack_q4_both(w: numpy.ndarray):
+    """(tile layout, IME layout) of one quantization of w."""
+    q, scale = quantize_q4(w)
+    return pack_tiles(q, scale), pack_ime(q, scale)
+
+
+def pack_glu_both(wg: numpy.ndarray, wu: numpy.ndarray):
+    """(tile layout, IME layout) of gate and up: the tiles interleaved (g0,
+    u0, g1, u1, ...); the IME blocks of gate, then those of up."""
     k, n = wg.shape
     tb = tile_bytes(k)
-    g = pack_q4(wg).reshape(n // NB, tb)
-    u = pack_q4(wu).reshape(n // NB, tb)
-    return numpy.stack([g, u], axis=1).reshape(-1)
+    g, gi = pack_q4_both(wg)
+    u, ui = pack_q4_both(wu)
+    tiles = numpy.stack(
+        [g.reshape(n // NB, tb), u.reshape(n // NB, tb)], axis=1
+    )
+    return tiles.reshape(-1), numpy.concatenate([gi, ui])
+
+
+def pack_glu(wg: numpy.ndarray, wu: numpy.ndarray) -> numpy.ndarray:
+    """Gate and up tiles interleaved: g0, u0, g1, u1, ..."""
+    return pack_glu_both(wg, wu)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -161,14 +199,19 @@ def pack_glu(wg: numpy.ndarray, wu: numpy.ndarray) -> numpy.ndarray:
 
 
 def kernel_spec(
-    kind: str, m: int, k: int, ns: list, bias: bool, threads: int
+    kind: str, m: int, k: int, ns: list, bias: bool, threads: int, ime=False
 ) -> dict:
     """A matmul kernel: kind "plain" (x W), "multi" (x [W0 | W1 | ...] with
-    one result per part, q / k / v) or "glu" (silu(x Wg) * (x Wu))."""
+    one result per part, q / k / v) or "glu" (silu(x Wg) * (x Wu)); with
+    `ime`, its tiles run on the matrix engine (IME layout, m == IME_ROWS)."""
     name = f"k3_q4_{kind}_m{m}_k{k}_n{'_'.join(map(str, ns))}"
     if bias:
         name += "_b"
+    if ime:
+        assert m == IME_ROWS, m
+        name += "_ime"
     return {
+        "ime": ime,
         "name": name,
         "kind": kind,
         "m": m,
@@ -185,13 +228,51 @@ def kernel_spec(
 
 
 class _Rewriter:
-    def __init__(self, graph: Graph, m: int, threads: int):
+    def __init__(self, graph, m, threads, use_ime=False, ime_weights=None):
         self.g = graph
         self.m = m
         self.threads = threads
         self.refs = graph._params_ref
         self.kernels = {}
         self.uid = 0
+        # The kernels of m rows run on the matrix engine and record their
+        # weights in ime_weights; or (the other graph) the weights in
+        # ime_weights get the same second, IME-layout copy, unused.
+        self.use_ime = use_ime
+        self.ime_weights = set() if ime_weights is None else ime_weights
+
+    def add_param(self, name, array: numpy.ndarray, dtype: TensorDType):
+        """A new parameter, after the existing ones (the importer binds
+        placeholders to arguments in body order)."""
+        node = PlaceholderOp()
+        node._name = name
+        node._tensor_meta = {
+            "shape": torch.Size(list(array.shape)),
+            "dtype": dtype,
+        }
+        idx = max(self.g._fake_params) + 1
+        self.g.body.insert(idx, node)
+        self.g.node_table[name] = node
+        self.g._inputs = [i + 1 if i >= idx else i for i in self.g._inputs]
+        self.g._fake_params = [
+            i + 1 if i >= idx else i for i in self.g._fake_params
+        ]
+        self.g._fake_params.append(idx)
+        self.refs.append(torch.from_numpy(numpy.ascontiguousarray(array)))
+        return name
+
+    def set_weights(self, name, packed, rows):
+        """Store the packed weight `name` (tile layout, IME layout); return
+        the parameter a kernel of `rows` rows reads and whether it runs on
+        the matrix engine."""
+        tiles, ime = packed
+        self.set_param(name, tiles, TensorDType.Int8)
+        on_ime = self.use_ime and rows == self.m == IME_ROWS
+        if on_ime:
+            self.ime_weights.add(name)
+        if name in self.ime_weights:
+            self.add_param(name + "_ime", ime, TensorDType.Int8)
+        return (name + "_ime" if on_ime else name), on_ime
 
     # -- bookkeeping helpers ------------------------------------------------
 
@@ -333,16 +414,18 @@ class _Rewriter:
             ns = [mm.shape[1] for mm in mats]
             # one quantization of [Wq | Wk | Wv]; tiles never straddle two
             # parts, as each N is a multiple of NB
-            packed = pack_q4(numpy.concatenate(mats, axis=1))
+            packed = pack_q4_both(numpy.concatenate(mats, axis=1))
             bias = numpy.concatenate([self.weight(b) for b in bs])
             lhs = str(nodes[0].args[1])
-            spec = kernel_spec("multi", self.m, kdim, ns, True, self.threads)
             for n in nodes:
                 self.unlink(n)
                 n._parents = []
-            self.set_param(ws[0], packed, TensorDType.Int8)
+            w, ime = self.set_weights(ws[0], packed, self.m)
+            spec = kernel_spec(
+                "multi", self.m, kdim, ns, True, self.threads, ime
+            )
             call = self.call(
-                spec, [lhs, ws[0], bs[0]], [(self.m, n) for n in ns], nodes[0]
+                spec, [lhs, w, bs[0]], [(self.m, n) for n in ns], nodes[0]
             )
             for i, n in enumerate(nodes):
                 self.getitem(n, call, i, [self.m, ns[i]])
@@ -381,7 +464,6 @@ class _Rewriter:
             wg, wu = str(mg.args[1]), str(mu.args[1])
             Wg, Wu = self.weight(wg), self.weight(wu)
             kdim, n = Wg.shape
-            spec = kernel_spec("glu", self.m, kdim, [n], False, self.threads)
             dead = [a, sg, vg, mg, vu, mu]
             lhs_u = self.g.node_table[str(mu.args[0])]
             self.unlink(node)
@@ -389,8 +471,11 @@ class _Rewriter:
             for d in (mg, mu):
                 self.unlink(d)
                 d._parents = []
-            self.set_param(wg, pack_glu(Wg, Wu), TensorDType.Int8)
-            call = self.call(spec, [str(mg.args[0]), wg], [(self.m, n)], node)
+            w, ime = self.set_weights(wg, pack_glu_both(Wg, Wu), self.m)
+            spec = kernel_spec(
+                "glu", self.m, kdim, [n], False, self.threads, ime
+            )
+            call = self.call(spec, [str(mg.args[0]), w], [(self.m, n)], node)
             view = ViewOp()
             view._name = node.name
             shape = list(node.tensor_meta["shape"])
@@ -419,11 +504,13 @@ class _Rewriter:
             W = self.weight(w)
             kdim, n = W.shape
             rows = list(node.tensor_meta["shape"])[0]
-            spec = kernel_spec("plain", rows, kdim, [n], False, self.threads)
             lhs = str(node.args[0])
             self.unlink(node)
             node._parents = []
-            self.set_param(w, pack_q4(W), TensorDType.Int8)
+            w, ime = self.set_weights(w, pack_q4_both(W), rows)
+            spec = kernel_spec(
+                "plain", rows, kdim, [n], False, self.threads, ime
+            )
             call = CallExternalOp(
                 call_func_name=spec["name"],
                 args=[lhs, w],
@@ -644,16 +731,28 @@ class _Rewriter:
                     changed = True
 
 
-def k3_w4_rewrite(graph: Graph, m: int, pos_input: str, threads: int) -> list:
+def k3_w4_rewrite(
+    graph: Graph,
+    m: int,
+    pos_input: str,
+    threads: int,
+    use_ime: bool = False,
+    ime_weights: set = None,
+) -> list:
     """Rewrite the Linear layers and attention of `graph` (m rows per call,
     start position in the graph input `pos_input`) to kernel calls; the
     kernels split their work over `threads` threads.
+
+    "prefill_ime": with `use_ime`, the kernels of m (IME_ROWS) rows run on
+    the matrix engine, on a second copy of their weights in the IME layout,
+    and their weights are added to `ime_weights`. The other graph is then
+    rewritten with that set, so that its weights get the same copies.
 
     Returns the kernel specs used. Must run after eliminate_transpose (the
     weights are [K, N]) and identically on graphs that share one weight
     layout (prefill and decode).
     """
-    rw = _Rewriter(graph, m, threads)
+    rw = _Rewriter(graph, m, threads, use_ime, ime_weights)
     rw.rewrite_qkv()
     rw.rewrite_glu()
     rw.rewrite_plain()
@@ -861,8 +960,16 @@ def _silu_mul(fn, ty, g, u, lanes):
 
 
 def _act_types(ty, spec):
-    """The quantized activations: int8 values and one f32 scale per group."""
+    """The quantized activations: int8 values and one f32 scale per group;
+    for IME tiles, the A operands of smt.vmadot ([group][row block of 8]
+    [k 0-15 | k 16-31][row % 8][16]) and the scale of each row 8 times (f16,
+    [group][row block][row % 8][8])."""
     m, k = spec["m"], spec["k"]
+    if spec.get("ime"):
+        return (
+            _memref([k // G, m // 8, 256], ty.i8),
+            _memref([k // G, m // 8, 64], ty.f16),
+        )
     return (
         _memref([m, k], ty.i8),
         _memref([m, k // G], ty.f32),
@@ -1031,8 +1138,32 @@ def _matmul_fn(ty, spec):
                 xr = arith.MinimumFOp(xr, fn.const(vg, 127.0)).result
                 xr = arith.MaximumFOp(xr, fn.const(vg, -127.0)).result
                 xi = arith.FPToSIOp(_vec(G, ty.i8), xr).result
-                vector.StoreOp(xi, xq, [r, kk])
-                memref.StoreOp(_divf(mx, c127), xs, [r, g])
+                scale = _divf(mx, c127)
+                if spec.get("ime"):
+                    rb = _divui(r, fn.idx(8))
+                    at = _muli(arith.RemUIOp(r, fn.idx(8)).result, fn.idx(16))
+                    for half in (0, 1):
+                        part = vector.ExtractStridedSliceOp(
+                            _vec(16, ty.i8), xi, [16 * half], [16], [1]
+                        ).result
+                        vector.StoreOp(
+                            part, xq, [g, rb, _addi(at, fn.idx(128 * half))]
+                        )
+                    sh = arith.TruncFOp(ty.f16, scale).result
+                    vector.StoreOp(
+                        _bcast(_vec(8, ty.f16), sh),
+                        xs,
+                        [
+                            g,
+                            rb,
+                            _muli(
+                                arith.RemUIOp(r, fn.idx(8)).result, fn.idx(8)
+                            ),
+                        ],
+                    )
+                else:
+                    vector.StoreOp(xi, xq, [r, kk])
+                    memref.StoreOp(scale, xs, [r, g])
                 scf.YieldOp([])
             if m == 1:
                 scf.YieldOp([])
@@ -1041,7 +1172,8 @@ def _matmul_fn(ty, spec):
 
         # the tiles on all threads: thread i gets tiles
         # [tiles * i / threads, tiles * (i + 1) / threads)
-        tiles = ns[0] // NB if kind == "glu" else sum(ns) // NB
+        tw = _tile_width(spec)
+        tiles = ns[0] // tw if kind == "glu" else sum(ns) // tw
         body, (slot,) = _parallel(fn, [fn.idx(threads)])
         with ir.InsertionPoint(body):
             ntiles, nthreads = fn.idx(tiles), fn.idx(threads)
@@ -1050,7 +1182,7 @@ def _matmul_fn(ty, spec):
             tl = scf.ForOp(lo, hi, fn.idx(1))
             with ir.InsertionPoint(tl.body):
                 t = tl.induction_variable
-                col = _muli(t, fn.idx(NB))
+                col = _muli(t, fn.idx(tw))
                 dsts = [memref.CastOp(ty.mat, y).result for y in ys]
                 # multi: the output the tile belongs to, and its column there
                 dst = dsts[-1]
@@ -1059,7 +1191,7 @@ def _matmul_fn(ty, spec):
                     inside = arith.CmpIOp(
                         arith.CmpIPredicate.ult,
                         t,
-                        fn.idx(sum(ns[: i + 1]) // NB),
+                        fn.idx(sum(ns[: i + 1]) // tw),
                     ).result
                     dst = arith.SelectOp(inside, dsts[i], dst).result
                     dcol = arith.SelectOp(
@@ -1369,27 +1501,339 @@ def _attn_prefill_fn(ty, spec):
         _attn_epilogue(fn, a, outs)
 
 
-def build_kernels(specs) -> ir.Module:
+# ---------------------------------------------------------------------------
+# Prefill tiles on the matrix engine ("prefill_ime")
+# ---------------------------------------------------------------------------
+#
+# The A100 cores of the SpacemiT K3 have a matrix engine (IME). A prefill
+# tile of IME_ROWS rows multiplies int8 activations by the IME layout of the
+# int4 weights with smt.vmadot.hp (ime.intr.vmadot.hp of buddy-mlir's IME
+# dialect, -lower-ime target=k3). These functions are built into a module of
+# their own (gen_kernels(..., "ime")), which compile_pipeline.py compiles
+# with the A100 options (pipeline "kernels_ime").
+
+IME_STEP_FN = "k3_ime_hp_step"
+IME_A_GROUP = 2048  # bytes of int8 activations per group (64 rows x 32)
+IME_S_GROUP = 1024  # bytes of f16 activation scales per group
+
+
+def _tile_width(spec) -> int:
+    """Output columns per work item. IME tiles use 64: the 1536-column
+    projections then make 24 items (3 per thread) instead of 12. GLU uses 32:
+    the gate and up accumulators take 16 KiB instead of 64 KiB (all of L1),
+    and the 280 items of k 1536 x n 8960 split evenly over 8 threads."""
+    if spec.get("ime"):
+        return 32 if spec["kind"] == "glu" else 64
+    return NB
+
+
+def _ime_kchunk(groups: int) -> int:
+    """Groups per K chunk of an IME tile. The activations of a group and
+    their scales (3 KiB for the 64 rows) are read again for every 8-column
+    block: from L2 when they fit there (k 1536); else (k 8960: 840 KiB, while
+    the L2 of 4 cores is 1 MiB and the weights stream through it too) K is
+    chunked so that a chunk's activations stay in L1. Measured on k 8960
+    (280 groups): 10 groups per chunk 1.80 ms, 7: 1.83, 14: 1.85, 20: 1.90,
+    28 and more: 2.03 (a chunk reloads the accumulators)."""
+    if groups * 3 <= 512:
+        return groups
+    return max(d for d in range(1, 11) if groups % d == 0)
+
+
+def _llvm_ptr():
+    return ir.Type.parse("!llvm.ptr")
+
+
+def _gep(base, offset):
+    """base + offset bytes."""
+    return llvm.GEPOp(
+        _llvm_ptr(),
+        base,
+        [offset],
+        [-(2**31)],  # one dynamic index
+        ir.IntegerType.get_signless(8),
+        0,
+    ).result
+
+
+def _vmadot_hp(ty, acc, a, b, scale):
+    """ime.intr.vmadot.hp: acc + (a . b^T) * scale, fp16, 8 x 8 per block."""
+    return ir.Operation.create(
+        "ime.intr.vmadot.hp",
+        results=[_svec(4, ty.f16)],
+        operands=[acc, a, b, scale],
+        attributes={"group": ir.IntegerAttr.get(ty.i32, 0)},
+    ).result
+
+
+def _svec(n, t):
+    return ir.VectorType.get([n], t, scalable=[True])
+
+
+def _ime_step_fn(ty):
+    """k3_ime_hp_step(b, ng, a, s, acc, first): one 8-column block of the IME
+    layout times 32 rows (4 row blocks of 8) of the chunk, over ng groups
+    from b on. A100 vector loads cost ~10 ns each whatever their size (up to
+    LMUL 8), so a group takes three loads:
+      B: the 144-byte block (VP load, e8 m2): 8 x 32 int4 and the 8 f16
+         column scales (the mask-register operand of smt.vmadot.hp, v0 / v1);
+      A: 4 row blocks x (k 0-15 | k 16-31), 1 KiB;
+      S: the activation scales of the 4 row blocks, 512 bytes;
+    then per row block:  c16 = (A0 . B0^T + A1 . B1^T) * ws  (vmadot.hp)
+                         acc += c16 * xs                      (f16 -> f32)
+    The 4 accumulators (4 x 64 f32, rows r * 8 + c) start at 0 when `first`
+    is non-zero, else they are loaded from acc, and are stored back there, as
+    one 1 KiB vector each way. a / s point at the 32 rows in group 0 (stride
+    IME_A_GROUP / IME_S_GROUP bytes).
+
+    compile_pipeline.py compiles it with -mcpu=spacemit-a100
+    -misched-prera-direction=topdown: LLVM then issues the B load first and
+    unpacks it while A loads (bottom-up scheduling sinks the loads next to
+    their uses: 75 instead of 59 ns per group on one A100 core)."""
+    fn = _Fn(IME_STEP_FN, [ty.i64] * 6, [], public=False)
+    b, ng, a, s, o, first = fn.args
+    v8, v16i8 = _svec(8, ty.i8), _svec(16, ty.i8)
+    v4h, v4f, v16f = _svec(4, ty.f16), _svec(4, ty.f32), _svec(16, ty.f32)
+    with ir.InsertionPoint(fn.entry):
+        ptr = _llvm_ptr()
+        bp, ap, sp, op = (llvm.IntToPtrOp(ptr, v).result for v in (b, a, s, o))
+        zero_acc = fn.const(v16f, 0.0)
+        is_first = arith.CmpIOp(
+            arith.CmpIPredicate.ne, first, fn.const(ty.i64, 0)
+        ).result
+        init = scf.IfOp(is_first, [v16f], has_else=True)
+        with ir.InsertionPoint(init.then_block):
+            scf.YieldOp([zero_acc])
+        with ir.InsertionPoint(init.else_block):
+            scf.YieldOp([llvm.LoadOp(v16f, op, alignment=4).result])
+        accs = [
+            vector.ScalableExtractOp(v4f, init.result, 4 * i).result
+            for i in range(4)
+        ]
+        ones = fn.const(_svec(16, ty.i1), 1)
+        four = fn.const(v8, 4)
+        zero_h = fn.const(v4h, 0.0)
+        n = arith.IndexCastOp(ty.index, ng).result
+        loop = scf.ForOp(fn.idx(0), n, fn.idx(1), accs)
+        with ir.InsertionPoint(loop.body):
+            gi = arith.IndexCastOp(ty.i64, loop.induction_variable).result
+            bg = _gep(bp, _muli(gi, fn.const(ty.i64, IME_BLOCK)))
+            ag = _gep(ap, _muli(gi, fn.const(ty.i64, IME_A_GROUP)))
+            sg = _gep(sp, _muli(gi, fn.const(ty.i64, IME_S_GROUP)))
+            bb = ir.Operation.create(
+                "llvm.intr.vp.load",
+                results=[v16i8],
+                operands=[bg, ones, fn.const(ty.i32, IME_BLOCK)],
+            ).result
+            raw = vector.ScalableExtractOp(v8, bb, 0).result
+            wscale = vector.BitCastOp(
+                v4h, vector.ScalableExtractOp(v8, bb, 8).result
+            ).result
+            lo = arith.ShRSIOp(arith.ShLIOp(raw, four).result, four).result
+            hi = arith.ShRSIOp(raw, four).result
+            aa = llvm.LoadOp(_svec(64, ty.i8), ag, alignment=1).result
+            ss = llvm.LoadOp(_svec(16, ty.f16), sg, alignment=2).result
+            avs = [
+                vector.ScalableExtractOp(v8, aa, 8 * j).result for j in range(8)
+            ]
+            svs = [
+                vector.ScalableExtractOp(v4h, ss, 4 * i).result
+                for i in range(4)
+            ]
+            ps = [
+                _vmadot_hp(ty, zero_h, avs[2 * i], lo, wscale) for i in range(4)
+            ]
+            outs = []
+            for i in range(4):
+                q = _vmadot_hp(ty, ps[i], avs[2 * i + 1], hi, wscale)
+                w = arith.ExtFOp(v4f, q).result
+                xs = arith.ExtFOp(v4f, svs[i]).result
+                outs.append(_fma(w, xs, loop.inner_iter_args[i]))
+            scf.YieldOp(outs)
+        res = zero_acc
+        for i in range(4):
+            res = vector.ScalableInsertOp(loop.results[i], res, 4 * i).result
+        llvm.StoreOp(res, op, alignment=4)
+        func.ReturnOp([])
+
+
+def _ime_tile_fn(ty, spec):
+    """One prefill tile on the matrix engine: _tile_width(spec) columns (GLU:
+    of gate and of up) for the IME_ROWS rows. Loops: row half (32 rows) > K
+    chunk > 8-column block; the f32 accumulators of every column block live
+    in a scratch buffer between the K chunks."""
+    m, k, ns, kind = spec["m"], spec["k"], spec["ns"], spec["kind"]
+    assert m == IME_ROWS, spec
+    groups = k // G
+    glu = kind == "glu"
+    blocks = ns[0] // 8 if glu else sum(ns) // 8  # 8-column blocks of a part
+    nbw = _tile_width(spec) // 8  # blocks per output tile
+    nb_tile = 2 * nbw if glu else nbw  # blocks per call (GLU: gate and up)
+    kc = _ime_kchunk(groups)
+    names = ["w", "xq", "xs", "wt", "out", "ocol"]
+    if glu:
+        names.append("out2")
+    if spec["bias"]:
+        names += ["bias", "bcol"]
+    fn = _Fn(f"{spec['name']}__tile", _tile_types(ty, spec), [], public=False)
+    a = dict(zip(names, fn.args))
+    acc_t = _memref([nb_tile * 512], ty.f32)
+    i64 = ty.i64
+
+    def c64(v):
+        return fn.const(i64, v)
+
+    def as_i64(v):
+        return arith.IndexCastOp(i64, v).result
+
+    with ir.InsertionPoint(fn.entry):
+        acc = memref.AllocaOp(acc_t, [], [], alignment=128).result
+        meta = memref.ExtractStridedMetadataOp(a["w"])
+        w_base = _addi(
+            memref.ExtractAlignedPointerAsIndexOp(a["w"]).result, meta.offset
+        )
+        xq_p, xs_p, acc_p = (
+            as_i64(memref.ExtractAlignedPointerAsIndexOp(v).result)
+            for v in (a["xq"], a["xs"], acc)
+        )
+        first_block = _muli(a["wt"], fn.idx(nbw))
+        # the accumulators of column block j (0 .. nb_tile), row half h: the
+        # KiB h * nb_tile + j of acc
+        for h in (0, 1):
+            for part in (0, 1) if glu else (0,):
+                kl = scf.ForOp(fn.idx(0), fn.idx(groups // kc), fn.idx(1))
+                with ir.InsertionPoint(kl.body):
+                    kci = as_i64(kl.induction_variable)
+                    first = arith.ExtUIOp(
+                        i64,
+                        arith.CmpIOp(
+                            arith.CmpIPredicate.eq,
+                            kl.induction_variable,
+                            fn.idx(0),
+                        ).result,
+                    ).result
+                    xa = _addi(
+                        _addi(xq_p, _muli(kci, c64(kc * IME_A_GROUP))),
+                        c64(h * IME_A_GROUP // 2),
+                    )
+                    xs = _addi(
+                        _addi(xs_p, _muli(kci, c64(kc * IME_S_GROUP))),
+                        c64(h * IME_S_GROUP // 2),
+                    )
+                    kbytes = _muli(
+                        kl.induction_variable, fn.idx(kc * IME_BLOCK)
+                    )
+                    bl = scf.ForOp(fn.idx(0), fn.idx(nbw), fn.idx(1))
+                    with ir.InsertionPoint(bl.body):
+                        j = bl.induction_variable
+                        # GLU: the up blocks follow all the gate blocks
+                        blk = _addi(
+                            _addi(first_block, j), fn.idx(part * blocks)
+                        )
+                        wb = _addi(
+                            _addi(
+                                w_base, _muli(blk, fn.idx(groups * IME_BLOCK))
+                            ),
+                            kbytes,
+                        )
+                        accj = _addi(
+                            _addi(acc_p, _muli(as_i64(j), c64(1024))),
+                            c64(1024 * (nb_tile * h + nbw * part)),
+                        )
+                        func.CallOp(
+                            [],
+                            IME_STEP_FN,
+                            [as_i64(wb), c64(kc), xa, xs, accj, first],
+                        )
+                        scf.YieldOp([])
+                    scf.YieldOp([])
+
+        # the results: row r of block j at f32
+        # ((r / 32) * nb_tile + j) * 256 + (r % 32) * 8
+        half = nb_tile * 256
+        nl = scf.ForOp(fn.idx(0), fn.idx(nbw), fn.idx(1))
+        with ir.InsertionPoint(nl.body):
+            nb = nl.induction_variable
+            col = _addi(a["ocol"], _muli(nb, fn.idx(8)))
+            base = _muli(nb, fn.idx(256))
+            v8f = _vec(8, ty.f32)
+            if glu:
+                # SiLU(gate) * up over a half block (32 rows x 8) at once
+                v256 = _vec(256, ty.f32)
+                for h in (0, 1):
+                    gate_at = _addi(base, fn.idx(h * half))
+                    up_at = _addi(gate_at, fn.idx(nbw * 256))
+                    gate = vector.LoadOp(v256, acc, [gate_at]).result
+                    up = vector.LoadOp(v256, acc, [up_at]).result
+                    val = _silu_mul(fn, ty, gate, up, 256)
+                    for r in range(32):
+                        row = vector.ExtractStridedSliceOp(
+                            v8f, val, [r * 8], [8], [1]
+                        ).result
+                        vector.StoreOp(row, a["out"], [fn.idx(32 * h + r), col])
+            else:
+                rl = scf.ForOp(fn.idx(0), fn.idx(IME_ROWS), fn.idx(1))
+                with ir.InsertionPoint(rl.body):
+                    row = rl.induction_variable
+                    at = _addi(
+                        _addi(
+                            base, _muli(_divui(row, fn.idx(32)), fn.idx(half))
+                        ),
+                        _muli(arith.RemUIOp(row, fn.idx(32)).result, fn.idx(8)),
+                    )
+                    val = vector.LoadOp(v8f, acc, [at]).result
+                    if spec["bias"]:
+                        bias = _read(
+                            v8f,
+                            a["bias"],
+                            [_addi(a["bcol"], _muli(nb, fn.idx(8)))],
+                            fn.const(ty.f32, 0.0),
+                        )
+                        val = _addf(val, bias)
+                    vector.StoreOp(val, a["out"], [row, col])
+                    scf.YieldOp([])
+            scf.YieldOp([])
+        func.ReturnOp([])
+
+
+def _declare(ty, name, types):
+    """A private declaration of a function defined in another module."""
+    op = func.FuncOp(name, ir.FunctionType.get(types, []))
+    op.attributes["sym_visibility"] = ir.StringAttr.get("private")
+
+
+def build_kernels(specs, part: str = "main") -> ir.Module:
     """The module of the kernels `specs` (k3_w4_rewrite) describe, in the
-    active context; verified."""
+    active context; verified. part "main": the kernels, with the RVV tiles
+    and declarations of the IME tiles; part "ime": the IME tiles and their
+    step (compiled for the A100 cores)."""
     ty = _Types()
     module = ir.Module.create()
     with ir.InsertionPoint(module.body):
+        if part == "ime":
+            _ime_step_fn(ty)
         for s in specs:
-            if s["kind"] == "attn":
+            ime = bool(s.get("ime"))
+            if part == "ime":
+                if ime:
+                    _ime_tile_fn(ty, s)
+            elif s["kind"] == "attn":
                 if s["m"] == 1:
                     _attn_decode_fn(ty, s)
                 else:
                     _attn_prefill_fn(ty, s)
             else:
                 _matmul_fn(ty, s)
-                _tile_fn(ty, s)
+                if ime:
+                    _declare(ty, f"{s['name']}__tile", _tile_types(ty, s))
+                else:
+                    _tile_fn(ty, s)
     if not module.operation.verify():
         raise RuntimeError("k3_w4: the generated kernels do not verify")
     return module
 
 
-def gen_kernels(specs) -> str:
+def gen_kernels(specs, part: str = "main") -> str:
     """build_kernels() in a context of its own, as MLIR text."""
     with ir.Context(), ir.Location.unknown():
-        return str(build_kernels(specs))
+        return str(build_kernels(specs, part))

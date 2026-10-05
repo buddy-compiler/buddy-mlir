@@ -892,20 +892,28 @@ def export_template_partitioned_mlir(
 def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
     """w4g32: every Linear layer and the attention of both graphs become calls
     to the int4 kernels of graph/transform/k3_w4.py, which are written to
-    k3_kernels-w4g32.mlir (compile_pipeline.py pipeline "kernels").
+    k3_kernels-w4g32.mlir (compile_pipeline.py pipeline "kernels"); with
+    "prefill_ime", the prefill tiles on the matrix engine to
+    k3_kernels_ime-w4g32.mlir (pipeline "kernels_ime").
 
     Prefill (prefill_chunk rows) and decode (one row) get the same parameter
-    rewrite: they share the weights."""
+    rewrite: they share the weights. Prefill goes first: with "prefill_ime"
+    it records the weights its matrix-engine tiles read in a second, IME
+    layout, and decode gets the same copies."""
     from buddy.compiler.graph.transform.k3_w4 import gen_kernels, k3_w4_rewrite
 
     threads = config["compilation"]["num_threads"]
+    use_ime = bool(config.get("prefill_ime"))
+    ime_weights = set()
     specs = {}
-    for graph, rows in (
-        (graph_prefill, config["prefill_chunk"]),
-        (graph_decode, 1),
+    for graph, rows, ime in (
+        (graph_prefill, config["prefill_chunk"], use_ime),
+        (graph_decode, 1, False),
     ):
         # inputs: the token ids, then the start position
-        for spec in k3_w4_rewrite(graph, rows, graph.inputs[1].name, threads):
+        for spec in k3_w4_rewrite(
+            graph, rows, graph.inputs[1].name, threads, ime, ime_weights
+        ):
             specs[spec["name"]] = spec
 
     def shapes(graph):
@@ -916,13 +924,13 @@ def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
 
     if shapes(graph_prefill) != shapes(graph_decode):
         raise RuntimeError("w4g32: prefill and decode parameters differ")
-    path = os.path.join(output_dir, "k3_kernels-w4g32.mlir")
-    with open(path, "w") as f:
-        f.write(gen_kernels(specs.values()))
-    print(
-        f"[import] Written: {os.path.basename(path)} ({len(specs)} kernels)",
-        file=sys.stderr,
-    )
+    for part, name in (("main", "k3_kernels"), ("ime", "k3_kernels_ime")):
+        if part == "ime" and not use_ime:
+            continue
+        path = os.path.join(output_dir, f"{name}-w4g32.mlir")
+        with open(path, "w") as f:
+            f.write(gen_kernels(specs.values(), part))
+        print(f"[import] Written: {os.path.basename(path)}", file=sys.stderr)
 
 
 def extract_k3_weights(graph, config: dict) -> dict[str, numpy.ndarray]:

@@ -268,12 +268,36 @@ W4G32_CHUNK_MULTIPLE = 32
 W4G32_HEAD_DIM_MULTIPLE = 16
 
 
-def w4g32_param_counts(hf: dict, prefill_chunk: int) -> dict:
+# "prefill_ime": the rows of a matrix-engine prefill tile (k3_w4.IME_ROWS).
+W4G32_IME_ROWS = 64
+
+
+def derive_prefill_ime(spec: dict, variant: str, prefill_chunk: int) -> bool:
+    """Opt-in "prefill_ime" (docs/K3DeepSeekR1.md): the prefill tiles of
+    w4g32 run on the matrix engine of the SpacemiT K3 A100 cores, on a second
+    copy of the weights in the IME layout."""
+    raw = spec.get("prefill_ime", False)
+    if not isinstance(raw, bool):
+        raise ValueError(f"prefill_ime must be true or false, got {raw!r}")
+    if raw and variant != "w4g32":
+        raise ValueError("prefill_ime needs the variant w4g32")
+    if raw and prefill_chunk != W4G32_IME_ROWS:
+        raise ValueError(
+            f"prefill_ime needs prefill_chunk {W4G32_IME_ROWS}, "
+            f"got {prefill_chunk}"
+        )
+    return raw
+
+
+def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
     """w4g32 (graph/transform/k3_w4.py) buffer sizes, from the HF config of a
     Qwen2 model: every Linear weight [K, N] becomes K * N * 9 / 16 bytes of
     int4 tiles with their f16 scales; the embedding, the norms, the q / k / v
-    biases and the RoPE inv_freq stay f32. Rejects the models and the
-    prefill_chunk (derive_prefill_chunk) the kernels do not support."""
+    biases and the RoPE inv_freq stay f32. With `ime` ("prefill_ime"), the
+    weights of the layers other than the LM head (whose prefill computes one
+    row) get a second copy, in the IME layout, of the same size. Rejects the
+    models and the prefill_chunk (derive_prefill_chunk) the kernels do not
+    support."""
     arch = (hf.get("architectures") or ["?"])[0]
     if arch != "Qwen2ForCausalLM":
         raise ValueError(f"w4g32 supports Qwen2ForCausalLM models, not {arch}")
@@ -314,7 +338,7 @@ def w4g32_param_counts(hf: dict, prefill_chunk: int) -> dict:
                 f"N % 128 == 0, got [{k}, {n}]"
             )
     per_layer = sum(k * n for k, n in linears)
-    i8 = (layers * per_layer + h * vocab) * 9 // 16
+    i8 = (layers * per_layer * (2 if ime else 1) + h * vocab) * 9 // 16
     f32 = vocab * h + layers * (2 * h + heads * d + 2 * kv) + h + d // 2
     return {"f32_elements": f32, "i8_elements": i8}
 
@@ -514,7 +538,11 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         spec, shape, tiered_kv_cache["enabled"]
     )
     param_counts = (
-        w4g32_param_counts(hf, prefill_chunk)
+        w4g32_param_counts(
+            hf,
+            prefill_chunk,
+            derive_prefill_ime(spec, variant, prefill_chunk),
+        )
         if variant == "w4g32"
         else count_params(spec)
     )
@@ -586,6 +614,7 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "arena": memory_options["arena"],
         "hugepages": memory_options["hugepages"],
         "thread_pool": derive_thread_pool(spec),
+        "prefill_ime": derive_prefill_ime(spec, variant, prefill_chunk),
         # >0: forward_prefill takes this many prompt tokens per call
         "prefill_chunk": prefill_chunk,
         "cpp_types": {
@@ -607,6 +636,11 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
                 "forward_decode": "standard",
                 "subgraph_decode": "subgraph_decode",
                 **({"k3_kernels": "kernels"} if variant == "w4g32" else {}),
+                **(
+                    {"k3_kernels_ime": "kernels_ime"}
+                    if derive_prefill_ime(spec, variant, prefill_chunk)
+                    else {}
+                ),
             },
         },
     }

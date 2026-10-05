@@ -7,5 +7,6 @@
   "prefill_chunk": 64,
   "arena": true,
   "hugepages": true,
-  "thread_pool": true
+  "thread_pool": true,
+  "prefill_ime": true
 }
