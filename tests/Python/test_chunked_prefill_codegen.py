@@ -13,6 +13,7 @@ import tempfile
 sys.path.insert(
     0, os.path.join(os.environ["BUDDY_SRC_ROOT"], "tools", "buddy-codegen")
 )
+import compile_pipeline  # noqa: E402
 import gen_config  # noqa: E402
 import gen_manifest  # noqa: E402
 import gen_session  # noqa: E402
@@ -116,3 +117,17 @@ for line in manifest.splitlines():
         print(line.strip())
 # CHECK: rhal.buffer @prefill_tokens {space = "host", type = tensor<1x32xi64>}
 # CHECK: rhal.buffer @logits_prefill {space = "host", type = tensor<1x32x1000xf32>}
+
+# compile_pipeline.py: with chunks, the prefill subgraph updates the KV caches
+# it gets in place (-eliminate-memref-copy), as the decode subgraph does.
+for chunked in (False, True):
+    stages = compile_pipeline.build_stages(
+        "subgraph", 4, "", "f32", chunked_prefill=chunked
+    )
+    flat = [a for _, args in stages for a in args]
+    print(
+        f"subgraph chunked={chunked}: "
+        f"eliminate-memref-copy {int('-eliminate-memref-copy' in flat)}"
+    )
+# CHECK: subgraph chunked=False: eliminate-memref-copy 0
+# CHECK: subgraph chunked=True: eliminate-memref-copy 1

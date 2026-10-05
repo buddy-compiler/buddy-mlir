@@ -107,6 +107,7 @@ def build_stages(
     tiered: bool = False,
     decode_pack: dict | None = None,
     arena: bool = False,
+    chunked_prefill: bool = False,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -123,6 +124,37 @@ def build_stages(
         arg.startswith(("-code-model", "--code-model")) for arg in llc_base_args
     ):
         llc_base_args.append("-code-model=large")
+
+    if pipeline_type == "kernels":
+        # Generated kernels (graph/transform/k3_w4.py): scf / vector /
+        # memref, scf.parallel for the threads.
+        lower = lower_to_llvm(arena)
+        i = lower.index("-convert-vector-to-llvm") + 1
+        stages.append(
+            (
+                "buddy-opt",
+                [
+                    f"-convert-scf-to-openmp=num-threads={num_threads}",
+                    "-expand-strided-metadata",
+                    "-convert-vector-to-scf",
+                    "-lower-affine",
+                    "-expand-strided-metadata",
+                ]
+                + lower[:i]
+                + ["-convert-ub-to-llvm"]
+                + lower[i:],
+            )
+        )
+        stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
+        stages.append(("llvm-as", []))
+        stages.append(
+            (
+                "llc",
+                llc_base_args
+                + ["-filetype=obj", "-relocation-model=pic", "-O3"],
+            )
+        )
+        return stages
 
     if pipeline_type == "forward":
         stages.append(
@@ -181,8 +213,15 @@ def build_stages(
         ]
     )
 
-    if pipeline_type == "subgraph_decode":
+    # The KV caches are function arguments that the graph updates: write them
+    # in place instead of copying each into a new buffer first. Decode, and
+    # prefill in chunks (gen_config.derive_prefill_chunk), which has the
+    # decode ABI; the session handles results that alias its inputs.
+    if pipeline_type == "subgraph_decode" or (
+        pipeline_type == "subgraph" and chunked_prefill
+    ):
         opts.append("-eliminate-memref-copy")
+    if pipeline_type == "subgraph_decode":
         opts.extend(
             [
                 "-assume-tight-memref-layout",
@@ -353,6 +392,7 @@ MLIR_FILE_MAP = {
     "forward_prefill": ("forward_prefill.mlir", "forward_prefill.o"),
     "subgraph_prefill": ("subgraph0_prefill.mlir", "subgraph_prefill.o"),
     "forward_decode": ("forward_decode.mlir", "forward_decode.o"),
+    "k3_kernels": ("k3_kernels.mlir", "k3_kernels.o"),
     "subgraph_decode": ("subgraph0_decode.mlir", "subgraph_decode.o"),
 }
 
@@ -435,6 +475,7 @@ def _compile_one(task: dict) -> str:
         task.get("tiered", False),
         task.get("decode_pack"),
         task.get("arena", False),
+        task.get("chunked_prefill", False),
     )
     run_pipeline(
         stages,
@@ -485,6 +526,7 @@ def compile_all(
                 "tiered": is_tiered_kv_cache(config),
                 "decode_pack": decode_pack,
                 "arena": bool(config.get("arena", False)),
+                "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": input_path,
                 "output": output_path,
                 "buddy_opt": buddy_opt,
@@ -681,6 +723,7 @@ def compile_partitioned(
                 "decode_pack": decode_pack,
                 "tiered": is_tiered_kv_cache(config),
                 "arena": bool(config.get("arena", False)),
+                "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": mlir_name
                 if os.path.isabs(mlir_name)
                 else os.path.join(mlir_dir, mlir_name),
@@ -994,6 +1037,7 @@ def main():
             is_tiered_kv_cache(config),
             config.get("decode_pack"),
             bool(config.get("arena", False)),
+            bool(config.get("prefill_chunk")),
         )
 
         print(

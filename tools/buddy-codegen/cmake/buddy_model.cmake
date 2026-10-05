@@ -61,6 +61,8 @@ set(RISCV_OMP_SHARED "" CACHE FILEPATH
   "Path to target OpenMP shared library for RVV link (e.g. libomp.so)")
 set(RISCV_MLIR_C_RUNNER_UTILS "" CACHE FILEPATH
   "Path to target mlir_c_runner_utils shared library for RVV link")
+set(BUDDY_RISCV_VLEN "" CACHE STRING
+  "RISC-V targets: the exact VLEN in bits (e.g. 1024 for the SpacemiT K3 A100 cores); empty: any")
 set(RISCV_LLVM_BUILD_DIR "" CACHE PATH
   "riscv64 LLVM/MLIR build dir for the RVV plugins (lib/libLLVMSupport.a, include/llvm/Config)")
 if(NOT DEFINED BUDDY_MLIR_BUILD_DIR)
@@ -297,11 +299,17 @@ function(buddy_add_model)
   if(BUDDY_RISCV_ENABLE_ZFH_ZVFH)
     string(APPEND _MDL_RISCV_MATTR ",+zfh,+zvfh")
   endif()
+  # A known VLEN lets LLVM map fixed-length vectors onto whole registers.
+  set(_MDL_RISCV_VLEN_ARGS "")
+  if(BUDDY_RISCV_VLEN)
+    string(APPEND _MDL_RISCV_MATTR ",+zvl${BUDDY_RISCV_VLEN}b")
+    set(_MDL_RISCV_VLEN_ARGS " -riscv-v-vector-bits-max=${BUDDY_RISCV_VLEN}")
+  endif()
   if(IS_RVV_CROSSCOMPILE)
-    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
+    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu${_MDL_RISCV_VLEN_ARGS}")
   elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
-      set(MDL_LLC_ATTRS "-mcpu=native -mattr=${_MDL_RISCV_MATTR}")
+      set(MDL_LLC_ATTRS "-mcpu=native -mattr=${_MDL_RISCV_MATTR}${_MDL_RISCV_VLEN_ARGS}")
     else()
       set(MDL_LLC_ATTRS "-mcpu=native")
     endif()
@@ -369,19 +377,24 @@ function(buddy_add_model)
     endif()
   endif()
 
-  # "arena": true in the spec (docs/ModelMemoryOptions.md): the model library
-  # gets runtime/arena/BuddyArena.c (Stage 3), which the session generated for
-  # llm_prefill_decode resets before each forward call.
+  # Spec fields that change what is linked:
+  # - "arena": true (docs/ModelMemoryOptions.md): the model library gets
+  #   runtime/arena/BuddyArena.c (Stage 3), which the session generated for
+  #   llm_prefill_decode resets before each forward call;
+  # - "variant": "w4g32" (docs/K3DeepSeekR1.md): the model library gets the
+  #   generated kernels, k3_kernels.o.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
-            "import json,sys; print('ON' if json.load(open(sys.argv[1])).get('arena') is True else 'OFF')"
+            "import json,sys; s=json.load(open(sys.argv[1])); print(('ON' if s.get('arena') is True else 'OFF') + ';' + str(s.get('variant', '')))"
             "${MDL_SPEC}"
-    OUTPUT_VARIABLE MDL_ARENA
+    OUTPUT_VARIABLE _mdl_spec_fields
     OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE _mdl_arena_result)
-  if(NOT _mdl_arena_result EQUAL 0)
+    RESULT_VARIABLE _mdl_spec_result)
+  if(NOT _mdl_spec_result EQUAL 0)
     message(FATAL_ERROR "buddy_add_model (${MDL_NAME}): cannot read ${MDL_SPEC}")
   endif()
+  list(GET _mdl_spec_fields 0 MDL_ARENA)
+  list(GET _mdl_spec_fields 1 MDL_VARIANT)
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MDL_SPEC}")
   if(MDL_ARENA AND (NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" OR
                     MDL_LAYER_PARTITION))
@@ -961,6 +974,9 @@ function(buddy_add_model)
       "${BIN}/subgraph_prefill.o"
       "${BIN}/forward_decode.o"
       "${BIN}/subgraph_decode.o")
+    if(MDL_VARIANT STREQUAL "w4g32")
+      list(APPEND OBJ_FILES "${BIN}/k3_kernels.o")
+    endif()
   endif()
 
   if(MDL_MODEL_KIND STREQUAL "single_forward")
