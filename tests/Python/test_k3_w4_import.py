@@ -64,16 +64,28 @@ print("pipelines:", ", ".join(f"{k}={v}" for k, v in pipelines.items()))
 # CHECK-NEXT: pipelines: {{.*}}k3_kernels=kernels
 
 
-def error(**extra):
+def error(path=hf_path, **extra):
     try:
-        gen_config.gen_config({**spec, **extra}, hf_path)
+        c = gen_config.gen_config({**spec, **extra}, path)
     except ValueError as e:
         return f"ValueError: {e}"
-    return "no error"
+    return f"prefill_chunk {c['prefill_chunk']}"
 
 
+# The kernels' constraints are checked when the config is made.
 # CHECK: no chunks: ValueError: w4g32 needs prefill_chunk
 print("no chunks:", error(prefill_chunk=0))
+# CHECK-NEXT: chunk 48: ValueError: w4g32 needs prefill_chunk to be a multiple of 32, got 48
+print("chunk 48:", error(prefill_chunk=48))
+# CHECK-NEXT: chunk 64: prefill_chunk 64
+print("chunk 64:", error(prefill_chunk=64))
+# CHECK-NEXT: chunk true: prefill_chunk 64
+print("chunk true:", error(prefill_chunk=True))
+odd_path = os.path.join(work, "head_dim_40.json")
+with open(odd_path, "w") as f:
+    json.dump({**hf.to_dict(), "head_dim": 40}, f)
+# CHECK-NEXT: head_dim 40: ValueError: w4g32 needs a head_dim that is a multiple of 16, got 40
+print("head_dim 40:", error(odd_path))
 
 prefill, decode, _ = import_model.compile_chunk_graphs(model, config)
 import_model.apply_pre_transforms(prefill[0], decode[0])

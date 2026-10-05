@@ -79,6 +79,11 @@ G = 32  # rows per quantization group
 NB = 128  # columns per weight tile
 # Rows of a prefill chunk that share each unpacked weight vector.
 PREFILL_MB = 4
+# Prefill attention: query rows per work item, and head dimensions per pass.
+# gen_config.py (w4g32_param_counts) requires prefill_chunk % ATTN_ROWS == 0
+# (which also makes it a multiple of PREFILL_MB) and head_dim % ATTN_DIMS == 0.
+ATTN_ROWS = 32
+ATTN_DIMS = 16
 
 
 # ---------------------------------------------------------------------------
@@ -1252,8 +1257,8 @@ def _attn_prefill_fn(ty, spec):
         spec["dim"],
         spec["ctx"],
     )
-    R, DB = 32, 16
-    assert m % R == 0 and d % DB == 0, spec
+    R, DB = ATTN_ROWS, ATTN_DIMS
+    assert m % R == 0 and d % DB == 0, spec  # checked by gen_config.py
     hd = d // 2
     fn, a, outs = _attn_fn(ty, spec)
     vr, vri = _vec(R, ty.f32), _vec(R, ty.index)

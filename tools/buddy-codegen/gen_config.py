@@ -261,21 +261,39 @@ def compute_weights(variant: str, param_counts: dict) -> list[dict]:
     return weights
 
 
-def w4g32_param_counts(hf: dict, spec: dict) -> dict:
+# What the w4g32 kernels (graph/transform/k3_w4.py) require: the prefill
+# attention kernel takes the rows of a chunk 32 at a time (ATTN_ROWS) and the
+# head dimensions 16 at a time (ATTN_DIMS).
+W4G32_CHUNK_MULTIPLE = 32
+W4G32_HEAD_DIM_MULTIPLE = 16
+
+
+def w4g32_param_counts(hf: dict, prefill_chunk: int) -> dict:
     """w4g32 (graph/transform/k3_w4.py) buffer sizes, from the HF config of a
     Qwen2 model: every Linear weight [K, N] becomes K * N * 9 / 16 bytes of
     int4 tiles with their f16 scales; the embedding, the norms, the q / k / v
-    biases and the RoPE inv_freq stay f32."""
+    biases and the RoPE inv_freq stay f32. Rejects the models and the
+    prefill_chunk (derive_prefill_chunk) the kernels do not support."""
     arch = (hf.get("architectures") or ["?"])[0]
     if arch != "Qwen2ForCausalLM":
         raise ValueError(f"w4g32 supports Qwen2ForCausalLM models, not {arch}")
     if hf.get("tie_word_embeddings"):
         raise ValueError("w4g32 does not support tie_word_embeddings")
-    if not spec.get("prefill_chunk"):
+    if not prefill_chunk:
         raise ValueError("w4g32 needs prefill_chunk")
+    if prefill_chunk % W4G32_CHUNK_MULTIPLE:
+        raise ValueError(
+            f"w4g32 needs prefill_chunk to be a multiple of "
+            f"{W4G32_CHUNK_MULTIPLE}, got {prefill_chunk}"
+        )
     h = hf["hidden_size"]
     heads = hf["num_attention_heads"]
     d = hf.get("head_dim", h // heads)
+    if d % W4G32_HEAD_DIM_MULTIPLE:
+        raise ValueError(
+            f"w4g32 needs a head_dim that is a multiple of "
+            f"{W4G32_HEAD_DIM_MULTIPLE}, got {d}"
+        )
     kv = hf.get("num_key_value_heads", heads) * d
     inter = hf["intermediate_size"]
     vocab = hf["vocab_size"]
@@ -480,17 +498,17 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     shape = derive_shapes(hf, spec)
     tokens = derive_tokens(hf, spec)
     precision = VARIANT_PRECISION.get(variant, VARIANT_PRECISION["f32"])
+    tiered_kv_cache = derive_tiered_kv_cache(spec)
+    prefill_chunk = derive_prefill_chunk(
+        spec, shape, tiered_kv_cache["enabled"]
+    )
     param_counts = (
-        w4g32_param_counts(hf, spec)
+        w4g32_param_counts(hf, prefill_chunk)
         if variant == "w4g32"
         else count_params(spec)
     )
     weights = compute_weights(variant, param_counts)
-    tiered_kv_cache = derive_tiered_kv_cache(spec)
     decode_pack = derive_decode_pack(hf, spec)
-    prefill_chunk = derive_prefill_chunk(
-        spec, shape, tiered_kv_cache["enabled"]
-    )
     memory_options = derive_memory_options(
         spec, tiered_kv_cache["enabled"], prefill_chunk
     )
