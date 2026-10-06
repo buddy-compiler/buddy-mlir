@@ -101,9 +101,33 @@ print(
     "vfmadot",
 )
 # CHECK: main: k3_attn_m64_ime, k3_q4_glu_m64_k96_n256_ime, k3_q4_multi_m64_k96_n128_128_128_b_ime_rms, k3_q4_plain_m1_k96_n128, k3_q4_plain_m64_k96_n128_ime
-# CHECK-NEXT: main private: k3_attn_ime_pv (declaration), k3_attn_ime_qk (declaration), k3_q4_glu_m64_k96_n256_ime__tile (declaration), k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile (declaration), k3_q4_plain_m1_k96_n128__tile, k3_q4_plain_m64_k96_n128_ime__tile (declaration)
-# CHECK-NEXT: ime private: k3_attn_ime_pv, k3_attn_ime_qk, k3_ime_hp_step, k3_q4_glu_m64_k96_n256_ime__tile, k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile, k3_q4_plain_m64_k96_n128_ime__tile
+# CHECK-NEXT: main private: buddy_spacemit_tcm_pair (declaration), k3_attn_ime_pv (declaration), k3_attn_ime_qk (declaration), k3_q4_glu_m64_k96_n256_ime__tile (declaration), k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile (declaration), k3_q4_plain_m1_k96_n128__tile, k3_q4_plain_m64_k96_n128_ime__tile (declaration)
+# CHECK-NEXT: ime private: buddy_spacemit_tcm_here (declaration), k3_attn_ime_pv, k3_attn_ime_qk, k3_ime_hp_step, k3_q4_glu_m64_k96_n256_ime__tile, k3_q4_multi_m64_k96_n128_128_128_b_ime_rms__tile, k3_q4_plain_m64_k96_n128_ime__tile
 # CHECK-NEXT: IME ops in main: 0 in ime: 8 vmadot.hp, 16 vfmadot
+
+# The activations of an IME call go through the TCM of each core pair, in
+# passes over K that fit in it (768 KiB): k 1536 in one pass, k 8960 in two
+# of 140 groups, each a copy (buddy_spacemit_tcm_pair) and a parallel loop
+# of tiles (5 parallel loops with the quantization).
+print(
+    "pass groups: k 1536",
+    k3_w4._ime_pass_groups(48),
+    "k 8960",
+    k3_w4._ime_pass_groups(280),
+)
+down = k3_w4.gen_kernels(
+    [k3_w4.kernel_spec("plain", 64, 8960, [128], False, 8, ime=True)], "main"
+)
+print(
+    "k 8960: copies",
+    down.count("call @buddy_spacemit_tcm_pair"),
+    "tile calls",
+    down.count("call @k3_q4_plain_m64_k8960_n128_ime__tile"),
+    "omp loops",
+    down.count("scf.parallel"),
+)
+# CHECK: pass groups: k 1536 48 k 8960 140
+# CHECK-NEXT: k 8960: copies 2 tile calls 2 omp loops 5
 
 # The "kernels_ime" pipeline: -lower-ime target=k3, buddy-translate, llc for
 # the A100, the exact VLEN included whatever the build gives the other

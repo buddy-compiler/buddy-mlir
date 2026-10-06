@@ -994,6 +994,8 @@ def _tile_types(ty, spec):
         t.append(ty.mat)
     if spec["bias"]:
         t += [ty.row, ty.index]
+    if spec.get("ime"):
+        t.append(ty.index)  # the first group of the pass (_ime_pass_groups)
     return t
 
 
@@ -1183,43 +1185,61 @@ def _matmul_fn(ty, spec):
                 scf.ReduceOp([], 0)
 
         # the tiles on all threads: thread i gets tiles
-        # [tiles * i / threads, tiles * (i + 1) / threads)
+        # [tiles * i / threads, tiles * (i + 1) / threads); IME tiles in
+        # passes over K, each after a copy of its activations into the TCM
         tw = _tile_width(spec)
         tiles = ns[0] // tw if kind == "glu" else sum(ns) // tw
-        body, (slot,) = _parallel(fn, [fn.idx(threads)])
-        with ir.InsertionPoint(body):
-            ntiles, nthreads = fn.idx(tiles), fn.idx(threads)
-            lo = _divui(_muli(slot, ntiles), nthreads)
-            hi = _divui(_muli(_addi(slot, fn.idx(1)), ntiles), nthreads)
-            tl = scf.ForOp(lo, hi, fn.idx(1))
-            with ir.InsertionPoint(tl.body):
-                t = tl.induction_variable
-                col = _muli(t, fn.idx(tw))
-                dsts = [memref.CastOp(ty.mat, y).result for y in ys]
-                # multi: the output the tile belongs to, and its column there
-                dst = dsts[-1]
-                dcol = _subi(col, fn.idx(sum(ns[:-1])))
-                for i in range(len(ns) - 2, -1, -1):
-                    inside = arith.CmpIOp(
-                        arith.CmpIPredicate.ult,
-                        t,
-                        fn.idx(sum(ns[: i + 1]) // tw),
-                    ).result
-                    dst = arith.SelectOp(inside, dsts[i], dst).result
-                    dcol = arith.SelectOp(
-                        inside, _subi(col, fn.idx(sum(ns[:i]))), dcol
-                    ).result
-                args = [a["w"], xq, xs, t, dst, dcol]
-                if kind == "glu":
-                    args.append(dst)
-                if spec["bias"]:
-                    args += [a["bias"], col]
-                func.CallOp([], f"{spec['name']}__tile", args)
-                scf.YieldOp([])
-            scf.ReduceOp([], 0)
+        if spec.get("ime"):
+            gp = _ime_pass_groups(groups)
+            passes = [p * gp for p in range(groups // gp)]
+        else:
+            passes = [None]
+        for g0 in passes:
+            if g0 is not None:
+                _ime_stage(fn, ty, xq, xs, g0, gp)
+            _tiles(fn, ty, spec, a, xq, xs, ys, tw, tiles, threads, g0)
         memref.DeallocOp(xq)
         memref.DeallocOp(xs)
         func.ReturnOp(ys)
+
+
+def _tiles(fn, ty, spec, a, xq, xs, ys, tw, tiles, threads, g0):
+    """The parallel loop of the tiles of _matmul_fn (IME: of the pass from
+    group g0 on)."""
+    ns, kind = spec["ns"], spec["kind"]
+    body, (slot,) = _parallel(fn, [fn.idx(threads)])
+    with ir.InsertionPoint(body):
+        ntiles, nthreads = fn.idx(tiles), fn.idx(threads)
+        lo = _divui(_muli(slot, ntiles), nthreads)
+        hi = _divui(_muli(_addi(slot, fn.idx(1)), ntiles), nthreads)
+        tl = scf.ForOp(lo, hi, fn.idx(1))
+        with ir.InsertionPoint(tl.body):
+            t = tl.induction_variable
+            col = _muli(t, fn.idx(tw))
+            dsts = [memref.CastOp(ty.mat, y).result for y in ys]
+            # multi: the output the tile belongs to, and its column there
+            dst = dsts[-1]
+            dcol = _subi(col, fn.idx(sum(ns[:-1])))
+            for i in range(len(ns) - 2, -1, -1):
+                inside = arith.CmpIOp(
+                    arith.CmpIPredicate.ult,
+                    t,
+                    fn.idx(sum(ns[: i + 1]) // tw),
+                ).result
+                dst = arith.SelectOp(inside, dsts[i], dst).result
+                dcol = arith.SelectOp(
+                    inside, _subi(col, fn.idx(sum(ns[:i]))), dcol
+                ).result
+            args = [a["w"], xq, xs, t, dst, dcol]
+            if kind == "glu":
+                args.append(dst)
+            if spec["bias"]:
+                args += [a["bias"], col]
+            if g0 is not None:
+                args.append(fn.idx(g0))
+            func.CallOp([], f"{spec['name']}__tile", args)
+            scf.YieldOp([])
+        scf.ReduceOp([], 0)
 
 
 def _attn_fn(ty, spec):
@@ -1552,6 +1572,98 @@ def _ime_kchunk(groups: int) -> int:
     return max(d for d in range(1, 11) if groups % d == 0)
 
 
+# The activations of an IME call are read from the TCM of the core pair a
+# tile runs on, through SpacemiT's /dev/tcm (runtime/spacemit/
+# BuddySpacemitTcm.c): a core loads 1 KiB from it in ~9 ns whatever the
+# other cores do, while cached loads take ~40 ns when 3 or 4 cores of a
+# cluster load (k3_ime_hp_step on 8 cores: 61 instead of 102 ns per group).
+# The K3 has 4 core pairs of 768 KiB; a call copies its activations and
+# their scales into each, in passes over K small enough for them
+# (_ime_pass_groups).
+K3_TCM_REGIONS = 4
+K3_TCM_REGION_BYTES = 768 * 1024
+SPACEMIT_TCM_PAIR_FN = "buddy_spacemit_tcm_pair"
+SPACEMIT_TCM_HERE_FN = "buddy_spacemit_tcm_here"
+
+
+def _ime_pass_groups(groups: int) -> int:
+    """Groups per pass of an IME call: the activations and scales of a pass
+    (IME_A_GROUP + IME_S_GROUP bytes per group) fit in a TCM region, and a
+    pass is whole K chunks (_ime_kchunk). k 1536: one pass (144 KiB); k 8960:
+    two of 140 groups (420 KiB), the second one adding to the output of the
+    first, so that the weights are still read once."""
+    kc = _ime_kchunk(groups)
+    for passes in range(1, groups + 1):
+        gp = groups // passes
+        if (
+            groups % passes == 0
+            and gp % kc == 0
+            and gp * (IME_A_GROUP + IME_S_GROUP) <= K3_TCM_REGION_BYTES
+        ):
+            return gp
+    raise ValueError(f"k3_w4: no IME pass for {groups} groups")
+
+
+def _ime_stage(fn, ty, xq, xs, g0, gp):
+    """Copies the activations and scales of groups g0 .. g0 + gp - 1 into
+    the TCM region of every core pair: A at 0, S at gp * IME_A_GROUP, with
+    the strides of xq / xs. Work item i copies half i % 2 of region i / 2
+    (the pool runs item i on the i-th core, so a pair copies into its own
+    TCM); nothing when there is no TCM (buddy_spacemit_tcm_pair returns 0)."""
+    i64 = ty.i64
+    ptr = _llvm_ptr()
+
+    def c64(v):
+        return fn.const(i64, v)
+
+    def ptr_of(mem):
+        return arith.IndexCastOp(
+            i64, memref.ExtractAlignedPointerAsIndexOp(mem).result
+        ).result
+
+    xq_p, xs_p = ptr_of(xq), ptr_of(xs)
+    nbytes = gp * (IME_A_GROUP + IME_S_GROUP)
+    body, (item,) = _parallel(fn, [fn.idx(2 * K3_TCM_REGIONS)])
+    with ir.InsertionPoint(body):
+        item64 = arith.IndexCastOp(i64, item).result
+        region = arith.DivUIOp(item64, c64(2)).result
+        part = arith.RemUIOp(item64, c64(2)).result
+        dst = func.CallOp(
+            [i64],
+            SPACEMIT_TCM_PAIR_FN,
+            [region, c64(K3_TCM_REGIONS), c64(nbytes)],
+        ).result
+        have = arith.CmpIOp(arith.CmpIPredicate.ne, dst, c64(0)).result
+        cond = scf.IfOp(have)
+        with ir.InsertionPoint(cond.then_block):
+            # (source, destination, bytes per group) of A and of S
+            for src0, dst0, per in (
+                (_addi(xq_p, c64(g0 * IME_A_GROUP)), dst, IME_A_GROUP),
+                (
+                    _addi(xs_p, c64(g0 * IME_S_GROUP)),
+                    _addi(dst, c64(gp * IME_A_GROUP)),
+                    IME_S_GROUP,
+                ),
+            ):
+                half = gp * per // 2
+                off = _muli(part, c64(half))
+                src_p = llvm.IntToPtrOp(ptr, _addi(src0, off)).result
+                dst_p = llvm.IntToPtrOp(ptr, _addi(dst0, off)).result
+                # copy in 512-byte vectors
+                vt = _vec(512, ty.i8)
+                cl = scf.ForOp(fn.idx(0), fn.idx(half // 512), fn.idx(1))
+                with ir.InsertionPoint(cl.body):
+                    at = _muli(
+                        arith.IndexCastOp(i64, cl.induction_variable).result,
+                        c64(512),
+                    )
+                    v = llvm.LoadOp(vt, _gep(src_p, at), alignment=1).result
+                    llvm.StoreOp(v, _gep(dst_p, at), alignment=1)
+                    scf.YieldOp([])
+            scf.YieldOp([])
+        scf.ReduceOp([], 0)
+
+
 def _llvm_ptr():
     return ir.Type.parse("!llvm.ptr")
 
@@ -1673,11 +1785,17 @@ def _ime_tile_fn(ty, spec):
     """One prefill tile on the matrix engine: _tile_width(spec) columns (GLU:
     of gate and of up) for the IME_ROWS rows. Loops: row half (32 rows) > K
     chunk > 8-column block; the f32 accumulators of every column block live
-    in a scratch buffer between the K chunks."""
+    in a scratch buffer between the K chunks. One call covers the pass of
+    groups g0 .. g0 + _ime_pass_groups(groups) - 1, its activations read
+    from the TCM of the core pair (see _ime_stage)."""
     m, k, ns, kind = spec["m"], spec["k"], spec["ns"], spec["kind"]
     assert m == IME_ROWS, spec
     groups = k // G
+    gp = _ime_pass_groups(groups)
     glu = kind == "glu"
+    # several passes: a pass resumes the sums of the previous one from the
+    # output, which holds them (no GLU product, no bias)
+    assert gp == groups or not (glu or spec["bias"]), spec
     blocks = ns[0] // 8 if glu else sum(ns) // 8  # 8-column blocks of a part
     nbw = _tile_width(spec) // 8  # blocks per output tile
     nb_tile = 2 * nbw if glu else nbw  # blocks per call (GLU: gate and up)
@@ -1687,6 +1805,7 @@ def _ime_tile_fn(ty, spec):
         names.append("out2")
     if spec["bias"]:
         names += ["bias", "bcol"]
+    names.append("g0")
     fn = _Fn(f"{spec['name']}__tile", _tile_types(ty, spec), [], public=False)
     a = dict(zip(names, fn.args))
     acc_t = _memref([nb_tile * 512], ty.f32)
@@ -1708,22 +1827,85 @@ def _ime_tile_fn(ty, spec):
             as_i64(memref.ExtractAlignedPointerAsIndexOp(v).result)
             for v in (a["xq"], a["xs"], acc)
         )
+        g0 = as_i64(a["g0"])
+        # the pass's activations and scales: in the TCM of this core pair
+        # (_ime_stage), else in xq / xs
+        tcm = func.CallOp(
+            [i64],
+            SPACEMIT_TCM_HERE_FN,
+            [c64(K3_TCM_REGIONS), c64(gp * (IME_A_GROUP + IME_S_GROUP))],
+        ).result
+        in_tcm = arith.CmpIOp(arith.CmpIPredicate.ne, tcm, c64(0)).result
+        xq_p = arith.SelectOp(
+            in_tcm, tcm, _addi(xq_p, _muli(g0, c64(IME_A_GROUP)))
+        ).result
+        xs_p = arith.SelectOp(
+            in_tcm,
+            _addi(tcm, c64(gp * IME_A_GROUP)),
+            _addi(xs_p, _muli(g0, c64(IME_S_GROUP))),
+        ).result
         first_block = _muli(a["wt"], fn.idx(nbw))
+        half = nb_tile * 256
+        v8f = _vec(8, ty.f32)
+
+        def acc_at(nb, row):
+            """Row `row` of column block nb in acc: f32
+            ((row / 32) * nb_tile + nb) * 256 + (row % 32) * 8."""
+            return _addi(
+                _addi(
+                    _muli(nb, fn.idx(256)),
+                    _muli(_divui(row, fn.idx(32)), fn.idx(half)),
+                ),
+                _muli(arith.RemUIOp(row, fn.idx(32)).result, fn.idx(8)),
+            )
+
+        def rows_of_blocks(body):
+            """body(column block, its first output column, row) for every
+            row of every column block of the tile."""
+            nl = scf.ForOp(fn.idx(0), fn.idx(nbw), fn.idx(1))
+            with ir.InsertionPoint(nl.body):
+                nb = nl.induction_variable
+                col = _addi(a["ocol"], _muli(nb, fn.idx(8)))
+                rl = scf.ForOp(fn.idx(0), fn.idx(IME_ROWS), fn.idx(1))
+                with ir.InsertionPoint(rl.body):
+                    body(nb, col, rl.induction_variable)
+                    scf.YieldOp([])
+                scf.YieldOp([])
+
+        if gp < groups:
+            later = arith.CmpIOp(
+                arith.CmpIPredicate.ne, a["g0"], fn.idx(0)
+            ).result
+            # a later pass: the sums so far, from the output (exact f32, so
+            # the result is that of one pass)
+            resume = scf.IfOp(later)
+            with ir.InsertionPoint(resume.then_block):
+
+                def load_sums(nb, col, row):
+                    val = vector.LoadOp(v8f, a["out"], [row, col]).result
+                    vector.StoreOp(val, acc, [acc_at(nb, row)])
+
+                rows_of_blocks(load_sums)
+                scf.YieldOp([])
         # the accumulators of column block j (0 .. nb_tile), row half h: the
         # KiB h * nb_tile + j of acc
         for h in (0, 1):
             for part in (0, 1) if glu else (0,):
-                kl = scf.ForOp(fn.idx(0), fn.idx(groups // kc), fn.idx(1))
+                kl = scf.ForOp(fn.idx(0), fn.idx(gp // kc), fn.idx(1))
                 with ir.InsertionPoint(kl.body):
                     kci = as_i64(kl.induction_variable)
-                    first = arith.ExtUIOp(
-                        i64,
-                        arith.CmpIOp(
-                            arith.CmpIPredicate.eq,
-                            kl.induction_variable,
-                            fn.idx(0),
-                        ).result,
+                    # zero sums: the first K chunk of the first pass
+                    first = arith.CmpIOp(
+                        arith.CmpIPredicate.eq,
+                        kl.induction_variable,
+                        fn.idx(0),
                     ).result
+                    if gp < groups:
+                        first = arith.AndIOp(
+                            first,
+                            arith.XOrIOp(later, fn.const(ty.i1, 1)).result,
+                        ).result
+                    first = arith.ExtUIOp(i64, first).result
                     xa = _addi(
                         _addi(xq_p, _muli(kci, c64(kc * IME_A_GROUP))),
                         c64(h * IME_A_GROUP // 2),
@@ -1733,7 +1915,10 @@ def _ime_tile_fn(ty, spec):
                         c64(h * IME_S_GROUP // 2),
                     )
                     kbytes = _muli(
-                        kl.induction_variable, fn.idx(kc * IME_BLOCK)
+                        _addi(
+                            a["g0"], _muli(kl.induction_variable, fn.idx(kc))
+                        ),
+                        fn.idx(IME_BLOCK),
                     )
                     bl = scf.ForOp(fn.idx(0), fn.idx(nbw), fn.idx(1))
                     with ir.InsertionPoint(bl.body):
@@ -1760,16 +1945,13 @@ def _ime_tile_fn(ty, spec):
                         scf.YieldOp([])
                     scf.YieldOp([])
 
-        # the results: row r of block j at f32
-        # ((r / 32) * nb_tile + j) * 256 + (r % 32) * 8
-        half = nb_tile * 256
-        nl = scf.ForOp(fn.idx(0), fn.idx(nbw), fn.idx(1))
-        with ir.InsertionPoint(nl.body):
-            nb = nl.induction_variable
-            col = _addi(a["ocol"], _muli(nb, fn.idx(8)))
-            base = _muli(nb, fn.idx(256))
-            v8f = _vec(8, ty.f32)
-            if glu:
+        # the results (see acc_at)
+        if glu:
+            nl = scf.ForOp(fn.idx(0), fn.idx(nbw), fn.idx(1))
+            with ir.InsertionPoint(nl.body):
+                nb = nl.induction_variable
+                col = _addi(a["ocol"], _muli(nb, fn.idx(8)))
+                base = _muli(nb, fn.idx(256))
                 # SiLU(gate) * up over a half block (32 rows x 8) at once
                 v256 = _vec(256, ty.f32)
                 for h in (0, 1):
@@ -1783,28 +1965,22 @@ def _ime_tile_fn(ty, spec):
                             v8f, val, [r * 8], [8], [1]
                         ).result
                         vector.StoreOp(row, a["out"], [fn.idx(32 * h + r), col])
-            else:
-                rl = scf.ForOp(fn.idx(0), fn.idx(IME_ROWS), fn.idx(1))
-                with ir.InsertionPoint(rl.body):
-                    row = rl.induction_variable
-                    at = _addi(
-                        _addi(
-                            base, _muli(_divui(row, fn.idx(32)), fn.idx(half))
-                        ),
-                        _muli(arith.RemUIOp(row, fn.idx(32)).result, fn.idx(8)),
+                scf.YieldOp([])
+        else:
+
+            def store(nb, col, row):
+                val = vector.LoadOp(v8f, acc, [acc_at(nb, row)]).result
+                if spec["bias"]:
+                    bias = _read(
+                        v8f,
+                        a["bias"],
+                        [_addi(a["bcol"], _muli(nb, fn.idx(8)))],
+                        fn.const(ty.f32, 0.0),
                     )
-                    val = vector.LoadOp(v8f, acc, [at]).result
-                    if spec["bias"]:
-                        bias = _read(
-                            v8f,
-                            a["bias"],
-                            [_addi(a["bcol"], _muli(nb, fn.idx(8)))],
-                            fn.const(ty.f32, 0.0),
-                        )
-                        val = _addf(val, bias)
-                    vector.StoreOp(val, a["out"], [row, col])
-                    scf.YieldOp([])
-            scf.YieldOp([])
+                    val = _addf(val, bias)
+                vector.StoreOp(val, a["out"], [row, col])
+
+            rows_of_blocks(store)
         func.ReturnOp([])
 
 
@@ -2189,9 +2365,10 @@ def _attn_prefill_ime_fn(ty, spec):
         _attn_epilogue(fn, a, outs)
 
 
-def _declare(ty, name, types):
-    """A private declaration of a function defined in another module."""
-    op = func.FuncOp(name, ir.FunctionType.get(types, []))
+def _declare(ty, name, types, results=()):
+    """A private declaration of a function defined in another module (or in
+    the runtime)."""
+    op = func.FuncOp(name, ir.FunctionType.get(types, list(results)))
     op.attributes["sym_visibility"] = ir.StringAttr.get("private")
 
 
@@ -2205,7 +2382,14 @@ def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
     ty = _Types()
     module = ir.Module.create()
     ime_attn = any(s["kind"] == "attn" and s.get("ime") for s in specs)
+    ime_mm = any(s["kind"] != "attn" and s.get("ime") for s in specs)
     with ir.InsertionPoint(module.body):
+        if ime_mm:
+            # runtime/spacemit/BuddySpacemitTcm.c
+            if part == "ime":
+                _declare(ty, SPACEMIT_TCM_HERE_FN, [ty.i64] * 2, [ty.i64])
+            else:
+                _declare(ty, SPACEMIT_TCM_PAIR_FN, [ty.i64] * 3, [ty.i64])
         if part == "ime":
             _ime_step_fn(ty)
             if ime_attn:
