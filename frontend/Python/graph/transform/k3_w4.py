@@ -1395,7 +1395,14 @@ def _attn_decode_fn(ty, spec, block=16):
     online softmax over blocks of `block` keys (one rescale per block,
     vectorized exp), then a per-key tail. The G heads share the loads of
     each key and value row; each head computes exactly what it computes
-    alone. Used for decode (m == 1)."""
+    alone. Used for decode (m == 1).
+
+    The keys of a block are loops, not unrolled: the scores go through a
+    small stack buffer into the vector of the block, and each value row is
+    scaled by its probability read back from that buffer as a scalar. On
+    the K3 A100 cores, the unrolled block spilled vector registers and
+    broadcast each probability with a vrgather (four times the cost of an
+    fma); the loops compute the same operations in the same order."""
     m, h, kvh, d = spec["m"], spec["heads"], spec["kv_heads"], spec["dim"]
     hd, B = d // 2, block
     G = _decode_heads_per_item(spec)
@@ -1439,21 +1446,25 @@ def _attn_decode_fn(ty, spec, block=16):
             def score(qs, kv):
                 return _reduce(ty.f32, "add", _mulf(qs, kv), reassoc=True)
 
+            # the scores, then the probabilities, of a block's keys
+            buf = memref.AllocaOp(_memref([G, B], ty.f32), [], []).result
             # blocks of B keys; per head (max, sum, acc)
             init = [ninf, f0, fn.const(vd, 0.0)] * G
             bl = scf.ForOp(c0, nblk, fn.idx(1), init)
             with ir.InsertionPoint(bl.body):
                 state = list(bl.inner_iter_args)
                 j0 = _muli(bl.induction_variable, fn.idx(B))
-                ss = [fn.const(vb, 0.0)] * G
-                for u in range(B):
-                    kv = key(_addi(j0, fn.idx(u)))
-                    ss = [
-                        vector.InsertOp(
-                            score(qss[g], kv), ss[g], [], [u]
-                        ).result
-                        for g in range(G)
-                    ]
+                sl = scf.ForOp(c0, fn.idx(B), fn.idx(1))
+                with ir.InsertionPoint(sl.body):
+                    u = sl.induction_variable
+                    kv = key(_addi(j0, u))
+                    for g in range(G):
+                        memref.StoreOp(score(qss[g], kv), buf, [fn.idx(g), u])
+                    scf.YieldOp([])
+                ss = [
+                    vector.LoadOp(vb, buf, [fn.idx(g), c0]).result
+                    for g in range(G)
+                ]
                 news, ps, accs = [], [], []
                 for g in range(G):
                     mx, l, acc = state[3 * g : 3 * g + 3]
@@ -1465,11 +1476,26 @@ def _attn_decode_fn(ty, spec, block=16):
                     accs.append(_mulf(acc, _bcast(vd, alpha)))
                     ps.append(p)
                     news.append((mn, alpha, l))
-                for u in range(B):
-                    vv = value(_addi(j0, fn.idx(u)))
-                    for g in range(G):
-                        pu = vector.ExtractOp(ps[g], [], [u]).result
-                        accs[g] = _fma(vv, _bcast(vd, pu), accs[g])
+                for g in range(G):
+                    vector.StoreOp(ps[g], buf, [fn.idx(g), c0])
+                vl = scf.ForOp(c0, fn.idx(B), fn.idx(1), accs)
+                with ir.InsertionPoint(vl.body):
+                    u = vl.induction_variable
+                    vv = value(_addi(j0, u))
+                    scf.YieldOp(
+                        [
+                            _fma(
+                                vv,
+                                _bcast(
+                                    vd,
+                                    memref.LoadOp(buf, [fn.idx(g), u]).result,
+                                ),
+                                acc,
+                            )
+                            for g, acc in enumerate(vl.inner_iter_args)
+                        ]
+                    )
+                accs = list(vl.results)
                 out = []
                 for g in range(G):
                     mn, alpha, l = news[g]

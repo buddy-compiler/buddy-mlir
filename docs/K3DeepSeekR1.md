@@ -85,7 +85,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | Graph rewrite: every Linear becomes a kernel call; q / k / v share one call, gate / up / SiLU / mul one call; the RMSNorm in front of a kernel is computed by it; RoPE, the KV cache update and attention over the cache become one call that visits the positions up to the current one | `frontend/Python/graph/transform/k3_w4.py` (`k3_w4_rewrite`), `import_model.py` (`apply_k3_w4`) |
 | Kernels built per shape with the MLIR Python bindings (scf / vector / memref, `scf.parallel` over the threads), written to `k3_kernels-w4g32.mlir` | `k3_w4.py` (`build_kernels`) |
 | Their compilation, linked into the model library | `compile_pipeline.py` (pipeline `kernels`), `buddy_model.cmake` |
-| With `prefill_ime`, the kernels compiled for the in-order A100 too (`-mcpu=spacemit-a100 -misched-prera-direction=topdown`), and the decode attention computing the heads of a KV group that share a thread together | `compile_pipeline.py` (pipeline `kernels_a100`), `gen_config.py`, `k3_w4.py` (`_attn_decode_fn`, `_decode_heads_per_item`) |
+| With `prefill_ime`, the kernels compiled for the in-order A100 too (`-mcpu=spacemit-a100 -misched-prera-direction=topdown`), and the decode attention computing the heads of a KV group that share a thread together, the keys of a block in loops (no spills) | `compile_pipeline.py` (pipeline `kernels_a100`), `gen_config.py`, `k3_w4.py` (`_attn_decode_fn`, `_decode_heads_per_item`) |
 | The KV caches of a prefill chunk updated in place (`-eliminate-memref-copy`, as for decode) | `compile_pipeline.py` |
 | The LM head of a prefill chunk computes its row only for the last chunk, whose logits the session uses: a kernel of its own (`_prefill_logits`) that does nothing while `buddy_set_prefill_logits(0)` is in effect | `k3_w4.py` (`rewrite_plain`, `_prefill_logits_flag`), `gen_session.py` |
 | The kernel calls say which arguments they write (`CallExternalOp.written_args`: none, or the attention's KV caches); their declarations carry `bufferization.access`, so one-shot bufferization copies no argument | `k3_w4.py`, `graph.py` (`_generate_external_func_decl`) |
@@ -204,6 +204,17 @@ reduction runs (284 us), and with the 12 heads computed two per work item
 both) 261 us. Each head computes exactly what it did before: the same text.
 Decode after 458 tokens 23.5 -> 24.7 tok/s, after 900 tokens 21.2 -> 22.7
 tok/s; from a short context unchanged.
+
+The unrolled key block then spilled vector registers (46 stores and 55
+reloads of 512 bytes per block of 16 keys and two heads) and broadcast each
+probability to the 128 lanes with a `vrgather.vi` (18 ns at LMUL 4, four
+times an fma). The keys of a block are now loops: the scores go through a
+stack buffer into the vector of the block, and each value row is scaled by
+its probability read back as a scalar (`vfmacc.vf`). The operations and
+their order are the same, and so are the results: at position 900 the
+attention takes 146 instead of 253 us per layer, 26 instead of 19 us at
+position 63. Decode after a short prompt 27.0 -> 27.6 tok/s, after 458
+tokens 25.2 -> 26.5, after 900 tokens 23.3 -> 25.1, with the same text.
 
 ## Tests
 
