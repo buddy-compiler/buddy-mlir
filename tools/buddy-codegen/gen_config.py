@@ -556,24 +556,15 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
             f"decode_pack_vector_size is only supported for f32/f16/bf16 "
             f"variants (got variant={variant!r})"
         )
-    if decode_pack["enabled"] and tiered_kv_cache["enabled"]:
-        # Refuse here rather than at import time: only gen_impl was taught to
-        # hand decode a different weight buffer, so gen_impl_tiered would
-        # silently give decode the plain weights and compile it with the packed
-        # kernel -- fluent, wrong output, nothing to catch it.
-        raise RuntimeError(
-            "decode_pack_vector_size is not supported together with "
-            "tiered_kv_cache"
-        )
     if decode_pack["enabled"]:
         # Not a second blob: the same blob with a second file. weights[0]
         # ("file") stays plain for prefill; decode is handed "decode_file".
         weights[0]["decode_file"] = decode_pack["decode_file"]
 
     if tiered_kv_cache["enabled"]:
-        if variant != "f32":
+        if variant not in ("f32", "f16"):
             raise RuntimeError(
-                "tiered_kv_cache is currently implemented for the f32 "
+                "tiered_kv_cache is currently implemented for the f32/f16 "
                 "DeepSeek R1 variant only."
             )
         if tiered_kv_cache["cache_sizes"][-1] != shape["max_token_len"]:
@@ -584,7 +575,10 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
             )
         # Keep compatibility with the legacy tiered example artifact name.
         if len(weights) == 1:
-            weights[0]["file"] = spec.get("weights_file", "arg0_mc.data")
+            weights[0]["file"] = spec.get(
+                "weights_file",
+                "arg0_mc.data" if variant == "f32" else "arg0-f16.data",
+            )
 
     kv_type = precision["kv_type"]
     model_id = f"{model_family}_{variant}"

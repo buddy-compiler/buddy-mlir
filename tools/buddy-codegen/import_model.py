@@ -323,8 +323,10 @@ def compile_and_export_tiered_graphs(
     if not cache_sizes:
         raise ValueError("tiered_kv_cache.enabled requires cache_sizes")
 
-    if config["variant"] != "f32":
-        raise ValueError("tiered KV cache import currently supports f32 only")
+    if config["variant"] not in ("f32", "f16"):
+        raise ValueError(
+            "tiered KV cache import currently supports f32/f16 only"
+        )
 
     pattern_prefill_with_flash = [
         simply_fuse,
@@ -459,6 +461,8 @@ def compile_and_export_tiered_graphs(
     if params is None:
         raise RuntimeError("tiered prefill import produced no parameters")
 
+    packed_params = None
+    decode_pack = config.get("decode_pack", {"enabled": False})
     data_decode = {"input_ids": torch.zeros((1, 1), dtype=torch.int64)}
     for cache_size in cache_sizes:
         print(
@@ -496,6 +500,14 @@ def compile_and_export_tiered_graphs(
         assert len(graphs) == 1
         graph = graphs[0]
         graph.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+        if decode_pack.get("enabled"):
+            pack_decode_weights(graph, decode_pack)
+            if packed_params is None:
+                packed_params = graph._params_ref
+            elif [tuple(p.shape) for p in graph._params_ref] != [
+                tuple(p.shape) for p in packed_params
+            ]:
+                raise ValueError("tiered decode parameter layouts differ")
         graph.fuse_ops(pattern_decode)
 
         name = (
@@ -582,7 +594,7 @@ def compile_and_export_tiered_graphs(
             file=sys.stderr,
         )
 
-    return params
+    return params, packed_params
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1408,12 +1420,8 @@ def import_model(
             raise ValueError(
                 "tiered KV cache import does not support quantized variants"
             )
-        if config.get("decode_pack", {}).get("enabled"):
-            raise ValueError(
-                "decode_pack is not yet supported with tiered_kv_cache"
-            )
         with timed_import_step("compile_tiered_graphs"):
-            original_params = compile_and_export_tiered_graphs(
+            original_params, packed_params = compile_and_export_tiered_graphs(
                 model,
                 config,
                 output_dir,
@@ -1431,9 +1439,23 @@ def import_model(
                 actual_sizes = export_plain_weights_direct(
                     original_params, config, output_dir
                 )
+                if packed_params is not None:
+                    export_plain_weights_direct(
+                        packed_params,
+                        config,
+                        output_dir,
+                        file_key="decode_file",
+                    )
                 update_config(config, actual_sizes, output_dir)
                 write_weights_manifest(config, output_dir)
             else:
+                if packed_params is not None:
+                    export_plain_weights_direct(
+                        packed_params,
+                        config,
+                        output_dir,
+                        file_key="decode_file",
+                    )
                 weight_buckets = extract_plain_weights(original_params, config)
                 actual_sizes = export_weights(
                     weight_buckets, config, output_dir

@@ -161,6 +161,12 @@ python3 tools/buddy-codegen/build_model.py \
   --build-dir build
 ```
 
+For tiered KV cache with packed decode, use
+`models/deepseek_r1/specs/f32_packed_decode_tiered_kv_cache.json` or
+`models/deepseek_r1/specs/f16_packed_decode_tiered_kv_cache.json` with the same
+build command. See [Decode Weight Packing](docs/DecodeWeightPacking.md) for
+the weight layouts and cache tiers.
+
 ```bash
 ./build/bin/buddy-cli \
   --model ./build/models/deepseek_r1/deepseek_r1.rax \
