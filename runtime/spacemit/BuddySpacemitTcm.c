@@ -1,4 +1,4 @@
-//===- BuddyTcm.c - Core-pair TCM of the SpacemiT K3 A100 cores -----------===//
+//===- BuddySpacemitTcm.c - TCM of SpacemiT AI cores ----------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,21 +15,27 @@
 //===----------------------------------------------------------------------===//
 //
 // Linked into the model library of a buddy-codegen model whose spec sets
-// "prefill_ime": true (docs/K3DeepSeekR1.md). The IME prefill tiles of
-// graph/transform/k3_w4.py read their activations from the TCM of the core
-// pair they run on, which the K3 kernel exposes as /dev/tcm
-// (drivers/misc/tcm.c): blocks of SRAM, each with the CPUs it belongs to.
-// On the K3 the 8 A100 cores have 8 blocks of 384 KiB, two per core pair
-// (CPUs 8-9, 10-11, 12-13, 14-15). A core loads 1 KiB from its pair's TCM in
-// ~9 ns whatever the other cores do, while cached loads share a cluster path
-// that takes ~40 ns per KiB when 3 or 4 cores of a cluster load; the TCM of
-// another pair is uncached (microseconds per KiB).
+// "prefill_ime": true (docs/K3DeepSeekR1.md). SpacemiT specific: it uses the
+// /dev/tcm device of SpacemiT's Linux kernel (drivers/misc/tcm.c in
+// spacemit-com/linux-6.18), which maps blocks of TCM (tightly coupled SRAM)
+// and tells which CPUs each block belongs to. Checked on the K3 only. Other
+// near memories (GPU shared memory, Tenstorrent L1) are not reached through
+// CPU loads this way and do not belong here.
 //
-// A "pair region" is the TCM of one core pair: its blocks, contiguous in the
-// mapping. The kernels copy the activations of a call into every region
-// (buddy_tcm_pair) and each tile reads the copy of its own pair
-// (buddy_tcm_here). Both return 0 when there is no TCM, it is not big
-// enough, or another process holds it: the kernels then read the
+// The IME prefill tiles of graph/transform/k3_w4.py read their activations
+// from the TCM of the core pair they run on. On the K3 the 8 A100 cores have
+// 8 blocks of 384 KiB, two per core pair (CPUs 8-9, 10-11, 12-13, 14-15). A
+// core loads 1 KiB from its pair's TCM in ~9 ns whatever the other cores do,
+// while cached loads share a cluster path that takes ~40 ns per KiB when 3 or
+// 4 cores of a cluster load; the TCM of another pair is uncached
+// (microseconds per KiB).
+//
+// A region is the TCM of the CPUs of one block: consecutive blocks of the
+// same CPUs, contiguous in the mapping (on the K3, a core pair's 768 KiB).
+// The kernels copy the activations of a call into every region
+// (buddy_spacemit_tcm_pair) and each tile reads the copy of its own region
+// (buddy_spacemit_tcm_here). Both return 0 when there is no TCM, it is not
+// big enough, or another process holds it: the kernels then read the
 // activations from memory, with the same results.
 //
 // The TCM is not shared between processes: the first model library that maps
@@ -38,7 +44,7 @@
 // same time.
 //
 // Environment:
-//   BUDDY_TCM=0   do not use the TCM
+//   BUDDY_SPACEMIT_TCM=0   do not use the TCM
 //
 //===----------------------------------------------------------------------===//
 
@@ -82,7 +88,7 @@ static int cpuRegion[MAX_CPUS]; // -1: no TCM for this CPU
 __attribute__((constructor)) static void tcmInit(void) {
   for (int c = 0; c < MAX_CPUS; c++)
     cpuRegion[c] = -1;
-  const char *env = getenv("BUDDY_TCM");
+  const char *env = getenv("BUDDY_SPACEMIT_TCM");
   if (env && env[0] == '0')
     return;
   int fd = open("/dev/tcm", O_RDWR | O_CLOEXEC);
@@ -132,23 +138,26 @@ fail:
     cpuRegion[c] = -1;
 }
 
-// The kernels call buddy_tcm_pair / buddy_tcm_here; their lowering
-// (-llvm-request-c-wrappers) makes those call the _mlir_ciface_ functions.
+// The kernels call buddy_spacemit_tcm_pair / buddy_spacemit_tcm_here; their
+// lowering (-llvm-request-c-wrappers) makes those call the _mlir_ciface_
+// functions.
 
-// The address of pair region `region` if it exists, the kernels copy into at
+// The address of region `region` if it exists, the kernels copy into at
 // most `regions` regions and it has `bytes` bytes; else 0.
-API int64_t _mlir_ciface_buddy_tcm_pair(int64_t region, int64_t regions,
-                                        int64_t bytes) {
+API int64_t _mlir_ciface_buddy_spacemit_tcm_pair(int64_t region,
+                                                 int64_t regions,
+                                                 int64_t bytes) {
   if (region < 0 || region >= numRegions || region >= regions ||
       (size_t)bytes > regionBytes[region])
     return 0;
   return (int64_t)(intptr_t)regionBase[region];
 }
 
-// buddy_tcm_pair of the region of the CPU the caller runs on.
-API int64_t _mlir_ciface_buddy_tcm_here(int64_t regions, int64_t bytes) {
+// buddy_spacemit_tcm_pair of the region of the CPU the caller runs on.
+API int64_t _mlir_ciface_buddy_spacemit_tcm_here(int64_t regions,
+                                                 int64_t bytes) {
   int cpu = sched_getcpu();
   if (cpu < 0 || cpu >= MAX_CPUS)
     return 0;
-  return _mlir_ciface_buddy_tcm_pair(cpuRegion[cpu], regions, bytes);
+  return _mlir_ciface_buddy_spacemit_tcm_pair(cpuRegion[cpu], regions, bytes);
 }

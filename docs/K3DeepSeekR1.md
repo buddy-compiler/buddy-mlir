@@ -88,7 +88,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | The KV caches of a prefill chunk updated in place (`-eliminate-memref-copy`, as for decode) | `compile_pipeline.py` |
 | The kernel calls say which arguments they write (`CallExternalOp.written_args`: none, or the attention's KV caches); their declarations carry `bufferization.access`, so one-shot bufferization copies no argument | `k3_w4.py`, `graph.py` (`_generate_external_func_decl`) |
 | `prefill_ime`: the IME weight layout, the prefill tiles on the matrix engine (`ime.intr.vmadot.hp` of the IME dialect) and their step, in a module of their own | `k3_w4.py` (`pack_ime`, `_ime_tile_fn`, `_ime_step_fn`, `build_kernels(..., "ime")`) |
-| `prefill_ime`: the activations of the IME tiles copied into the TCM of every core pair (`/dev/tcm`), in passes over K that fit in it | `k3_w4.py` (`_ime_stage`, `_ime_pass_groups`), `runtime/tcm/BuddyTcm.c` |
+| `prefill_ime`: the activations of the IME tiles copied into the TCM of every core pair (`/dev/tcm`), in passes over K that fit in it | `k3_w4.py` (`_ime_stage`, `_ime_pass_groups`), `runtime/spacemit/BuddySpacemitTcm.c` |
 | `prefill_ime`: the prefill attention with Q K^T and P V on the matrix engine (`ime.intr.vfmadot`, fp16); its two matrix loops are in the IME module | `k3_w4.py` (`_attn_prefill_ime_fn`, `_attn_mma_fns`) |
 | Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024`: the exact VLEN of the A100 is part of the pipeline, a build for another `BUDDY_RISCV_VLEN` is refused) | `compile_pipeline.py` (pipeline `kernels_ime`, `a100_llc_args`) |
 
@@ -120,22 +120,23 @@ weight load of a step first and unpacks it while the activations load (59
 instead of 75 ns per group on one A100 core).
 
 The activations come from the TCM (tightly coupled memory) of the core pair a
-tile runs on. Each pair of A100 cores (CPUs 8-9, 10-11, 12-13, 14-15) has
-768 KiB of it, which the K3 kernel exposes as `/dev/tcm`. A core loads 1 KiB
-from its pair's TCM in ~9 ns whatever the other cores do; cached loads share
-a path per cluster of 4 cores and take ~40 ns per KiB when 3 or 4 of them
-load, which bounded the step (8 cores: 102 ns per group from memory, 61 with
-the activations in the TCM and the weights still streamed from memory). After
+tile runs on. Each pair of A100 cores (CPUs 8-9, 10-11, 12-13, 14-15) has 768
+KiB of it, which the K3 kernel exposes as `/dev/tcm`. A core loads 1 KiB from
+its pair's TCM in ~9 ns whatever the other cores do; cached loads share a path
+per cluster of 4 cores and take ~40 ns per KiB when 3 or 4 of them load, which
+bounded the step (8 cores: 102 ns per group from memory, 61 with the
+activations in the TCM and the weights still streamed from memory). After
 quantizing, an IME call copies the activations and their scales into the TCM
-of each pair, one half per core of the pair (`_ime_stage`), and the tiles of
-a pair read that copy (`runtime/tcm/BuddyTcm.c` maps the TCM and gives each
-CPU its pair's). A copy must fit in 768 KiB: K = 1536 takes one pass of
-144 KiB; K = 8960 two passes of 140 groups (420 KiB), the second one resuming
-the sums of the first from the output, so that the results are those of one
-pass, bit for bit. Without the TCM (another process holds it, or
-`BUDDY_TCM=0`) the tiles read the activations from memory, with the same
-results. Programs that use the TCM otherwise, such as SpacemiT's spine
-runtime, must not run at the same time as the model.
+of each pair, one half per core of the pair (`_ime_stage`), and the tiles of a
+pair read that copy (`runtime/spacemit/BuddySpacemitTcm.c`, specific to
+SpacemiT's `/dev/tcm`, maps the TCM and gives each CPU its pair's). A copy
+must fit in 768 KiB: K = 1536 takes one pass of 144 KiB; K = 8960 two passes
+of 140 groups (420 KiB), the second one resuming the sums of the first from
+the output, so that the results are those of one pass, bit for bit. Without
+the TCM (another process holds it, or `BUDDY_SPACEMIT_TCM=0`) the tiles read
+the activations from memory, with the same results. Programs that use the TCM
+otherwise, such as SpacemiT's spine runtime, must not run at the same time as
+the model.
 
 Prefill attention on the matrix engine (`prefill_ime`, head_dim a multiple
 of 64 and a KV cache length a multiple of 64; otherwise the RVV kernel):
@@ -175,7 +176,7 @@ tokens 0.69 -> 0.42 s, 458: 2.29 -> 1.60 s, 900: 4.28 -> 3.09 s, faster
 than llama.cpp. The tiles reading their activations from the TCM take the
 IME kernels of a layer from 5.3 to 4.0 ms (64 tokens 0.42 -> 0.34 s, 458:
 1.59 -> 1.27 s, 900: 3.08 -> 2.48 s), with the same text; without the TCM
-(`BUDDY_TCM=0`) 458 tokens take 1.65 s.
+(`BUDDY_SPACEMIT_TCM=0`) 458 tokens take 1.65 s.
 
 The matrix engine computes the products of a group in fp16 and the activation
 scales are f16, so the logits differ slightly from those of the RVV tiles,

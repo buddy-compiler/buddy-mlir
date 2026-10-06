@@ -1573,16 +1573,17 @@ def _ime_kchunk(groups: int) -> int:
 
 
 # The activations of an IME call are read from the TCM of the core pair a
-# tile runs on (runtime/tcm/BuddyTcm.c): a core loads 1 KiB from it in
-# ~9 ns whatever the other cores do, while cached loads take ~40 ns when 3
-# or 4 cores of a cluster load (k3_ime_hp_step on 8 cores: 61 instead of
-# 102 ns per group). The K3 has 4 core pairs of 768 KiB; a call copies its
-# activations and their scales into each, in passes over K small enough
-# for them (_ime_pass_groups).
-TCM_REGIONS = 4
-TCM_REGION_BYTES = 768 * 1024
-TCM_PAIR_FN = "buddy_tcm_pair"
-TCM_HERE_FN = "buddy_tcm_here"
+# tile runs on, through SpacemiT's /dev/tcm (runtime/spacemit/
+# BuddySpacemitTcm.c): a core loads 1 KiB from it in ~9 ns whatever the
+# other cores do, while cached loads take ~40 ns when 3 or 4 cores of a
+# cluster load (k3_ime_hp_step on 8 cores: 61 instead of 102 ns per group).
+# The K3 has 4 core pairs of 768 KiB; a call copies its activations and
+# their scales into each, in passes over K small enough for them
+# (_ime_pass_groups).
+K3_TCM_REGIONS = 4
+K3_TCM_REGION_BYTES = 768 * 1024
+SPACEMIT_TCM_PAIR_FN = "buddy_spacemit_tcm_pair"
+SPACEMIT_TCM_HERE_FN = "buddy_spacemit_tcm_here"
 
 
 def _ime_pass_groups(groups: int) -> int:
@@ -1597,7 +1598,7 @@ def _ime_pass_groups(groups: int) -> int:
         if (
             groups % passes == 0
             and gp % kc == 0
-            and gp * (IME_A_GROUP + IME_S_GROUP) <= TCM_REGION_BYTES
+            and gp * (IME_A_GROUP + IME_S_GROUP) <= K3_TCM_REGION_BYTES
         ):
             return gp
     raise ValueError(f"k3_w4: no IME pass for {groups} groups")
@@ -1608,7 +1609,7 @@ def _ime_stage(fn, ty, xq, xs, g0, gp):
     the TCM region of every core pair: A at 0, S at gp * IME_A_GROUP, with
     the strides of xq / xs. Work item i copies half i % 2 of region i / 2
     (the pool runs item i on the i-th core, so a pair copies into its own
-    TCM); nothing when there is no TCM (buddy_tcm_pair returns 0)."""
+    TCM); nothing when there is no TCM (buddy_spacemit_tcm_pair returns 0)."""
     i64 = ty.i64
     ptr = _llvm_ptr()
 
@@ -1622,13 +1623,15 @@ def _ime_stage(fn, ty, xq, xs, g0, gp):
 
     xq_p, xs_p = ptr_of(xq), ptr_of(xs)
     nbytes = gp * (IME_A_GROUP + IME_S_GROUP)
-    body, (item,) = _parallel(fn, [fn.idx(2 * TCM_REGIONS)])
+    body, (item,) = _parallel(fn, [fn.idx(2 * K3_TCM_REGIONS)])
     with ir.InsertionPoint(body):
         item64 = arith.IndexCastOp(i64, item).result
         region = arith.DivUIOp(item64, c64(2)).result
         part = arith.RemUIOp(item64, c64(2)).result
         dst = func.CallOp(
-            [i64], TCM_PAIR_FN, [region, c64(TCM_REGIONS), c64(nbytes)]
+            [i64],
+            SPACEMIT_TCM_PAIR_FN,
+            [region, c64(K3_TCM_REGIONS), c64(nbytes)],
         ).result
         have = arith.CmpIOp(arith.CmpIPredicate.ne, dst, c64(0)).result
         cond = scf.IfOp(have)
@@ -1829,8 +1832,8 @@ def _ime_tile_fn(ty, spec):
         # (_ime_stage), else in xq / xs
         tcm = func.CallOp(
             [i64],
-            TCM_HERE_FN,
-            [c64(TCM_REGIONS), c64(gp * (IME_A_GROUP + IME_S_GROUP))],
+            SPACEMIT_TCM_HERE_FN,
+            [c64(K3_TCM_REGIONS), c64(gp * (IME_A_GROUP + IME_S_GROUP))],
         ).result
         in_tcm = arith.CmpIOp(arith.CmpIPredicate.ne, tcm, c64(0)).result
         xq_p = arith.SelectOp(
@@ -2382,11 +2385,11 @@ def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
     ime_mm = any(s["kind"] != "attn" and s.get("ime") for s in specs)
     with ir.InsertionPoint(module.body):
         if ime_mm:
-            # runtime/tcm/BuddyTcm.c
+            # runtime/spacemit/BuddySpacemitTcm.c
             if part == "ime":
-                _declare(ty, TCM_HERE_FN, [ty.i64] * 2, [ty.i64])
+                _declare(ty, SPACEMIT_TCM_HERE_FN, [ty.i64] * 2, [ty.i64])
             else:
-                _declare(ty, TCM_PAIR_FN, [ty.i64] * 3, [ty.i64])
+                _declare(ty, SPACEMIT_TCM_PAIR_FN, [ty.i64] * 3, [ty.i64])
         if part == "ime":
             _ime_step_fn(ty)
             if ime_attn:
