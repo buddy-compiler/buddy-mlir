@@ -305,3 +305,54 @@ for m, start, ctx, D, ime in CASES:
 # CHECK-NEXT: caches: k True, v True, returned True
 # CHECK-NEXT: attention m64 start 41 ime: (64, 256) error ok
 # CHECK-NEXT: caches: k True, v True, returned True
+
+# Decode attention with several heads of a KV group per work item (as many
+# items as threads allow, _decode_heads_per_item): the same bits as one head
+# per item. 8 heads in 2 groups, 2 threads: 4 heads per item.
+H8, KV2, D = 8, 2, 128
+inv_freq = (10000.0 ** (-numpy.arange(0, D, 2) / D)).astype(numpy.float32)
+for start in (0, 37, 70):
+    base = {
+        "kind": "attn",
+        "m": 1,
+        "heads": H8,
+        "kv_heads": KV2,
+        "dim": D,
+        "scale": D**-0.5,
+        "ctx": CTX,
+    }
+    one = dict(base, name=f"k3_attn_dec1_s{start}")
+    grouped = dict(base, name=f"k3_attn_dec4_s{start}", threads=2)
+    q = rng.standard_normal((1, H8 * D)).astype(numpy.float32)
+    k = rng.standard_normal((1, KV2 * D)).astype(numpy.float32)
+    v = rng.standard_normal((1, KV2 * D)).astype(numpy.float32)
+    kc0 = numpy.zeros((1, KV2, CTX, D), numpy.float32)
+    vc0 = numpy.zeros((1, KV2, CTX, D), numpy.float32)
+    kc0[0, :, :start] = rng.standard_normal((KV2, start, D))
+    vc0[0, :, :start] = rng.standard_normal((KV2, start, D))
+    pos = numpy.array([start], numpy.int64)
+    outs = []
+    for spec in (one, grouped):
+        kc, vc = kc0.copy(), vc0.copy()
+        o, lse, _, _ = call(
+            jit([spec]),
+            spec["name"],
+            4,
+            [2, 3, 4, 4],
+            q,
+            k,
+            v,
+            kc,
+            vc,
+            pos,
+            inv_freq,
+        )
+        outs.append((o.copy(), lse.copy()))
+    print(
+        f"decode start {start}: {k3_w4._decode_heads_per_item(grouped)} heads "
+        f"per item, same bits {numpy.array_equal(outs[0][0], outs[1][0])} "
+        f"{numpy.array_equal(outs[0][1], outs[1][1])}"
+    )
+# CHECK: decode start 0: 4 heads per item, same bits True True
+# CHECK-NEXT: decode start 37: 4 heads per item, same bits True True
+# CHECK-NEXT: decode start 70: 4 heads per item, same bits True True

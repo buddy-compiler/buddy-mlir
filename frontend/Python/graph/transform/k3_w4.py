@@ -622,6 +622,7 @@ class _Rewriter:
                 "dim": dim,
                 "scale": scale,
                 "ctx": ctx,
+                "threads": self.threads,
             }
             if (
                 self.use_ime
@@ -1370,34 +1371,59 @@ def _attn_epilogue(fn, a, outs):
     func.ReturnOp([a["o"], a["lse"], kco, vco])
 
 
+def _decode_heads_per_item(spec) -> int:
+    """Heads per work item of _attn_decode_fn: the fewest heads of one KV
+    group (a divisor of heads / kv_heads) for which there are no more work
+    items than threads, so that no thread runs two items (DeepSeek R1, 12
+    heads in 2 groups on 8 threads: 2 heads, 6 items). Without
+    spec["threads"], one head per item."""
+    h, kvh, m = spec["heads"], spec["kv_heads"], spec["m"]
+    group = h // kvh
+    threads = spec.get("threads")
+    if not threads:
+        return 1
+    for g in range(1, group + 1):
+        if group % g == 0 and (h // g) * m <= threads:
+            return g
+    return group
+
+
 def _attn_decode_fn(ty, spec, block=16):
     """Causal attention of m query rows (positions start .. start + m - 1)
-    against the updated KV cache, one (head, row) per work item: keys
-    0 .. start + i only, online softmax over blocks of `block` keys (one
-    rescale per block, vectorized exp), then a per-key tail. Used for decode
-    (m == 1)."""
+    against the updated KV cache, G heads of one KV group and one row per
+    work item (G = _decode_heads_per_item): keys 0 .. start + i only,
+    online softmax over blocks of `block` keys (one rescale per block,
+    vectorized exp), then a per-key tail. The G heads share the loads of
+    each key and value row; each head computes exactly what it computes
+    alone. Used for decode (m == 1)."""
     m, h, kvh, d = spec["m"], spec["heads"], spec["kv_heads"], spec["dim"]
     hd, B = d // 2, block
+    G = _decode_heads_per_item(spec)
     fn, a, outs = _attn_fn(ty, spec)
     vd, vb, vh = _vec(d, ty.f32), _vec(B, ty.f32), _vec(hd, ty.f32)
     f0 = fn.const(ty.f32, 0.0)
     c0 = fn.idx(0)
     with ir.InsertionPoint(fn.entry):
-        body, (hh, i) = _parallel(fn, [fn.idx(h), fn.idx(m)])
+        body, (hg, i) = _parallel(fn, [fn.idx(h // G), fn.idx(m)])
         with ir.InsertionPoint(body):
-            kh = _divui(hh, fn.idx(h // kvh))
-            q_lo = _muli(hh, fn.idx(d))
-            qa = _read(vh, a["q"], [i, q_lo], f0)
-            qb = _read(vh, a["q"], [i, _addi(q_lo, fn.idx(hd))], f0)
+            # heads hg * G .. hg * G + G - 1 (one KV group: G divides it)
+            kh = _divui(_muli(hg, fn.idx(G)), fn.idx(h // kvh))
             ca = vector.LoadOp(vh, a["cs"], [i, c0]).result
             sa = vector.LoadOp(vh, a["sn"], [i, c0]).result
-            rl = _fma(qa, ca, arith.NegFOp(_mulf(qb, sa)).result)
-            rh = _fma(qb, ca, _mulf(qa, sa))
-            qv = vector.InsertStridedSliceOp(
-                rl, fn.const(vd, 0.0), [0], [1]
-            ).result
-            qv = vector.InsertStridedSliceOp(rh, qv, [hd], [1]).result
-            qs = _mulf(qv, fn.const(vd, spec["scale"]))
+            heads, qss = [], []
+            for g in range(G):
+                hh = _addi(_muli(hg, fn.idx(G)), fn.idx(g))
+                q_lo = _muli(hh, fn.idx(d))
+                qa = _read(vh, a["q"], [i, q_lo], f0)
+                qb = _read(vh, a["q"], [i, _addi(q_lo, fn.idx(hd))], f0)
+                rl = _fma(qa, ca, arith.NegFOp(_mulf(qb, sa)).result)
+                rh = _fma(qb, ca, _mulf(qa, sa))
+                qv = vector.InsertStridedSliceOp(
+                    rl, fn.const(vd, 0.0), [0], [1]
+                ).result
+                qv = vector.InsertStridedSliceOp(rh, qv, [hd], [1]).result
+                qss.append(_mulf(qv, fn.const(vd, spec["scale"])))
+                heads.append((hh, q_lo))
             length = arith.MinUIOp(
                 _addi(_addi(a["start"], i), fn.idx(1)), fn.idx(spec["ctx"])
             ).result
@@ -1410,47 +1436,72 @@ def _attn_decode_fn(ty, spec, block=16):
             def value(j):
                 return _read(vd, a["vc"], [c0, kh, j, c0], f0)
 
-            def score(j):
-                return _reduce(ty.f32, "add", _mulf(qs, key(j)), reassoc=True)
+            def score(qs, kv):
+                return _reduce(ty.f32, "add", _mulf(qs, kv), reassoc=True)
 
-            # blocks of B keys
-            bl = scf.ForOp(c0, nblk, fn.idx(1), [ninf, f0, fn.const(vd, 0.0)])
+            # blocks of B keys; per head (max, sum, acc)
+            init = [ninf, f0, fn.const(vd, 0.0)] * G
+            bl = scf.ForOp(c0, nblk, fn.idx(1), init)
             with ir.InsertionPoint(bl.body):
-                mx, l, acc = bl.inner_iter_args
+                state = list(bl.inner_iter_args)
                 j0 = _muli(bl.induction_variable, fn.idx(B))
-                s = fn.const(vb, 0.0)
+                ss = [fn.const(vb, 0.0)] * G
                 for u in range(B):
-                    s = vector.InsertOp(
-                        score(_addi(j0, fn.idx(u))), s, [], [u]
+                    kv = key(_addi(j0, fn.idx(u)))
+                    ss = [
+                        vector.InsertOp(
+                            score(qss[g], kv), ss[g], [], [u]
+                        ).result
+                        for g in range(G)
+                    ]
+                news, ps, accs = [], [], []
+                for g in range(G):
+                    mx, l, acc = state[3 * g : 3 * g + 3]
+                    mn = arith.MaximumFOp(
+                        mx, _reduce(ty.f32, "maximumf", ss[g])
                     ).result
-                mn = arith.MaximumFOp(mx, _reduce(ty.f32, "maximumf", s)).result
-                alpha = math.ExpOp(_subf(mx, mn)).result
-                p = _exp(fn, ty, _subf(s, _bcast(vb, mn)), B)
-                acc = _mulf(acc, _bcast(vd, alpha))
+                    alpha = math.ExpOp(_subf(mx, mn)).result
+                    p = _exp(fn, ty, _subf(ss[g], _bcast(vb, mn)), B)
+                    accs.append(_mulf(acc, _bcast(vd, alpha)))
+                    ps.append(p)
+                    news.append((mn, alpha, l))
                 for u in range(B):
-                    pu = vector.ExtractOp(p, [], [u]).result
-                    acc = _fma(value(_addi(j0, fn.idx(u))), _bcast(vd, pu), acc)
-                psum = _reduce(ty.f32, "add", p, reassoc=True)
-                scf.YieldOp([mn, _addf(_mulf(l, alpha), psum), acc])
+                    vv = value(_addi(j0, fn.idx(u)))
+                    for g in range(G):
+                        pu = vector.ExtractOp(ps[g], [], [u]).result
+                        accs[g] = _fma(vv, _bcast(vd, pu), accs[g])
+                out = []
+                for g in range(G):
+                    mn, alpha, l = news[g]
+                    psum = _reduce(ty.f32, "add", ps[g], reassoc=True)
+                    out += [mn, _addf(_mulf(l, alpha), psum), accs[g]]
+                scf.YieldOp(out)
             # the remaining keys, one at a time
             tl = scf.ForOp(
                 _muli(nblk, fn.idx(B)), length, fn.idx(1), list(bl.results)
             )
             with ir.InsertionPoint(tl.body):
-                mx, l, acc = tl.inner_iter_args
+                state = list(tl.inner_iter_args)
                 j = tl.induction_variable
-                s = score(j)
-                mn = arith.MaximumFOp(mx, s).result
-                alpha = math.ExpOp(_subf(mx, mn)).result
-                beta = math.ExpOp(_subf(s, mn)).result
-                acc = _fma(
-                    value(j), _bcast(vd, beta), _mulf(acc, _bcast(vd, alpha))
-                )
-                scf.YieldOp([mn, _addf(_mulf(l, alpha), beta), acc])
-            mx, l, acc = tl.results
-            vector.StoreOp(_divf(acc, _bcast(vd, l)), a["o"], [i, q_lo])
-            lse = _addf(math.LogOp(l).result, mx)
-            memref.StoreOp(lse, a["lse"], [c0, hh, i])
+                kv, vv = key(j), value(j)
+                out = []
+                for g in range(G):
+                    mx, l, acc = state[3 * g : 3 * g + 3]
+                    s = score(qss[g], kv)
+                    mn = arith.MaximumFOp(mx, s).result
+                    alpha = math.ExpOp(_subf(mx, mn)).result
+                    beta = math.ExpOp(_subf(s, mn)).result
+                    acc = _fma(
+                        vv, _bcast(vd, beta), _mulf(acc, _bcast(vd, alpha))
+                    )
+                    out += [mn, _addf(_mulf(l, alpha), beta), acc]
+                scf.YieldOp(out)
+            results = list(tl.results)
+            for g, (hh, q_lo) in enumerate(heads):
+                mx, l, acc = results[3 * g : 3 * g + 3]
+                vector.StoreOp(_divf(acc, _bcast(vd, l)), a["o"], [i, q_lo])
+                lse = _addf(math.LogOp(l).result, mx)
+                memref.StoreOp(lse, a["lse"], [c0, hh, i])
             scf.ReduceOp([], 0)
         _attn_epilogue(fn, a, outs)
 

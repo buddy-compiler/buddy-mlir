@@ -137,6 +137,14 @@ print("tools:", " ".join(tool for tool, _ in stages))
 print("llc:", " ".join(stages[-1][1]))
 # CHECK: tools: buddy-opt buddy-translate llvm-as llc
 # CHECK-NEXT: llc: -code-model=large -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024 -filetype=obj -relocation-model=pic -O3
+# "kernels_a100" (the other kernels of a model on the A100 cores): the passes
+# of "kernels", the llc options of the A100.
+a100 = compile_pipeline.build_stages("kernels_a100", 8, "", "w4g32")
+plain = compile_pipeline.build_stages("kernels", 8, "", "w4g32")
+print("kernels_a100 tools:", " ".join(tool for tool, _ in a100))
+print("same passes:", a100[0] == plain[0], "same llc:", a100[-1] == stages[-1])
+# CHECK-NEXT: kernels_a100 tools: buddy-opt mlir-translate llvm-as llc
+# CHECK-NEXT: same passes: True same llc: True
 for given in ("-riscv-v-vector-bits-max=1024", "-riscv-v-vector-bits-max=256"):
     try:
         llc = compile_pipeline.build_stages("kernels_ime", 8, given, "w4g32")[

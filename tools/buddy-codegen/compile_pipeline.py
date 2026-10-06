@@ -154,12 +154,17 @@ def build_stages(
     ):
         llc_base_args.append("-code-model=large")
 
-    if pipeline_type in ("kernels", "kernels_ime"):
+    if pipeline_type in ("kernels", "kernels_a100", "kernels_ime"):
         # Generated kernels (graph/transform/k3_w4.py): scf / vector /
         # memref, scf.parallel for the threads. "kernels_ime": the prefill
         # tiles on the matrix engine of the SpacemiT K3 A100 cores (IME
-        # dialect), for the A100 only (a100_llc_args).
+        # dialect), for the A100 only (a100_llc_args). "kernels_a100": the
+        # other kernels when the model runs on the A100 cores only, with
+        # the same llc options: scheduled for the in-order A100, which
+        # issues independent work in the latency of a reduction (decode
+        # attention at position 900: 332 -> 284 us); the same results.
         ime = pipeline_type == "kernels_ime"
+        a100 = pipeline_type != "kernels"
         lower = lower_to_llvm(arena)
         i = lower.index("-convert-vector-to-llvm") + 1
         stages.append(
@@ -188,7 +193,7 @@ def build_stages(
             (
                 "llc",
                 llc_base_args
-                + (a100_llc_args(llc_base_args) if ime else [])
+                + (a100_llc_args(llc_base_args) if a100 else [])
                 + ["-filetype=obj", "-relocation-model=pic", "-O3"],
             )
         )
