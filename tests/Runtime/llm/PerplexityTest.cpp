@@ -15,8 +15,11 @@
 //===----------------------------------------------------------------------===//
 //
 // runPerplexity on a fake session whose logits depend on the last token and
-// the position: the scored positions, the chunks, the resets and the value
-// against a direct computation; readTokenIds on the formats it accepts.
+// the position: the scored positions, the chunks, one reset per chunk (the
+// fake prefill continues from the current position, so a chunk that did not
+// start from an empty context would be scored at the wrong positions) and
+// the value against a direct computation; readTokenIds on the formats it
+// accepts.
 //
 //===----------------------------------------------------------------------===//
 
@@ -46,20 +49,24 @@ void fakeLogits(int t, int p, float *out) {
 
 class FakeSession : public LLMSession {
 public:
-  int prefills = 0, decodes = 0;
+  int prefills = 0, decodes = 0, resets = 0;
   void loadWeights(const std::vector<std::string> &) override {}
   void prefill(Text<size_t, 2> &tokens) override {
+    // the tokens go after those already processed: no implicit reset
     ++prefills;
-    pos_ = static_cast<int>(tokens.getTokenCnt()) - 1;
-    fakeLogits(static_cast<int>(tokens.getData()[pos_]), pos_, logits_);
-    ++pos_;
+    const int cnt = static_cast<int>(tokens.getTokenCnt());
+    pos_ += cnt;
+    fakeLogits(static_cast<int>(tokens.getData()[cnt - 1]), pos_ - 1, logits_);
   }
   void decode(int tokenId) override {
     ++decodes;
     fakeLogits(tokenId, pos_, logits_);
     ++pos_;
   }
-  void resetPosition() override { pos_ = 0; }
+  void resetPosition() override {
+    ++resets;
+    pos_ = 0;
+  }
   int position() const override { return pos_; }
   const float *logitsData(int) const override { return logits_; }
   int vocabSize() const override { return kVocab; }
@@ -101,11 +108,11 @@ int main(int argc, char **argv) {
   opts.context = 8;
   opts.quiet = true;
   PerplexityResult r = runPerplexity(s, ids, opts);
-  // CHECK: perplexity: 50 token ids, 6 chunks of 8, scoring the second half of
-  // each CHECK: Final estimate: PPL =
-  std::printf("chunks %d, scored %ld, prefills %d, decodes %d\n", r.chunks,
-              r.scoredTokens, s.prefills, s.decodes);
-  // CHECK: chunks 6, scored 18, prefills 6, decodes 36
+  // CHECK: perplexity: 50 token ids, 6 chunks of 8
+  // CHECK: Final estimate: PPL =
+  std::printf("chunks %d, scored %ld, resets %d, prefills %d, decodes %d\n",
+              r.chunks, r.scoredTokens, s.resets, s.prefills, s.decodes);
+  // CHECK: chunks 6, scored 18, resets 6, prefills 6, decodes 36
   std::printf("matches the definition: %d\n",
               std::fabs(r.perplexity - direct(ids, 8, 6)) < 1e-9);
   // CHECK: matches the definition: 1
@@ -114,10 +121,10 @@ int main(int argc, char **argv) {
   FakeSession s2;
   opts.maxChunks = 2;
   r = runPerplexity(s2, ids, opts);
-  std::printf("max 2: chunks %d, scored %ld, definition %d\n", r.chunks,
-              r.scoredTokens,
+  std::printf("max 2: chunks %d, scored %ld, resets %d, definition %d\n",
+              r.chunks, r.scoredTokens, s2.resets,
               std::fabs(r.perplexity - direct(ids, 8, 2)) < 1e-9);
-  // CHECK: max 2: chunks 2, scored 6, definition 1
+  // CHECK: max 2: chunks 2, scored 6, resets 2, definition 1
 
   // rejected: an odd context, a token outside the vocabulary
   for (auto [context, bad] : {std::pair{7, 0}, std::pair{8, 1}}) {

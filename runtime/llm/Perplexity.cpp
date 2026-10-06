@@ -95,7 +95,9 @@ PerplexityResult runPerplexity(LLMSession &session, const std::vector<int> &ids,
     const int *tok = ids.data() + static_cast<size_t>(c) * n;
     Text<size_t, 2> first;
     first.appendTokenIdx(static_cast<size_t>(tok[0]));
-    session.prefill(first); // empty KV cache; token 0 at position 0
+    // each chunk starts from an empty context: token 0 at position 0
+    session.resetPosition();
+    session.prefill(first);
     for (int j = 0; j < n - 1; ++j) {
       if (j > 0)
         session.decode(tok[j]);

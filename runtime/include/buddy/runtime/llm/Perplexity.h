@@ -21,9 +21,9 @@
 // scored (position j predicts token j + 1 for j in [context / 2,
 // context - 1)).
 //
-// A chunk's first token runs as a one-token prompt (prefill, which empties
-// the KV cache), the others one decode step each: this measures the
-// numerics of the decode path.
+// Each chunk starts with session.resetPosition(); its first token then runs
+// as a one-token prompt (prefill), the others one decode step each: this
+// measures the numerics of the decode path.
 //
 //===----------------------------------------------------------------------===//
 
