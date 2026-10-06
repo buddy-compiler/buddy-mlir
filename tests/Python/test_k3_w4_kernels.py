@@ -175,6 +175,23 @@ for m in (1, 8):
 # CHECK-NEXT: multi v m8: (8, 128) error ok
 # CHECK-NEXT: glu m8: (8, 256) error ok
 
+# The lm_head of a prefill chunk ("prefill_logits") computes nothing after
+# buddy_set_prefill_logits(0), and its logits again after (1).
+lm = k3_w4.kernel_spec("plain", 1, 64, [256], False, THREADS)
+lm.update(name=lm["name"] + "_prefill_logits", prefill_logits=True)
+ee = jit([lm])
+x = rng.standard_normal((1, 64)).astype(numpy.float32)
+w = (rng.standard_normal((64, 256)) * 0.1).astype(numpy.float32)
+want = ref_matmul(x, w)
+for flag in (0, 1):
+    ee.invoke("buddy_set_prefill_logits", ctypes.pointer(ctypes.c_int32(flag)))
+    (y,) = call(ee, lm["name"], 1, [2], x, k3_w4.pack_q4(w))
+    print(
+        f"prefill logits {flag}: computed {numpy.allclose(y, want, atol=1e-4)}"
+    )
+# CHECK: prefill logits 0: computed False
+# CHECK-NEXT: prefill logits 1: computed True
+
 
 # ── attention kernels ───────────────────────────────────────────────────────
 

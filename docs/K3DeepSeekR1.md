@@ -86,6 +86,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | Kernels built per shape with the MLIR Python bindings (scf / vector / memref, `scf.parallel` over the threads), written to `k3_kernels-w4g32.mlir` | `k3_w4.py` (`build_kernels`) |
 | Their compilation, linked into the model library | `compile_pipeline.py` (pipeline `kernels`), `buddy_model.cmake` |
 | The KV caches of a prefill chunk updated in place (`-eliminate-memref-copy`, as for decode) | `compile_pipeline.py` |
+| The LM head of a prefill chunk computes its row only for the last chunk, whose logits the session uses: a kernel of its own (`_prefill_logits`) that does nothing while `buddy_set_prefill_logits(0)` is in effect | `k3_w4.py` (`rewrite_plain`, `_prefill_logits_flag`), `gen_session.py` |
 | The kernel calls say which arguments they write (`CallExternalOp.written_args`: none, or the attention's KV caches); their declarations carry `bufferization.access`, so one-shot bufferization copies no argument | `k3_w4.py`, `graph.py` (`_generate_external_func_decl`) |
 | `prefill_ime`: the IME weight layout, the prefill tiles on the matrix engine (`ime.intr.vmadot.hp` of the IME dialect) and their step, in a module of their own | `k3_w4.py` (`pack_ime`, `_ime_tile_fn`, `_ime_step_fn`, `build_kernels(..., "ime")`) |
 | `prefill_ime`: the activations of the IME tiles copied into the TCM of every core pair (`/dev/tcm`), in passes over K that fit in it | `k3_w4.py` (`_ime_stage`, `_ime_pass_groups`), `runtime/spacemit/BuddySpacemitTcm.c` |

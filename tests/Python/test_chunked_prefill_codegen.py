@@ -90,6 +90,16 @@ print("plain:", summary(plain))
 impl = gen_session.gen_impl(config(prefill_chunk=32))
 # CHECK: chunked: PrefillABI 0, PrefillFn = DecodeFn 1, 1 x max_token_len prefill logits 0
 print("chunked:", summary(impl))
+# The logits switch of the model library is optional.
+print(
+    "setPrefillLogits:",
+    [
+        line.strip()
+        for line in impl.splitlines()
+        if "dlsym" in line and "buddy_set_prefill_logits" in line
+    ],
+)
+# CHECK: setPrefillLogits: ['dlsym(soHandle, "buddy_set_prefill_logits"));']
 prefill = re.search(r"void ModelSession::prefill\(.*?\n}\n", impl, re.S).group(
     0
 )
@@ -102,11 +112,16 @@ print(prefill)
 # CHECK-NEXT: if (start + C > n)
 # CHECK-NEXT: start = std::max(0, n - C);
 # CHECK: cachePosition_->getData()[0] = (long long)start;
+# CHECK: const bool needLogits = n == n0 && start + C >= n;
+# CHECK-NEXT: if (impl_->setPrefillLogits)
+# CHECK-NEXT: impl_->setPrefillLogits(needLogits ? 1 : 0);
 # CHECK: impl_->prefillFn(
 # CHECK-NEXT: &result, params_.get(), impl_->chunkTokens.get(), cachePosition_.get(),
 # The chunk returns the logits of its last row only.
-# CHECK: std::memcpy(state.logits().getData(), result.logits().getData(),
+# CHECK: if (needLogits)
+# CHECK-NEXT: std::memcpy(state.logits().getData(), result.logits().getData(),
 # CHECK: intptr_t logitsShape[3] = {1, 1, cfg_.vocabSize};
+# CHECK: impl_->setPrefillLogits(1);
 # CHECK: if (n < n0) {
 # CHECK-NEXT: position_ = n;
 # CHECK-NEXT: decode((int)tokens.getData()[n0 - 1]);
