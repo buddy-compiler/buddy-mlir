@@ -84,6 +84,24 @@ static char *regionBase[MAX_REGIONS];
 static size_t regionBytes[MAX_REGIONS];
 static int numRegions;
 static int cpuRegion[MAX_CPUS]; // -1: no TCM for this CPU
+// The open /dev/tcm (it holds the lock) and its mapping, while in use.
+static int tcmFd = -1;
+static char *tcmMap;
+static size_t tcmMapBytes;
+
+// No TCM: forget the regions, unmap, close (which releases the lock).
+static void tcmRelease(void) {
+  numRegions = 0;
+  for (int c = 0; c < MAX_CPUS; c++)
+    cpuRegion[c] = -1;
+  if (tcmMap)
+    munmap(tcmMap, tcmMapBytes);
+  if (tcmFd >= 0)
+    close(tcmFd);
+  tcmFd = -1;
+  tcmMap = NULL;
+  tcmMapBytes = 0;
+}
 
 __attribute__((constructor)) static void tcmInit(void) {
   for (int c = 0; c < MAX_CPUS; c++)
@@ -108,6 +126,9 @@ __attribute__((constructor)) static void tcmInit(void) {
     close(fd);
     return;
   }
+  tcmFd = fd;
+  tcmMap = map;
+  tcmMapBytes = total;
   uint64_t lastMask = 0;
   for (uint32_t b = 0; b < info.block_num; b++) {
     TcmBlockInfo block = {.block_id = b};
@@ -128,15 +149,15 @@ __attribute__((constructor)) static void tcmInit(void) {
     }
     lastMask = block.cpu_affinity_mask;
   }
-  // The fd stays open: it holds the lock.
+  // tcmFd stays open while the library is loaded: it holds the lock.
   return;
 fail:
-  munmap(map, total);
-  close(fd);
-  numRegions = 0;
-  for (int c = 0; c < MAX_CPUS; c++)
-    cpuRegion[c] = -1;
+  tcmRelease();
 }
+
+// The model library may be unloaded (dlclose): release the TCM, so that the
+// library loaded again (or another one) can take it.
+__attribute__((destructor)) static void tcmFini(void) { tcmRelease(); }
 
 // The kernels call buddy_spacemit_tcm_pair / buddy_spacemit_tcm_here; their
 // lowering (-llvm-request-c-wrappers) makes those call the _mlir_ciface_
