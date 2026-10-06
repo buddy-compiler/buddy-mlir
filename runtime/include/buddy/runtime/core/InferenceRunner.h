@@ -94,6 +94,16 @@ struct RunConfig {
   // ── Interactive mode ──
   /// Enable REPL interactive mode for multi-turn conversation.
   bool interactive = false;
+
+  // ── Perplexity mode ──
+  /// File of token ids (e.g. the output of `llama-tokenize --ids`). When set,
+  /// LLM runners that support it report the perplexity of the stream instead
+  /// of generating text (buddy/runtime/llm/Perplexity.h).
+  std::string perplexityIdsPath;
+  /// Tokens per perplexity chunk.
+  int perplexityContext = 512;
+  /// At most this many chunks (0: all).
+  int perplexityChunks = 0;
 };
 
 /// Abstract base class for model inference runners.

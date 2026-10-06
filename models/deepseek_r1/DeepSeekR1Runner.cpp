@@ -31,6 +31,7 @@
 #include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/core/ModelManifest.h"
 #include "buddy/runtime/llm/InteractiveSession.h"
+#include "buddy/runtime/llm/Perplexity.h"
 #include "buddy/runtime/llm/TextGeneration.h"
 #include "buddy/runtime/models/ModelSession.h"
 
@@ -126,6 +127,21 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
   // element types match the compiled variant; see manifest constant order).
   session->loadWeights(weightPaths);
   printLog("Weights loaded.", suppress);
+
+  // ── Perplexity mode: score a token stream instead of generating ─────────
+  if (!cfg.perplexityIdsPath.empty()) {
+    if (cfg.perplexityContext > BUDDY_DSR1_MAX_TOKEN_LEN)
+      throw std::runtime_error(
+          "--ppl-context " + std::to_string(cfg.perplexityContext) +
+          " exceeds the KV cache (" + std::to_string(BUDDY_DSR1_MAX_TOKEN_LEN) +
+          " tokens)");
+    PerplexityOptions opts;
+    opts.context = cfg.perplexityContext;
+    opts.maxChunks = cfg.perplexityChunks;
+    opts.quiet = suppress;
+    runPerplexity(*session, readTokenIds(cfg.perplexityIdsPath), opts);
+    return;
+  }
 
   printLog("Vocab: " + vocabPath, suppress);
   printLog("KV cache: " + std::to_string(BUDDY_DSR1_KV_LAYERS) + " x {1," +

@@ -17,6 +17,7 @@ set(BUDDY_TEST_DEPENDS
   buddy-audio-container-test
   buddy-text-container-test
   buddy-sampler-test
+  buddy-perplexity-test
   mlir-runner
   )
 

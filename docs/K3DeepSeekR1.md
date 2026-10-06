@@ -157,14 +157,23 @@ functions of the IME module; the host tests define them without the IME
 
 SpacemiT K3, 8 A100 cores, `buddy-cli`, greedy:
 
-| | prefill, 458 tokens | decode after 458 tokens | decode after a short prompt |
+| | prefill, 458 tokens | decode after 458 tokens | decode from a short context |
 | --- | --- | --- | --- |
-| buddy-mlir `w4g32` | 1.27 s (360 tok/s) | 23.7 tok/s | 26.6 tok/s |
-| llama.cpp-tools-spacemit 0.1.9, Q4_0 | 1.96 s (pp458: 234 tok/s) | | 25.0 tok/s (tg128) |
+| buddy-mlir `w4g32` | 1.24 s (370 tok/s) | 23.6 tok/s | 26.8 tok/s |
+| llama.cpp-tools-spacemit 0.1.9, Q4_0, Q4_0 LM head | 1.95 s (pp458: 235 tok/s) | 24.8 tok/s (tg128 @ d458) | 26.6 tok/s (tg128) |
+| the same, Q6_K LM head (`llama-quantize` default for Q4_0) | 1.95 s (234 tok/s) | | 24.5 tok/s |
 
-llama.cpp was measured on the same board; `llama-bench` decodes from an empty
-context. Decode streams the weights from DRAM (868 MB per token) and is 6%
-faster than llama.cpp. Prefill runs the layers' matmuls on the matrix engine,
+llama.cpp was measured on the same board, run as an ordinary process (it
+places its threads on the A100 cores itself). `w4g32` quantizes every Linear
+weight like Q4_0, the LM head included, while llama.cpp's Q4_0 files keep the
+LM head in Q6_K: 191 instead of 131 MB read per decoded token. The fair
+comparison is with a Q4_0 LM head (`llama-quantize --output-tensor-type
+q4_0`): prefill is 1.58 times faster; decode is on par from a short context
+and slower after long prompts (900 tokens: 21.3 against 23.3 tok/s), where
+the decode attention kernel (one work item per head: 12 heads on 8 threads,
+the K / V of a KV head read by each of its 6 heads) and the f32 KV cache cost
+more than llama.cpp's. Decode streams the weights from DRAM (868 MB per
+token). Prefill runs the layers' matmuls on the matrix engine,
 3.4 to 3.7 times faster than with the RVV tiles (64 tokens: 2.40 -> 0.70 s,
 458: 9.6 -> 2.58 s, 900: 17.7 -> 5.03 s), and its attention too, which saves
 more the longer the prompt (64 tokens: 0.70 -> 0.69 s, 458: 2.57 -> 2.30 s,
@@ -177,7 +186,25 @@ tokens 0.69 -> 0.42 s, 458: 2.29 -> 1.60 s, 900: 4.28 -> 3.09 s, faster
 than llama.cpp. The tiles reading their activations from the TCM take the
 IME kernels of a layer from 5.3 to 4.0 ms (64 tokens 0.42 -> 0.34 s, 458:
 1.59 -> 1.27 s, 900: 3.08 -> 2.48 s), with the same text; without the TCM
-(`BUDDY_SPACEMIT_TCM=0`) 458 tokens take 1.65 s.
+(`BUDDY_SPACEMIT_TCM=0`) 458 tokens take 1.65 s. The chunks whose logits are
+unused skip the LM head (458: 1.27 -> 1.24 s, 900: 2.48 -> 2.40 s).
+
+Perplexity on wikitext-2 (test set, chunks of 512 tokens, 40 chunks, the
+second half of each scored; the same token ids for both: `buddy-cli
+--perplexity`, see `docs/Runtime.md`, and `llama-perplexity -c 512 --chunks
+40`):
+
+| | perplexity |
+| --- | --- |
+| llama.cpp, f16 weights | 40.03 |
+| llama.cpp Q4_0, Q6_K LM head | 43.19 |
+| llama.cpp Q4_0, Q4_0 LM head | 43.86 |
+| llama.cpp Q4_0, Q4_0 LM head, one token per call (`-ub 1`) | 45.24 |
+| buddy-mlir `w4g32` (decode path) | 42.89 |
+
+With the same weight format, `w4g32` scores slightly better than llama.cpp; a
+Q6_K LM head would lower llama.cpp's by 1.5%. `buddy-cli --perplexity` runs
+the decode kernels; the matrix-engine prefill kernels are not scored.
 
 The matrix engine computes the products of a group in fp16 and the activation
 scales are f16, so the logits differ slightly from those of the RVV tiles,

@@ -89,6 +89,7 @@ tools = [
     "buddy-audio-container-test",
     "buddy-text-container-test",
     "buddy-sampler-test",
+    "buddy-perplexity-test",
     "mlir-runner",
 ]
 
