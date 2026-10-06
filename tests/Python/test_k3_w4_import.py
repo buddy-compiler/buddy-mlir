@@ -168,7 +168,7 @@ print("ime pipelines:", ", ".join(f"{k}={v}" for k, v in ime_pipelines.items()))
 # the layers' int4 twice, the LM head once: (2 x 2 x 589824 + 98304) x 9 / 16
 # CHECK: ime f32_params: 100640
 # CHECK-NEXT: ime i8_params: 1382400
-# CHECK-NEXT: ime pipelines: {{.*}}k3_kernels=kernels, k3_kernels_ime=kernels_ime
+# CHECK-NEXT: ime pipelines: {{.*}}k3_kernels=kernels_a100, k3_kernels_ime=kernels_ime
 
 ime_work = tempfile.mkdtemp()
 prefill, decode, _ = import_model.compile_chunk_graphs(model, ime_config)

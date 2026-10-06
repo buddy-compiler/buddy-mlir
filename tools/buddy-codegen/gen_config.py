@@ -635,7 +635,19 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
                 "subgraph_prefill": "subgraph",
                 "forward_decode": "standard",
                 "subgraph_decode": "subgraph_decode",
-                **({"k3_kernels": "kernels"} if variant == "w4g32" else {}),
+                # with prefill_ime (the K3 A100 cores), all the kernels are
+                # compiled for the A100
+                **(
+                    {
+                        "k3_kernels": (
+                            "kernels_a100"
+                            if derive_prefill_ime(spec, variant, prefill_chunk)
+                            else "kernels"
+                        )
+                    }
+                    if variant == "w4g32"
+                    else {}
+                ),
                 **(
                     {"k3_kernels_ime": "kernels_ime"}
                     if derive_prefill_ime(spec, variant, prefill_chunk)
