@@ -870,6 +870,12 @@ def _emit_chunked_prefill(
             f"&state.kv({2 + i * 2})",
             f"&state.kv({3 + i * 2})",
         ]
+    p("    // Only the logits of the last prompt token are used: those of the")
+    p("    // last chunk when it ends the prompt. A model library that exports")
+    p("    // buddy_set_prefill_logits skips them for the other calls.")
+    p("    const bool needLogits = n == n0 && start + C >= n;")
+    p("    if (impl_->setPrefillLogits)")
+    p("      impl_->setPrefillLogits(needLogits ? 1 : 0);")
     if arena:
         p("    impl_->arenaReset();")
     p("    impl_->prefillFn(")
@@ -889,8 +895,9 @@ def _emit_chunked_prefill(
         "    // The logits of the chunk's last row: those of the last prompt token"
     )
     p("    // after the last, right-aligned chunk (unused after the others).")
-    p("    std::memcpy(state.logits().getData(), result.logits().getData(),")
-    p(f"                (uint64_t)cfg_.vocabSize * {logits_sizeof});")
+    p("    if (needLogits)")
+    p("      std::memcpy(state.logits().getData(), result.logits().getData(),")
+    p(f"                  (uint64_t)cfg_.vocabSize * {logits_sizeof});")
     p("    for (int i = 0; i < cfg_.kvLayers; ++i) {")
     p("      if (result.kv(i).getData() != state.kv(i).getData())")
     p("        std::memcpy(state.kv(i).getData(), result.kv(i).getData(),")
@@ -917,6 +924,8 @@ def _emit_chunked_prefill(
     p("    start += C;")
     p("  }")
     p()
+    p("  if (impl_->setPrefillLogits)")
+    p("    impl_->setPrefillLogits(1);")
     p("  if (n < n0) {")
     p("    position_ = n;")
     p("    decode((int)tokens.getData()[n0 - 1]);")
@@ -1268,6 +1277,12 @@ def gen_impl(config: dict) -> str:
         p("  void (*arenaReset)() = nullptr;")
     p("  bool lastLogitsAreDecode = false;")
     if chunk:
+        p(
+            "  // Optional (buddy_set_prefill_logits of the model library): 0 skips"
+        )
+        p("  // the logits of the next forward_prefill call.")
+        p("  void (*setPrefillLogits)(int32_t) = nullptr;")
+    if chunk:
         p("  // The token ids of one prefill chunk.")
         p("  std::unique_ptr<MemRef<long long, 2>> chunkTokens;")
     p()
@@ -1339,6 +1354,10 @@ def gen_impl(config: dict) -> str:
         '          "[BuddyRuntime] symbol not found: _mlir_ciface_forward_decode\\n  " +'
     )
     p("          std::string(dlerror()));")
+    if chunk:
+        p()
+        p("    setPrefillLogits = reinterpret_cast<void (*)(int32_t)>(")
+        p('        dlsym(soHandle, "buddy_set_prefill_logits"));')
     if arena:
         p()
         p("    arenaReset = reinterpret_cast<void (*)()>(")

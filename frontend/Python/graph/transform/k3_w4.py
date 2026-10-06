@@ -512,6 +512,11 @@ class _Rewriter:
             spec = kernel_spec(
                 "plain", rows, kdim, [n], False, self.threads, ime
             )
+            if rows == 1 and self.m > 1:
+                # the lm_head of a prefill chunk: computed only when the
+                # session needs the logits (buddy_set_prefill_logits)
+                spec["name"] += "_prefill_logits"
+                spec["prefill_logits"] = True
             call = CallExternalOp(
                 call_func_name=spec["name"],
                 args=[lhs, w],
@@ -1113,6 +1118,21 @@ def _matmul_fn(ty, spec):
     f0 = fn.const(ty.f32, 0.0)
     with ir.InsertionPoint(fn.entry):
         ys = [_alloc(t) for t in outs]
+    # "prefill_logits": nothing while the session does not need the logits
+    # (the outputs are then left unwritten)
+    body_ip = ir.InsertionPoint(fn.entry)
+    if spec.get("prefill_logits"):
+        with ir.InsertionPoint(fn.entry):
+            flag = llvm.LoadOp(
+                ty.i32,
+                llvm.AddressOfOp(_llvm_ptr(), PREFILL_LOGITS_FLAG).result,
+            ).result
+            needed = arith.CmpIOp(
+                arith.CmpIPredicate.ne, flag, fn.const(ty.i32, 0)
+            ).result
+            cond = scf.IfOp(needed)
+        body_ip = ir.InsertionPoint(cond.then_block)
+    with body_ip:
         xq_t, xs_t = _act_types(ty, spec)
         xq, xs = _alloc(xq_t), _alloc(xs_t)
 
@@ -1200,7 +1220,34 @@ def _matmul_fn(ty, spec):
             _tiles(fn, ty, spec, a, xq, xs, ys, tw, tiles, threads, g0)
         memref.DeallocOp(xq)
         memref.DeallocOp(xs)
+        if spec.get("prefill_logits"):
+            scf.YieldOp([])
+    with ir.InsertionPoint(fn.entry):
         func.ReturnOp(ys)
+
+
+# The lm_head of a prefill chunk (spec["prefill_logits"]) computes the
+# chunk's logits only while this flag is non-zero (the default). A chunked
+# prefill session clears it with buddy_set_prefill_logits for the calls
+# whose logits it does not use: all but the last (gen_session.py).
+PREFILL_LOGITS_FLAG = "buddy_prefill_logits"
+PREFILL_LOGITS_SET_FN = "buddy_set_prefill_logits"
+
+
+def _prefill_logits_flag(ty):
+    """The flag of the prefill lm_head kernels and its setter,
+    buddy_set_prefill_logits(int32_t)."""
+    llvm.GlobalOp(
+        ty.i32,
+        PREFILL_LOGITS_FLAG,
+        ir.Attribute.parse("#llvm.linkage<internal>"),
+        value=ir.IntegerAttr.get(ty.i32, 1),
+    )
+    fn = _Fn(PREFILL_LOGITS_SET_FN, [ty.i32], [])
+    with ir.InsertionPoint(fn.entry):
+        addr = llvm.AddressOfOp(_llvm_ptr(), PREFILL_LOGITS_FLAG).result
+        llvm.StoreOp(fn.args[0], addr)
+        func.ReturnOp([])
 
 
 def _tiles(fn, ty, spec, a, xq, xs, ys, tw, tiles, threads, g0):
@@ -2390,6 +2437,8 @@ def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
                 _declare(ty, SPACEMIT_TCM_HERE_FN, [ty.i64] * 2, [ty.i64])
             else:
                 _declare(ty, SPACEMIT_TCM_PAIR_FN, [ty.i64] * 3, [ty.i64])
+        if part == "main" and any(s.get("prefill_logits") for s in specs):
+            _prefill_logits_flag(ty)
         if part == "ime":
             _ime_step_fn(ty)
             if ime_attn:

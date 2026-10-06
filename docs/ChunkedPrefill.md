@@ -55,7 +55,12 @@ through the decode function type.
    last chunk is right-aligned, so that its last row is the last prompt token;
    the rows it recomputes get the same keys and values;
 3. keeps the logits of the last prompt token only: those the last chunk
-   returns (`logitsData()` ignores its `tokenOffset` in this mode).
+   returns (`logitsData()` ignores its `tokenOffset` in this mode). The other
+   calls compute logits nobody reads; if the model library exports
+   `buddy_set_prefill_logits(int32_t)`, the session calls it with 0 before
+   each of them and 1 before the last one, and the model may skip its LM head
+   while it is 0 (the logits of that call are then undefined). The w4g32
+   kernels do (`docs/K3DeepSeekR1.md`); other models compute them as before.
 
 A prompt shorter than `C` runs all its tokens but the last as one chunk, padded
 with copies of the last of them, and its last token as a decode step. The
