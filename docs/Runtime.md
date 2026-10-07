@@ -163,6 +163,40 @@ build-runtime/bin/rax-inspect <file.rax>
 
 ---
 
+## Perplexity
+
+`buddy-cli --perplexity <ids>` reports the perplexity of a model over a file of
+token ids instead of generating text (LLM runners that support it: DeepSeek
+R1). It is scored like llama.cpp's `llama-perplexity`, so that the two can be
+compared on the same tokens:
+
+- the ids are cut into chunks of `--ppl-context` tokens (default 512, at most
+  the model's KV cache); `--ppl-chunks N` keeps the first N chunks (default:
+  all);
+- each chunk starts from an empty KV cache, and only its second half is scored:
+  position j predicts token j + 1 for j in [context / 2, context - 1);
+- the first token of a chunk runs as a one-token prompt, the others one decode
+  step each, so the decode path is measured.
+
+The ids file holds the token ids in order, whatever separates them: the output
+of `llama-tokenize --ids` (`[715, 284, ...]`) or one id per line. To score
+wikitext-2 like `llama-perplexity -f wiki.test.raw -c 512 --chunks 40`, with
+the model's Hugging Face tokenizer (`add_bos_token` false for DeepSeek R1, as
+llama.cpp does here):
+
+```bash
+python3 -c "import sys; from transformers import AutoTokenizer; \
+t = AutoTokenizer.from_pretrained(sys.argv[1]); \
+print(t(open(sys.argv[2]).read(), add_special_tokens=False)['input_ids'])" \
+  deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B wiki.test.raw > wt2.ids
+buddy-cli --model deepseek_r1.rax --perplexity wt2.ids --ppl-chunks 40
+```
+
+`RunConfig`, which `buddy-cli` hands to the runner plugin, gained the
+perplexity fields: use a `buddy-cli` and a `.rax` built from the same sources.
+
+---
+
 ## FAQ
 
 **Q: I changed the manifest (e.g. weight path in the spec or generated MLIR). Do I need to rebuild C++?**

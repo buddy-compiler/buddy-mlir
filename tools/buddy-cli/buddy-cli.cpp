@@ -297,6 +297,9 @@ int main(int argc, char **argv) {
   bool deferDecodeTokenReadback = false;
   bool streamJsonl = false;
   bool interactive = false;
+  std::string perplexityIdsPath;
+  int perplexityContext = 512;
+  int perplexityChunks = 0;
 
   // NUMA / affinity args (applied before model load)
   std::string cpuSpec;
@@ -377,6 +380,17 @@ int main(int argc, char **argv) {
                "Start REPL-style interactive mode (--prompt becomes system "
                "prompt)")
       ->group("Chat");
+
+  app.add_option("--perplexity", perplexityIdsPath,
+                 "Report the perplexity of a file of token ids (e.g. "
+                 "`llama-tokenize --ids` output) instead of generating text")
+      ->group("Evaluation");
+  app.add_option("--ppl-context", perplexityContext,
+                 "Tokens per perplexity chunk (the second half is scored)")
+      ->group("Evaluation");
+  app.add_option("--ppl-chunks", perplexityChunks,
+                 "At most this many perplexity chunks (0 = all)")
+      ->group("Evaluation");
 
   app.add_flag("--no-stats", suppressStats, "Suppress performance statistics")
       ->group("Output");
@@ -460,7 +474,7 @@ int main(int argc, char **argv) {
 
   // Speech and vision-language runs are driven by media inputs.
   if (prompt.empty() && prompts.empty() && audioPath.empty() &&
-      imagePath.empty() && !interactive) {
+      imagePath.empty() && !interactive && perplexityIdsPath.empty()) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
@@ -518,6 +532,9 @@ int main(int argc, char **argv) {
   cfg.deferDecodeTokenReadback = deferDecodeTokenReadback;
   cfg.streamJsonl = streamJsonl;
   cfg.interactive = interactive;
+  cfg.perplexityIdsPath = perplexityIdsPath;
+  cfg.perplexityContext = perplexityContext;
+  cfg.perplexityChunks = perplexityChunks;
 
   try {
     if (!runnerSoPath.empty()) {
