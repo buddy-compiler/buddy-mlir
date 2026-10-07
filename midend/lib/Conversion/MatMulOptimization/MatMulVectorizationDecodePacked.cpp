@@ -209,8 +209,8 @@ public:
     Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
     Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
     Value cK = arith::ConstantIndexOp::create(rewriter, loc, K);
-    Value step = arith::ConstantIndexOp::create(
-        rewriter, loc, vecSize * panelsPerIteration);
+    Value step = arith::ConstantIndexOp::create(rewriter, loc,
+                                                vecSize * panelsPerIteration);
 
     Value n = memref::DimOp::create(rewriter, loc, C, c1);
     Value k = memref::DimOp::create(rewriter, loc, A, c1);
@@ -229,8 +229,8 @@ public:
           SmallVector<Value> accumulators;
           Value zero;
           if (zeroInitialized)
-            zero = arith::ConstantOp::create(
-                builder, loc, elementType, builder.getZeroAttr(elementType));
+            zero = arith::ConstantOp::create(builder, loc, elementType,
+                                             builder.getZeroAttr(elementType));
           for (int64_t panel = 0; panel < panelsPerIteration; ++panel) {
             Value panelOffset =
                 arith::ConstantIndexOp::create(builder, loc, panel * vecSize);
@@ -240,8 +240,8 @@ public:
             panelBases.push_back(
                 arith::MulIOp::create(builder, loc, panelIdx, cK));
             if (zeroInitialized)
-              accumulators.push_back(vector::BroadcastOp::create(
-                  builder, loc, vectorType, zero));
+              accumulators.push_back(
+                  vector::BroadcastOp::create(builder, loc, vectorType, zero));
             else
               accumulators.push_back(vector::LoadOp::create(
                   builder, loc, vectorType, C, ValueRange{c0, panelIdx}));
