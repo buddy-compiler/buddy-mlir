@@ -188,7 +188,9 @@ def build_stages(
                 # bytes as row-major and answer fluently and wrongly.
                 opts.append(
                     "-matmul-vectorization-decode-packed="
-                    f"vector-size={vector_size}"
+                    f"vector-size={vector_size} "
+                    "panels-per-iteration="
+                    f"{decode_pack.get('panels_per_iteration', 1)}"
                 )
             opts.append(
                 f"-matmul-vectorization-decode=vector-size={vector_size}"

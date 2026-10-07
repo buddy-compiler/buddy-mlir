@@ -328,6 +328,7 @@ def derive_decode_pack(hf: dict, spec: dict) -> dict:
     return {
         "enabled": True,
         "vector_size": vecsize,
+        "panels_per_iteration": spec.get("decode_pack_panels_per_iteration", 1),
         # Divisibility of every weight's N by vecsize is checked by the graph
         # transform, which is the only thing that knows the full weight set --
         # it covers lm_head and the attention projections, not just the FFN.
@@ -363,6 +364,10 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     weights = compute_weights(variant, param_counts)
     tiered_kv_cache = derive_tiered_kv_cache(spec)
     decode_pack = derive_decode_pack(hf, spec)
+    if decode_pack["enabled"] and decode_pack["panels_per_iteration"] <= 0:
+        raise RuntimeError(
+            "decode_pack_panels_per_iteration must be a positive integer"
+        )
     if decode_pack["enabled"] and variant not in ("f32", "f16", "bf16"):
         raise RuntimeError(
             f"decode_pack_vector_size is only supported for f32/f16/bf16 "
