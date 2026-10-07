@@ -14,8 +14,13 @@
   (spacemit-tcm) on `LD_LIBRARY_PATH`.
 - `/tmp` is a RAM tmpfs (16 GB on the board measured): a 2.5 GB `.rax` there
   takes memory; delete old ones.
-- `sudo` needs a password on the boards: never print it or store it in a
-  repository; pass it through `sudo -S` from a file the developer chooses.
+- Privileged setup (root-owned files, kernel parameters, packages) is done
+  by the developer interactively, or through a sudo rule limited to the
+  needed commands that the developer configured. The agent must not ask
+  for, read, store or pass sudo credentials; when a step needs root, it
+  stops and tells the developer the exact command. Running models and
+  benchmarks (including `/proc/set_ai_thread` for the own process) needs no
+  root.
 
 ## Measuring
 

@@ -33,6 +33,16 @@ cores already read 24 GB/s.
 
 All three are bit-identical to their predecessors (same text).
 
+## Accuracy and the llama.cpp baseline
+
+- llama.cpp's `Q4_0` GGUF of this model keeps the LM head in `Q6_K`: 60 MB
+  more per decoded token than the int4 head of `w4g32`. Against that head
+  Buddy's decode looked 6% faster; with `--output-tensor-type q4_0` the two
+  are at parity (table above).
+- Perplexity, wikitext-2 test, 512 x 40: f16 (llama.cpp) 40.03; llama.cpp
+  Q4_0 with Q6_K head 43.19; with Q4_0 head 43.86 (batched), 45.24
+  (`-ub 1`); Buddy `w4g32` decode path 42.89.
+
 ## Decode attention (12 heads, 2 KV heads, d 128)
 
 Per layer at position 900: 332 us (one head per item, generic scheduling)

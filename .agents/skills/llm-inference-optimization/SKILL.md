@@ -1,6 +1,6 @@
 ---
 name: llm-inference-optimization
-description: Optimize LLM inference built by Buddy-MLIR (buddy-codegen models, .rax, buddy-cli) - prefill, decode, attention, KV cache, LM head, sampling, speculative decoding - and validate it with perplexity and fair llama.cpp comparisons. Use for any change to model kernels (e.g. graph/transform/k3_w4.py), model specs, the model session or runtime, or when asked how fast a model runs.
+description: Performance of LLM inference built by Buddy-MLIR (buddy-codegen models, .rax, buddy-cli) - prefill, decode, attention, KV cache, LM head, speculative decoding. Use when optimizing, profiling or benchmarking LLM inference, comparing it with llama.cpp, or evaluating the accuracy (perplexity) impact of an inference optimization. Not needed for correctness fixes that do not aim at speed.
 ---
 
 # LLM inference optimization

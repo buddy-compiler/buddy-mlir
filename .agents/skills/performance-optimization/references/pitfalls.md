@@ -7,10 +7,10 @@ repository. Check them before trusting a result.
 
 - `tools/buddy-codegen/import_model.py` puts `<repo>/build/python_packages`
   first on `sys.path`, whatever `--build-dir` is. A cross build in
-  `build-xc` with a stale or symlinked `build/` imports the old
-  `k3_w4.py`. Keep `build/` the native build of the same checkout, rebuild it
-  after Python changes, and grep the generated
-  `build-*/models/<model>/*.mlir` for the change.
+  `build-xc` with a stale or symlinked `build/` imports the old kernel
+  generators (`frontend/Python/graph/transform/*.py`). Keep `build/` the
+  native build of the same checkout, rebuild it after Python changes, and
+  grep the generated `build-*/models/<model>/*.mlir` for the change.
 - The model import is cached: delete
   `<build-dir>/models/<model>/.buddy_import_done` to force it. It does not
   depend on the Python sources.
@@ -19,10 +19,11 @@ repository. Check them before trusting a result.
 
 ## Unfair comparisons
 
-- Align the baseline's formats with ours before comparing speed. Example:
-  llama.cpp's `Q4_0` GGUF keeps the LM head in `Q6_K` (60 MB more per decoded
-  token than an int4 head); with `--output-tensor-type q4_0` the decode
-  speeds were equal, and the "6% faster" claim disappeared.
+- Align the baseline's formats with ours before comparing speed: a
+  "Q4_0" llama.cpp model keeps its LM head in a larger format by default,
+  which makes its decode look slower than an all-int4 build
+  (`llm-inference-optimization/references/baselines.md`; a measured case
+  in `spacemit-k3-decode.md`).
 - Compare accuracy too (perplexity): a faster but less accurate format is not
   a like-for-like win.
 - Run each framework the way it is meant to run on the platform (some need a
@@ -32,12 +33,12 @@ repository. Check them before trusting a result.
 ## Wrong estimates
 
 - Do not reuse a gain measured in an earlier experiment without checking
-  whether a merged change already took it. A DMA weight prefetch was
-  estimated from a benchmark whose gain the TCM-activation change had
-  already captured; the profile showed 3% left instead of 15-25%.
+  whether a merged change already took it: profile the current code and
+  recompute the bound (a case: DMA weight prefetch in
+  `llm-inference-optimization/references/spacemit-k3-rejected-ideas.md`).
 - A microbenchmark must use the same parameters as the model (thread count,
-  heads per item, spec fields). A variant that silently ignored an option
-  ran a different configuration and looked 60% slower.
+  work split, spec fields). An option the code silently ignores runs a
+  different configuration and gives a meaningless comparison.
 
 ## Tooling
 

@@ -2,8 +2,8 @@
 
 Patterns seen in kernels that Buddy-MLIR builds with the MLIR Python
 bindings (`frontend/Python/graph/transform/k3_w4.py`) and lowers through
-LLVM to RVV. Costs quoted are from the SpacemiT K3 A100
-(`hardware-targets/references/spacemit-k3-instruction-costs.md`).
+LLVM to RVV. This file describes the mechanisms; instruction costs and
+measured cases are in the platform files ("Measured cases" below).
 
 ## Reading the code
 
@@ -35,35 +35,43 @@ stack buffer (`memref.alloca`, aligned like the other buffers, 128 bytes):
 - store the probability vector once and read each element with
   `memref.load` as a scalar.
 
-Same operations in the same order: bit-identical results. Decode attention:
-46 spill stores + 55 reloads per 16-key block removed, 253 -> 146 us per
-layer at position 900.
+Same operations in the same order: bit-identical results.
 
 ## Extract + broadcast becomes `vrgather`
 
 `vector.extract v[u]` followed by `vector.broadcast` (e.g. a probability
 scaling a value row) is folded by LLVM into a splat of lane u, lowered as
-`vrgather.vi` at the destination's LMUL: 17.8 ns at LMUL 4, four times an
-fma. Reading the element as a scalar (from memory, or `vfmv.f.s` after a
+`vrgather.vi` at the destination's LMUL, which can cost several fmas at a
+high LMUL. Reading the element as a scalar (from memory, or `vfmv.f.s` after a
 cheap slide at a small LMUL) lets LLVM use `vfmacc.vf`.
 
 ## Reductions on in-order cores
 
-`vector.reduction <add>` with `reassoc` lowers to `vfredusum` (unordered,
-~28 ns at LMUL 4; a dependent chain ~57 ns per reduction). One reduction per
-element of a loop makes the loop latency-bound; changing the reduction tree
-(e.g. adding the four LMUL-1 parts first, then an 8 ns LMUL-1 reduction) is
-faster but changes the rounding: a numerics change.
+`vector.reduction <add>` with `reassoc` lowers to `vfredusum` (unordered),
+a long-latency instruction whose cost grows with LMUL; a chain of dependent
+reductions is slower still. One reduction per element of a loop makes the
+loop latency-bound. Changing the reduction tree (e.g. adding the LMUL-1
+parts of a group first, then reducing one register) is faster but changes
+the rounding: a numerics change.
 
 ## Other observations
 
-- Strided loads (`vlse32`) are very slow (~300 ns on the K3): transpose data
-  in memory instead of loading columns.
-- Vector loads cost about the same whatever their size up to LMUL 8: one
-  1 KiB load beats several small ones.
-- Widening multiply-adds have their own LMUL limits; a `vfwmacc` at a
-  fractional LMUL raised SIGILL on the K3 A100 in a hand-written
-  microbenchmark.
-- `-misched-prera-direction=topdown` with `-mcpu=spacemit-a100` issues a
-  block's independent loads early on the in-order A100 (IME step 75 -> 59 ns
-  per group; decode attention 332 -> 284 us).
+- Strided loads (`vlse*`) can be far slower than unit-stride ones:
+  transpose data in memory instead of loading columns.
+- On some cores a vector load costs about the same whatever its size: then
+  fewer, larger loads are better.
+- Widening multiply-adds have their own LMUL constraints; check that a
+  fractional-LMUL form is supported by the core before relying on it.
+- On in-order cores, schedule with the core's model (`-mcpu=<core>`) and
+  try `-misched-prera-direction=topdown`, which issues a block's independent
+  loads early instead of next to their uses.
+
+## Measured cases
+
+- SpacemiT K3 A100 instruction costs, strided loads, the `vfwmacc` SIGILL:
+  `hardware-targets/references/spacemit-k3-instruction-costs.md`.
+- Decode attention: spills and `vrgather` removed by looping the key block,
+  and the effect of top-down scheduling:
+  `llm-inference-optimization/references/spacemit-k3-decode.md`.
+- IME step and top-down scheduling:
+  `llm-inference-optimization/references/spacemit-k3-prefill.md`.

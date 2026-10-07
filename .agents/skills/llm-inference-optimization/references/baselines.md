@@ -6,7 +6,7 @@ A speed comparison is meaningful only between equivalent computations.
 
 - Weights: llama.cpp `Q4_0` is int4 with one f16 scale per 32 weights, like
   Buddy's `w4g32`. But `llama-quantize` keeps `output.weight` (the LM head)
-  in `Q6_K` by default: 60 MB more per decoded token for DeepSeek-R1-1.5B.
+  in `Q6_K` by default, more bytes per decoded token than an int4 head.
   Quantize with `--output-tensor-type q4_0` for an aligned head.
 - KV cache and activations: note their precision on both sides (f32 vs f16
   KV cache changes attention bandwidth at long contexts).
@@ -19,8 +19,8 @@ A speed comparison is meaningful only between equivalent computations.
   empty context. Measure Buddy's decode at the same context lengths
   (`buddy-cli` decodes after the prompt, so also measure from a short
   prompt).
-- Run each framework the way it is meant to run on the platform (on the K3,
-  llama.cpp without the AI-process switch, buddy-cli with it).
+- Run each framework the way it is meant to run on the platform (see the
+  platform's board setup in the `hardware-targets` skill).
 - Same threads, same board, alternating runs.
 
 ## Perplexity
@@ -35,6 +35,5 @@ A speed comparison is meaningful only between equivalent computations.
   value from one-token-at-a-time evaluation (`-ub 1`); compare like with
   like.
 
-DeepSeek-R1-Distill-Qwen-1.5B, wikitext-2 test, 512 x 40 (October 2026):
-f16 40.03; llama Q4_0 with Q6_K head 43.19; Q4_0 with Q4_0 head 43.86
-(batched), 45.24 (`-ub 1`); Buddy `w4g32` decode path 42.89.
+Measured results per platform: `spacemit-k3-decode.md` ("Accuracy and the
+llama.cpp baseline").

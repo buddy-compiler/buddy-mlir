@@ -10,8 +10,8 @@ perf report -i perf.data --no-children --sort sym -g none -n | head -60
 - `-n` gives sample counts. Wall time of a phase ~= samples of its symbols /
   (frequency x busy threads). Drop the symbols of setup work (tokenizer and
   vocabulary hash tables, weight loading) before computing shares.
-- Generated kernels show up by name (`k3_q4_glu_m1_..._tile`,
-  `..omp_par`). Thread-pool symbols (`__kmpc_barrier`, `worker`) are idle
+- Generated kernels show up by name (the kernel's `__tile` function, its
+  `..omp_par` parallel body). Thread-pool symbols (`__kmpc_barrier`, `worker`) are idle
   threads: they mean imbalance or a serial section, not work.
 - A spinning barrier is not always lost time. If the remaining threads
   already saturate DRAM, idle threads do not slow a bandwidth-bound kernel.
@@ -25,6 +25,8 @@ perf report -i perf.data --no-children --sort sym -g none -n | head -60
   iteration, times their measured latency.
 - Effective rate of a kernel: bytes / time, compared to the machine peak,
   tells whether it is already at the bound.
+- Turning a part's floor into a bound on the whole: see "Upper bound
+  before work" in `SKILL.md` (saved fraction = share x (1 - floor / part)).
 
 ## Microbenchmarks
 

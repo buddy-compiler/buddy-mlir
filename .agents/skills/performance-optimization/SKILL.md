@@ -21,12 +21,17 @@ order; skip none of them.
 
 Estimate what the change can gain at best before writing it:
 
-- Profile (`perf record` / `perf report --sort sym`) and get each part's
-  share of the time *inside the measured window* (exclude loading).
-- Compute the hardware floor of the part: bytes / bandwidth for
+- Profile (`perf record` / `perf report --sort sym`) and get the share of
+  the total time T that the part takes *inside the measured window*
+  (exclude loading): its time is `part = share x T`.
+- Compute the floor of the part, as a time: bytes / bandwidth for
   bandwidth-bound work, instruction latency x count for latency-bound work.
-- gain <= (current - floor) x share. If that is a few percent, say so and
-  propose something else instead of implementing it.
+- At best the change saves `part - floor`, i.e. a fraction
+  `share x (1 - floor / part)` of T; the best speedup is
+  `1 / (1 - that fraction)`. Example: T = 100 ms, part = 50 ms
+  (share 0.5), floor = 25 ms: at most 25 ms saved, 25% of T, 1.33x.
+- If the best case is a few percent, say so and propose something else
+  instead of implementing it.
 
 Classify the bottleneck: DRAM bandwidth, cache / load-path bandwidth,
 instruction latency (in-order cores, reductions), register spills,

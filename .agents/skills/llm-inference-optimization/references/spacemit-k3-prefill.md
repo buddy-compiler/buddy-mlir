@@ -33,7 +33,10 @@ accepted; largest kernel error 3e-4 of the largest output).
 The step runs ~82M groups (8 columns x 32 rows x 32 K) in 5.14 core-seconds:
 62.8 ns per group, close to its single-core 59 ns. It is latency-bound on
 the in-order core (three ~10 ns loads, unpack, 8 `vmadot.hp`, 4 widening
-fmas), not bandwidth-bound.
+fmas), not bandwidth-bound. Compiled with `-mcpu=spacemit-a100
+-misched-prera-direction=topdown` (pipeline `kernels_ime`); bottom-up
+scheduling sank the loads next to their uses: 75 ns per group on one
+core.
 
 ## Open options (not done)
 

@@ -44,6 +44,9 @@ docs/K3DeepSeekR1.md).
   rewrites unrelated files.
 - Never commit secrets, host names, accounts or local paths of a developer
   machine or board.
+- Never ask for, read, store or pass passwords or other credentials (sudo
+  included). When a step needs privileges, stop and give the developer the
+  exact command to run.
 
 ## Skills
 
