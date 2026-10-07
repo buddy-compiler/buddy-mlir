@@ -1447,7 +1447,9 @@ def _attn_decode_fn(ty, spec, block=16):
                 return _reduce(ty.f32, "add", _mulf(qs, kv), reassoc=True)
 
             # the scores, then the probabilities, of a block's keys
-            buf = memref.AllocaOp(_memref([G, B], ty.f32), [], []).result
+            buf = memref.AllocaOp(
+                _memref([G, B], ty.f32), [], [], alignment=128
+            ).result
             # blocks of B keys; per head (max, sum, acc)
             init = [ninf, f0, fn.const(vd, 0.0)] * G
             bl = scf.ForOp(c0, nblk, fn.idx(1), init)

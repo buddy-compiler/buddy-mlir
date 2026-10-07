@@ -212,7 +212,7 @@ times an fma). The keys of a block are now loops: the scores go through a
 stack buffer into the vector of the block, and each value row is scaled by
 its probability read back as a scalar (`vfmacc.vf`). The operations and
 their order are the same, and so are the results: at position 900 the
-attention takes 146 instead of 253 us per layer, 26 instead of 19 us at
+attention takes 146 instead of 253 us per layer, 19 instead of 26 us at
 position 63. Decode after a short prompt 27.0 -> 27.6 tok/s, after 458
 tokens 25.2 -> 26.5, after 900 tokens 23.3 -> 25.1, with the same text.
 
