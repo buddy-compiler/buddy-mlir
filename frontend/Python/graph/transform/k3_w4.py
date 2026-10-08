@@ -57,11 +57,14 @@ from .. import Graph
 from ..operation import (
     AddMMOp,
     CallExternalOp,
+    DivOp,
+    ExpOp,
     GetItemOp,
     IndexPutOp,
     MatmulOp,
     MeanOp,
     MulOp,
+    NegOp,
     OutputOp,
     PermuteOp,
     PlaceholderOp,
@@ -436,22 +439,59 @@ class _Rewriter:
             for w in ws[1:] + bs[1:]:
                 self.drop_param(w)
 
+    def silu_input(self, node):
+        """(x, the nodes that compute silu(x)) when `node` is silu(x) as
+        torch decomposes it, else None: mul(x, sigmoid(x)) in either order
+        (torch 2.10), or div(x, add(exp(neg(x)), 1)) (torch 2.14)."""
+
+        def get(arg):
+            return self.g.node_table.get(str(arg))
+
+        def is_one(arg):
+            if get(arg) is not None:
+                return False
+            try:
+                return float(str(arg)) == 1.0
+            except ValueError:
+                return False
+
+        if isinstance(node, MulOp):
+            for x, s in (node.args[:2], node.args[1::-1]):
+                sg = get(s)
+                if isinstance(sg, SigmoidOp) and str(sg.args[0]) == str(x):
+                    return get(x), [node, sg]
+        if isinstance(node, DivOp):
+            x, den = node.args[:2]
+            ad = get(den)
+            if isinstance(ad, _AddOp):
+                for e, one in (ad.args[:2], ad.args[1::-1]):
+                    ex = get(e)
+                    if not (isinstance(ex, ExpOp) and is_one(one)):
+                        continue
+                    ng = get(ex.args[0])
+                    if isinstance(ng, NegOp) and str(ng.args[0]) == str(x):
+                        return get(x), [node, ad, ex, ng]
+        return None
+
     def rewrite_glu(self):
-        """mul(mul(vg, sigmoid(vg)), vu) with vg = view(mm(x, Wg)),
-        vu = view(mm(x', Wu)) -> one "glu" kernel."""
+        """mul(silu(vg), vu) (either order) with vg = view(mm(x, Wg)),
+        vu = view(mm(x', Wu)) -> one "glu" kernel. silu: see silu_input."""
         for node in list(self.g.body):
             if (
                 not isinstance(node, MulOp)
                 or node.name not in self.g.node_table
             ):
                 continue
-            a = self.g.node_table.get(str(node.args[0]))
-            vu = self.g.node_table.get(str(node.args[1]))
-            if not isinstance(a, MulOp) or not isinstance(vu, ViewOp):
+            for act, up in (node.args[:2], node.args[1::-1]):
+                vu = self.g.node_table.get(str(up))
+                a = self.g.node_table.get(str(act))
+                silu = self.silu_input(a) if a is not None else None
+                if isinstance(vu, ViewOp) and silu is not None:
+                    break
+            else:
                 continue
-            vg = self.g.node_table.get(str(a.args[0]))
-            sg = self.g.node_table.get(str(a.args[1]))
-            if not isinstance(vg, ViewOp) or not isinstance(sg, SigmoidOp):
+            vg, silu_nodes = silu
+            if not isinstance(vg, ViewOp):
                 continue
             mg = self.g.node_table.get(str(vg.args[0]))
             mu = self.g.node_table.get(str(vu.args[0]))
@@ -465,7 +505,7 @@ class _Rewriter:
             wg, wu = str(mg.args[1]), str(mu.args[1])
             Wg, Wu = self.weight(wg), self.weight(wu)
             kdim, n = Wg.shape
-            dead = [a, sg, vg, mg, vu, mu]
+            dead = silu_nodes + [vg, mg, vu, mu]
             lhs_u = self.g.node_table[str(mu.args[0])]
             self.unlink(node)
             node._parents = []
