@@ -1,0 +1,30 @@
+{
+  "name": "hardsigmoid_count120",
+  "family": "hardsigmoid",
+  "kernel": "hardsigmoid",
+  "symbol": "hardsigmoid_count120",
+  "dtype": "float32",
+  "layout": "NCHW contiguous",
+  "shapes": [
+    [
+      1,
+      120,
+      1,
+      1
+    ]
+  ],
+  "constexprs": {
+    "COUNT": 120,
+    "BLOCK": 128
+  },
+  "signature": {
+    "X": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    1,
+    1,
+    1
+  ],
+  "tail": 120
+}

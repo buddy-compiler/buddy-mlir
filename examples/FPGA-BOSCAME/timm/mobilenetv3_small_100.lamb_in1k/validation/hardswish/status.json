@@ -1,0 +1,282 @@
+{
+  "status": "COMPLETE",
+  "scope": "Hardswish implementation, all C/PyTorch host checks and NR binary builds",
+  "fpga": "NOT EXECUTED",
+  "reason": "Board validation remains deferred by user",
+  "case_count": 9,
+  "shape_count": 10,
+  "pytorch_samples": 17268160,
+  "results": [
+    {
+      "case": "hardswish_count200704",
+      "shapes": [
+        [
+          1,
+          16,
+          112,
+          112
+        ]
+      ],
+      "count": 200704,
+      "grid": [
+        1568,
+        1,
+        1
+      ],
+      "tail": 0,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 7024640,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count200704/nr/hardswish_count200704.elf",
+      "bin": "triton/build/hardswish_count200704/nr/hardswish_count200704.bin"
+    },
+    {
+      "case": "hardswish_count75264",
+      "shapes": [
+        [
+          1,
+          96,
+          28,
+          28
+        ]
+      ],
+      "count": 75264,
+      "grid": [
+        588,
+        1,
+        1
+      ],
+      "tail": 0,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 2634240,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count75264/nr/hardswish_count75264.elf",
+      "bin": "triton/build/hardswish_count75264/nr/hardswish_count75264.bin"
+    },
+    {
+      "case": "hardswish_count18816",
+      "shapes": [
+        [
+          1,
+          96,
+          14,
+          14
+        ]
+      ],
+      "count": 18816,
+      "grid": [
+        147,
+        1,
+        1
+      ],
+      "tail": 0,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 658560,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count18816/nr/hardswish_count18816.elf",
+      "bin": "triton/build/hardswish_count18816/nr/hardswish_count18816.bin"
+    },
+    {
+      "case": "hardswish_count47040",
+      "shapes": [
+        [
+          1,
+          240,
+          14,
+          14
+        ]
+      ],
+      "count": 47040,
+      "grid": [
+        368,
+        1,
+        1
+      ],
+      "tail": 64,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 1646400,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count47040/nr/hardswish_count47040.elf",
+      "bin": "triton/build/hardswish_count47040/nr/hardswish_count47040.bin"
+    },
+    {
+      "case": "hardswish_count23520",
+      "shapes": [
+        [
+          1,
+          120,
+          14,
+          14
+        ]
+      ],
+      "count": 23520,
+      "grid": [
+        184,
+        1,
+        1
+      ],
+      "tail": 96,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 823200,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count23520/nr/hardswish_count23520.elf",
+      "bin": "triton/build/hardswish_count23520/nr/hardswish_count23520.bin"
+    },
+    {
+      "case": "hardswish_count28224",
+      "shapes": [
+        [
+          1,
+          144,
+          14,
+          14
+        ],
+        [
+          1,
+          576,
+          7,
+          7
+        ]
+      ],
+      "count": 28224,
+      "grid": [
+        221,
+        1,
+        1
+      ],
+      "tail": 64,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 1975680,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count28224/nr/hardswish_count28224.elf",
+      "bin": "triton/build/hardswish_count28224/nr/hardswish_count28224.bin"
+    },
+    {
+      "case": "hardswish_count56448",
+      "shapes": [
+        [
+          1,
+          288,
+          14,
+          14
+        ]
+      ],
+      "count": 56448,
+      "grid": [
+        441,
+        1,
+        1
+      ],
+      "tail": 0,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 1975680,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count56448/nr/hardswish_count56448.elf",
+      "bin": "triton/build/hardswish_count56448/nr/hardswish_count56448.bin"
+    },
+    {
+      "case": "hardswish_count14112",
+      "shapes": [
+        [
+          1,
+          288,
+          7,
+          7
+        ]
+      ],
+      "count": 14112,
+      "grid": [
+        111,
+        1,
+        1
+      ],
+      "tail": 32,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 493920,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count14112/nr/hardswish_count14112.elf",
+      "bin": "triton/build/hardswish_count14112/nr/hardswish_count14112.bin"
+    },
+    {
+      "case": "hardswish_count1024",
+      "shapes": [
+        [
+          1,
+          1024,
+          1,
+          1
+        ]
+      ],
+      "count": 1024,
+      "grid": [
+        8,
+        1,
+        1
+      ],
+      "tail": 0,
+      "host": "PASS",
+      "finite_max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 35840,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardswish_count1024/nr/hardswish_count1024.elf",
+      "bin": "triton/build/hardswish_count1024/nr/hardswish_count1024.bin"
+    }
+  ],
+  "evidence_sha256": {
+    "host.json": "f39dc372d7aa25a44cd17aa60faac9169b5d596c61f3bbe95816c74e9ab4c8da",
+    "nr.json": "e8f8f0a3ae3d7811f52d57e88e9552ca4beb04b8beb796651556999ae9a283b3",
+    "toolchain.json": "4521d889725d6f0848caca7d5110fe192ff04b7843bd61aa56f983afcd9f2323",
+    "regression.json": "5bd5b1ee19c63874151abd746e05b0793b47494c54b43595ecd06967199a70c3"
+  },
+  "regression": {
+    "residual_add": {
+      "status": "PASS",
+      "count": 4
+    },
+    "relu": {
+      "status": "PASS",
+      "count": 11
+    },
+    "hardsigmoid": {
+      "status": "PASS",
+      "count": 7
+    }
+  },
+  "previous_kernel_semantics": "unchanged",
+  "previous_support_exporter_and_case_sources": "unchanged"
+}

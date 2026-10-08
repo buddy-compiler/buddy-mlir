@@ -1,0 +1,9 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+verify mean_hw_c120_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=343E0A73
+[nr] launch cycles=0x0000000001D41AE2 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

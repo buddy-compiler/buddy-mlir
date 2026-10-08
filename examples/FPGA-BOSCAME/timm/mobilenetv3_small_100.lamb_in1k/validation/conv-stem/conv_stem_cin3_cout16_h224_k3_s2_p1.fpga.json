@@ -1,0 +1,39 @@
+{
+  "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+  "fpga": 4,
+  "method": "manual scp + minicom terminal A + make uv_run4 terminal B",
+  "status": "NOT EXECUTED",
+  "reason": "Manual make uv_run4 padded the image, then UVHS initialization failed because daemon was unavailable, before DDR loading/CPU startup.",
+  "sudo_used": false,
+  "fpga_run_script_used": false,
+  "upload": "PASS",
+  "remote_raw_path": "/home/hjuser/Desktop/fpga-tester-ISCAS/test/conv_stem_manual_20260929.bin",
+  "raw_bytes": 85466,
+  "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+  "remote_padded_path": "/home/hjuser/Desktop/fpga-tester-ISCAS/test/conv_stem_manual_20260929_padded.bin",
+  "padded_bytes": 1048576,
+  "padded_sha256": "4d5f430ffce218ebcea3e4487db83b960b0e1e5a5c171669a16b65b81d0054ac",
+  "raw_prefix_and_zero_padding_verified": true,
+  "serial": {
+    "device": "/dev/FPGA4",
+    "baud": 115200,
+    "data_bits": 8,
+    "parity": "none",
+    "stop_bits": 1,
+    "hardware_flow_control": false,
+    "software_flow_control": false,
+    "settings_verified_with_stty": true,
+    "opened_before_make": true,
+    "uart_bytes": 0
+  },
+  "make_command": "cd ~/Desktop/fpga-tester-ISCAS && make uv_run4 test=test/conv_stem_manual_20260929.bin",
+  "make_returncode": 2,
+  "make_log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.make.log",
+  "uart_log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.uart.log",
+  "artifacts": {
+    "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.make.log": "29236d9a60834202c66e88a9ec6e7f83836b7a2b78f3294e16c2b19433008c2f",
+    "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.uart.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "completed_at_utc": "2026-09-29T05:32:30.321397+00:00",
+  "cleanup": "Minicom exited normally with Ctrl-A X; temporary minicom profile removed; no other user session terminated"
+}

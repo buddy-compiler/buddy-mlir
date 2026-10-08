@@ -1,0 +1,350 @@
+{
+  "status": "COMPLETE",
+  "scope": "mean_hw Triton reduction, all C-double/FP64/ATen Host checks and NR binary builds",
+  "fpga": "NOT EXECUTED",
+  "reason": "Board validation remains deferred by user",
+  "case_count": 7,
+  "c_max_abs_error": 3.1609848445413036e-06,
+  "fp64_stress_max_abs_error": 0.0006427375637940713,
+  "max_error_over_bound": 0.058040571633515094,
+  "pytorch_output_samples": 29600,
+  "results": [
+    {
+      "case": "mean_hw_c16_h56_w56",
+      "shape": [
+        1,
+        16,
+        56,
+        56
+      ],
+      "output_shape": [
+        1,
+        16,
+        1,
+        1
+      ],
+      "spatial": 3136,
+      "block": 4096,
+      "masked_lanes": 960,
+      "grid": [
+        16,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "c_metrics": {
+        "max_abs_error": 3.1609848445413036e-06,
+        "max_error_over_bound": 0.012476119512563702,
+        "max_bound": 0.005984471666067907
+      },
+      "tolerance": {
+        "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 0.00018701473863334017,
+        "absolute_floor": 1.401298464324817e-45
+      },
+      "pytorch": "PASS",
+      "pytorch_max_abs_error": 0.0002198511240294465,
+      "pytorch_max_error_over_bound": 0.012476119512563702,
+      "pytorch_samples": 320,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/mean_hw_c16_h56_w56/nr/mean_hw_c16_h56_w56.elf",
+      "bin": "triton/build/mean_hw_c16_h56_w56/nr/mean_hw_c16_h56_w56.bin"
+    },
+    {
+      "case": "mean_hw_c96_h14_w14",
+      "shape": [
+        1,
+        96,
+        14,
+        14
+      ],
+      "output_shape": [
+        1,
+        96,
+        1,
+        1
+      ],
+      "spatial": 196,
+      "block": 256,
+      "masked_lanes": 60,
+      "grid": [
+        96,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "c_metrics": {
+        "max_abs_error": 1.7698930232512566e-07,
+        "max_error_over_bound": 0.012545592007087852,
+        "max_bound": 0.0003757520988445707
+      },
+      "tolerance": {
+        "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.1742252899636104e-05,
+        "absolute_floor": 1.401298464324817e-45
+      },
+      "pytorch": "PASS",
+      "pytorch_max_abs_error": 0.0004583864796359194,
+      "pytorch_max_error_over_bound": 0.012545592007087852,
+      "pytorch_samples": 1920,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/mean_hw_c96_h14_w14/nr/mean_hw_c96_h14_w14.elf",
+      "bin": "triton/build/mean_hw_c96_h14_w14/nr/mean_hw_c96_h14_w14.bin"
+    },
+    {
+      "case": "mean_hw_c240_h14_w14",
+      "shape": [
+        1,
+        240,
+        14,
+        14
+      ],
+      "output_shape": [
+        1,
+        240,
+        1,
+        1
+      ],
+      "spatial": 196,
+      "block": 256,
+      "masked_lanes": 60,
+      "grid": [
+        240,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "c_metrics": {
+        "max_abs_error": 1.7698930232512566e-07,
+        "max_error_over_bound": 0.012545592007087852,
+        "max_bound": 0.0003757520988445707
+      },
+      "tolerance": {
+        "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.1742252899636104e-05,
+        "absolute_floor": 1.401298464324817e-45
+      },
+      "pytorch": "PASS",
+      "pytorch_max_abs_error": 0.0005941585618529643,
+      "pytorch_max_error_over_bound": 0.012545592007087852,
+      "pytorch_samples": 4800,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/mean_hw_c240_h14_w14/nr/mean_hw_c240_h14_w14.elf",
+      "bin": "triton/build/mean_hw_c240_h14_w14/nr/mean_hw_c240_h14_w14.bin"
+    },
+    {
+      "case": "mean_hw_c120_h14_w14",
+      "shape": [
+        1,
+        120,
+        14,
+        14
+      ],
+      "output_shape": [
+        1,
+        120,
+        1,
+        1
+      ],
+      "spatial": 196,
+      "block": 256,
+      "masked_lanes": 60,
+      "grid": [
+        120,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "c_metrics": {
+        "max_abs_error": 1.7698930232512566e-07,
+        "max_error_over_bound": 0.012545592007087852,
+        "max_bound": 0.0003757520988445707
+      },
+      "tolerance": {
+        "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.1742252899636104e-05,
+        "absolute_floor": 1.401298464324817e-45
+      },
+      "pytorch": "PASS",
+      "pytorch_max_abs_error": 0.0004907724808163039,
+      "pytorch_max_error_over_bound": 0.012545592007087852,
+      "pytorch_samples": 2400,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/mean_hw_c120_h14_w14/nr/mean_hw_c120_h14_w14.elf",
+      "bin": "triton/build/mean_hw_c120_h14_w14/nr/mean_hw_c120_h14_w14.bin"
+    },
+    {
+      "case": "mean_hw_c144_h14_w14",
+      "shape": [
+        1,
+        144,
+        14,
+        14
+      ],
+      "output_shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "spatial": 196,
+      "block": 256,
+      "masked_lanes": 60,
+      "grid": [
+        144,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "c_metrics": {
+        "max_abs_error": 1.7698930232512566e-07,
+        "max_error_over_bound": 0.012545592007087852,
+        "max_bound": 0.0003757520988445707
+      },
+      "tolerance": {
+        "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.1742252899636104e-05,
+        "absolute_floor": 1.401298464324817e-45
+      },
+      "pytorch": "PASS",
+      "pytorch_max_abs_error": 0.0003985969387940713,
+      "pytorch_max_error_over_bound": 0.012545592007087852,
+      "pytorch_samples": 2880,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/mean_hw_c144_h14_w14/nr/mean_hw_c144_h14_w14.elf",
+      "bin": "triton/build/mean_hw_c144_h14_w14/nr/mean_hw_c144_h14_w14.bin"
+    },
+    {
+      "case": "mean_hw_c288_h7_w7",
+      "shape": [
+        1,
+        288,
+        7,
+        7
+      ],
+      "output_shape": [
+        1,
+        288,
+        1,
+        1
+      ],
+      "spatial": 49,
+      "block": 64,
+      "masked_lanes": 15,
+      "grid": [
+        288,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "c_metrics": {
+        "max_abs_error": 1.2894066014901284e-07,
+        "max_error_over_bound": 0.03087588321682127,
+        "max_bound": 0.00010728868034088712
+      },
+      "tolerance": {
+        "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 2.980241120580198e-06,
+        "absolute_floor": 1.401298464324817e-45
+      },
+      "pytorch": "PASS",
+      "pytorch_max_abs_error": 0.00045091278707332094,
+      "pytorch_max_error_over_bound": 0.058040571633515094,
+      "pytorch_samples": 5760,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/mean_hw_c288_h7_w7/nr/mean_hw_c288_h7_w7.elf",
+      "bin": "triton/build/mean_hw_c288_h7_w7/nr/mean_hw_c288_h7_w7.bin"
+    },
+    {
+      "case": "mean_hw_c576_h7_w7",
+      "shape": [
+        1,
+        576,
+        7,
+        7
+      ],
+      "output_shape": [
+        1,
+        576,
+        1,
+        1
+      ],
+      "spatial": 49,
+      "block": 64,
+      "masked_lanes": 15,
+      "grid": [
+        576,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "c_metrics": {
+        "max_abs_error": 1.2894066014901284e-07,
+        "max_error_over_bound": 0.03087588321682127,
+        "max_bound": 0.00021457736068177424
+      },
+      "tolerance": {
+        "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 2.980241120580198e-06,
+        "absolute_floor": 1.401298464324817e-45
+      },
+      "pytorch": "PASS",
+      "pytorch_max_abs_error": 0.0006427375637940713,
+      "pytorch_max_error_over_bound": 0.058040571633515094,
+      "pytorch_samples": 11520,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/mean_hw_c576_h7_w7/nr/mean_hw_c576_h7_w7.elf",
+      "bin": "triton/build/mean_hw_c576_h7_w7/nr/mean_hw_c576_h7_w7.bin"
+    }
+  ],
+  "evidence_sha256": {
+    "host.json": "c3b22d4e3abb4a79e3f23f791af92b6f4203e57817d6696095fa301ccdf448e7",
+    "nr.json": "669f373dc0936f1aec30c288c3cda98d9e22181e2a9ac3efa850369b5b5840ff",
+    "toolchain.json": "4521d889725d6f0848caca7d5110fe192ff04b7843bd61aa56f983afcd9f2323",
+    "regression.json": "44fe79869442792695d8c57d8a8c59fe17222b75670cb437c52530bf06fca5f7"
+  },
+  "regression": {
+    "residual_add": {
+      "status": "PASS",
+      "count": 4
+    },
+    "relu": {
+      "status": "PASS",
+      "count": 11
+    },
+    "hardsigmoid": {
+      "status": "PASS",
+      "count": 7
+    },
+    "hardswish": {
+      "status": "PASS",
+      "count": 9
+    },
+    "se_mul": {
+      "status": "PASS",
+      "count": 7
+    }
+  },
+  "previous_kernel_semantics_inventories_adapters_and_case_sources": "unchanged"
+}

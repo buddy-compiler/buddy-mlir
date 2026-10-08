@@ -1,0 +1,69 @@
+{
+  "configuration": {
+    "BUDDY_OPT": "/home/zhangwenji/buddy-mlir/build/bin/buddy-opt",
+    "HOST_CC": "/home/zhangwenji/buddy-mlir/llvm/build/bin/clang",
+    "NR_CFLAGS": "--target=riscv64-unknown-elf -march=rv64gc_zicbom -mabi=lp64d -mcmodel=medany -ffreestanding -fno-builtin -fno-pie -fno-stack-protector -fno-vectorize -fno-slp-vectorize -ffp-contract=off -ffunction-sections -fdata-sections -O2 -I/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr -I/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/../uart",
+    "BUDDY_TRANSLATE": "/home/zhangwenji/buddy-mlir/build/bin/buddy-translate",
+    "PWCONV_FP32_PASS": "--matmul-vectorization='vector-size=16 vector-type=fixed'",
+    "RISCV_OBJCOPY": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llvm-objcopy",
+    "RISCV_OBJDUMP": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llvm-objdump",
+    "NR_LINKER_SCRIPT": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr.ld",
+    "LLC": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llc",
+    "RISCV_CC": "/home/zhangwenji/buddy-mlir/llvm/build/bin/clang --target=riscv64-unknown-elf",
+    "LINEAR_RVV_FLAGS": "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse",
+    "NR_OBJECTS": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/runtime/crt.o /home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/runtime/nr_runtime.o /home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/runtime/nr_math.o /home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/runtime/ame_sync.o /home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/runtime/nr_copy.o",
+    "PWCONV_RVV_FLAGS": "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse",
+    "LINEAR_FP32_PASS": "--matmul-transpose-b-vectorization-decode='vector-size=16 unroll=1 n-tile=1'",
+    "RISCV_LD": "ld.lld -m elf64lriscv"
+  },
+  "tools": {
+    "BUDDY_OPT": {
+      "path": "/home/zhangwenji/buddy-mlir/build/bin/buddy-opt",
+      "resolved_path": "/home/zhangwenji/buddy-mlir/build/bin/buddy-opt",
+      "sha256": "4a0b4518a796dbdef07a87f3126859dd1b7349f34d2b8220b95501937446ba7f",
+      "version": "LLVM (http://llvm.org/):"
+    },
+    "BUDDY_TRANSLATE": {
+      "path": "/home/zhangwenji/buddy-mlir/build/bin/buddy-translate",
+      "resolved_path": "/home/zhangwenji/buddy-mlir/build/bin/buddy-translate",
+      "sha256": "e2bdf06c0ee322f9c095d4b57be2d033c7c46515744b177310a2f17bd299c6f5",
+      "version": "LLVM (http://llvm.org/):"
+    },
+    "HOST_CC": {
+      "path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/clang",
+      "resolved_path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/clang-23",
+      "sha256": "9a345693ea66d98d00ebd317587d948b5eee1f813f10698bc822f8d39c126e17",
+      "version": "clang version 23.0.0git (https://github.com/RuyiAI-Stack/llvm-project 494e04190256d80a140da2e1a0abde5095021cf6)"
+    },
+    "LLC": {
+      "path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llc",
+      "resolved_path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llc",
+      "sha256": "3a2e9c3e9ea072beee6460ebeb66c2de9507bdbdd24961a21c12c25bce851213",
+      "version": "LLVM (http://llvm.org/):"
+    },
+    "RISCV_CC": {
+      "path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/clang",
+      "resolved_path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/clang-23",
+      "sha256": "9a345693ea66d98d00ebd317587d948b5eee1f813f10698bc822f8d39c126e17",
+      "version": "clang version 23.0.0git (https://github.com/RuyiAI-Stack/llvm-project 494e04190256d80a140da2e1a0abde5095021cf6)"
+    },
+    "RISCV_LD": {
+      "path": "/usr/bin/ld.lld",
+      "resolved_path": "/usr/lib/llvm-18/bin/lld",
+      "sha256": "3147b5633f5b855952264b639885539c59d121f103bc69eaae434ce6e95ce57f",
+      "version": "Ubuntu LLD 18.1.8 (compatible with GNU linkers)"
+    },
+    "RISCV_OBJCOPY": {
+      "path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llvm-objcopy",
+      "resolved_path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llvm-objcopy",
+      "sha256": "7a79ec3c7ff4512c5a9a1caf84113ebd633d48fcce2ca817da0b4b29d6a909a6",
+      "version": "llvm-objcopy, compatible with GNU objcopy"
+    },
+    "RISCV_OBJDUMP": {
+      "path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llvm-objdump",
+      "resolved_path": "/home/zhangwenji/buddy-mlir/llvm/build/bin/llvm-objdump",
+      "sha256": "91ae9376e80642fe6b451c3c21c8fad1d85c2cacb3024e491911cc11ef38e0e4",
+      "version": "LLVM (http://llvm.org/):"
+    }
+  }
+}

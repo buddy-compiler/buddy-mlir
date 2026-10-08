@@ -1,0 +1,29 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[minimal] BEGIN unordered VL=00000001
+[minimal] result/expected/source_errors/actual_vl 00800000 00000000 00000000 00000001
+[minimal] BEGIN unordered VL=00000002
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000002
+[minimal] BEGIN unordered VL=00000004
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000004
+[minimal] BEGIN unordered VL=00000008
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000008
+[minimal] BEGIN unordered VL=00000010
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000010
+[minimal] BEGIN ordered VL=00000001
+[minimal] result/expected/source_errors/actual_vl 00800000 00000000 00000000 00000001
+[minimal] BEGIN ordered VL=00000002
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000002
+[minimal] BEGIN ordered VL=00000004
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000004
+[minimal] BEGIN ordered VL=00000008
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000008
+[minimal] BEGIN ordered VL=00000010
+[minimal] result/expected/source_errors/actual_vl 00400000 00000000 00000000 00000010
+verify rvv_reduction_minimal: FAIL errors=0000000A
+[nr] launch cycles=0x000000000003E662 status=0x00000001
+[nr] RA returned: FAIL
+verify NR runtime: FAIL

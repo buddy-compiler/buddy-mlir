@@ -1,0 +1,53 @@
+{
+  "name": "mean_hw_c144_h14_w14",
+  "family": "mean_hw",
+  "kernel": "mean_hw",
+  "symbol": "mean_hw_c144_h14_w14",
+  "dtype": "float32",
+  "layout": "NCHW contiguous",
+  "shapes": [
+    [
+      1,
+      144,
+      14,
+      14
+    ]
+  ],
+  "constexprs": {
+    "COUNT": 28224,
+    "SPATIAL": 196,
+    "BLOCK": 256
+  },
+  "signature": {
+    "X": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    144,
+    1,
+    1
+  ],
+  "tail": 196,
+  "output_shape": [
+    1,
+    144,
+    1,
+    1
+  ],
+  "grid_axes": [
+    "channel",
+    "unused",
+    "unused"
+  ],
+  "reduction_axes": [
+    2,
+    3
+  ],
+  "keepdim": true,
+  "tolerance": {
+    "formula": "gamma_(SPATIAL+1)*mean(abs(X[channel])) + 2^-149",
+    "unit_roundoff": 5.960464477539063e-08,
+    "gamma": 1.1742252899636104e-05,
+    "absolute_floor": 1.401298464324817e-45
+  }
+}

@@ -1,0 +1,261 @@
+{
+  "status": "COMPLETE",
+  "scope": "SE channel broadcast multiply implementation, all C/PyTorch host checks and NR binary builds",
+  "fpga": "NOT EXECUTED",
+  "reason": "Board validation remains deferred by user",
+  "case_count": 7,
+  "pytorch_samples": 3361792,
+  "results": [
+    {
+      "case": "se_mul_c16_h56_w56",
+      "shape": [
+        1,
+        16,
+        56,
+        56
+      ],
+      "scale_shape": [
+        1,
+        16,
+        1,
+        1
+      ],
+      "count": 50176,
+      "spatial": 3136,
+      "grid": [
+        25,
+        16,
+        1
+      ],
+      "spatial_tail": 64,
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 802816,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/se_mul_c16_h56_w56/nr/se_mul_c16_h56_w56.elf",
+      "bin": "triton/build/se_mul_c16_h56_w56/nr/se_mul_c16_h56_w56.bin"
+    },
+    {
+      "case": "se_mul_c96_h14_w14",
+      "shape": [
+        1,
+        96,
+        14,
+        14
+      ],
+      "scale_shape": [
+        1,
+        96,
+        1,
+        1
+      ],
+      "count": 18816,
+      "spatial": 196,
+      "grid": [
+        2,
+        96,
+        1
+      ],
+      "spatial_tail": 68,
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 301056,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/se_mul_c96_h14_w14/nr/se_mul_c96_h14_w14.elf",
+      "bin": "triton/build/se_mul_c96_h14_w14/nr/se_mul_c96_h14_w14.bin"
+    },
+    {
+      "case": "se_mul_c240_h14_w14",
+      "shape": [
+        1,
+        240,
+        14,
+        14
+      ],
+      "scale_shape": [
+        1,
+        240,
+        1,
+        1
+      ],
+      "count": 47040,
+      "spatial": 196,
+      "grid": [
+        2,
+        240,
+        1
+      ],
+      "spatial_tail": 68,
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 752640,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/se_mul_c240_h14_w14/nr/se_mul_c240_h14_w14.elf",
+      "bin": "triton/build/se_mul_c240_h14_w14/nr/se_mul_c240_h14_w14.bin"
+    },
+    {
+      "case": "se_mul_c120_h14_w14",
+      "shape": [
+        1,
+        120,
+        14,
+        14
+      ],
+      "scale_shape": [
+        1,
+        120,
+        1,
+        1
+      ],
+      "count": 23520,
+      "spatial": 196,
+      "grid": [
+        2,
+        120,
+        1
+      ],
+      "spatial_tail": 68,
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 376320,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/se_mul_c120_h14_w14/nr/se_mul_c120_h14_w14.elf",
+      "bin": "triton/build/se_mul_c120_h14_w14/nr/se_mul_c120_h14_w14.bin"
+    },
+    {
+      "case": "se_mul_c144_h14_w14",
+      "shape": [
+        1,
+        144,
+        14,
+        14
+      ],
+      "scale_shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "count": 28224,
+      "spatial": 196,
+      "grid": [
+        2,
+        144,
+        1
+      ],
+      "spatial_tail": 68,
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 451584,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/se_mul_c144_h14_w14/nr/se_mul_c144_h14_w14.elf",
+      "bin": "triton/build/se_mul_c144_h14_w14/nr/se_mul_c144_h14_w14.bin"
+    },
+    {
+      "case": "se_mul_c288_h7_w7",
+      "shape": [
+        1,
+        288,
+        7,
+        7
+      ],
+      "scale_shape": [
+        1,
+        288,
+        1,
+        1
+      ],
+      "count": 14112,
+      "spatial": 49,
+      "grid": [
+        1,
+        288,
+        1
+      ],
+      "spatial_tail": 49,
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 225792,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/se_mul_c288_h7_w7/nr/se_mul_c288_h7_w7.elf",
+      "bin": "triton/build/se_mul_c288_h7_w7/nr/se_mul_c288_h7_w7.bin"
+    },
+    {
+      "case": "se_mul_c576_h7_w7",
+      "shape": [
+        1,
+        576,
+        7,
+        7
+      ],
+      "scale_shape": [
+        1,
+        576,
+        1,
+        1
+      ],
+      "count": 28224,
+      "spatial": 49,
+      "grid": [
+        1,
+        576,
+        1
+      ],
+      "spatial_tail": 49,
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 451584,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/se_mul_c576_h7_w7/nr/se_mul_c576_h7_w7.elf",
+      "bin": "triton/build/se_mul_c576_h7_w7/nr/se_mul_c576_h7_w7.bin"
+    }
+  ],
+  "evidence_sha256": {
+    "host.json": "1ea24d72a7cf8a0825083c88cee8f3078e0c906cb07c7bc2978ac8c16be6bdd3",
+    "nr.json": "975be65f6fda090ceb9318cb47f154bdbc45360aaef57e73de5d6ba223397683",
+    "toolchain.json": "4521d889725d6f0848caca7d5110fe192ff04b7843bd61aa56f983afcd9f2323",
+    "regression.json": "7e39eb80dbc76507be9c8f8dee6a10f24e81c5c4b4994bd7e319d8e73f705a52"
+  },
+  "regression": {
+    "residual_add": {
+      "status": "PASS",
+      "count": 4
+    },
+    "relu": {
+      "status": "PASS",
+      "count": 11
+    },
+    "hardsigmoid": {
+      "status": "PASS",
+      "count": 7
+    },
+    "hardswish": {
+      "status": "PASS",
+      "count": 9
+    }
+  },
+  "previous_kernel_semantics_and_inventories": "unchanged",
+  "previous_one_dimensional_adapters": "byte-identical",
+  "previous_support_make_and_case_sources": "unchanged"
+}

@@ -1,0 +1,1277 @@
+{
+  "schema_version": 1,
+  "model": "timm/mobilenetv3_small_100.lamb_in1k",
+  "revision": "1824797e7887cbec1990e4adbd6675960a36c589",
+  "scope": "Offline inference BatchNorm folding only; no Triton kernels or FPGA execution",
+  "profile": {
+    "input_shape": [
+      1,
+      3,
+      224,
+      224
+    ],
+    "output_shape": [
+      1,
+      1000
+    ],
+    "layout": "NCHW",
+    "weight_layout": "OIHW",
+    "dtype": "float32",
+    "mode": "eval",
+    "device": "cpu",
+    "seed": 0,
+    "num_threads": 1,
+    "input_sha256": "cf96680f3b1abed9505b1ed766a48c06572794a28c48e157a8569c3cc3b27233"
+  },
+  "sources": {
+    "config.json": {
+      "url": "https://hf-mirror.com/timm/mobilenetv3_small_100.lamb_in1k/resolve/1824797e7887cbec1990e4adbd6675960a36c589/config.json",
+      "sha256": "07194b4b5f5140b0d1d1b80c49b6568b726c6e2f88858340cb7618061816b6e8"
+    },
+    "model.safetensors": {
+      "url": "https://hf-mirror.com/timm/mobilenetv3_small_100.lamb_in1k/resolve/1824797e7887cbec1990e4adbd6675960a36c589/model.safetensors",
+      "sha256": "46d2c063b18125884c48937afa4c49e18128869e52e8db96df48bf0a4d7ff697"
+    }
+  },
+  "versions": {
+    "python": "3.12.3",
+    "torch": "2.10.0+cpu",
+    "timm": "1.0.26",
+    "safetensors": "0.8.0"
+  },
+  "tool_sha256": "12c838ab243cbdee593131e116e5cf8487352dcacb38c14129df4deccc1c7443",
+  "fusion_count": 34,
+  "fusions": [
+    {
+      "conv": "conv_stem",
+      "bn": "bn1",
+      "weight_shape": [
+        16,
+        3,
+        3,
+        3
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        16
+      ],
+      "groups": 1,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.0.0.conv_dw",
+      "bn": "blocks.0.0.bn1",
+      "weight_shape": [
+        16,
+        1,
+        3,
+        3
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        16
+      ],
+      "groups": 16,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "ReLU"
+      }
+    },
+    {
+      "conv": "blocks.0.0.conv_pw",
+      "bn": "blocks.0.0.bn2",
+      "weight_shape": [
+        16,
+        16,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        16
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.1.0.conv_pw",
+      "bn": "blocks.1.0.bn1",
+      "weight_shape": [
+        72,
+        16,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        72
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "ReLU"
+      }
+    },
+    {
+      "conv": "blocks.1.0.conv_dw",
+      "bn": "blocks.1.0.bn2",
+      "weight_shape": [
+        72,
+        1,
+        3,
+        3
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        72
+      ],
+      "groups": 72,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "ReLU"
+      }
+    },
+    {
+      "conv": "blocks.1.0.conv_pwl",
+      "bn": "blocks.1.0.bn3",
+      "weight_shape": [
+        24,
+        72,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        24
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.1.1.conv_pw",
+      "bn": "blocks.1.1.bn1",
+      "weight_shape": [
+        88,
+        24,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        88
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "ReLU"
+      }
+    },
+    {
+      "conv": "blocks.1.1.conv_dw",
+      "bn": "blocks.1.1.bn2",
+      "weight_shape": [
+        88,
+        1,
+        3,
+        3
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        88
+      ],
+      "groups": 88,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "ReLU"
+      }
+    },
+    {
+      "conv": "blocks.1.1.conv_pwl",
+      "bn": "blocks.1.1.bn3",
+      "weight_shape": [
+        24,
+        88,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        24
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.2.0.conv_pw",
+      "bn": "blocks.2.0.bn1",
+      "weight_shape": [
+        96,
+        24,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        96
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.2.0.conv_dw",
+      "bn": "blocks.2.0.bn2",
+      "weight_shape": [
+        96,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        96
+      ],
+      "groups": 96,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.2.0.conv_pwl",
+      "bn": "blocks.2.0.bn3",
+      "weight_shape": [
+        40,
+        96,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        40
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.2.1.conv_pw",
+      "bn": "blocks.2.1.bn1",
+      "weight_shape": [
+        240,
+        40,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        240
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.2.1.conv_dw",
+      "bn": "blocks.2.1.bn2",
+      "weight_shape": [
+        240,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        240
+      ],
+      "groups": 240,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.2.1.conv_pwl",
+      "bn": "blocks.2.1.bn3",
+      "weight_shape": [
+        40,
+        240,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        40
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.2.2.conv_pw",
+      "bn": "blocks.2.2.bn1",
+      "weight_shape": [
+        240,
+        40,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        240
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.2.2.conv_dw",
+      "bn": "blocks.2.2.bn2",
+      "weight_shape": [
+        240,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        240
+      ],
+      "groups": 240,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.2.2.conv_pwl",
+      "bn": "blocks.2.2.bn3",
+      "weight_shape": [
+        40,
+        240,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        40
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.3.0.conv_pw",
+      "bn": "blocks.3.0.bn1",
+      "weight_shape": [
+        120,
+        40,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        120
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.3.0.conv_dw",
+      "bn": "blocks.3.0.bn2",
+      "weight_shape": [
+        120,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        120
+      ],
+      "groups": 120,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.3.0.conv_pwl",
+      "bn": "blocks.3.0.bn3",
+      "weight_shape": [
+        48,
+        120,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        48
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.3.1.conv_pw",
+      "bn": "blocks.3.1.bn1",
+      "weight_shape": [
+        144,
+        48,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        144
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.3.1.conv_dw",
+      "bn": "blocks.3.1.bn2",
+      "weight_shape": [
+        144,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        144
+      ],
+      "groups": 144,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.3.1.conv_pwl",
+      "bn": "blocks.3.1.bn3",
+      "weight_shape": [
+        48,
+        144,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        48
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.4.0.conv_pw",
+      "bn": "blocks.4.0.bn1",
+      "weight_shape": [
+        288,
+        48,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        288
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.4.0.conv_dw",
+      "bn": "blocks.4.0.bn2",
+      "weight_shape": [
+        288,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        288
+      ],
+      "groups": 288,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.4.0.conv_pwl",
+      "bn": "blocks.4.0.bn3",
+      "weight_shape": [
+        96,
+        288,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        96
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.4.1.conv_pw",
+      "bn": "blocks.4.1.bn1",
+      "weight_shape": [
+        576,
+        96,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        576
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.4.1.conv_dw",
+      "bn": "blocks.4.1.bn2",
+      "weight_shape": [
+        576,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        576
+      ],
+      "groups": 576,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.4.1.conv_pwl",
+      "bn": "blocks.4.1.bn3",
+      "weight_shape": [
+        96,
+        576,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        96
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.4.2.conv_pw",
+      "bn": "blocks.4.2.bn1",
+      "weight_shape": [
+        576,
+        96,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        576
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.4.2.conv_dw",
+      "bn": "blocks.4.2.bn2",
+      "weight_shape": [
+        576,
+        1,
+        5,
+        5
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        576
+      ],
+      "groups": 576,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    },
+    {
+      "conv": "blocks.4.2.conv_pwl",
+      "bn": "blocks.4.2.bn3",
+      "weight_shape": [
+        96,
+        576,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        96
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Identity"
+      }
+    },
+    {
+      "conv": "blocks.5.0.conv",
+      "bn": "blocks.5.0.bn1",
+      "weight_shape": [
+        576,
+        96,
+        1,
+        1
+      ],
+      "original_bias": false,
+      "fused_bias_shape": [
+        576
+      ],
+      "groups": 1,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "eps": 1e-05,
+      "affine": true,
+      "preserved_children": {
+        "drop": "Identity",
+        "act": "Hardswish"
+      }
+    }
+  ],
+  "comparison": {
+    "max_abs_error": 9.179115295410156e-06,
+    "mean_abs_error": 1.6866140413185349e-06,
+    "atol": 0.0001,
+    "rtol": 0.0001,
+    "allclose": true,
+    "top1_before": [
+      858
+    ],
+    "top1_after": [
+      858
+    ],
+    "top1_equal": true
+  },
+  "graph_check": {
+    "bn_modules_before": 34,
+    "bn_modules_after": 0,
+    "bn_graph_nodes_before": 34,
+    "bn_graph_nodes_after": 0,
+    "bn_runtime_calls_before": 34,
+    "bn_runtime_calls_after": 0,
+    "bn_nodes_before": [
+      "batch_norm",
+      "batch_norm_1",
+      "batch_norm_2",
+      "batch_norm_3",
+      "batch_norm_4",
+      "batch_norm_5",
+      "batch_norm_6",
+      "batch_norm_7",
+      "batch_norm_8",
+      "batch_norm_9",
+      "batch_norm_10",
+      "batch_norm_11",
+      "batch_norm_12",
+      "batch_norm_13",
+      "batch_norm_14",
+      "batch_norm_15",
+      "batch_norm_16",
+      "batch_norm_17",
+      "batch_norm_18",
+      "batch_norm_19",
+      "batch_norm_20",
+      "batch_norm_21",
+      "batch_norm_22",
+      "batch_norm_23",
+      "batch_norm_24",
+      "batch_norm_25",
+      "batch_norm_26",
+      "batch_norm_27",
+      "batch_norm_28",
+      "batch_norm_29",
+      "batch_norm_30",
+      "batch_norm_31",
+      "batch_norm_32",
+      "batch_norm_33"
+    ],
+    "bn_nodes_after": [],
+    "non_bn_operations_preserved": true,
+    "structure_pass": true
+  },
+  "aten_before": {
+    "aten.add.Tensor": 6,
+    "aten.addmm.default": 1,
+    "aten.convolution.default": 53,
+    "aten.empty.memory_format": 34,
+    "aten.hardsigmoid.default": 9,
+    "aten.hardswish_.default": 19,
+    "aten.mean.dim": 10,
+    "aten.mul.Tensor": 9,
+    "aten.native_batch_norm.default": 34,
+    "aten.relu_.default": 14,
+    "aten.t.default": 1,
+    "aten.view.default": 1
+  },
+  "aten_after": {
+    "aten.add.Tensor": 6,
+    "aten.addmm.default": 1,
+    "aten.convolution.default": 53,
+    "aten.hardsigmoid.default": 9,
+    "aten.hardswish_.default": 19,
+    "aten.mean.dim": 10,
+    "aten.mul.Tensor": 9,
+    "aten.relu_.default": 14,
+    "aten.t.default": 1,
+    "aten.view.default": 1
+  },
+  "fpga_result": "NOT EXECUTED",
+  "compiler_artifacts": "NOT APPLICABLE: offline weight transform",
+  "graph_sha256": {
+    "before.fx.txt": "d12bdce43c69b544948c91534ad96541631f02681f5ef7d06c1943d61a820626",
+    "after.fx.txt": "e11fa9e155654cd81e4bf97a56d90de9ff8ca0883e16deee209f4c2ee8dd6d2d"
+  },
+  "status": "COMPLETE",
+  "artifacts": {
+    "config.json": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/model/build/bn-fusion/config.json",
+      "sha256": "a1f32331b1bf2ced49274e9b590fec6edacc690a736acc616790b4b450177626"
+    },
+    "model.safetensors": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/model/build/bn-fusion/model.safetensors",
+      "sha256": "6f6b6784ecbe06c340ab3049a85eec0506ed8c9e2abe9e503c98c7af2bf576cf"
+    },
+    "validation_tensors.safetensors": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/model/build/bn-fusion/validation_tensors.safetensors",
+      "sha256": "3f2dcf8fca5d1dc2e0104c20e20754eb5f5500b66af3c1b4c9873b0b058bd93e"
+    }
+  },
+  "saved_checkpoint_reload_bitwise_equal": true
+}

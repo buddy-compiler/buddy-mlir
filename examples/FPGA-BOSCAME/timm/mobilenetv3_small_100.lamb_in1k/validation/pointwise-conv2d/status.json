@@ -1,0 +1,911 @@
+{
+  "generated_at_utc": "2026-09-28T05:41:26.726345+00:00",
+  "status": "COMPLETE",
+  "scope": "Local pointwise_conv2d implementation, all 32 Host checks, NR vector-LLVM Host checks and NR ELF/BIN builds",
+  "fpga": "NOT EXECUTED",
+  "fpga_reason": "User previously requested stopping board operations and retaining local artifacts; no SSH/scp/FPGA command executed in this task.",
+  "kernel": "pointwise_conv2d",
+  "count": 32,
+  "host": {
+    "status": "PASS",
+    "count": 32,
+    "c_trials_per_case": 9,
+    "c_max_abs_error": 5.4463744163513184e-05,
+    "c_max_error_over_bound": 0.13012039423455554,
+    "pytorch_trials_per_case": 12,
+    "pytorch_samples": 8257248,
+    "pytorch_max_abs_error": 0.004673501447541639,
+    "pytorch_max_error_over_bound": 0.2572099373941646,
+    "per_program_store_checks": 180
+  },
+  "nr_vector_host": {
+    "status": "PASS",
+    "count": 32,
+    "c_max_abs_error": 5.4463744163513184e-05,
+    "c_max_error_over_bound": 0.13012039423455554,
+    "per_program_store_checks": 180
+  },
+  "nr_build": {
+    "status": "PASS",
+    "count": 32,
+    "isa_audits": "PASS"
+  },
+  "prior_host_regression": {
+    "status": "PASS",
+    "count": 55,
+    "prior_kernels_inventories_adapters_generated_files": "UNCHANGED"
+  },
+  "model_coverage": {
+    "status": "PASS",
+    "pointwise_operations": 41,
+    "unique_cases": 32
+  },
+  "artifact_source_hash_checks": 3623,
+  "scratch": {
+    "allocation_shapes": [
+      "16x16xf32",
+      "16x32xf32",
+      "16xf32",
+      "1x16xf32",
+      "1x32xf32",
+      "32x16xf32"
+    ],
+    "maximum_single_fp32_buffer_elements": 512,
+    "full_im2col": false
+  },
+  "preserved_tracked_paths": [
+    "examples/FPGA-BOSCAME/qwen3-0.6b",
+    "examples/FPGA-BOSCAME/common",
+    "examples/FPGA-BOSCAME/fpga_run.sh",
+    "examples/FPGA-BOSCAME/tools"
+  ],
+  "modified_existing_implementation_files": [
+    "common.mk",
+    "triton/build.py",
+    "triton/cases.py",
+    "triton/export.py",
+    "triton/kernels.py"
+  ],
+  "report_sha256": {
+    "host.json": "70ade68c23437e7c9ea7a404be8448497b2395acfd86a9bbb001cf7a3a575ccd",
+    "inventory.json": "2cc791c825e397f31bb69a86b2b30801f0bea47d7fce0a229f477ecf5aa1e005",
+    "model-coverage.json": "3825df1e1b1d9a5891f6df8b2def4283cd467fd3afcb08b40065874770958456",
+    "nr.json": "e06dfe95d7d524f1116408ddc9ab01f04b94d0ff7a41da9bac3caeb2048489be",
+    "regression.json": "7d60830ca35f96dd84eba10c123d2381e064e3b84a04a1d46620580593bcd24c",
+    "toolchain.json": "07cd3097e461417e7d8a227c6d0e2763257b26adefd04f4c49307a1d21cb0ce3"
+  },
+  "cases": [
+    {
+      "case": "pwconv_cin16_cout8_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 8,
+        "K": 16
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout8_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout8_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout8_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout8_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout8_h1_w1/nr/pwconv_cin16_cout8_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout8_h1_w1/nr/pwconv_cin16_cout8_h1_w1.bin"
+      },
+      "elf_sha256": "90fdbf566014fae4942e1c2776d59034278dfdd16f3ba59180c8abf2df265611",
+      "bin_sha256": "3ac2c6a38c7a5d5f48f5fb66d8a2112438bde924e1e79ad255a47c91713bda13",
+      "elf_bytes": 31656,
+      "bin_bytes": 76496,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout8_h1_w1/nr/pwconv_cin16_cout8_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin8_cout16_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 16,
+        "K": 8
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin8_cout16_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin8_cout16_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin8_cout16_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin8_cout16_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin8_cout16_h1_w1/nr/pwconv_cin8_cout16_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin8_cout16_h1_w1/nr/pwconv_cin8_cout16_h1_w1.bin"
+      },
+      "elf_sha256": "e5fcd7d4acd4d1287c1c3aabd85ba0f30587d29e68ce2701788a950f051b1a93",
+      "bin_sha256": "63fbcb13714a871bbdc31d3fa58326a50dd092b55a2bd3a097ebbac82c383811",
+      "elf_bytes": 35760,
+      "bin_bytes": 78503,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin8_cout16_h1_w1/nr/pwconv_cin8_cout16_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin16_cout16_h56_w56",
+      "mnk": {
+        "M": 3136,
+        "N": 16,
+        "K": 16
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout16_h56_w56/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout16_h56_w56/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout16_h56_w56/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout16_h56_w56/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout16_h56_w56/nr/pwconv_cin16_cout16_h56_w56.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout16_h56_w56/nr/pwconv_cin16_cout16_h56_w56.bin"
+      },
+      "elf_sha256": "878f6129602cdb4aa5a583edf28cfb640fc153381c977567f9d57dc0c26b5e11",
+      "bin_sha256": "c21e28cd07fa295bd8beb5243b62e3631d6a76e90c7d86c730fb0ebd440d1d7d",
+      "elf_bytes": 31272,
+      "bin_bytes": 76762,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout16_h56_w56/nr/pwconv_cin16_cout16_h56_w56.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin16_cout72_h56_w56",
+      "mnk": {
+        "M": 3136,
+        "N": 72,
+        "K": 16
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout72_h56_w56/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout72_h56_w56/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout72_h56_w56/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout72_h56_w56/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout72_h56_w56/nr/pwconv_cin16_cout72_h56_w56.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout72_h56_w56/nr/pwconv_cin16_cout72_h56_w56.bin"
+      },
+      "elf_sha256": "bbb60f8a37a4afe4221bcdfdc6d95de2968f0663ba4000c2531832b83f583c48",
+      "bin_sha256": "8dde49eeeaebc74bfd957ce6162140b1cadba9b266cf432ab57330ae436b5ad7",
+      "elf_bytes": 31392,
+      "bin_bytes": 77058,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin16_cout72_h56_w56/nr/pwconv_cin16_cout72_h56_w56.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin72_cout24_h28_w28",
+      "mnk": {
+        "M": 784,
+        "N": 24,
+        "K": 72
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout24_h28_w28/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout24_h28_w28/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout24_h28_w28/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout24_h28_w28/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout24_h28_w28/nr/pwconv_cin72_cout24_h28_w28.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout24_h28_w28/nr/pwconv_cin72_cout24_h28_w28.bin"
+      },
+      "elf_sha256": "71c3387be78845565f0d4fc1540fec1eb16b1eab5ec8a11129ce8b2c3303de91",
+      "bin_sha256": "e627c9da1cf7a6950df0266c09b539ef094f54708cb0d53d2148150d4e5e366f",
+      "elf_bytes": 32176,
+      "bin_bytes": 77354,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout24_h28_w28/nr/pwconv_cin72_cout24_h28_w28.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin24_cout88_h28_w28",
+      "mnk": {
+        "M": 784,
+        "N": 88,
+        "K": 24
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout88_h28_w28/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout88_h28_w28/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout88_h28_w28/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout88_h28_w28/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout88_h28_w28/nr/pwconv_cin24_cout88_h28_w28.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout88_h28_w28/nr/pwconv_cin24_cout88_h28_w28.bin"
+      },
+      "elf_sha256": "6c55c36c80509cd31f4282060efa5dff26efcd37db371a57657a8d9719deb9b6",
+      "bin_sha256": "edafc7aa856ebd63547509b46e12ef45bd15a32223928de79756e1d7ef34c80a",
+      "elf_bytes": 31416,
+      "bin_bytes": 77202,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout88_h28_w28/nr/pwconv_cin24_cout88_h28_w28.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin88_cout24_h28_w28",
+      "mnk": {
+        "M": 784,
+        "N": 24,
+        "K": 88
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin88_cout24_h28_w28/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin88_cout24_h28_w28/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin88_cout24_h28_w28/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin88_cout24_h28_w28/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin88_cout24_h28_w28/nr/pwconv_cin88_cout24_h28_w28.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin88_cout24_h28_w28/nr/pwconv_cin88_cout24_h28_w28.bin"
+      },
+      "elf_sha256": "496fcc0292462d49cae3732daef03d69705c328a9c86eebd73d1857583aa1794",
+      "bin_sha256": "8d2569d22e5de1872ec06683cb3350c72f0f2d95d19adb290c1f7f03b26f6d8b",
+      "elf_bytes": 32176,
+      "bin_bytes": 77338,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin88_cout24_h28_w28/nr/pwconv_cin88_cout24_h28_w28.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin24_cout96_h28_w28",
+      "mnk": {
+        "M": 784,
+        "N": 96,
+        "K": 24
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h28_w28/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h28_w28/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h28_w28/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h28_w28/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h28_w28/nr/pwconv_cin24_cout96_h28_w28.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h28_w28/nr/pwconv_cin24_cout96_h28_w28.bin"
+      },
+      "elf_sha256": "24988c88e084370abb4c7ce722a7681312780a884d7d3aee257e26e22ea2e8b3",
+      "bin_sha256": "7728835cdcbb1f6841afc5148ceb85b9d15a16e1e0cfe48671fd3a021e425d55",
+      "elf_bytes": 31416,
+      "bin_bytes": 77194,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h28_w28/nr/pwconv_cin24_cout96_h28_w28.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin96_cout24_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 24,
+        "K": 96
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout24_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout24_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout24_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout24_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout24_h1_w1/nr/pwconv_cin96_cout24_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout24_h1_w1/nr/pwconv_cin96_cout24_h1_w1.bin"
+      },
+      "elf_sha256": "130d69a89f4f6544f40f105efe5389374e6e2e80db2f15616e74325646e3ac35",
+      "bin_sha256": "2f7d98a23e643f7f39f81979b23c159362fc93815e9c5963ada8b28b19247949",
+      "elf_bytes": 32392,
+      "bin_bytes": 77064,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout24_h1_w1/nr/pwconv_cin96_cout24_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin24_cout96_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 96,
+        "K": 24
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h1_w1/nr/pwconv_cin24_cout96_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h1_w1/nr/pwconv_cin24_cout96_h1_w1.bin"
+      },
+      "elf_sha256": "a15eaf2d86749919b37dade09161bc42f9052c66d91020dbba3af716f27a9f7a",
+      "bin_sha256": "3b8b7a8634f43053c76bb4467ee519c668977b9495f4e6a49f90c975ecf551c2",
+      "elf_bytes": 31624,
+      "bin_bytes": 76848,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin24_cout96_h1_w1/nr/pwconv_cin24_cout96_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin96_cout40_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 40,
+        "K": 96
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout40_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout40_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout40_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout40_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout40_h14_w14/nr/pwconv_cin96_cout40_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout40_h14_w14/nr/pwconv_cin96_cout40_h14_w14.bin"
+      },
+      "elf_sha256": "c7254fbf8db417625df711b96133f03c878415711d8410143dc80aa151e736d8",
+      "bin_sha256": "cd08beeb879e484db17d3f07ab5d11a70618ee61e8e579db1deb772805f2ffed",
+      "elf_bytes": 32112,
+      "bin_bytes": 77594,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout40_h14_w14/nr/pwconv_cin96_cout40_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin40_cout240_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 240,
+        "K": 40
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout240_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout240_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout240_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout240_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout240_h14_w14/nr/pwconv_cin40_cout240_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout240_h14_w14/nr/pwconv_cin40_cout240_h14_w14.bin"
+      },
+      "elf_sha256": "67a2475173ffa0c37d7071a59bd1044dc66d91b13d80b56903df516f0ff8cb8f",
+      "bin_sha256": "8eef0d77251deca6b37871db7f8ce05fa997361926cc46c68b0e1663203879c3",
+      "elf_bytes": 32080,
+      "bin_bytes": 77507,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout240_h14_w14/nr/pwconv_cin40_cout240_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin240_cout64_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 64,
+        "K": 240
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout64_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout64_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout64_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout64_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout64_h1_w1/nr/pwconv_cin240_cout64_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout64_h1_w1/nr/pwconv_cin240_cout64_h1_w1.bin"
+      },
+      "elf_sha256": "c5c0ee6e3e6086db2d66edf52a5e05493526ddcd5283db5748d99459b99acd91",
+      "bin_sha256": "faf859db000548ff808ee23364b190391326d34ea39fc09c3be45b68eae4025a",
+      "elf_bytes": 32392,
+      "bin_bytes": 77076,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout64_h1_w1/nr/pwconv_cin240_cout64_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin64_cout240_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 240,
+        "K": 64
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin64_cout240_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin64_cout240_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin64_cout240_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin64_cout240_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin64_cout240_h1_w1/nr/pwconv_cin64_cout240_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin64_cout240_h1_w1/nr/pwconv_cin64_cout240_h1_w1.bin"
+      },
+      "elf_sha256": "22a5eb87844f59173efaed30dcda09d57c629d79e9320ba2df0ffd6c3c1fb8f4",
+      "bin_sha256": "9877a9af0baffa4b19ac773a88550f2c59a386b93e9c8373aa92203c1427c1d7",
+      "elf_bytes": 32424,
+      "bin_bytes": 76884,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin64_cout240_h1_w1/nr/pwconv_cin64_cout240_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin240_cout40_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 40,
+        "K": 240
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout40_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout40_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout40_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout40_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout40_h14_w14/nr/pwconv_cin240_cout40_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout40_h14_w14/nr/pwconv_cin240_cout40_h14_w14.bin"
+      },
+      "elf_sha256": "3df646255eaee6776cd0fdb56fef8129adc72dba8acb9c297109bfebdfc02ac5",
+      "bin_sha256": "43a7fc50af8ef999f8e3237b7ab747c9deb46f41db8a4f0830d051b0c7b45c15",
+      "elf_bytes": 32112,
+      "bin_bytes": 77595,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin240_cout40_h14_w14/nr/pwconv_cin240_cout40_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin40_cout120_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 120,
+        "K": 40
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout120_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout120_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout120_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout120_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout120_h14_w14/nr/pwconv_cin40_cout120_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout120_h14_w14/nr/pwconv_cin40_cout120_h14_w14.bin"
+      },
+      "elf_sha256": "0bd961f8e520286d31ce80d753a8a3b84caaa329a25828edad6276a4980bf2fb",
+      "bin_sha256": "ea49a9299f8b8cb30ea0d6d61de81e7712a3b18d50daf639d1d8d6749c157b1e",
+      "elf_bytes": 32080,
+      "bin_bytes": 77507,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout120_h14_w14/nr/pwconv_cin40_cout120_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin120_cout32_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 32,
+        "K": 120
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout32_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout32_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout32_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout32_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout32_h1_w1/nr/pwconv_cin120_cout32_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout32_h1_w1/nr/pwconv_cin120_cout32_h1_w1.bin"
+      },
+      "elf_sha256": "16f2c4ee7ad8f96d51aec4d241c0669ec097bb45d4d64457d2592311915ac9a9",
+      "bin_sha256": "c88e21abd84395f7a86233f38f49e1dc03ec9eb9514d552edcd48ddbf92827fc",
+      "elf_bytes": 32392,
+      "bin_bytes": 77108,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout32_h1_w1/nr/pwconv_cin120_cout32_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin32_cout120_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 120,
+        "K": 32
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin32_cout120_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin32_cout120_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin32_cout120_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin32_cout120_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin32_cout120_h1_w1/nr/pwconv_cin32_cout120_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin32_cout120_h1_w1/nr/pwconv_cin32_cout120_h1_w1.bin"
+      },
+      "elf_sha256": "582781aa5b26d9f892fabca3daa48f613732cf7f85010e98d75f329b0f91142f",
+      "bin_sha256": "30b65cd40d3346e784434443c2cc14adad84b34b27bd34f7acb0bffef9460095",
+      "elf_bytes": 31656,
+      "bin_bytes": 76828,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin32_cout120_h1_w1/nr/pwconv_cin32_cout120_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin120_cout48_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 48,
+        "K": 120
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout48_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout48_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout48_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout48_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout48_h14_w14/nr/pwconv_cin120_cout48_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout48_h14_w14/nr/pwconv_cin120_cout48_h14_w14.bin"
+      },
+      "elf_sha256": "abc64a8cdd1a1b7036ef4879e2ffc48adf3f09ef8a3bca463728098eea6460a7",
+      "bin_sha256": "8bb893e9297ae3e9580bf8f94f25ae1fd6e22cf2d397b59046b0db27adb12e53",
+      "elf_bytes": 32112,
+      "bin_bytes": 77595,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin120_cout48_h14_w14/nr/pwconv_cin120_cout48_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin48_cout144_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 144,
+        "K": 48
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout144_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout144_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout144_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout144_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout144_h14_w14/nr/pwconv_cin48_cout144_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout144_h14_w14/nr/pwconv_cin48_cout144_h14_w14.bin"
+      },
+      "elf_sha256": "39e3f804caf59d99e3b20967e6073499444850c7b49926109b40bd73bb0b9c29",
+      "bin_sha256": "a5720e30c831baeb00da8a6f9f320caa80b4596a7fad5b836ba1ec86e5f10ebd",
+      "elf_bytes": 32080,
+      "bin_bytes": 77507,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout144_h14_w14/nr/pwconv_cin48_cout144_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin144_cout40_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 40,
+        "K": 144
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout40_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout40_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout40_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout40_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout40_h1_w1/nr/pwconv_cin144_cout40_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout40_h1_w1/nr/pwconv_cin144_cout40_h1_w1.bin"
+      },
+      "elf_sha256": "f772ab3b0de1cdc6ee9c1a823eddb83e2512fc89aad3701a0356eb2aa1131927",
+      "bin_sha256": "ddb64a49855f80a1c19fca9f4b8d0c5637ee860d3c297c5e4504f4620a018341",
+      "elf_bytes": 32432,
+      "bin_bytes": 77204,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout40_h1_w1/nr/pwconv_cin144_cout40_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin40_cout144_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 144,
+        "K": 40
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout144_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout144_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout144_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout144_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout144_h1_w1/nr/pwconv_cin40_cout144_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout144_h1_w1/nr/pwconv_cin40_cout144_h1_w1.bin"
+      },
+      "elf_sha256": "c3acae0cf2c9ef60dcf9831c404c50f87e5bc01fcb00c44901585311bc7ecd0b",
+      "bin_sha256": "bee8744eec09baf17a4becf535719f223a3cb8ab6fb9cdfe01d2eb5486eb5f32",
+      "elf_bytes": 32392,
+      "bin_bytes": 77252,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin40_cout144_h1_w1/nr/pwconv_cin40_cout144_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin144_cout48_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 48,
+        "K": 144
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout48_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout48_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout48_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout48_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout48_h14_w14/nr/pwconv_cin144_cout48_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout48_h14_w14/nr/pwconv_cin144_cout48_h14_w14.bin"
+      },
+      "elf_sha256": "b78754a309efcb5f3920dd2681c012dae7d6db0337d9b53723480fe7153d9db6",
+      "bin_sha256": "13fca946db70aa401815ef5b9da45460c591c25645693de14461af7a718275e3",
+      "elf_bytes": 32152,
+      "bin_bytes": 77595,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout48_h14_w14/nr/pwconv_cin144_cout48_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin48_cout288_h14_w14",
+      "mnk": {
+        "M": 196,
+        "N": 288,
+        "K": 48
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout288_h14_w14/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout288_h14_w14/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout288_h14_w14/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout288_h14_w14/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout288_h14_w14/nr/pwconv_cin48_cout288_h14_w14.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout288_h14_w14/nr/pwconv_cin48_cout288_h14_w14.bin"
+      },
+      "elf_sha256": "83973e4b312f4f049851a184f72842ca4941a8b66714b65ac2d211e6e6ad9e6b",
+      "bin_sha256": "0788e8bb5eb0ff7cac00214998b5d851ef9f7c04c02a8016a7145fb79fdca904",
+      "elf_bytes": 32080,
+      "bin_bytes": 77507,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin48_cout288_h14_w14/nr/pwconv_cin48_cout288_h14_w14.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin288_cout72_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 72,
+        "K": 288
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout72_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout72_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout72_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout72_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout72_h1_w1/nr/pwconv_cin288_cout72_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout72_h1_w1/nr/pwconv_cin288_cout72_h1_w1.bin"
+      },
+      "elf_sha256": "4801361cdca37a9adb92466802c263772bd82068e3df71384d2052b65327fedc",
+      "bin_sha256": "2255296bba1b7dfe7ca0322c9efebec590ae4ebeb5d6811a3fee9b2161e889bb",
+      "elf_bytes": 32432,
+      "bin_bytes": 77116,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout72_h1_w1/nr/pwconv_cin288_cout72_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin72_cout288_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 288,
+        "K": 72
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout288_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout288_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout288_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout288_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout288_h1_w1/nr/pwconv_cin72_cout288_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout288_h1_w1/nr/pwconv_cin72_cout288_h1_w1.bin"
+      },
+      "elf_sha256": "a00687cbcb337d3d7c039baf2b1e9f9eab3832b1429c81fd614fcd0a05c031ad",
+      "bin_sha256": "6c9c8e483cbb1be6cec4a27c68026debf41ccb3f88e21447da300f3e67406b34",
+      "elf_bytes": 32456,
+      "bin_bytes": 76980,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin72_cout288_h1_w1/nr/pwconv_cin72_cout288_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin288_cout96_h7_w7",
+      "mnk": {
+        "M": 49,
+        "N": 96,
+        "K": 288
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout96_h7_w7/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout96_h7_w7/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout96_h7_w7/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout96_h7_w7/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout96_h7_w7/nr/pwconv_cin288_cout96_h7_w7.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout96_h7_w7/nr/pwconv_cin288_cout96_h7_w7.bin"
+      },
+      "elf_sha256": "4609202e5e8afb7c34f36179a5652cb325663bb51be9599a1824fa4add757680",
+      "bin_sha256": "eeed07225eed813a399017ecb188184eb990c9d30e2f9b6d3a2e7198a7eb367d",
+      "elf_bytes": 32056,
+      "bin_bytes": 77609,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin288_cout96_h7_w7/nr/pwconv_cin288_cout96_h7_w7.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin96_cout576_h7_w7",
+      "mnk": {
+        "M": 49,
+        "N": 576,
+        "K": 96
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout576_h7_w7/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout576_h7_w7/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout576_h7_w7/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout576_h7_w7/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout576_h7_w7/nr/pwconv_cin96_cout576_h7_w7.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout576_h7_w7/nr/pwconv_cin96_cout576_h7_w7.bin"
+      },
+      "elf_sha256": "262511bb38fe55713ff036fe5dac947e686ff07dad1a9e9ab2a8469421cb70ab",
+      "bin_sha256": "9db0c6e1b0260377675b49f58637e5f8b079223f2b67539e54476d5b922ce500",
+      "elf_bytes": 32024,
+      "bin_bytes": 77617,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin96_cout576_h7_w7/nr/pwconv_cin96_cout576_h7_w7.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin576_cout144_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 144,
+        "K": 576
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout144_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout144_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout144_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout144_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout144_h1_w1/nr/pwconv_cin576_cout144_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout144_h1_w1/nr/pwconv_cin576_cout144_h1_w1.bin"
+      },
+      "elf_sha256": "f2e1000c6ec86f6c5104af35728f66f4b6921f4e46a9b7a2ceee7b145151f769",
+      "bin_sha256": "0a7c7fa37c39434c3575fbac4d9aba202cc1705aff7d3b3a1046594f650cde89",
+      "elf_bytes": 32432,
+      "bin_bytes": 77276,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout144_h1_w1/nr/pwconv_cin576_cout144_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin144_cout576_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 576,
+        "K": 144
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout576_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout576_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout576_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout576_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout576_h1_w1/nr/pwconv_cin144_cout576_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout576_h1_w1/nr/pwconv_cin144_cout576_h1_w1.bin"
+      },
+      "elf_sha256": "63daa082d7240cc058dcc36badf55fbc91e8ac19c541e4402a9fc7ca33f9c958",
+      "bin_sha256": "ed1487b46266001f1385275683d0ac8f284d16dfa4bdcc0e03ad63192e7912a5",
+      "elf_bytes": 32464,
+      "bin_bytes": 76996,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin144_cout576_h1_w1/nr/pwconv_cin144_cout576_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin576_cout96_h7_w7",
+      "mnk": {
+        "M": 49,
+        "N": 96,
+        "K": 576
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout96_h7_w7/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout96_h7_w7/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout96_h7_w7/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout96_h7_w7/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout96_h7_w7/nr/pwconv_cin576_cout96_h7_w7.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout96_h7_w7/nr/pwconv_cin576_cout96_h7_w7.bin"
+      },
+      "elf_sha256": "d13b494b13934ca8b4ae2e685a4437aa34e88900c54544a9915f8a6e7c6c88b2",
+      "bin_sha256": "8721a28a17c0bb28183cc9a93fba9a22b49386dadfa681d3bff3b84d90cf3b3f",
+      "elf_bytes": 32056,
+      "bin_bytes": 77617,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout96_h7_w7/nr/pwconv_cin576_cout96_h7_w7.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    },
+    {
+      "case": "pwconv_cin576_cout1024_h1_w1",
+      "mnk": {
+        "M": 1,
+        "N": 1024,
+        "K": 576
+      },
+      "host": "PASS",
+      "nr_vector_host": "PASS",
+      "nr_build": "PASS",
+      "isa_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "artifacts": {
+        "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout1024_h1_w1/kernel.ttir",
+        "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout1024_h1_w1/kernel.linalg.mlir",
+        "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout1024_h1_w1/nr/vectorized.mlir",
+        "nr_llvm_ir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout1024_h1_w1/nr/kernel.ll",
+        "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout1024_h1_w1/nr/pwconv_cin576_cout1024_h1_w1.elf",
+        "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout1024_h1_w1/nr/pwconv_cin576_cout1024_h1_w1.bin"
+      },
+      "elf_sha256": "3779082b82d414c58c0504d48d44fcd893b95b251c1a51f56b3ec7cb6b7c7ea0",
+      "bin_sha256": "a1b169ccc704e7818fdb50ea9f3817756c9e5bc61f0d3f2eb53cb89f543d4070",
+      "elf_bytes": 32464,
+      "bin_bytes": 77004,
+      "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/pwconv_cin576_cout1024_h1_w1/nr/pwconv_cin576_cout1024_h1_w1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'"
+    }
+  ]
+}

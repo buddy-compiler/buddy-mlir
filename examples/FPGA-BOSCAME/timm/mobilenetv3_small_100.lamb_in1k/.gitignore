@@ -1,0 +1,12 @@
+/build/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+# Local connection troubleshooting; portable FPGA evidence is kept separately.
+/validation/**/*.log
+!/validation/fpga-20261006/uart/*.log
+/validation/conv-stem/*.fpga[0-7]*.json
+/validation/conv-stem/fpga-ports.json
+/validation/conv-stem/platform-check-*
+/validation/conv-stem/manual-*/

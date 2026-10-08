@@ -1,0 +1,256 @@
+{
+  "status": "COMPLETE",
+  "scope": "ReLU implementation, all host checks and NR binary builds",
+  "fpga": "NOT EXECUTED",
+  "reason": "Board validation explicitly deferred by user",
+  "case_count": 11,
+  "results": [
+    {
+      "case": "relu_count50176",
+      "shape": [
+        1,
+        16,
+        56,
+        56
+      ],
+      "count": 50176,
+      "grid": [
+        392,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count50176/nr/relu_count50176.elf",
+      "bin": "triton/build/relu_count50176/nr/relu_count50176.bin"
+    },
+    {
+      "case": "relu_count8",
+      "shape": [
+        1,
+        8,
+        1,
+        1
+      ],
+      "count": 8,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count8/nr/relu_count8.elf",
+      "bin": "triton/build/relu_count8/nr/relu_count8.bin"
+    },
+    {
+      "case": "relu_count225792",
+      "shape": [
+        1,
+        72,
+        56,
+        56
+      ],
+      "count": 225792,
+      "grid": [
+        1764,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count225792/nr/relu_count225792.elf",
+      "bin": "triton/build/relu_count225792/nr/relu_count225792.bin"
+    },
+    {
+      "case": "relu_count56448",
+      "shape": [
+        1,
+        72,
+        28,
+        28
+      ],
+      "count": 56448,
+      "grid": [
+        441,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count56448/nr/relu_count56448.elf",
+      "bin": "triton/build/relu_count56448/nr/relu_count56448.bin"
+    },
+    {
+      "case": "relu_count68992",
+      "shape": [
+        1,
+        88,
+        28,
+        28
+      ],
+      "count": 68992,
+      "grid": [
+        539,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count68992/nr/relu_count68992.elf",
+      "bin": "triton/build/relu_count68992/nr/relu_count68992.bin"
+    },
+    {
+      "case": "relu_count24",
+      "shape": [
+        1,
+        24,
+        1,
+        1
+      ],
+      "count": 24,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count24/nr/relu_count24.elf",
+      "bin": "triton/build/relu_count24/nr/relu_count24.bin"
+    },
+    {
+      "case": "relu_count64",
+      "shape": [
+        1,
+        64,
+        1,
+        1
+      ],
+      "count": 64,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count64/nr/relu_count64.elf",
+      "bin": "triton/build/relu_count64/nr/relu_count64.bin"
+    },
+    {
+      "case": "relu_count32",
+      "shape": [
+        1,
+        32,
+        1,
+        1
+      ],
+      "count": 32,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count32/nr/relu_count32.elf",
+      "bin": "triton/build/relu_count32/nr/relu_count32.bin"
+    },
+    {
+      "case": "relu_count40",
+      "shape": [
+        1,
+        40,
+        1,
+        1
+      ],
+      "count": 40,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count40/nr/relu_count40.elf",
+      "bin": "triton/build/relu_count40/nr/relu_count40.bin"
+    },
+    {
+      "case": "relu_count72",
+      "shape": [
+        1,
+        72,
+        1,
+        1
+      ],
+      "count": 72,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count72/nr/relu_count72.elf",
+      "bin": "triton/build/relu_count72/nr/relu_count72.bin"
+    },
+    {
+      "case": "relu_count144",
+      "shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "count": 144,
+      "grid": [
+        2,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0.0,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/relu_count144/nr/relu_count144.elf",
+      "bin": "triton/build/relu_count144/nr/relu_count144.bin"
+    }
+  ],
+  "evidence_sha256": {
+    "host.json": "a879a09c7deb1f1a0251887243c60b8a8b61fadbc65ba3981e9e5c7cbef4e723",
+    "nr.json": "9f6d7b2283ee4d4798b5a4aeec94a7c7f6b39c036ef3b92f82bcdc1503a94bb6",
+    "toolchain.json": "4521d889725d6f0848caca7d5110fe192ff04b7843bd61aa56f983afcd9f2323"
+  }
+}

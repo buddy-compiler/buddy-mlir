@@ -1,0 +1,335 @@
+{
+  "build": "PASS",
+  "count": 7,
+  "results": [
+    {
+      "case": "mean_hw_c16_h56_w56",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "d28c329be5b256ed3487460f9895c9a85eaeb05948c564b7f775403baf238731",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/mean_hw_c16_h56_w56/kernel.ttir": "bdc2841341d5a661ce0ce6d9e8cbc0a90b46ef9e5be3f13c0d545adec7182331",
+        "triton/build/mean_hw_c16_h56_w56/kernel.linalg.mlir": "774ae3021ba238a0dad85ced998f71e49642d1532883fae049fbcc92af7ec609",
+        "triton/build/mean_hw_c16_h56_w56/adapter.c": "dcd8a885dd875188d5b15da79eef1c9844b0599cac60dc0c2969acaed4aa2724",
+        "triton/build/mean_hw_c16_h56_w56/frontend.json": "7fcea1fe659e6c77899a89d50958fd2626c65b2310b34d82ec43f07395a07acc",
+        "triton/build/mean_hw_c16_h56_w56/nr/kernel.ll": "3cf8dea7c6bccf32c1ca496fa605d9c8b7264dfc8f808fee5bffee529be9bf67",
+        "triton/build/mean_hw_c16_h56_w56/nr/kernel.llvm.mlir": "6745707a8d9e66740562033ddab77f59b7383fba0ae861a780127af5f1b2c00b",
+        "triton/build/mean_hw_c16_h56_w56/nr/mean_hw_c16_h56_w56.bin": "3cc46d3a7517dec32c89fb501e18d2e50b664c2f20190d1059e232a83efae273"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c16_h56_w56/nr/mean_hw_c16_h56_w56.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c16_h56_w56/nr/mean_hw_c16_h56_w56.bin",
+      "elf_sha256": "6be4ff2e9765c27cb33e5dee990267616d321e927fe765d4e58a1118e01847ea",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "6be4ff2e9765c27cb33e5dee990267616d321e927fe765d4e58a1118e01847ea",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4232
+          }
+        ],
+        "instructions": 1452,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "mean_hw_c96_h14_w14",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "32c57527ee9616314429acbb6738cdcb06489e5808f21a0fe5be6bd179a3006c",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/mean_hw_c96_h14_w14/kernel.ttir": "c352b35f4e453f5beb7db525ebaa6f7d8c23ea45a25f25d2f721ecfed2409149",
+        "triton/build/mean_hw_c96_h14_w14/kernel.linalg.mlir": "fe91799c9edbbb2c8f4d1f67b4a95d68de3bf2b11a444e2b140a4218f0285d4a",
+        "triton/build/mean_hw_c96_h14_w14/adapter.c": "6c10d5d1ba27c6744cea01e6e2fc8ae07c05eece69b66edb1f0198e326dbc096",
+        "triton/build/mean_hw_c96_h14_w14/frontend.json": "ec070dcbfec303d8668d39014b953622f22d00c47f79b72422d149b3bfae1cb1",
+        "triton/build/mean_hw_c96_h14_w14/nr/kernel.ll": "4e32fcad6270eaadf0f6bfa0023b990c8886eb9671e7a5e38d04c839f7b47526",
+        "triton/build/mean_hw_c96_h14_w14/nr/kernel.llvm.mlir": "02915ece10c80db83dde630b697c67efdd1bde2c0cc492f9ab21ac653d94d196",
+        "triton/build/mean_hw_c96_h14_w14/nr/mean_hw_c96_h14_w14.bin": "9ba10765deb94bcb0374fc7ab1c24de7b6a5e04aa12883583b875628f59ac1f6"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c96_h14_w14/nr/mean_hw_c96_h14_w14.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c96_h14_w14/nr/mean_hw_c96_h14_w14.bin",
+      "elf_sha256": "c9f73f123c606a13b889e9dd07915b198f78c26d495537f45362f4c1ada4e476",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "c9f73f123c606a13b889e9dd07915b198f78c26d495537f45362f4c1ada4e476",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4878
+          }
+        ],
+        "instructions": 1637,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "mean_hw_c240_h14_w14",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "0ce74fe43978f6c4b59f11b9653fa0c46fa4ea73bfe0435d7e026f89124bbaa2",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/mean_hw_c240_h14_w14/kernel.ttir": "6336a266e1173124d2ec016e74ba75006d35fd647323025566f5500ae0aa54b8",
+        "triton/build/mean_hw_c240_h14_w14/kernel.linalg.mlir": "0a9abb89ed602cd8b5b0d17f61ec4066149b3b67d5a5162a6d66858ff9153a56",
+        "triton/build/mean_hw_c240_h14_w14/adapter.c": "da83886673d2e669e3f5003945cccd8f0c368f21db48ea4e0f9aca7b1518c42f",
+        "triton/build/mean_hw_c240_h14_w14/frontend.json": "557374421568a9bf48abddea670a0fa5891970524aed4480c72c52b554c3d94e",
+        "triton/build/mean_hw_c240_h14_w14/nr/kernel.ll": "4442611340d763bfea6fb534dfc3b56fba4c05dc9402ace8cded403c383bcebb",
+        "triton/build/mean_hw_c240_h14_w14/nr/kernel.llvm.mlir": "3f473a636da126c99b9c248308592a33df99c05fac39cf6fce0481a5798a6b50",
+        "triton/build/mean_hw_c240_h14_w14/nr/mean_hw_c240_h14_w14.bin": "66b1b49c3e8fa9915d445b8432e82f53f2a74e00f7d2f55da57b8ec17810cc23"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c240_h14_w14/nr/mean_hw_c240_h14_w14.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c240_h14_w14/nr/mean_hw_c240_h14_w14.bin",
+      "elf_sha256": "c8802088954eb7225bcb2dc275cd335d6b74e57290ea6f7e4416e18e25e04f30",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "c8802088954eb7225bcb2dc275cd335d6b74e57290ea6f7e4416e18e25e04f30",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4894
+          }
+        ],
+        "instructions": 1644,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "mean_hw_c120_h14_w14",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "cf8272f00d46992fb49a31e47c66032c186772f3c5aff40520f9cdf9717d323b",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/mean_hw_c120_h14_w14/kernel.ttir": "130ab5bea1afef3e68ba84312ace1d75d2d3c6faff184a24a50c3312a26a6534",
+        "triton/build/mean_hw_c120_h14_w14/kernel.linalg.mlir": "61ff612bdcfba682d0f335338b78bd4cb18966ed98dd62d66cbc158aabfca178",
+        "triton/build/mean_hw_c120_h14_w14/adapter.c": "59c5ee0f080e1db59c6adc5328215f1a7be34052294edf17ea5186c65ee4aec5",
+        "triton/build/mean_hw_c120_h14_w14/frontend.json": "be9f73b55cc31a0258674528bf81c8e3b7b0d81da4cfa842b2f339ea514cb3b6",
+        "triton/build/mean_hw_c120_h14_w14/nr/kernel.ll": "d2e7824a5a44574e69f7dc50c53bbf607b1468f16d6ae21671bb332968bb4cca",
+        "triton/build/mean_hw_c120_h14_w14/nr/kernel.llvm.mlir": "b640665e35a776c0e380d7350da47d940c2c83302aef02078d8c791114d4221d",
+        "triton/build/mean_hw_c120_h14_w14/nr/mean_hw_c120_h14_w14.bin": "1d33906518d319b9a8ef6a48c4dbc8113558c9e21f333de736a35c48dd16b952"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c120_h14_w14/nr/mean_hw_c120_h14_w14.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c120_h14_w14/nr/mean_hw_c120_h14_w14.bin",
+      "elf_sha256": "e3e3043b0d08b9d78dd0d5bc7976162a8afac53685c2427b84e2d73596dacd38",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "e3e3043b0d08b9d78dd0d5bc7976162a8afac53685c2427b84e2d73596dacd38",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4878
+          }
+        ],
+        "instructions": 1637,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "mean_hw_c144_h14_w14",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "a2243be352ed78741db742a8143f4c2e20ab7c3785ea73d550047f249bc5243b",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/mean_hw_c144_h14_w14/kernel.ttir": "b441d681662cdf30a43c8cf7726eb7f4a5ac73763b45fa9f5ab5cbd97adf4d90",
+        "triton/build/mean_hw_c144_h14_w14/kernel.linalg.mlir": "f00dbf662113ff2548b0f94162a99148f79274934bd1700e0c8b5a4eef6e4a08",
+        "triton/build/mean_hw_c144_h14_w14/adapter.c": "148428d3ee576bfc0c79fe4a379fcc4af8669d897efb063add4a5052e9ee1e1e",
+        "triton/build/mean_hw_c144_h14_w14/frontend.json": "ade5455992e2138e613ba75cc78b963680864df356fb3506f8d8b2357acd7f5e",
+        "triton/build/mean_hw_c144_h14_w14/nr/kernel.ll": "7e15f83dac16c0cc7cf5a6b0bc39542ee9decb7d946cb04c8ff96a21ddce5449",
+        "triton/build/mean_hw_c144_h14_w14/nr/kernel.llvm.mlir": "3330fc6cc850f9beeb4a8c3cce50f0e5ed9ac72574adb5eb308623f6770aa25b",
+        "triton/build/mean_hw_c144_h14_w14/nr/mean_hw_c144_h14_w14.bin": "44cbaf413859eae82068e8c33bedc4c0d29e657071d7f9395f6976f06bf711f2"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c144_h14_w14/nr/mean_hw_c144_h14_w14.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c144_h14_w14/nr/mean_hw_c144_h14_w14.bin",
+      "elf_sha256": "96600f76c4b66aad283466dccbf3960432aca99b48b5bae365e5f431c81d576b",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "96600f76c4b66aad283466dccbf3960432aca99b48b5bae365e5f431c81d576b",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4894
+          }
+        ],
+        "instructions": 1644,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "mean_hw_c288_h7_w7",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "43baf8cdaa99a9b6f312d0c9df51881ff6608dc30209f60428cd5d0328d2ed28",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/mean_hw_c288_h7_w7/kernel.ttir": "eeb03b25f0fb839126ca4be2d577ab96cfda8b42edf6de47158ed0785f6b0486",
+        "triton/build/mean_hw_c288_h7_w7/kernel.linalg.mlir": "bbd08089d098604988b8481b7e05909241edea31f80861a743c0eb8bd01f0050",
+        "triton/build/mean_hw_c288_h7_w7/adapter.c": "68de78720a9ac202c22b65adb01225a2d0832cf588604d26a2e6ee919575f5b2",
+        "triton/build/mean_hw_c288_h7_w7/frontend.json": "2909af044e4b9dbb37140fa3efc9ac8067df73685d7cc6d08f7dfa4ab482a205",
+        "triton/build/mean_hw_c288_h7_w7/nr/kernel.ll": "7ba2b0c79ef387a3466d778781d6a5b9c47003dcd6d6e8d671ec85561e0171b2",
+        "triton/build/mean_hw_c288_h7_w7/nr/kernel.llvm.mlir": "3575cb8f3968325af6bf019013711e939a139ff9768721a03f936ca859b1814a",
+        "triton/build/mean_hw_c288_h7_w7/nr/mean_hw_c288_h7_w7.bin": "ef29a10fc210c04e5518f51258d0f7c24476e5c8fd30a402798c4151ae953c8f"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c288_h7_w7/nr/mean_hw_c288_h7_w7.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c288_h7_w7/nr/mean_hw_c288_h7_w7.bin",
+      "elf_sha256": "534d7b706b38a0cd04c1b8ee099abe5df37d62c0b9a6a0b24cf721e0dfb64d4c",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "534d7b706b38a0cd04c1b8ee099abe5df37d62c0b9a6a0b24cf721e0dfb64d4c",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4598
+          }
+        ],
+        "instructions": 1558,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "mean_hw_c576_h7_w7",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "7c53f33b82ffd4b030089ca4dd1db81881d67dac2bbab0694f6b80ca0c6b6bf6",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/mean_hw_c576_h7_w7/kernel.ttir": "a045216fdbb91c47767e7084675b92dede13a284c0396f5bec5ad6498f240891",
+        "triton/build/mean_hw_c576_h7_w7/kernel.linalg.mlir": "4b3b7855455faaf54032e90417afe2b77b1fb99b069cbcd2621bebe3f411a920",
+        "triton/build/mean_hw_c576_h7_w7/adapter.c": "a878bda507ef4681179c0be309a51cce54c715bc62b24e01308f1c748ae82c77",
+        "triton/build/mean_hw_c576_h7_w7/frontend.json": "057b5371113d60d76071272d4355c00d14f473e372cbf73043aa2d4b56d7e6f5",
+        "triton/build/mean_hw_c576_h7_w7/nr/kernel.ll": "ca10e6e6c268b0911ff3ddd2ff0fd56cbf7bf25f7b8fa402ee99f0046dde1096",
+        "triton/build/mean_hw_c576_h7_w7/nr/kernel.llvm.mlir": "ce1773adc01a4a237d275261a7f257dc1a577f28adefe7f8ec6be67a4eef8810",
+        "triton/build/mean_hw_c576_h7_w7/nr/mean_hw_c576_h7_w7.bin": "69cbc2aeea97b25e1a7e31f5a51d4ad3576691f0a4ab4de419fdac8d37bca9be"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c576_h7_w7/nr/mean_hw_c576_h7_w7.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/mean_hw_c576_h7_w7/nr/mean_hw_c576_h7_w7.bin",
+      "elf_sha256": "8a27213a1043514998638c93c2400c9db18a005041a4a33ec339841d990c7b78",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "8a27213a1043514998638c93c2400c9db18a005041a4a33ec339841d990c7b78",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4598
+          }
+        ],
+        "instructions": 1558,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,523 @@
+{
+  "build": "PASS",
+  "count": 11,
+  "results": [
+    {
+      "case": "relu_count50176",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "b8190006dafa3f7cb31cf059aa6c8979491fcd7281c2e535860f0e7c57875f0a",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count50176/kernel.ttir": "3da16d807cfbc3e3f4c092bf7ed6b778ef5310e1a4870f5271b2faa929a99d6e",
+        "triton/build/relu_count50176/kernel.linalg.mlir": "c55d9a616158440f50c61a6104f41f0ce9012552fc188a1082e5d91dee38552d",
+        "triton/build/relu_count50176/adapter.c": "db366c4fa28bab496e1f6e7da241c838ec9366d438f2dd3bd745c229db8b551b",
+        "triton/build/relu_count50176/frontend.json": "7996e63fb87f4ec2f6d2e18623bd74d6efa3198a70763c6c8ddfeea3a8ca56a8",
+        "triton/build/relu_count50176/nr/kernel.ll": "61dafeaa0a4cafe6c97fd226aca46a74d0efd95a128db2f0d5b80f24f533e049",
+        "triton/build/relu_count50176/nr/kernel.llvm.mlir": "eb9fbeda8a6bddbc54b136dd840dc327099129907d89cd8e159cf01b2bba69aa",
+        "triton/build/relu_count50176/nr/relu_count50176.bin": "965a166ecbcb41daa4a9d668661a70389cea8f4d3f51e22310b551a891b79a05"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count50176/nr/relu_count50176.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count50176/nr/relu_count50176.bin",
+      "elf_sha256": "7a3b589353edb20e9209bc9eff2cbcefa5be949f96446f7672649b03189082de",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "7a3b589353edb20e9209bc9eff2cbcefa5be949f96446f7672649b03189082de",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3958
+          }
+        ],
+        "instructions": 1338,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count8",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "d3c1f32bfa52b793c513eb4eb98a155f51bad363d09383199181084c6e35b6ef",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count8/kernel.ttir": "53802aa37b0226b49aece2c1a86a32d1fce24fa8bdddb1198ead56ad8181be18",
+        "triton/build/relu_count8/kernel.linalg.mlir": "75fa4017ef927385fd951f5beaf60889a272429b51516ed684e3d3afee792956",
+        "triton/build/relu_count8/adapter.c": "b7753857d0cd92aa4d4a38d3d9eaf86ab087e3cf7e471c5cd3ba361bda28e021",
+        "triton/build/relu_count8/frontend.json": "2930f179c9a88fc40fd22294fadd38017811cef24c5998a90edf140b294f961c",
+        "triton/build/relu_count8/nr/kernel.ll": "6ffc1c0c72909bcb85579a6e30981a48941dd4c118f6238e55ddbb8ddaa1c3a0",
+        "triton/build/relu_count8/nr/kernel.llvm.mlir": "98f36c76b6c92b8d2394e52b48d48a4b7817259340b9d7c8b82eea889dc23fe2",
+        "triton/build/relu_count8/nr/relu_count8.bin": "e74d949ad55ffb0eebf302da984ae50a063a17e3253e40a9dc4816890b54965f"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count8/nr/relu_count8.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count8/nr/relu_count8.bin",
+      "elf_sha256": "16841a2268937acece96ac8902b9b9088f6e92ca6b9bbe18a05d5e92428009b1",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "16841a2268937acece96ac8902b9b9088f6e92ca6b9bbe18a05d5e92428009b1",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 4158
+          }
+        ],
+        "instructions": 1379,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count225792",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "22fa994eea87fc7cc6173c316061637dbb426fcdf11de19870ab282aecea38b6",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count225792/kernel.ttir": "9d2654582db95f3a8abbdbf48112a65fe556e0e008923fa41e20ca54f1c6fa55",
+        "triton/build/relu_count225792/kernel.linalg.mlir": "1bbaa121bb89903eb8af4433e4f5c86f623786093047e8c95582e3d5a81c4943",
+        "triton/build/relu_count225792/adapter.c": "e297f79ff4030d5e585e0ca824166619d019a5fb9d71b0d0dcb462fde0cd4037",
+        "triton/build/relu_count225792/frontend.json": "5adbce80b83c2b426e5d65418fda35a95c516b64c9b820825cff3dc01ae2d1bf",
+        "triton/build/relu_count225792/nr/kernel.ll": "2c4b4c83b6ad00d30b778d7c213cbb63fd101ec4ca558fc4dd4de112ec975401",
+        "triton/build/relu_count225792/nr/kernel.llvm.mlir": "2f21d0af5ee03c784113508ab7c4cf662fbd01dcf99054426ab54b0ec7b8c303",
+        "triton/build/relu_count225792/nr/relu_count225792.bin": "f807c84ef65c92e6df9cb0ae9b3b6c225d5ac8b461250e1ff486fc5358ac866c"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count225792/nr/relu_count225792.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count225792/nr/relu_count225792.bin",
+      "elf_sha256": "47c39fb862a383585e1121c2ce99f101453892af8b067d2696cba1877d2aa974",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "47c39fb862a383585e1121c2ce99f101453892af8b067d2696cba1877d2aa974",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3970
+          }
+        ],
+        "instructions": 1339,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count56448",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "6177316416a11b0e35f0f91230a29062814bc72ae1211d927883ce69d825f493",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count56448/kernel.ttir": "defb0b850b8ccd75a6994130f7e439686f789f12adebd6021acabe10299ba72f",
+        "triton/build/relu_count56448/kernel.linalg.mlir": "8ef57e5fb93ea5b332d65e47d54178f8163b9c41fc867be67d71590c4ff0a0c3",
+        "triton/build/relu_count56448/adapter.c": "3ea0ef9b3f6d4fb9c8699ad45786e97125cc31da65562d7282202c3815054e7e",
+        "triton/build/relu_count56448/frontend.json": "b105f1e37841bb806bd571f043ae0ab0ce4812fb395c4e0409bcb4579efb8bba",
+        "triton/build/relu_count56448/nr/kernel.ll": "ade531a83c0f26636ebd9998df853e769566cdbad2b75597826cc29e00f2241e",
+        "triton/build/relu_count56448/nr/kernel.llvm.mlir": "284001d0b9298237973e7a32c12148695e0a71a72cf39570359517cfcc60a815",
+        "triton/build/relu_count56448/nr/relu_count56448.bin": "14704e8bce8e2f71ba11ac10a914ca7db6ba1a83552b575483f7169a5f23033a"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count56448/nr/relu_count56448.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count56448/nr/relu_count56448.bin",
+      "elf_sha256": "ec4fddc9683e53d604ddae895e318a9fb876f5e913e8cc3f370e773b58c36273",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "ec4fddc9683e53d604ddae895e318a9fb876f5e913e8cc3f370e773b58c36273",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3962
+          }
+        ],
+        "instructions": 1339,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count68992",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "d65a6c090a652e2bc55182938fa3a4369d13a92d651df366886700f2814f42df",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count68992/kernel.ttir": "4689a7116ccb9bd0d49c5c30c0c92866d81857b28884c357d510d83a107ed76d",
+        "triton/build/relu_count68992/kernel.linalg.mlir": "34602fa32e6207e453163ccdd61f86d9f21ee76dd39e400412c38f3d674ecf19",
+        "triton/build/relu_count68992/adapter.c": "aa071b94fd565e76243a7fa5f54f72fe21a97b24df1c8c4f1c7e5e6466e796b7",
+        "triton/build/relu_count68992/frontend.json": "55bfac9ae11a5935da0aead494a50c644a1f2228f470bd82ea49d4761063a2d3",
+        "triton/build/relu_count68992/nr/kernel.ll": "407fbdcd4674ace84c23ed207e49e601b69a095400e8b9b8c1f0a65866d001d8",
+        "triton/build/relu_count68992/nr/kernel.llvm.mlir": "287838166a6790fcc1c1e61961328594a77e336a493d7e0c430f34eb70c95cb0",
+        "triton/build/relu_count68992/nr/relu_count68992.bin": "9f2d86e17a97d176329764f5904b6a7c31201ac8ae016ccfd1c3e433ff081a2f"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count68992/nr/relu_count68992.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count68992/nr/relu_count68992.bin",
+      "elf_sha256": "717ae0d3eb517afb2d47a949721ce74602664bd339b4d1cb9797ddf6b6f661b3",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "717ae0d3eb517afb2d47a949721ce74602664bd339b4d1cb9797ddf6b6f661b3",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3962
+          }
+        ],
+        "instructions": 1339,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count24",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "82224f005243e42086aba7fb36a5576b4a2528154e168dcacbbb43f663779747",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count24/kernel.ttir": "9f61efa982f4bb65031c57865f41a3ce0fc66615e5d30ac086d847eedcbf2fa9",
+        "triton/build/relu_count24/kernel.linalg.mlir": "e50bd0bb020f12998a00979348985fcf0c1a1a172c485a46dcdcc3814bd81153",
+        "triton/build/relu_count24/adapter.c": "cb592ad394b6b2801c663d314ad7b9b214ef501a62a6ab6eb9736f66e7f87caf",
+        "triton/build/relu_count24/frontend.json": "7ccf5da5bebbd59ca517fa49da6e6313a29a6180ab91eef47f463c0f36129c4d",
+        "triton/build/relu_count24/nr/kernel.ll": "dccdf7cdfb997adfbdd0817cf9769d163a4e8fd5f175ab4628f72bedc4945f36",
+        "triton/build/relu_count24/nr/kernel.llvm.mlir": "302065a4d47cc4e06b8e1eb03db0458f5370005fec2061a08021fd17191ecd4a",
+        "triton/build/relu_count24/nr/relu_count24.bin": "e26abf80c4ed72d2e5e164244a75847da8e4a372ab6bc9b1d5e7a87b044bae68"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count24/nr/relu_count24.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count24/nr/relu_count24.bin",
+      "elf_sha256": "b40d8c8818fbb0e355df0652c09c2f037f2718c5b33e2f00a8da0fe9196ed9b6",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "b40d8c8818fbb0e355df0652c09c2f037f2718c5b33e2f00a8da0fe9196ed9b6",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3884
+          }
+        ],
+        "instructions": 1318,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count64",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "70cc5bc1276fd604a773f3976d0766423b2580365b2db8dd8d36ec25bc2c57de",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count64/kernel.ttir": "b103d0d1585890544bcc7291f566bca927f1dc7d278405a8e57fa34c218f6d2c",
+        "triton/build/relu_count64/kernel.linalg.mlir": "542a408bcb3f57ca60618947c7175eb8f262b7294f543f3e1896f46d35673da3",
+        "triton/build/relu_count64/adapter.c": "0ef76fe0dc007ea32a0e96129a9e289d568798b3307e3019a1076f5f40fc6de7",
+        "triton/build/relu_count64/frontend.json": "cd7678d12cbd9419525622fec53b8e51c938d71133315140dbc5104b87c0882a",
+        "triton/build/relu_count64/nr/kernel.ll": "98ce9f505f091fcc4c72fb725c52137faca6d5ddf94e106c7f1d74c915869534",
+        "triton/build/relu_count64/nr/kernel.llvm.mlir": "62af437d72aeeeddbba31a1420cb43f8a66bff14c7eabbd58fcf5cc9a4f9859d",
+        "triton/build/relu_count64/nr/relu_count64.bin": "6110f54641b4300bd517139126ec2cd49f6ce7f60d54c8f80a74f4070b2e5881"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count64/nr/relu_count64.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count64/nr/relu_count64.bin",
+      "elf_sha256": "1e3c7012f5021c02eb44f7e7dafdd91c1655c3663779628e7d1ad4b4c972435e",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "1e3c7012f5021c02eb44f7e7dafdd91c1655c3663779628e7d1ad4b4c972435e",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3926
+          }
+        ],
+        "instructions": 1323,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count32",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "5c921b67daef8d23907ff154cfd92f972e4ffe7c6da710083e96408c03570aee",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count32/kernel.ttir": "25a43e475a645f29e30465b3a7f06f6800ba5a9f6b46139b609601794a0f03a0",
+        "triton/build/relu_count32/kernel.linalg.mlir": "dc4d7ca26e97e1b1b1166f6d9ee6e8fee08f3b559a541e30cc31b41c81981a66",
+        "triton/build/relu_count32/adapter.c": "69ff93b7ebf6f5d49d663ff518ff9dae742c5927b88b774cc2c4717fe50878de",
+        "triton/build/relu_count32/frontend.json": "60c744ae545d9ad0e1ec271f4c081998d2ff447eda0ba44d141bc1b0f0bbe47f",
+        "triton/build/relu_count32/nr/kernel.ll": "65ac7ec556669e047b512cb4ca6a675f83d3010b0b3fdd664b1575cd7cac8b63",
+        "triton/build/relu_count32/nr/kernel.llvm.mlir": "14179bd5985151cd6dc38ed0b423d2843692a0d38e3c0cb6360b45a3053be6c6",
+        "triton/build/relu_count32/nr/relu_count32.bin": "c9cec923786fa40011ecfa3169f12eb8d4b92ff7370cc7595fa8889bbfb2669c"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count32/nr/relu_count32.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count32/nr/relu_count32.bin",
+      "elf_sha256": "4ea6613b6cfc7ebabb9ec4718d44a179a298a8eb607c33e0d0da5704d112012b",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "4ea6613b6cfc7ebabb9ec4718d44a179a298a8eb607c33e0d0da5704d112012b",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3892
+          }
+        ],
+        "instructions": 1318,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count40",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "33a7e97bae3030df54cbf07069813c58b74c13faad9d81b788f582ef5f39e56e",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count40/kernel.ttir": "f0bfc8883a3b4b5be1d1f941e69e568bc54156bc4d5be815800bf72fc8e2d22f",
+        "triton/build/relu_count40/kernel.linalg.mlir": "fffaf9a7c828ffbdc77b598704bcda0fb28d72cc635ea766dcf7d3f08561b1e2",
+        "triton/build/relu_count40/adapter.c": "19bc78c9db53294fd78aa6a2a2f57483ad306653065e68bd7dbf6561a8b7f7aa",
+        "triton/build/relu_count40/frontend.json": "e8f0df7fd51d2dc346434108dc4a89678c2942d259cbea646d4a1b30203e1a4c",
+        "triton/build/relu_count40/nr/kernel.ll": "84ae4ef3cc599631a2421b08663c40f157f6098e549eda24d6d3d0bfa749292a",
+        "triton/build/relu_count40/nr/kernel.llvm.mlir": "514fbd079c38d1f20fd87f865e90b1087a468d881c57581ffa6787a33e116799",
+        "triton/build/relu_count40/nr/relu_count40.bin": "f690df968a10a19443bfe5d2b2c415345d9524907ea03bc63b7d3ae4973d0396"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count40/nr/relu_count40.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count40/nr/relu_count40.bin",
+      "elf_sha256": "f691dd87f5f05d4549780ace98c40359a50944b81cd710616d79c94a4358d8ff",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "f691dd87f5f05d4549780ace98c40359a50944b81cd710616d79c94a4358d8ff",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3920
+          }
+        ],
+        "instructions": 1323,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count72",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "259d6428397532082d082f846625417e598362745dd3c6b9ae2c72f52082ab6d",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count72/kernel.ttir": "359edc36d601956a85683cb54db646b03d7718750c035c6bc23b477fb5fb11a9",
+        "triton/build/relu_count72/kernel.linalg.mlir": "f95671645394cfa876f14f95c53e27761e94870c2b2fbfea9b72f901cdb20380",
+        "triton/build/relu_count72/adapter.c": "515749798991c4697295b31a9723e0ee5ea286ff121133acddff7919c18f9a2c",
+        "triton/build/relu_count72/frontend.json": "d324c4a8661fe4a04886b457b9aa583ff38733f36ba3bc947f37855529b8964b",
+        "triton/build/relu_count72/nr/kernel.ll": "f896ca611ef017d340e004c554ffa2874a3c7a1a32bd2fc4135b3b2435a5fd98",
+        "triton/build/relu_count72/nr/kernel.llvm.mlir": "8d2bae04768c522946929851ebe2c960b0229b1f5959818d9f92c76972c18fb7",
+        "triton/build/relu_count72/nr/relu_count72.bin": "7db64e840e79394964a04a478ba4d9239491731fc4c4860d3f52b7e29e634a9d"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count72/nr/relu_count72.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count72/nr/relu_count72.bin",
+      "elf_sha256": "eb9424de98fcc2d31c1a6fe38af0439e3b0f63478b8de1ddc3c267fdafdd528d",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "eb9424de98fcc2d31c1a6fe38af0439e3b0f63478b8de1ddc3c267fdafdd528d",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3926
+          }
+        ],
+        "instructions": 1323,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    },
+    {
+      "case": "relu_count144",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "ab33fd28299535c9b416b1052d7eb0ee9eb03d33d9e6ab4fa853aa3044af6de9",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,-v",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/relu_count144/kernel.ttir": "04b2fbed57b2ae266806745e231244ef19e9096d2629db1bdbbaa5dfb4d591eb",
+        "triton/build/relu_count144/kernel.linalg.mlir": "7b09dd28ad2facfb5bcff63a5f396f7176532c053fc1061dba3b569a0bbac250",
+        "triton/build/relu_count144/adapter.c": "d8f0ce85bae3c08406925f1bd1436462edf08676b85b19ec61542abe134aa22c",
+        "triton/build/relu_count144/frontend.json": "4e6421186537bf684f0fd0be44feda306de24edd14c5eae8a6c861110b214518",
+        "triton/build/relu_count144/nr/kernel.ll": "531259b71d1779bafe141facd4e96ebd0a95e0a4260526536397111d2928e5e9",
+        "triton/build/relu_count144/nr/kernel.llvm.mlir": "35ae1d9f26b23c99ef8b4727f7aa09f11ea7bdb5a330aed5364c2a083ab0e1ce",
+        "triton/build/relu_count144/nr/relu_count144.bin": "7b933c0e92940ff7680b79799292e2c991ce0b83ef07dfd260050e7a35c2baa2"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count144/nr/relu_count144.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/relu_count144/nr/relu_count144.bin",
+      "elf_sha256": "2be0e8538d87498b743f26c839179210ed6d47441c97d5d5c4ce3465e1192fa0",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "2be0e8538d87498b743f26c839179210ed6d47441c97d5d5c4ce3465e1192fa0",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 3954
+          }
+        ],
+        "instructions": 1335,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 0,
+        "rvv_instructions": {},
+        "errors": []
+      }
+    }
+  ]
+}

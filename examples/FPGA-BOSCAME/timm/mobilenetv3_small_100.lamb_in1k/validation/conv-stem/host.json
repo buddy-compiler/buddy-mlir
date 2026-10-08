@@ -1,0 +1,123 @@
+{
+  "status": "PASS",
+  "count": 1,
+  "results": [
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "status": "PASS",
+      "fingerprint": "565158b1b90eb174a930ef36286e6ded34fb091b03d11588e28865a836186706",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "d3834993bccc2b3111c30dc31b6263bca3dbf65b9ed6aac30a0bc37ae02699e7",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "de1303caf31c2f02066dd7a3787f5d6da01f3b35f1dbd518f5e34643d1b5178f",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "75172c5d55ab2add8030eea19b9943d27be3fc22036d4fe728da807738566b1d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "4c03ebad33574e777e8d51046a0d8dae1824f182551ea22e2ef4833d21494e61",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_conv_stem.c.in": "3f5b7fcdd723129b6ca6276207afa50d3537bea84092595baac12a469db0a84c",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_conv_stem.py": "bade861176b3e44364ffa0d61d4e49f20b6d9194f759f431a0ef958c13070772",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "fdd27f4e92db92615e3ae5c36b0463a69fb7dd05488e04d00a9312f622e287ff",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/conv_stem_cin3_cout16_h224_k3_s2_p1/launch.c": "a1065f84674a4bede4b40cff51b929b35023daba3f97283ca71a6ff63b5dab77",
+        "timm/mobilenetv3_small_100.lamb_in1k/conv_stem_cin3_cout16_h224_k3_s2_p1/metadata.json": "35a36013624b0e170b7c108c25728f886b4e30363a9ec215f6d8c4e1ba719f20",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/kernel.ttir": "cf3038434b09682e425175ac07a13f5e06643f4015746c87f2a80309289850ef",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/kernel.linalg.mlir": "b8ac52faaccf689c8b3cb57f2add71cf2b23b5fbdfb216490ab27fdf44c04353",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/adapter.c": "f043ade8c49124caa8ae2cbd7245550c9a8e1068b0f86fa8e8c5ddcd6c805de5",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/frontend.json": "449edccbfc300e3b22b343c3f46d77223278d1007cb703ddd8bdbd3b384c0d44",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/kernel.ll": "f86958af26a3042d4f0d87edc75dd78eac7e3e16fb2db2771813d9f628551b89",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/kernel.llvm.mlir": "7c1a829565af0afe384171b4d0bc5fcf645f6194e0b315f0aab106ae7d2d14f2",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/check": "d918184592fb34c78534340c5652c855906ff476aee5e8dbfce00b88b7b8c55d",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/output.log": "ddfc55ef89eda6d52d49aa9715aab468ef2477f8acc555bcb1c7ce094cd5687f",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/pytorch-check.so": "3a38dd69d10c9fce9bc9853cf7f79e02131b60b2f23a268da45e564ca6d5b64c",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/pytorch.json": "2d50d63adc87a6c932d74c22be82feef0345fcb2b97e054891708a89f26dcc8e"
+      },
+      "oracle": "Independent C FP64 oc/oh/ow/ic/kh/kw loops (batch=1), NCHW input, OIHW weights, explicit zero padding and stride=2, fused Bias[oc]; bias-only, channel/spatial ramps, all 27 one-hot kernel taps, corner impulses, boundary stripes, constant valid-pixel counts, cancellation, signed non-dyadic values and last-output-only patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[Cin*H*W], Weight[Cout*Cin*KH*KW], Bias[Cout], Out[Cout*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "conv_stem metrics max_abs_error=1.3060039254497724e-06 max_error_over_bound=0.15276565326807265 max_bound=4.6670517530739806e-05\nverify conv_stem_cin3_cout16_h224_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35af49f4\n",
+      "metrics": {
+        "max_abs_error": 1.3060039254497724e-06,
+        "max_error_over_bound": 0.15276565326807265,
+        "max_bound": 4.6670517530739806e-05
+      },
+      "tolerance": {
+        "formula": "gamma_(K+2)*(sum_valid(abs(X*Weight))+abs(Bias[oc])) + (K+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.7285376863236966e-06,
+        "absolute_floor": 4.0637655465419695e-44
+      },
+      "pytorch": {
+        "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 NCHW conv2d plus torch.ops.aten.convolution.default; groups=1, kernel=3x3, stride=2, padding=1",
+        "shape": [
+          1,
+          3,
+          224,
+          224
+        ],
+        "weight_shape": [
+          16,
+          3,
+          3,
+          3
+        ],
+        "output_shape": [
+          1,
+          16,
+          112,
+          112
+        ],
+        "mnk": {
+          "M": 12544,
+          "N": 16,
+          "K": 27
+        },
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 39,
+        "samples": 7827456,
+        "per_program_store_checks": 5,
+        "max_abs_error": 0.00154868753907067,
+        "max_abs_error_vs_aten": 0.001953125,
+        "max_error_over_bound": 0.156778284065507,
+        "tolerance": {
+          "formula": "gamma_(K+2)*(sum_valid(abs(X*Weight))+abs(Bias[oc])) + (K+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.7285376863236966e-06,
+          "absolute_floor": 4.0637655465419695e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, NCHW channel/spatial ramps, first/last input channel, all 27 OIHW taps, last output only, checkerboard cancellation, corner impulses, boundary stripes, all-ones valid-pixel counts, seeded random inputs/weights/bias",
+        "one_hot_taps": 27,
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          1,
+          1
+        ],
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/pytorch-check.so"
+      }
+    }
+  ]
+}

@@ -1,0 +1,8098 @@
+[
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          3,
+          224,
+          224
+        ],
+        "dtype": "float32",
+        "stride": [
+          150528,
+          50176,
+          224,
+          1
+        ],
+        "numel": 150528
+      },
+      "weight": {
+        "shape": [
+          16,
+          3,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "stride": [
+          27,
+          9,
+          3,
+          1
+        ],
+        "numel": 432
+      },
+      "bias": null,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        112,
+        112
+      ],
+      "dtype": "float32",
+      "stride": [
+        200704,
+        12544,
+        112,
+        1
+      ],
+      "numel": 200704
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 0,
+        "module": "conv_stem"
+      }
+    ]
+  },
+  {
+    "op": "aten.empty.memory_format",
+    "arguments": {
+      "size": [
+        0
+      ],
+      "dtype": "torch.uint8",
+      "layout": "torch.strided",
+      "device": "cpu",
+      "pin_memory": null,
+      "memory_format": null
+    },
+    "outputs": {
+      "shape": [
+        0
+      ],
+      "dtype": "uint8",
+      "stride": [
+        1
+      ],
+      "numel": 0
+    },
+    "count": 34,
+    "occurrences": [
+      {
+        "index": 1,
+        "module": "bn1"
+      },
+      {
+        "index": 5,
+        "module": "blocks.0.0.bn1"
+      },
+      {
+        "index": 15,
+        "module": "blocks.0.0.bn2"
+      },
+      {
+        "index": 18,
+        "module": "blocks.1.0.bn1"
+      },
+      {
+        "index": 22,
+        "module": "blocks.1.0.bn2"
+      },
+      {
+        "index": 26,
+        "module": "blocks.1.0.bn3"
+      },
+      {
+        "index": 29,
+        "module": "blocks.1.1.bn1"
+      },
+      {
+        "index": 33,
+        "module": "blocks.1.1.bn2"
+      },
+      {
+        "index": 37,
+        "module": "blocks.1.1.bn3"
+      },
+      {
+        "index": 41,
+        "module": "blocks.2.0.bn1"
+      },
+      {
+        "index": 45,
+        "module": "blocks.2.0.bn2"
+      },
+      {
+        "index": 55,
+        "module": "blocks.2.0.bn3"
+      },
+      {
+        "index": 58,
+        "module": "blocks.2.1.bn1"
+      },
+      {
+        "index": 62,
+        "module": "blocks.2.1.bn2"
+      },
+      {
+        "index": 72,
+        "module": "blocks.2.1.bn3"
+      },
+      {
+        "index": 76,
+        "module": "blocks.2.2.bn1"
+      },
+      {
+        "index": 80,
+        "module": "blocks.2.2.bn2"
+      },
+      {
+        "index": 90,
+        "module": "blocks.2.2.bn3"
+      },
+      {
+        "index": 94,
+        "module": "blocks.3.0.bn1"
+      },
+      {
+        "index": 98,
+        "module": "blocks.3.0.bn2"
+      },
+      {
+        "index": 108,
+        "module": "blocks.3.0.bn3"
+      },
+      {
+        "index": 111,
+        "module": "blocks.3.1.bn1"
+      },
+      {
+        "index": 115,
+        "module": "blocks.3.1.bn2"
+      },
+      {
+        "index": 125,
+        "module": "blocks.3.1.bn3"
+      },
+      {
+        "index": 129,
+        "module": "blocks.4.0.bn1"
+      },
+      {
+        "index": 133,
+        "module": "blocks.4.0.bn2"
+      },
+      {
+        "index": 143,
+        "module": "blocks.4.0.bn3"
+      },
+      {
+        "index": 146,
+        "module": "blocks.4.1.bn1"
+      },
+      {
+        "index": 150,
+        "module": "blocks.4.1.bn2"
+      },
+      {
+        "index": 160,
+        "module": "blocks.4.1.bn3"
+      },
+      {
+        "index": 164,
+        "module": "blocks.4.2.bn1"
+      },
+      {
+        "index": 168,
+        "module": "blocks.4.2.bn2"
+      },
+      {
+        "index": 178,
+        "module": "blocks.4.2.bn3"
+      },
+      {
+        "index": 182,
+        "module": "blocks.5.0.bn1"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          16,
+          112,
+          112
+        ],
+        "dtype": "float32",
+        "stride": [
+          200704,
+          12544,
+          112,
+          1
+        ],
+        "numel": 200704
+      },
+      "weight": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "bias": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "running_mean": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "running_var": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          16,
+          112,
+          112
+        ],
+        "dtype": "float32",
+        "stride": [
+          200704,
+          12544,
+          112,
+          1
+        ],
+        "numel": 200704
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 2,
+        "module": "bn1"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          16,
+          112,
+          112
+        ],
+        "dtype": "float32",
+        "stride": [
+          200704,
+          12544,
+          112,
+          1
+        ],
+        "numel": 200704
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        112,
+        112
+      ],
+      "dtype": "float32",
+      "stride": [
+        200704,
+        12544,
+        112,
+        1
+      ],
+      "numel": 200704
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 3,
+        "module": "bn1.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          16,
+          112,
+          112
+        ],
+        "dtype": "float32",
+        "stride": [
+          200704,
+          12544,
+          112,
+          1
+        ],
+        "numel": 200704
+      },
+      "weight": {
+        "shape": [
+          16,
+          1,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "stride": [
+          9,
+          9,
+          3,
+          1
+        ],
+        "numel": 144
+      },
+      "bias": null,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 16
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        56,
+        56
+      ],
+      "dtype": "float32",
+      "stride": [
+        50176,
+        3136,
+        56,
+        1
+      ],
+      "numel": 50176
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 4,
+        "module": "blocks.0.0.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          50176,
+          3136,
+          56,
+          1
+        ],
+        "numel": 50176
+      },
+      "weight": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "bias": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "running_mean": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "running_var": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          50176,
+          3136,
+          56,
+          1
+        ],
+        "numel": 50176
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 6,
+        "module": "blocks.0.0.bn1"
+      },
+      {
+        "index": 16,
+        "module": "blocks.0.0.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          50176,
+          3136,
+          56,
+          1
+        ],
+        "numel": 50176
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        56,
+        56
+      ],
+      "dtype": "float32",
+      "stride": [
+        50176,
+        3136,
+        56,
+        1
+      ],
+      "numel": 50176
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 7,
+        "module": "blocks.0.0.bn1.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          50176,
+          3136,
+          56,
+          1
+        ],
+        "numel": 50176
+      },
+      "dim": [
+        2,
+        3
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        16,
+        1,
+        1,
+        1
+      ],
+      "numel": 16
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 8,
+        "module": "blocks.0.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          16,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          16,
+          1,
+          1,
+          1
+        ],
+        "numel": 16
+      },
+      "weight": {
+        "shape": [
+          8,
+          16,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          16,
+          1,
+          1,
+          1
+        ],
+        "numel": 128
+      },
+      "bias": {
+        "shape": [
+          8
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 8
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        8,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        8,
+        1,
+        1,
+        1
+      ],
+      "numel": 8
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 9,
+        "module": "blocks.0.0.se.conv_reduce"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          8,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          8,
+          1,
+          1,
+          1
+        ],
+        "numel": 8
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        8,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        8,
+        1,
+        1,
+        1
+      ],
+      "numel": 8
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 10,
+        "module": "blocks.0.0.se.act1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          8,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          8,
+          1,
+          1,
+          1
+        ],
+        "numel": 8
+      },
+      "weight": {
+        "shape": [
+          16,
+          8,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          8,
+          1,
+          1,
+          1
+        ],
+        "numel": 128
+      },
+      "bias": {
+        "shape": [
+          16
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 16
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        16,
+        1,
+        1,
+        1
+      ],
+      "numel": 16
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 11,
+        "module": "blocks.0.0.se.conv_expand"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardsigmoid.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          16,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          16,
+          1,
+          1,
+          1
+        ],
+        "numel": 16
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        16,
+        1,
+        1,
+        1
+      ],
+      "numel": 16
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 12,
+        "module": "blocks.0.0.se.gate"
+      }
+    ]
+  },
+  {
+    "op": "aten.mul.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          50176,
+          3136,
+          56,
+          1
+        ],
+        "numel": 50176
+      },
+      "other": {
+        "shape": [
+          1,
+          16,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          16,
+          1,
+          1,
+          1
+        ],
+        "numel": 16
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        56,
+        56
+      ],
+      "dtype": "float32",
+      "stride": [
+        50176,
+        3136,
+        56,
+        1
+      ],
+      "numel": 50176
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 13,
+        "module": "blocks.0.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          50176,
+          3136,
+          56,
+          1
+        ],
+        "numel": 50176
+      },
+      "weight": {
+        "shape": [
+          16,
+          16,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          16,
+          1,
+          1,
+          1
+        ],
+        "numel": 256
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        56,
+        56
+      ],
+      "dtype": "float32",
+      "stride": [
+        50176,
+        3136,
+        56,
+        1
+      ],
+      "numel": 50176
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 14,
+        "module": "blocks.0.0.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          50176,
+          3136,
+          56,
+          1
+        ],
+        "numel": 50176
+      },
+      "weight": {
+        "shape": [
+          72,
+          16,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          16,
+          1,
+          1,
+          1
+        ],
+        "numel": 1152
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        72,
+        56,
+        56
+      ],
+      "dtype": "float32",
+      "stride": [
+        225792,
+        3136,
+        56,
+        1
+      ],
+      "numel": 225792
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 17,
+        "module": "blocks.1.0.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          72,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          225792,
+          3136,
+          56,
+          1
+        ],
+        "numel": 225792
+      },
+      "weight": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "bias": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "running_mean": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "running_var": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          72,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          225792,
+          3136,
+          56,
+          1
+        ],
+        "numel": 225792
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 19,
+        "module": "blocks.1.0.bn1"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          72,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          225792,
+          3136,
+          56,
+          1
+        ],
+        "numel": 225792
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        72,
+        56,
+        56
+      ],
+      "dtype": "float32",
+      "stride": [
+        225792,
+        3136,
+        56,
+        1
+      ],
+      "numel": 225792
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 20,
+        "module": "blocks.1.0.bn1.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          72,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "stride": [
+          225792,
+          3136,
+          56,
+          1
+        ],
+        "numel": 225792
+      },
+      "weight": {
+        "shape": [
+          72,
+          1,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "stride": [
+          9,
+          9,
+          3,
+          1
+        ],
+        "numel": 648
+      },
+      "bias": null,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 72
+    },
+    "outputs": {
+      "shape": [
+        1,
+        72,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        56448,
+        784,
+        28,
+        1
+      ],
+      "numel": 56448
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 21,
+        "module": "blocks.1.0.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          72,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          784,
+          28,
+          1
+        ],
+        "numel": 56448
+      },
+      "weight": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "bias": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "running_mean": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "running_var": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          72,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          784,
+          28,
+          1
+        ],
+        "numel": 56448
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 23,
+        "module": "blocks.1.0.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          72,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          784,
+          28,
+          1
+        ],
+        "numel": 56448
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        72,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        56448,
+        784,
+        28,
+        1
+      ],
+      "numel": 56448
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 24,
+        "module": "blocks.1.0.bn2.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          72,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          784,
+          28,
+          1
+        ],
+        "numel": 56448
+      },
+      "weight": {
+        "shape": [
+          24,
+          72,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          72,
+          1,
+          1,
+          1
+        ],
+        "numel": 1728
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        24,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        18816,
+        784,
+        28,
+        1
+      ],
+      "numel": 18816
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 25,
+        "module": "blocks.1.0.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          24,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          784,
+          28,
+          1
+        ],
+        "numel": 18816
+      },
+      "weight": {
+        "shape": [
+          24
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 24
+      },
+      "bias": {
+        "shape": [
+          24
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 24
+      },
+      "running_mean": {
+        "shape": [
+          24
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 24
+      },
+      "running_var": {
+        "shape": [
+          24
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 24
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          24,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          784,
+          28,
+          1
+        ],
+        "numel": 18816
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 27,
+        "module": "blocks.1.0.bn3"
+      },
+      {
+        "index": 38,
+        "module": "blocks.1.1.bn3"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          24,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          784,
+          28,
+          1
+        ],
+        "numel": 18816
+      },
+      "weight": {
+        "shape": [
+          88,
+          24,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          24,
+          1,
+          1,
+          1
+        ],
+        "numel": 2112
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        88,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        68992,
+        784,
+        28,
+        1
+      ],
+      "numel": 68992
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 28,
+        "module": "blocks.1.1.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          88,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          68992,
+          784,
+          28,
+          1
+        ],
+        "numel": 68992
+      },
+      "weight": {
+        "shape": [
+          88
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 88
+      },
+      "bias": {
+        "shape": [
+          88
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 88
+      },
+      "running_mean": {
+        "shape": [
+          88
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 88
+      },
+      "running_var": {
+        "shape": [
+          88
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 88
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          88,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          68992,
+          784,
+          28,
+          1
+        ],
+        "numel": 68992
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 30,
+        "module": "blocks.1.1.bn1"
+      },
+      {
+        "index": 34,
+        "module": "blocks.1.1.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          88,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          68992,
+          784,
+          28,
+          1
+        ],
+        "numel": 68992
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        88,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        68992,
+        784,
+        28,
+        1
+      ],
+      "numel": 68992
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 31,
+        "module": "blocks.1.1.bn1.act"
+      },
+      {
+        "index": 35,
+        "module": "blocks.1.1.bn2.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          88,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          68992,
+          784,
+          28,
+          1
+        ],
+        "numel": 68992
+      },
+      "weight": {
+        "shape": [
+          88,
+          1,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "stride": [
+          9,
+          9,
+          3,
+          1
+        ],
+        "numel": 792
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 88
+    },
+    "outputs": {
+      "shape": [
+        1,
+        88,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        68992,
+        784,
+        28,
+        1
+      ],
+      "numel": 68992
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 32,
+        "module": "blocks.1.1.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          88,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          68992,
+          784,
+          28,
+          1
+        ],
+        "numel": 68992
+      },
+      "weight": {
+        "shape": [
+          24,
+          88,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          88,
+          1,
+          1,
+          1
+        ],
+        "numel": 2112
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        24,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        18816,
+        784,
+        28,
+        1
+      ],
+      "numel": 18816
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 36,
+        "module": "blocks.1.1.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.add.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          24,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          784,
+          28,
+          1
+        ],
+        "numel": 18816
+      },
+      "other": {
+        "shape": [
+          1,
+          24,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          784,
+          28,
+          1
+        ],
+        "numel": 18816
+      },
+      "alpha": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        24,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        18816,
+        784,
+        28,
+        1
+      ],
+      "numel": 18816
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 39,
+        "module": "blocks.1.1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          24,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          784,
+          28,
+          1
+        ],
+        "numel": 18816
+      },
+      "weight": {
+        "shape": [
+          96,
+          24,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          24,
+          1,
+          1,
+          1
+        ],
+        "numel": 2304
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        75264,
+        784,
+        28,
+        1
+      ],
+      "numel": 75264
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 40,
+        "module": "blocks.2.0.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          96,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          75264,
+          784,
+          28,
+          1
+        ],
+        "numel": 75264
+      },
+      "weight": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "bias": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "running_mean": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "running_var": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          96,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          75264,
+          784,
+          28,
+          1
+        ],
+        "numel": 75264
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 42,
+        "module": "blocks.2.0.bn1"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          96,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          75264,
+          784,
+          28,
+          1
+        ],
+        "numel": 75264
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        28,
+        28
+      ],
+      "dtype": "float32",
+      "stride": [
+        75264,
+        784,
+        28,
+        1
+      ],
+      "numel": 75264
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 43,
+        "module": "blocks.2.0.bn1.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          96,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "stride": [
+          75264,
+          784,
+          28,
+          1
+        ],
+        "numel": 75264
+      },
+      "weight": {
+        "shape": [
+          96,
+          1,
+          5,
+          5
+        ],
+        "dtype": "float32",
+        "stride": [
+          25,
+          25,
+          5,
+          1
+        ],
+        "numel": 2400
+      },
+      "bias": null,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 96
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        18816,
+        196,
+        14,
+        1
+      ],
+      "numel": 18816
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 44,
+        "module": "blocks.2.0.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          196,
+          14,
+          1
+        ],
+        "numel": 18816
+      },
+      "weight": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "bias": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "running_mean": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "running_var": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          196,
+          14,
+          1
+        ],
+        "numel": 18816
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 46,
+        "module": "blocks.2.0.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          196,
+          14,
+          1
+        ],
+        "numel": 18816
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        18816,
+        196,
+        14,
+        1
+      ],
+      "numel": 18816
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 47,
+        "module": "blocks.2.0.bn2.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          196,
+          14,
+          1
+        ],
+        "numel": 18816
+      },
+      "dim": [
+        2,
+        3
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        96,
+        1,
+        1,
+        1
+      ],
+      "numel": 96
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 48,
+        "module": "blocks.2.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          96,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          96,
+          1,
+          1,
+          1
+        ],
+        "numel": 96
+      },
+      "weight": {
+        "shape": [
+          24,
+          96,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          96,
+          1,
+          1,
+          1
+        ],
+        "numel": 2304
+      },
+      "bias": {
+        "shape": [
+          24
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 24
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        24,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        24,
+        1,
+        1,
+        1
+      ],
+      "numel": 24
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 49,
+        "module": "blocks.2.0.se.conv_reduce"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          24,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          24,
+          1,
+          1,
+          1
+        ],
+        "numel": 24
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        24,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        24,
+        1,
+        1,
+        1
+      ],
+      "numel": 24
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 50,
+        "module": "blocks.2.0.se.act1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          24,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          24,
+          1,
+          1,
+          1
+        ],
+        "numel": 24
+      },
+      "weight": {
+        "shape": [
+          96,
+          24,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          24,
+          1,
+          1,
+          1
+        ],
+        "numel": 2304
+      },
+      "bias": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        96,
+        1,
+        1,
+        1
+      ],
+      "numel": 96
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 51,
+        "module": "blocks.2.0.se.conv_expand"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardsigmoid.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          96,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          96,
+          1,
+          1,
+          1
+        ],
+        "numel": 96
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        96,
+        1,
+        1,
+        1
+      ],
+      "numel": 96
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 52,
+        "module": "blocks.2.0.se.gate"
+      }
+    ]
+  },
+  {
+    "op": "aten.mul.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          196,
+          14,
+          1
+        ],
+        "numel": 18816
+      },
+      "other": {
+        "shape": [
+          1,
+          96,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          96,
+          1,
+          1,
+          1
+        ],
+        "numel": 96
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        18816,
+        196,
+        14,
+        1
+      ],
+      "numel": 18816
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 53,
+        "module": "blocks.2.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          18816,
+          196,
+          14,
+          1
+        ],
+        "numel": 18816
+      },
+      "weight": {
+        "shape": [
+          40,
+          96,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          96,
+          1,
+          1,
+          1
+        ],
+        "numel": 3840
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        40,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        7840,
+        196,
+        14,
+        1
+      ],
+      "numel": 7840
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 54,
+        "module": "blocks.2.0.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          40,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          7840,
+          196,
+          14,
+          1
+        ],
+        "numel": 7840
+      },
+      "weight": {
+        "shape": [
+          40
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 40
+      },
+      "bias": {
+        "shape": [
+          40
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 40
+      },
+      "running_mean": {
+        "shape": [
+          40
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 40
+      },
+      "running_var": {
+        "shape": [
+          40
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 40
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          40,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          7840,
+          196,
+          14,
+          1
+        ],
+        "numel": 7840
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 3,
+    "occurrences": [
+      {
+        "index": 56,
+        "module": "blocks.2.0.bn3"
+      },
+      {
+        "index": 73,
+        "module": "blocks.2.1.bn3"
+      },
+      {
+        "index": 91,
+        "module": "blocks.2.2.bn3"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          40,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          7840,
+          196,
+          14,
+          1
+        ],
+        "numel": 7840
+      },
+      "weight": {
+        "shape": [
+          240,
+          40,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          40,
+          1,
+          1,
+          1
+        ],
+        "numel": 9600
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        240,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        47040,
+        196,
+        14,
+        1
+      ],
+      "numel": 47040
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 57,
+        "module": "blocks.2.1.conv_pw"
+      },
+      {
+        "index": 75,
+        "module": "blocks.2.2.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          47040,
+          196,
+          14,
+          1
+        ],
+        "numel": 47040
+      },
+      "weight": {
+        "shape": [
+          240
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 240
+      },
+      "bias": {
+        "shape": [
+          240
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 240
+      },
+      "running_mean": {
+        "shape": [
+          240
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 240
+      },
+      "running_var": {
+        "shape": [
+          240
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 240
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          47040,
+          196,
+          14,
+          1
+        ],
+        "numel": 47040
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 4,
+    "occurrences": [
+      {
+        "index": 59,
+        "module": "blocks.2.1.bn1"
+      },
+      {
+        "index": 63,
+        "module": "blocks.2.1.bn2"
+      },
+      {
+        "index": 77,
+        "module": "blocks.2.2.bn1"
+      },
+      {
+        "index": 81,
+        "module": "blocks.2.2.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          47040,
+          196,
+          14,
+          1
+        ],
+        "numel": 47040
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        240,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        47040,
+        196,
+        14,
+        1
+      ],
+      "numel": 47040
+    },
+    "count": 4,
+    "occurrences": [
+      {
+        "index": 60,
+        "module": "blocks.2.1.bn1.act"
+      },
+      {
+        "index": 64,
+        "module": "blocks.2.1.bn2.act"
+      },
+      {
+        "index": 78,
+        "module": "blocks.2.2.bn1.act"
+      },
+      {
+        "index": 82,
+        "module": "blocks.2.2.bn2.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          47040,
+          196,
+          14,
+          1
+        ],
+        "numel": 47040
+      },
+      "weight": {
+        "shape": [
+          240,
+          1,
+          5,
+          5
+        ],
+        "dtype": "float32",
+        "stride": [
+          25,
+          25,
+          5,
+          1
+        ],
+        "numel": 6000
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 240
+    },
+    "outputs": {
+      "shape": [
+        1,
+        240,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        47040,
+        196,
+        14,
+        1
+      ],
+      "numel": 47040
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 61,
+        "module": "blocks.2.1.conv_dw"
+      },
+      {
+        "index": 79,
+        "module": "blocks.2.2.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          47040,
+          196,
+          14,
+          1
+        ],
+        "numel": 47040
+      },
+      "dim": [
+        2,
+        3
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        240,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        240,
+        1,
+        1,
+        1
+      ],
+      "numel": 240
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 65,
+        "module": "blocks.2.1.se"
+      },
+      {
+        "index": 83,
+        "module": "blocks.2.2.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          240,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          240,
+          1,
+          1,
+          1
+        ],
+        "numel": 240
+      },
+      "weight": {
+        "shape": [
+          64,
+          240,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          240,
+          1,
+          1,
+          1
+        ],
+        "numel": 15360
+      },
+      "bias": {
+        "shape": [
+          64
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 64
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        64,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        64,
+        1,
+        1,
+        1
+      ],
+      "numel": 64
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 66,
+        "module": "blocks.2.1.se.conv_reduce"
+      },
+      {
+        "index": 84,
+        "module": "blocks.2.2.se.conv_reduce"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          64,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          64,
+          1,
+          1,
+          1
+        ],
+        "numel": 64
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        64,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        64,
+        1,
+        1,
+        1
+      ],
+      "numel": 64
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 67,
+        "module": "blocks.2.1.se.act1"
+      },
+      {
+        "index": 85,
+        "module": "blocks.2.2.se.act1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          64,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          64,
+          1,
+          1,
+          1
+        ],
+        "numel": 64
+      },
+      "weight": {
+        "shape": [
+          240,
+          64,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          64,
+          1,
+          1,
+          1
+        ],
+        "numel": 15360
+      },
+      "bias": {
+        "shape": [
+          240
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 240
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        240,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        240,
+        1,
+        1,
+        1
+      ],
+      "numel": 240
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 68,
+        "module": "blocks.2.1.se.conv_expand"
+      },
+      {
+        "index": 86,
+        "module": "blocks.2.2.se.conv_expand"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardsigmoid.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          240,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          240,
+          1,
+          1,
+          1
+        ],
+        "numel": 240
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        240,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        240,
+        1,
+        1,
+        1
+      ],
+      "numel": 240
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 69,
+        "module": "blocks.2.1.se.gate"
+      },
+      {
+        "index": 87,
+        "module": "blocks.2.2.se.gate"
+      }
+    ]
+  },
+  {
+    "op": "aten.mul.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          47040,
+          196,
+          14,
+          1
+        ],
+        "numel": 47040
+      },
+      "other": {
+        "shape": [
+          1,
+          240,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          240,
+          1,
+          1,
+          1
+        ],
+        "numel": 240
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        240,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        47040,
+        196,
+        14,
+        1
+      ],
+      "numel": 47040
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 70,
+        "module": "blocks.2.1.se"
+      },
+      {
+        "index": 88,
+        "module": "blocks.2.2.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          47040,
+          196,
+          14,
+          1
+        ],
+        "numel": 47040
+      },
+      "weight": {
+        "shape": [
+          40,
+          240,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          240,
+          1,
+          1,
+          1
+        ],
+        "numel": 9600
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        40,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        7840,
+        196,
+        14,
+        1
+      ],
+      "numel": 7840
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 71,
+        "module": "blocks.2.1.conv_pwl"
+      },
+      {
+        "index": 89,
+        "module": "blocks.2.2.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.add.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          40,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          7840,
+          196,
+          14,
+          1
+        ],
+        "numel": 7840
+      },
+      "other": {
+        "shape": [
+          1,
+          40,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          7840,
+          196,
+          14,
+          1
+        ],
+        "numel": 7840
+      },
+      "alpha": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        40,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        7840,
+        196,
+        14,
+        1
+      ],
+      "numel": 7840
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 74,
+        "module": "blocks.2.1"
+      },
+      {
+        "index": 92,
+        "module": "blocks.2.2"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          40,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          7840,
+          196,
+          14,
+          1
+        ],
+        "numel": 7840
+      },
+      "weight": {
+        "shape": [
+          120,
+          40,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          40,
+          1,
+          1,
+          1
+        ],
+        "numel": 4800
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        120,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        23520,
+        196,
+        14,
+        1
+      ],
+      "numel": 23520
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 93,
+        "module": "blocks.3.0.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          23520,
+          196,
+          14,
+          1
+        ],
+        "numel": 23520
+      },
+      "weight": {
+        "shape": [
+          120
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 120
+      },
+      "bias": {
+        "shape": [
+          120
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 120
+      },
+      "running_mean": {
+        "shape": [
+          120
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 120
+      },
+      "running_var": {
+        "shape": [
+          120
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 120
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          23520,
+          196,
+          14,
+          1
+        ],
+        "numel": 23520
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 95,
+        "module": "blocks.3.0.bn1"
+      },
+      {
+        "index": 99,
+        "module": "blocks.3.0.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          23520,
+          196,
+          14,
+          1
+        ],
+        "numel": 23520
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        120,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        23520,
+        196,
+        14,
+        1
+      ],
+      "numel": 23520
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 96,
+        "module": "blocks.3.0.bn1.act"
+      },
+      {
+        "index": 100,
+        "module": "blocks.3.0.bn2.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          23520,
+          196,
+          14,
+          1
+        ],
+        "numel": 23520
+      },
+      "weight": {
+        "shape": [
+          120,
+          1,
+          5,
+          5
+        ],
+        "dtype": "float32",
+        "stride": [
+          25,
+          25,
+          5,
+          1
+        ],
+        "numel": 3000
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 120
+    },
+    "outputs": {
+      "shape": [
+        1,
+        120,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        23520,
+        196,
+        14,
+        1
+      ],
+      "numel": 23520
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 97,
+        "module": "blocks.3.0.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          23520,
+          196,
+          14,
+          1
+        ],
+        "numel": 23520
+      },
+      "dim": [
+        2,
+        3
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        120,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        120,
+        1,
+        1,
+        1
+      ],
+      "numel": 120
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 101,
+        "module": "blocks.3.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          120,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          120,
+          1,
+          1,
+          1
+        ],
+        "numel": 120
+      },
+      "weight": {
+        "shape": [
+          32,
+          120,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          120,
+          1,
+          1,
+          1
+        ],
+        "numel": 3840
+      },
+      "bias": {
+        "shape": [
+          32
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 32
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        32,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        32,
+        1,
+        1,
+        1
+      ],
+      "numel": 32
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 102,
+        "module": "blocks.3.0.se.conv_reduce"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          32,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          32,
+          1,
+          1,
+          1
+        ],
+        "numel": 32
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        32,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        32,
+        1,
+        1,
+        1
+      ],
+      "numel": 32
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 103,
+        "module": "blocks.3.0.se.act1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          32,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          32,
+          1,
+          1,
+          1
+        ],
+        "numel": 32
+      },
+      "weight": {
+        "shape": [
+          120,
+          32,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          32,
+          1,
+          1,
+          1
+        ],
+        "numel": 3840
+      },
+      "bias": {
+        "shape": [
+          120
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 120
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        120,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        120,
+        1,
+        1,
+        1
+      ],
+      "numel": 120
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 104,
+        "module": "blocks.3.0.se.conv_expand"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardsigmoid.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          120,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          120,
+          1,
+          1,
+          1
+        ],
+        "numel": 120
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        120,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        120,
+        1,
+        1,
+        1
+      ],
+      "numel": 120
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 105,
+        "module": "blocks.3.0.se.gate"
+      }
+    ]
+  },
+  {
+    "op": "aten.mul.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          23520,
+          196,
+          14,
+          1
+        ],
+        "numel": 23520
+      },
+      "other": {
+        "shape": [
+          1,
+          120,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          120,
+          1,
+          1,
+          1
+        ],
+        "numel": 120
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        120,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        23520,
+        196,
+        14,
+        1
+      ],
+      "numel": 23520
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 106,
+        "module": "blocks.3.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          23520,
+          196,
+          14,
+          1
+        ],
+        "numel": 23520
+      },
+      "weight": {
+        "shape": [
+          48,
+          120,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          120,
+          1,
+          1,
+          1
+        ],
+        "numel": 5760
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        48,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        9408,
+        196,
+        14,
+        1
+      ],
+      "numel": 9408
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 107,
+        "module": "blocks.3.0.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          48,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          9408,
+          196,
+          14,
+          1
+        ],
+        "numel": 9408
+      },
+      "weight": {
+        "shape": [
+          48
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 48
+      },
+      "bias": {
+        "shape": [
+          48
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 48
+      },
+      "running_mean": {
+        "shape": [
+          48
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 48
+      },
+      "running_var": {
+        "shape": [
+          48
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 48
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          48,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          9408,
+          196,
+          14,
+          1
+        ],
+        "numel": 9408
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 109,
+        "module": "blocks.3.0.bn3"
+      },
+      {
+        "index": 126,
+        "module": "blocks.3.1.bn3"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          48,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          9408,
+          196,
+          14,
+          1
+        ],
+        "numel": 9408
+      },
+      "weight": {
+        "shape": [
+          144,
+          48,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          48,
+          1,
+          1,
+          1
+        ],
+        "numel": 6912
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        196,
+        14,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 110,
+        "module": "blocks.3.1.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          196,
+          14,
+          1
+        ],
+        "numel": 28224
+      },
+      "weight": {
+        "shape": [
+          144
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 144
+      },
+      "bias": {
+        "shape": [
+          144
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 144
+      },
+      "running_mean": {
+        "shape": [
+          144
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 144
+      },
+      "running_var": {
+        "shape": [
+          144
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 144
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          196,
+          14,
+          1
+        ],
+        "numel": 28224
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 112,
+        "module": "blocks.3.1.bn1"
+      },
+      {
+        "index": 116,
+        "module": "blocks.3.1.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          196,
+          14,
+          1
+        ],
+        "numel": 28224
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        196,
+        14,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 113,
+        "module": "blocks.3.1.bn1.act"
+      },
+      {
+        "index": 117,
+        "module": "blocks.3.1.bn2.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          196,
+          14,
+          1
+        ],
+        "numel": 28224
+      },
+      "weight": {
+        "shape": [
+          144,
+          1,
+          5,
+          5
+        ],
+        "dtype": "float32",
+        "stride": [
+          25,
+          25,
+          5,
+          1
+        ],
+        "numel": 3600
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 144
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        196,
+        14,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 114,
+        "module": "blocks.3.1.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          196,
+          14,
+          1
+        ],
+        "numel": 28224
+      },
+      "dim": [
+        2,
+        3
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        144,
+        1,
+        1,
+        1
+      ],
+      "numel": 144
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 118,
+        "module": "blocks.3.1.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 144
+      },
+      "weight": {
+        "shape": [
+          40,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 5760
+      },
+      "bias": {
+        "shape": [
+          40
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 40
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        40,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        40,
+        1,
+        1,
+        1
+      ],
+      "numel": 40
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 119,
+        "module": "blocks.3.1.se.conv_reduce"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          40,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          40,
+          1,
+          1,
+          1
+        ],
+        "numel": 40
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        40,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        40,
+        1,
+        1,
+        1
+      ],
+      "numel": 40
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 120,
+        "module": "blocks.3.1.se.act1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          40,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          40,
+          1,
+          1,
+          1
+        ],
+        "numel": 40
+      },
+      "weight": {
+        "shape": [
+          144,
+          40,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          40,
+          1,
+          1,
+          1
+        ],
+        "numel": 5760
+      },
+      "bias": {
+        "shape": [
+          144
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 144
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        144,
+        1,
+        1,
+        1
+      ],
+      "numel": 144
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 121,
+        "module": "blocks.3.1.se.conv_expand"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardsigmoid.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 144
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        144,
+        1,
+        1,
+        1
+      ],
+      "numel": 144
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 122,
+        "module": "blocks.3.1.se.gate"
+      }
+    ]
+  },
+  {
+    "op": "aten.mul.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          196,
+          14,
+          1
+        ],
+        "numel": 28224
+      },
+      "other": {
+        "shape": [
+          1,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 144
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        196,
+        14,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 123,
+        "module": "blocks.3.1.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          196,
+          14,
+          1
+        ],
+        "numel": 28224
+      },
+      "weight": {
+        "shape": [
+          48,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 6912
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        48,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        9408,
+        196,
+        14,
+        1
+      ],
+      "numel": 9408
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 124,
+        "module": "blocks.3.1.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.add.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          48,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          9408,
+          196,
+          14,
+          1
+        ],
+        "numel": 9408
+      },
+      "other": {
+        "shape": [
+          1,
+          48,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          9408,
+          196,
+          14,
+          1
+        ],
+        "numel": 9408
+      },
+      "alpha": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        48,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        9408,
+        196,
+        14,
+        1
+      ],
+      "numel": 9408
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 127,
+        "module": "blocks.3.1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          48,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          9408,
+          196,
+          14,
+          1
+        ],
+        "numel": 9408
+      },
+      "weight": {
+        "shape": [
+          288,
+          48,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          48,
+          1,
+          1,
+          1
+        ],
+        "numel": 13824
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        56448,
+        196,
+        14,
+        1
+      ],
+      "numel": 56448
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 128,
+        "module": "blocks.4.0.conv_pw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          288,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          196,
+          14,
+          1
+        ],
+        "numel": 56448
+      },
+      "weight": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "bias": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "running_mean": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "running_var": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          288,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          196,
+          14,
+          1
+        ],
+        "numel": 56448
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 130,
+        "module": "blocks.4.0.bn1"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          288,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          196,
+          14,
+          1
+        ],
+        "numel": 56448
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        14,
+        14
+      ],
+      "dtype": "float32",
+      "stride": [
+        56448,
+        196,
+        14,
+        1
+      ],
+      "numel": 56448
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 131,
+        "module": "blocks.4.0.bn1.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          288,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "stride": [
+          56448,
+          196,
+          14,
+          1
+        ],
+        "numel": 56448
+      },
+      "weight": {
+        "shape": [
+          288,
+          1,
+          5,
+          5
+        ],
+        "dtype": "float32",
+        "stride": [
+          25,
+          25,
+          5,
+          1
+        ],
+        "numel": 7200
+      },
+      "bias": null,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 288
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        14112,
+        49,
+        7,
+        1
+      ],
+      "numel": 14112
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 132,
+        "module": "blocks.4.0.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          288,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          14112,
+          49,
+          7,
+          1
+        ],
+        "numel": 14112
+      },
+      "weight": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "bias": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "running_mean": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "running_var": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          288,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          14112,
+          49,
+          7,
+          1
+        ],
+        "numel": 14112
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 134,
+        "module": "blocks.4.0.bn2"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          288,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          14112,
+          49,
+          7,
+          1
+        ],
+        "numel": 14112
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        14112,
+        49,
+        7,
+        1
+      ],
+      "numel": 14112
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 135,
+        "module": "blocks.4.0.bn2.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          288,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          14112,
+          49,
+          7,
+          1
+        ],
+        "numel": 14112
+      },
+      "dim": [
+        2,
+        3
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        288,
+        1,
+        1,
+        1
+      ],
+      "numel": 288
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 136,
+        "module": "blocks.4.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          288,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          288,
+          1,
+          1,
+          1
+        ],
+        "numel": 288
+      },
+      "weight": {
+        "shape": [
+          72,
+          288,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          288,
+          1,
+          1,
+          1
+        ],
+        "numel": 20736
+      },
+      "bias": {
+        "shape": [
+          72
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 72
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        72,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        72,
+        1,
+        1,
+        1
+      ],
+      "numel": 72
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 137,
+        "module": "blocks.4.0.se.conv_reduce"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          72,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          72,
+          1,
+          1,
+          1
+        ],
+        "numel": 72
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        72,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        72,
+        1,
+        1,
+        1
+      ],
+      "numel": 72
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 138,
+        "module": "blocks.4.0.se.act1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          72,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          72,
+          1,
+          1,
+          1
+        ],
+        "numel": 72
+      },
+      "weight": {
+        "shape": [
+          288,
+          72,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          72,
+          1,
+          1,
+          1
+        ],
+        "numel": 20736
+      },
+      "bias": {
+        "shape": [
+          288
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 288
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        288,
+        1,
+        1,
+        1
+      ],
+      "numel": 288
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 139,
+        "module": "blocks.4.0.se.conv_expand"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardsigmoid.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          288,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          288,
+          1,
+          1,
+          1
+        ],
+        "numel": 288
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        288,
+        1,
+        1,
+        1
+      ],
+      "numel": 288
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 140,
+        "module": "blocks.4.0.se.gate"
+      }
+    ]
+  },
+  {
+    "op": "aten.mul.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          288,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          14112,
+          49,
+          7,
+          1
+        ],
+        "numel": 14112
+      },
+      "other": {
+        "shape": [
+          1,
+          288,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          288,
+          1,
+          1,
+          1
+        ],
+        "numel": 288
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        288,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        14112,
+        49,
+        7,
+        1
+      ],
+      "numel": 14112
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 141,
+        "module": "blocks.4.0.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          288,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          14112,
+          49,
+          7,
+          1
+        ],
+        "numel": 14112
+      },
+      "weight": {
+        "shape": [
+          96,
+          288,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          288,
+          1,
+          1,
+          1
+        ],
+        "numel": 27648
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        4704,
+        49,
+        7,
+        1
+      ],
+      "numel": 4704
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 142,
+        "module": "blocks.4.0.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          96,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          4704,
+          49,
+          7,
+          1
+        ],
+        "numel": 4704
+      },
+      "weight": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "bias": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "running_mean": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "running_var": {
+        "shape": [
+          96
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 96
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          96,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          4704,
+          49,
+          7,
+          1
+        ],
+        "numel": 4704
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 3,
+    "occurrences": [
+      {
+        "index": 144,
+        "module": "blocks.4.0.bn3"
+      },
+      {
+        "index": 161,
+        "module": "blocks.4.1.bn3"
+      },
+      {
+        "index": 179,
+        "module": "blocks.4.2.bn3"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          96,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          4704,
+          49,
+          7,
+          1
+        ],
+        "numel": 4704
+      },
+      "weight": {
+        "shape": [
+          576,
+          96,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          96,
+          1,
+          1,
+          1
+        ],
+        "numel": 55296
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        49,
+        7,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 3,
+    "occurrences": [
+      {
+        "index": 145,
+        "module": "blocks.4.1.conv_pw"
+      },
+      {
+        "index": 163,
+        "module": "blocks.4.2.conv_pw"
+      },
+      {
+        "index": 181,
+        "module": "blocks.5.0.conv"
+      }
+    ]
+  },
+  {
+    "op": "aten.native_batch_norm.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      },
+      "weight": {
+        "shape": [
+          576
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 576
+      },
+      "bias": {
+        "shape": [
+          576
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 576
+      },
+      "running_mean": {
+        "shape": [
+          576
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 576
+      },
+      "running_var": {
+        "shape": [
+          576
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 576
+      },
+      "training": false,
+      "momentum": 0.1,
+      "eps": 1e-05
+    },
+    "outputs": [
+      {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      },
+      {
+        "shape": [
+          0
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 0
+      }
+    ],
+    "count": 5,
+    "occurrences": [
+      {
+        "index": 147,
+        "module": "blocks.4.1.bn1"
+      },
+      {
+        "index": 151,
+        "module": "blocks.4.1.bn2"
+      },
+      {
+        "index": 165,
+        "module": "blocks.4.2.bn1"
+      },
+      {
+        "index": 169,
+        "module": "blocks.4.2.bn2"
+      },
+      {
+        "index": 183,
+        "module": "blocks.5.0.bn1"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        49,
+        7,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 5,
+    "occurrences": [
+      {
+        "index": 148,
+        "module": "blocks.4.1.bn1.act"
+      },
+      {
+        "index": 152,
+        "module": "blocks.4.1.bn2.act"
+      },
+      {
+        "index": 166,
+        "module": "blocks.4.2.bn1.act"
+      },
+      {
+        "index": 170,
+        "module": "blocks.4.2.bn2.act"
+      },
+      {
+        "index": 184,
+        "module": "blocks.5.0.bn1.act"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      },
+      "weight": {
+        "shape": [
+          576,
+          1,
+          5,
+          5
+        ],
+        "dtype": "float32",
+        "stride": [
+          25,
+          25,
+          5,
+          1
+        ],
+        "numel": 14400
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        2,
+        2
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 576
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        49,
+        7,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 149,
+        "module": "blocks.4.1.conv_dw"
+      },
+      {
+        "index": 167,
+        "module": "blocks.4.2.conv_dw"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      },
+      "dim": [
+        2,
+        3
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        576,
+        1,
+        1,
+        1
+      ],
+      "numel": 576
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 153,
+        "module": "blocks.4.1.se"
+      },
+      {
+        "index": 171,
+        "module": "blocks.4.2.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          576,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          576,
+          1,
+          1,
+          1
+        ],
+        "numel": 576
+      },
+      "weight": {
+        "shape": [
+          144,
+          576,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          576,
+          1,
+          1,
+          1
+        ],
+        "numel": 82944
+      },
+      "bias": {
+        "shape": [
+          144
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 144
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        144,
+        1,
+        1,
+        1
+      ],
+      "numel": 144
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 154,
+        "module": "blocks.4.1.se.conv_reduce"
+      },
+      {
+        "index": 172,
+        "module": "blocks.4.2.se.conv_reduce"
+      }
+    ]
+  },
+  {
+    "op": "aten.relu_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 144
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        144,
+        1,
+        1,
+        1
+      ],
+      "numel": 144
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 155,
+        "module": "blocks.4.1.se.act1"
+      },
+      {
+        "index": 173,
+        "module": "blocks.4.2.se.act1"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 144
+      },
+      "weight": {
+        "shape": [
+          576,
+          144,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          144,
+          1,
+          1,
+          1
+        ],
+        "numel": 82944
+      },
+      "bias": {
+        "shape": [
+          576
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 576
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        576,
+        1,
+        1,
+        1
+      ],
+      "numel": 576
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 156,
+        "module": "blocks.4.1.se.conv_expand"
+      },
+      {
+        "index": 174,
+        "module": "blocks.4.2.se.conv_expand"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardsigmoid.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          576,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          576,
+          1,
+          1,
+          1
+        ],
+        "numel": 576
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        576,
+        1,
+        1,
+        1
+      ],
+      "numel": 576
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 157,
+        "module": "blocks.4.1.se.gate"
+      },
+      {
+        "index": 175,
+        "module": "blocks.4.2.se.gate"
+      }
+    ]
+  },
+  {
+    "op": "aten.mul.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      },
+      "other": {
+        "shape": [
+          1,
+          576,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          576,
+          1,
+          1,
+          1
+        ],
+        "numel": 576
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        28224,
+        49,
+        7,
+        1
+      ],
+      "numel": 28224
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 158,
+        "module": "blocks.4.1.se"
+      },
+      {
+        "index": 176,
+        "module": "blocks.4.2.se"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      },
+      "weight": {
+        "shape": [
+          96,
+          576,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          576,
+          1,
+          1,
+          1
+        ],
+        "numel": 55296
+      },
+      "bias": null,
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        4704,
+        49,
+        7,
+        1
+      ],
+      "numel": 4704
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 159,
+        "module": "blocks.4.1.conv_pwl"
+      },
+      {
+        "index": 177,
+        "module": "blocks.4.2.conv_pwl"
+      }
+    ]
+  },
+  {
+    "op": "aten.add.Tensor",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          96,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          4704,
+          49,
+          7,
+          1
+        ],
+        "numel": 4704
+      },
+      "other": {
+        "shape": [
+          1,
+          96,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          4704,
+          49,
+          7,
+          1
+        ],
+        "numel": 4704
+      },
+      "alpha": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        96,
+        7,
+        7
+      ],
+      "dtype": "float32",
+      "stride": [
+        4704,
+        49,
+        7,
+        1
+      ],
+      "numel": 4704
+    },
+    "count": 2,
+    "occurrences": [
+      {
+        "index": 162,
+        "module": "blocks.4.1"
+      },
+      {
+        "index": 180,
+        "module": "blocks.4.2"
+      }
+    ]
+  },
+  {
+    "op": "aten.mean.dim",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "stride": [
+          28224,
+          49,
+          7,
+          1
+        ],
+        "numel": 28224
+      },
+      "dim": [
+        -1,
+        -2
+      ],
+      "keepdim": true,
+      "dtype": null
+    },
+    "outputs": {
+      "shape": [
+        1,
+        576,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        576,
+        1,
+        1,
+        1
+      ],
+      "numel": 576
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 185,
+        "module": "global_pool.pool"
+      }
+    ]
+  },
+  {
+    "op": "aten.convolution.default",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          576,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          576,
+          1,
+          1,
+          1
+        ],
+        "numel": 576
+      },
+      "weight": {
+        "shape": [
+          1024,
+          576,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          576,
+          1,
+          1,
+          1
+        ],
+        "numel": 589824
+      },
+      "bias": {
+        "shape": [
+          1024
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 1024
+      },
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        1024,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        1024,
+        1,
+        1,
+        1
+      ],
+      "numel": 1024
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 186,
+        "module": "conv_head"
+      }
+    ]
+  },
+  {
+    "op": "aten.hardswish_.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          1024,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          1024,
+          1,
+          1,
+          1
+        ],
+        "numel": 1024
+      }
+    },
+    "outputs": {
+      "shape": [
+        1,
+        1024,
+        1,
+        1
+      ],
+      "dtype": "float32",
+      "stride": [
+        1024,
+        1,
+        1,
+        1
+      ],
+      "numel": 1024
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 187,
+        "module": "act2"
+      }
+    ]
+  },
+  {
+    "op": "aten.view.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1,
+          1024,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "stride": [
+          1024,
+          1,
+          1,
+          1
+        ],
+        "numel": 1024
+      },
+      "size": [
+        1,
+        1024
+      ]
+    },
+    "outputs": {
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "float32",
+      "stride": [
+        1024,
+        1
+      ],
+      "numel": 1024
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 188,
+        "module": "flatten"
+      }
+    ]
+  },
+  {
+    "op": "aten.t.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1000,
+          1024
+        ],
+        "dtype": "float32",
+        "stride": [
+          1024,
+          1
+        ],
+        "numel": 1024000
+      }
+    },
+    "outputs": {
+      "shape": [
+        1024,
+        1000
+      ],
+      "dtype": "float32",
+      "stride": [
+        1,
+        1024
+      ],
+      "numel": 1024000
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 189,
+        "module": "classifier"
+      }
+    ]
+  },
+  {
+    "op": "aten.addmm.default",
+    "arguments": {
+      "self": {
+        "shape": [
+          1000
+        ],
+        "dtype": "float32",
+        "stride": [
+          1
+        ],
+        "numel": 1000
+      },
+      "mat1": {
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "stride": [
+          1024,
+          1
+        ],
+        "numel": 1024
+      },
+      "mat2": {
+        "shape": [
+          1024,
+          1000
+        ],
+        "dtype": "float32",
+        "stride": [
+          1,
+          1024
+        ],
+        "numel": 1024000
+      },
+      "beta": 1,
+      "alpha": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        1000
+      ],
+      "dtype": "float32",
+      "stride": [
+        1000,
+        1
+      ],
+      "numel": 1000
+    },
+    "count": 1,
+    "occurrences": [
+      {
+        "index": 190,
+        "module": "classifier"
+      }
+    ]
+  }
+]

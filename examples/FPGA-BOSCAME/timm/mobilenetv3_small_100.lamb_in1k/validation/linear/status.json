@@ -1,0 +1,121 @@
+{
+  "status": "COMPLETE",
+  "scope": "Linear software workaround and actual patch6 FPGA verification",
+  "completed_utc": "2026-10-06T14:27:34.941328+00:00",
+  "case": "linear_m1_n1000_k1024",
+  "kernel": "linear",
+  "source_changes": [
+    "common.mk",
+    "triton/build.py",
+    "triton/export.py",
+    "triton/LINEAR.md"
+  ],
+  "source_hashes": {
+    "common.mk": "9fad70ff3122cff95350b80d4122bcd9e2f3a541be91759533b292d1ea6bfb13",
+    "triton/build.py": "2ccf06a60dd75f53c345e2c327837cde46e778532143eee6f52113e7ea3a3f00",
+    "triton/export.py": "bb9b2fc1bbe86ae8364970946b58583120ac5ea7c95ba84738e78dd87d0f8e7f",
+    "triton/LINEAR.md": "478657c62f530e7ef6a090dbfdbc2c68fa0934ad316ed4e430bb2d96664c2d34"
+  },
+  "kernel_and_case_and_oracle_unchanged": true,
+  "host_status": "PASS",
+  "host_metrics": {
+    "max_abs_error": 1.0779388211368257e-05,
+    "max_error_over_bound": 0.000971296828578415,
+    "max_bound": 0.2506309930532379
+  },
+  "nr_build": "PASS",
+  "nr_llvm_host_status": "PASS",
+  "fpga_status": "PASS",
+  "fpga": {
+    "case": "linear_m1_n1000_k1024",
+    "status": "PASS",
+    "hardware": "nr-patch6",
+    "fpga": 7,
+    "sys_clk_hz": 11059200,
+    "uart_divisor": 6,
+    "trials": 8,
+    "checked_outputs": 8000,
+    "errors": 0,
+    "max_abs_error": 8.708439054316841e-06,
+    "checks": {
+      "runner_ok": true,
+      "ddr_readback_matches": true,
+      "uploaded_sha_matches": true,
+      "clock_and_uart": true,
+      "actual_clock_in_log": true,
+      "independent_c_oracle_pass": true,
+      "ra_pass": true,
+      "runtime_pass": true,
+      "no_fail_or_trap": true,
+      "original_launch_object_unchanged": true,
+      "triton_ttir_unchanged": true,
+      "production_image_equals_tested": true,
+      "rvv_fma_present": true,
+      "no_horizontal_reduction": true
+    },
+    "runner_result": {
+      "status": "OK",
+      "fpga": 7,
+      "sha256": "1ba0544a83b073bc09f17adf0516e4ad513ac9fd042ceb79aed52c632cbc7c68",
+      "capture_seconds": 1800,
+      "baud": 115200,
+      "hardware": "nr-patch6",
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "padded_sha256": "1ba0544a83b073bc09f17adf0516e4ad513ac9fd042ceb79aed52c632cbc7c68",
+      "ddr_readback_matches": true,
+      "uart_bytes": 351,
+      "completion_marker": "[nr] RA returned:",
+      "completion_marker_seen": true,
+      "uart_input_bytes_written": 0,
+      "uart_interactive_bytes_written": 0,
+      "uart_input_unacknowledged_requests": 0
+    },
+    "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/mobilenet-patch6-20261006-133234/runner/build/fpga-runs/run-29143dcf7fa84d5e",
+    "uart_log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/mobilenet-patch6-20261006-133234/runner/build/fpga-runs/run-29143dcf7fa84d5e/uart.raw.log",
+    "uart_sha256": "62ecdd9854b6fa1f05fef880ce6eeef3cd7f1a2b2f38af6891a96eba0a50963e",
+    "runner_log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/linear-patch6-fix-20261006-221018/candidate-fpga.log",
+    "runner": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/mobilenet-patch6-20261006-133234/runner/tools/fpga_run.py",
+    "command": [
+      "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/linear-patch6-fix-20261006-221018/output-lanes-trial/linear_m1_n1000_k1024/nr/linear_m1_n1000_k1024.padded.bin",
+      "--fpga=7",
+      "--remote-dir=Desktop/fpga-tester-ISCAS-patch6-codex-20261006",
+      "--capture-seconds=1800",
+      "--startup-timeout=300",
+      "--completion-marker=[nr] RA returned:"
+    ],
+    "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/linear-patch6-fix-20261006-221018/patch6/linear_m1_n1000_k1024.padded.bin",
+    "bin_sha256": "1ba0544a83b073bc09f17adf0516e4ad513ac9fd042ceb79aed52c632cbc7c68",
+    "raw_bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/linear-patch6-fix-20261006-221018/patch6/linear_m1_n1000_k1024.bin",
+    "raw_bin_sha256": "008ec7e891e7af7e3b056e5118fd5a47c3292ff691ae77cc9e24875b2e0a5ed5",
+    "build_manifest": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/linear-patch6-fix-20261006-221018/patch6/build.json",
+    "scope": "Patch6 relink of the production operator with UART divisor 6; default UART divisor 8 image not executed",
+    "kernel_sha256": "cef87d591e1da65c99100054e45ef726c0e85c2405c89964fb9c506a4f4c7c58",
+    "launch_sha256": "9c2785196b3c536a1ec0b7e3d4af6331bf8f87a79de1b12c625a6d08c8c047bf"
+  },
+  "hardware_reduction_issue": "UNRESOLVED: original minimal vfredusum/vfredosum reproducer remains FAIL; software avoids these instructions",
+  "other_operators": "87 original NR binaries unchanged; no other FPGA cases rerun",
+  "report": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/linear-patch6-fix-20261006-221018/report.md",
+  "artifacts": {
+    "kernel.ttir": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/linear_m1_n1000_k1024/kernel.ttir",
+      "sha256": "74593e2f9523b9a9339249fafa382d1a00aa87706f0e27dd2de6c276bf14790f"
+    },
+    "kernel.linalg.mlir": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/linear_m1_n1000_k1024/kernel.linalg.mlir",
+      "sha256": "4b6913d0a5b5a753059e409691a7b155839877888dcb0f78146803bc84887d2e"
+    },
+    "nr/vectorized.mlir": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/linear_m1_n1000_k1024/nr/vectorized.mlir",
+      "sha256": "55720b5ba304d60654225a40abd9859a71703a5458d5e1a07d88b46d90f02d51"
+    },
+    "nr/kernel.ll": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/linear_m1_n1000_k1024/nr/kernel.ll",
+      "sha256": "582b8e5e5b98be3bed86f13d561671b2fc5555a93552e2f21fb009f84cf3fa1e"
+    },
+    "nr/kernel.nr.S": {
+      "path": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/linear_m1_n1000_k1024/nr/kernel.nr.S",
+      "sha256": "4116da43495745c1e67900de21670c3b32ec56b6b0716092ce32fcd5fd8c7c4f"
+    }
+  }
+}

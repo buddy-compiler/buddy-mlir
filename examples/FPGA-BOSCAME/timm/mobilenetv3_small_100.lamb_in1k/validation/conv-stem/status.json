@@ -1,0 +1,832 @@
+{
+  "generated_at_utc": "2026-09-28T05:53:24.632804+00:00",
+  "status": "INCOMPLETE",
+  "scope": "Stem implementation, local verification, NR build, and requested real FPGA validation",
+  "fpga": "NOT EXECUTED",
+  "kernel": "conv_stem",
+  "count": 1,
+  "case": {
+    "name": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+    "family": "conv_stem",
+    "kernel": "conv_stem",
+    "symbol": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+    "dtype": "float32",
+    "layout": "NCHW contiguous; OIHW Weight[Cout,Cin,KH,KW]",
+    "shapes": [
+      [
+        1,
+        3,
+        224,
+        224
+      ]
+    ],
+    "weight_shape": [
+      16,
+      3,
+      3,
+      3
+    ],
+    "bias_shape": [
+      16
+    ],
+    "output_shape": [
+      1,
+      16,
+      112,
+      112
+    ],
+    "kernel_size": [
+      3,
+      3
+    ],
+    "stride": [
+      2,
+      2
+    ],
+    "padding": [
+      1,
+      1
+    ],
+    "dilation": [
+      1,
+      1
+    ],
+    "groups": 1,
+    "mnk": {
+      "M": 12544,
+      "N": 16,
+      "K": 27
+    },
+    "logical_addressing": {
+      "k": "(ic*KH+kh)*KW+kw",
+      "m": "oh*OW+ow",
+      "A[m,k]": "X[(ic*H+oh*SH+kh-PH)*W+ow*SW+kw-PW], or zero outside H/W",
+      "B[k,n]": "Weight[n*(Cin*KH*KW)+k]",
+      "Out[m,n]": "Out[n*(OH*OW)+m]"
+    },
+    "constexprs": {
+      "CIN": 3,
+      "COUT": 16,
+      "H": 224,
+      "W": 224,
+      "KH": 3,
+      "KW": 3,
+      "SH": 2,
+      "SW": 2,
+      "PH": 1,
+      "PW": 1,
+      "OH": 112,
+      "OW": 112,
+      "BM": 16,
+      "BN": 16,
+      "BK": 32
+    },
+    "signature": {
+      "X": "*fp32",
+      "Weight": "*fp32",
+      "Bias": "*fp32",
+      "Out": "*fp32"
+    },
+    "grid": [
+      784,
+      1,
+      1
+    ],
+    "grid_axes": [
+      "output_spatial_tile",
+      "output_channel_tile",
+      "unused"
+    ],
+    "tail": {
+      "M": 0,
+      "N": 0,
+      "K": 27
+    },
+    "tolerance": {
+      "formula": "gamma_(K+2)*(sum_valid(abs(X*Weight))+abs(Bias[oc])) + (K+2)*2^-149",
+      "unit_roundoff": 5.960464477539063e-08,
+      "gamma": 1.7285376863236966e-06,
+      "absolute_floor": 4.0637655465419695e-44
+    }
+  },
+  "host": {
+    "status": "PASS",
+    "c_trials": 12,
+    "metrics": {
+      "max_abs_error": 1.3060039254497724e-06,
+      "max_error_over_bound": 0.15276565326807265,
+      "max_bound": 4.6670517530739806e-05
+    },
+    "pytorch": {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "status": "PASS",
+      "torch_version": "2.10.0+cpu",
+      "reference": "FP64 NCHW conv2d plus torch.ops.aten.convolution.default; groups=1, kernel=3x3, stride=2, padding=1",
+      "shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "weight_shape": [
+        16,
+        3,
+        3,
+        3
+      ],
+      "output_shape": [
+        1,
+        16,
+        112,
+        112
+      ],
+      "mnk": {
+        "M": 12544,
+        "N": 16,
+        "K": 27
+      },
+      "dtype": "float32",
+      "device": "cpu",
+      "seed": 0,
+      "trials": 39,
+      "samples": 7827456,
+      "per_program_store_checks": 5,
+      "max_abs_error": 0.00154868753907067,
+      "max_abs_error_vs_aten": 0.001953125,
+      "max_error_over_bound": 0.156778284065507,
+      "tolerance": {
+        "formula": "gamma_(K+2)*(sum_valid(abs(X*Weight))+abs(Bias[oc])) + (K+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.7285376863236966e-06,
+        "absolute_floor": 4.0637655465419695e-44
+      },
+      "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+      "inputs": "bias-only, NCHW channel/spatial ramps, first/last input channel, all 27 OIHW taps, last output only, checkerboard cancellation, corner impulses, boundary stripes, all-ones valid-pixel counts, seeded random inputs/weights/bias",
+      "one_hot_taps": 27,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/kernel.ll",
+      "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/host/pytorch-check.so"
+    }
+  },
+  "nr": {
+    "build": "PASS",
+    "vector_host": {
+      "status": "PASS",
+      "output": "conv_stem metrics max_abs_error=1.3060039254497724e-06 max_error_over_bound=0.15276565326807265 max_bound=4.6670517530739806e-05\nverify conv_stem_cin3_cout16_h224_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35af49f4\n",
+      "pytorch": {
+        "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 NCHW conv2d plus torch.ops.aten.convolution.default; groups=1, kernel=3x3, stride=2, padding=1",
+        "shape": [
+          1,
+          3,
+          224,
+          224
+        ],
+        "weight_shape": [
+          16,
+          3,
+          3,
+          3
+        ],
+        "output_shape": [
+          1,
+          16,
+          112,
+          112
+        ],
+        "mnk": {
+          "M": 12544,
+          "N": 16,
+          "K": 27
+        },
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 39,
+        "samples": 7827456,
+        "per_program_store_checks": 5,
+        "max_abs_error": 0.00154868753907067,
+        "max_abs_error_vs_aten": 0.001953125,
+        "max_error_over_bound": 0.156778284065507,
+        "tolerance": {
+          "formula": "gamma_(K+2)*(sum_valid(abs(X*Weight))+abs(Bias[oc])) + (K+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.7285376863236966e-06,
+          "absolute_floor": 4.0637655465419695e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, NCHW channel/spatial ramps, first/last input channel, all 27 OIHW taps, last output only, checkerboard cancellation, corner impulses, boundary stripes, all-ones valid-pixel counts, seeded random inputs/weights/bias",
+        "one_hot_taps": 27,
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          1,
+          1
+        ],
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/pytorch-check.so"
+      }
+    },
+    "audit": {
+      "status": "PASS",
+      "elf_sha256": "a0fbe01b52fe99194483ceee6d9846b26337fde24470724455c7802ebba31e1e",
+      "executable_sections": [
+        {
+          "name": ".text.init",
+          "address": "0x80000000",
+          "bytes": 244
+        },
+        {
+          "name": ".text",
+          "address": "0x80011000",
+          "bytes": 15162
+        }
+      ],
+      "instructions": 4855,
+      "ame_instructions": 0,
+      "vector_memory_instructions": 19,
+      "rvv_instructions": {
+        "vfmacc.vf": 8,
+        "vle32.v": 9,
+        "vle64.v": 1,
+        "vse32.v": 8,
+        "vse64.v": 1,
+        "vsetivli": 2
+      },
+      "errors": []
+    }
+  },
+  "regression": {
+    "status": "PASS",
+    "representative_host_count": 5,
+    "prior_87_case_inventories_and_9_kernel_ASTs": "UNCHANGED",
+    "selected_prior_dot_nr_llvm": "BYTE_IDENTICAL"
+  },
+  "modified_files": [
+    "README.md",
+    "common.mk",
+    "triton/README.md",
+    "triton/build.py",
+    "triton/cases.py",
+    "triton/export.py",
+    "triton/kernels.py"
+  ],
+  "new_source_files": [
+    "triton/launch_conv_stem.c.in",
+    "triton/verify_conv_stem.py",
+    "triton/STEM.md",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1/launch.c",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1/metadata.json",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1/makefile"
+  ],
+  "preserved_tracked_paths": [
+    "examples/FPGA-BOSCAME/qwen3-0.6b",
+    "examples/FPGA-BOSCAME/common",
+    "examples/FPGA-BOSCAME/fpga_run.sh",
+    "examples/FPGA-BOSCAME/tools"
+  ],
+  "verified_hash_count": 234,
+  "scratch": {
+    "host": {
+      "allocation_count": 30,
+      "maximum_elements_per_allocation": 512,
+      "shapes": [
+        "16x16xf32",
+        "16x1xi1",
+        "16x1xi32",
+        "16x32xf32",
+        "16x32xi1",
+        "16x32xi32",
+        "16xf32",
+        "16xi32",
+        "1x32xi1",
+        "1x32xi32",
+        "32x16xf32",
+        "32xi32"
+      ]
+    },
+    "nr": {
+      "allocation_count": 30,
+      "maximum_elements_per_allocation": 512,
+      "shapes": [
+        "16x16xf32",
+        "16x1xi1",
+        "16x1xi32",
+        "16x32xf32",
+        "16x32xi1",
+        "16x32xi32",
+        "16xf32",
+        "16xi32",
+        "1x32xi1",
+        "1x32xi32",
+        "32x16xf32",
+        "32xi32"
+      ]
+    }
+  },
+  "artifacts": {
+    "ttir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/kernel.ttir",
+    "linalg": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/kernel.linalg.mlir",
+    "nr_vectorized_mlir": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/vectorized.mlir",
+    "nr_llvm": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/kernel.ll",
+    "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.elf",
+    "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin"
+  },
+  "elf_bytes": 46264,
+  "bin_bytes": 85466,
+  "elf_sha256": "a0fbe01b52fe99194483ceee6d9846b26337fde24470724455c7802ebba31e1e",
+  "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+  "future_fpga_command": "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin --fpga=5 --capture-seconds=120 --completion-marker='[nr] RA returned:'",
+  "report_sha256": {
+    "toolchain.json": "9981b428f2daf677f5a106c47f848cbfa436bb367f602c2c471ed85fe0c48ed4",
+    "host.json": "ae867c406a146f566157406107591961b2aa7cea4f926ac1d138ea8dce778a10",
+    "nr.json": "9066b4620c6cda18c4646efa54925500c99fd450db953c0f2f7c900243ac1e9c",
+    "regression.json": "1f88eaf8fc3b2b16cbc80f70c324334cf3dbad930be38138a6ff7a487d300b3e",
+    "inventory.json": "9743f8121769a921afae5a4bf67536e988ba4d14f5650a8c07b22698c8ed4789",
+    "model-coverage.json": "fc5faeb0c4ff3d8df6ff85e6f4d48538f7b1d1c3375613baf0f9a0081ae9d924",
+    "fpga.json": "32e410a8f177fa8d8c890f68d27b0cf7902d139f6720112130aafa88ccd924c0",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga.json": "e007f9659ecb6a7aa36ecd57b7196e2beaaec3ededc65dd170dce40287ecbfdd",
+    "fpga-ports.json": "ddb3cf6ea795e00e450877cd1a198d94b3155d570eae9de87e5b6d5769c0e4f5",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4.json": "03ecba2dbd5199b0464004b119d1e065e430fa996d0ad43c2b3929ac91e51ee7",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga6.json": "01770ee0c7fa937f0a545d0fbb2cb244703468a03d2c4df0995bdbb063e65295",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga7.json": "c357b30e28552b23c13bee0a98348ffb87920bcac034690326d6347fcc5856e1",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga5-auth.json": "ccd303475f4e3e866278512fc21d3997e4337909c0c6588851b93234f7c4b033",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-auth.json": "48646c9937a4311a82625d10cd36ac081fa667e5f539b8600a3d8df4e07647c7",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga6-auth.json": "4c40a1417ef3debb4c78437afe9e243d51d2f31edfdebac85fb025d893078fb6",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga7-auth.json": "c390ff786d26a6d7f9f345d9528cb41c364ba55ab6beab475730d9f4c4c2ed16",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga5-retry.json": "26a3079a049cf328d76459e00c230fb251b0c833f836f9d6229fe454cce4d1af",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-retry.json": "05747c8eb5f871879030ebf1ac119da323de592747809373c493bd5a3252d09d",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-retry2.json": "42844966f4f49cd8901268d3206735ef48ed4762317525606e9e7a54f3fb63e7",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga5-retry2.json": "6a366a6348665937fdc7c34e1c445433bd9e34a9a6f2a503be427ccc55a43f4d",
+    "conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-retry3.json": "61f514c6560544833e08ef0b274c312575ae380d41284adee6adc7ff1f268c44",
+    "manual-20260929/result.json": "e007f9659ecb6a7aa36ecd57b7196e2beaaec3ededc65dd170dce40287ecbfdd"
+  },
+  "local_implementation_status": "COMPLETE",
+  "fpga_updated_at_utc": "2026-09-29T05:32:30.321397+00:00",
+  "fpga_attempts": [
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 5,
+      "attempt": "auth",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "UVHS session PID 30258 occupied the platform workdir",
+      "run_id": "run-5d8971c8a6be4dd5",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga5-auth.log",
+      "log_sha256": "ee753711508469c37bdd446f51ce3527fa985658f8776453e90836232b55bbc5",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-5d8971c8a6be4dd5",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-5d8971c8a6be4dd5/result.json": "e10d8a1d2711e7b0cbd222f92d8d6ad7aac102071461a15bf6db7a98d9ff5fa1",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-5d8971c8a6be4dd5/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-5d8971c8a6be4dd5/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-5d8971c8a6be4dd5/worker.log": "a2a07caac7b9bbedfc8079e84ea9b9d07de7269adf0984dbf6128a96a8763411"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 5,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "existing UVHS session PID 30258; close it first",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 4,
+      "attempt": "auth",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "UART /dev/FPGA4 was in use by PID 31966",
+      "run_id": "run-80111c3cff524b3e",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=4",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-auth.log",
+      "log_sha256": "c727a7d6a04fc05783d0a5c6e2053ec3182370a603f943e17764a84f2953902a",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-80111c3cff524b3e",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-80111c3cff524b3e/result.json": "2daa638cfc8005efd6f406312b11973659af429723b6e93aec46a14aec915202",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-80111c3cff524b3e/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-80111c3cff524b3e/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-80111c3cff524b3e/worker.log": "55afb6ccf73a0417a300b726f9e3c598139dbe2bf5716e5bf13933ad921febf2"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 4,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "/dev/FPGA4 is in use by PID 31966",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 6,
+      "attempt": "auth",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "load_db b1.f2 aborted by an external interrupt; no CPU startup or UART output",
+      "run_id": "run-299ca6d4c3654312",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=6",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga6-auth.log",
+      "log_sha256": "fd77895c6dad1acf3b03c08f30f388a8577c85dd684af357943fc94a9cde9d17",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-299ca6d4c3654312",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-299ca6d4c3654312/preflight.log": "a6fcf1032103a58c52c1be9962e75731be055a6334b0c0b6a363118a2a07c35b",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-299ca6d4c3654312/result.json": "57612538ff5cf67c62b854df3d6a6c67b523b0829732ebbf3a775d9585e8b5f7",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-299ca6d4c3654312/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-299ca6d4c3654312/uvhs.log": "423ff520f3407d4fe1b399521aa2926fab5cb60bc5a783b56b2d1b329cfece7c",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-299ca6d4c3654312/worker.log": "8b7f42e5e427e2d621873503fbf33d8f69a0fa5d8d0866f20320161bf3140ec9"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 6,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "platform reported ERROR/FATAL; see uvhs.log",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 7,
+      "attempt": "auth",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "UART /dev/FPGA7 was in use by PID 27512",
+      "run_id": "run-757d91ffe5224e62",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=7",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga7-auth.log",
+      "log_sha256": "164b387b83ea4c07582b3896d9c8c2e316cb33663ed20889459d1d133d69c8be",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-757d91ffe5224e62",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-757d91ffe5224e62/result.json": "fc893a74c3b6379cd1fc1940b4806bbf9dc54956c267e9c56087b01fcddba19d",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-757d91ffe5224e62/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-757d91ffe5224e62/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-757d91ffe5224e62/worker.log": "ed64b6b56cda7c33d8a9876a25376c40a791f16b24fa41199f32e5d5a8988b87"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 7,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "/dev/FPGA7 is in use by PID 27512",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 5,
+      "attempt": "retry",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "UVHS daemon unavailable: Daemon is not start! Failed to connect to system",
+      "run_id": "run-cbc149ae76a74619",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga5-retry.log",
+      "log_sha256": "34e0d073bc0b132c60b0540acd1ccd26cfd002bb6b5345bf091bb7e715ad09f4",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-cbc149ae76a74619",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-cbc149ae76a74619/preflight.log": "b473d7fecec0758b2ba07a7f0b53a15163e6cf7e3c149fbc846ad10431c18e4b",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-cbc149ae76a74619/result.json": "48c03f1d61e07cf8a7eeb56df342d106f5a99f1c5f7a953a72e7ceb8a5fb7b87",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-cbc149ae76a74619/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-cbc149ae76a74619/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-cbc149ae76a74619/worker.log": "5042cd50633bf85bff5512f25e8b388dc15c67b79b07213da06014cd1fe70942"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 5,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "UVHS resource query exited 1",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 4,
+      "attempt": "retry_after_occupancy_inspection",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "FPGA4 UART free and previous holder PID 31966 exited; UVHS resource query failed because daemon is unavailable.",
+      "run_id": "run-8763bf6c41724bff",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=4",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-retry.log",
+      "log_sha256": "9770784295d68f9a42009e68ff1327f1f666f82910b8b2345931266b6fc59559",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-8763bf6c41724bff",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-8763bf6c41724bff/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-8763bf6c41724bff/result.json": "1d77fd1c3a534f7e2f046bdc4cff8781717ca1ee6e4a30fef6ca56e9ede0b715",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-8763bf6c41724bff/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-8763bf6c41724bff/worker.log": "5042cd50633bf85bff5512f25e8b388dc15c67b79b07213da06014cd1fe70942",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-8763bf6c41724bff/preflight.log": "aa7270e1c56467aee5e3bccb74857371bba3f34e420dcc367f3232efa5818984"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 4,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "UVHS resource query exited 1",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      },
+      "inspection": {
+        "device": "/dev/FPGA4 -> /dev/ttyUSB3",
+        "serial_holder_count": 0,
+        "former_holder_31966": "EXITED",
+        "active_uvhs_for_fpga4": false,
+        "previous_fpga4_uvhs_script": "/home/hjuser/Desktop/qwen25_fpga/user_script/hw_run/rerun_baud_nohold.tcl",
+        "script_behavior": "load_db b1.f0; assert/release cpu_reset to replay DDR boot output; no BIN filename in this script",
+        "note": "The exited serial-holder process cannot be inspected retrospectively; the previous FPGA4 UVHS command is the observed association, not proof of a particular DDR binary."
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 4,
+      "attempt": "retry2",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "FPGA4 UART is held by PID 38761: Qwen2.5 qwen25_uart_session.py, timeout 1900 seconds, no UART data yet",
+      "run_id": "run-533e9a9aa9c14891",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=4",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-retry2.log",
+      "log_sha256": "f57a7eddf40922eb1e5f0998d7cf9e4c4d7612f072134d2c42dd3ff3fc297edb",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-533e9a9aa9c14891",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-533e9a9aa9c14891/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-533e9a9aa9c14891/result.json": "eba867965556e46d727520bb4b15a004f35060905d356f91aebb67210e3f2387",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-533e9a9aa9c14891/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-533e9a9aa9c14891/worker.log": "2b48de0724ea67b300e74013e69cea77b640f5a737c322b00e89433d12b8e6da"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 4,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "/dev/FPGA4 is open in PID 38761",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      },
+      "inspection": {
+        "holder_pid": 38761,
+        "uid": 1000,
+        "user": "hjuser",
+        "command": "python3 /home/hjuser/Desktop/qwen25_0928/qwen25_uart_session.py /dev/FPGA4 1900 /tmp/q25_verify2_uart.log",
+        "cwd": "/home/hjuser",
+        "stdout": "/tmp/q25_verify2_cap.out",
+        "raw_uart_log": "/tmp/q25_verify2_uart.log",
+        "observed_capture_output": "[uart] open /dev/FPGA4 115200 timeout=1900s log=/tmp/q25_verify2_uart.log",
+        "action": "Preserved existing capture process; no kill or reset"
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 5,
+      "attempt": "retry2",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "UVHS daemon still unavailable: Daemon is not start! Failed to connect to system",
+      "run_id": "run-45e3a50447a641ec",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga5-retry2.log",
+      "log_sha256": "781167cb707f0b314ee91476f431421598484e0944460cf3b666c82959a3eda8",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-45e3a50447a641ec",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-45e3a50447a641ec/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-45e3a50447a641ec/result.json": "48c03f1d61e07cf8a7eeb56df342d106f5a99f1c5f7a953a72e7ceb8a5fb7b87",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-45e3a50447a641ec/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-45e3a50447a641ec/worker.log": "5042cd50633bf85bff5512f25e8b388dc15c67b79b07213da06014cd1fe70942",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-45e3a50447a641ec/preflight.log": "8a7561d171b3713ecd80973b005417b79f5a03dcb335bae58e81dc562abb37f4"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 5,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "UVHS resource query exited 1",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 4,
+      "attempt": "retry3",
+      "status": "NOT EXECUTED",
+      "runner_status": "ERROR",
+      "upload": "PASS",
+      "reason": "2026-09-29 13:32:24 server time: FPGA4 passed process/serial occupancy checks, but UVHS resource query failed because daemon is unavailable.",
+      "run_id": "run-29c63b5876bd4d00",
+      "command": [
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+        "--fpga=4",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ],
+      "ssh_host": "codex-fpga-stem",
+      "ssh_connection": "Temporary alias reused a password-authenticated ControlMaster connection to fpga; no password saved in files",
+      "remote_user": "hjuser",
+      "sudo_used": false,
+      "returncode": 1,
+      "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/conv_stem_cin3_cout16_h224_k3_s2_p1.fpga4-retry3.log",
+      "log_sha256": "2ab41ad6fee756cfd6618e4100a1ffbb21e7a23da25ccc849d4d758ea4be2577",
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "run_directory": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-29c63b5876bd4d00",
+      "run_artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-29c63b5876bd4d00/uart.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-29c63b5876bd4d00/result.json": "1d77fd1c3a534f7e2f046bdc4cff8781717ca1ee6e4a30fef6ca56e9ede0b715",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-29c63b5876bd4d00/uvhs.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-29c63b5876bd4d00/worker.log": "5042cd50633bf85bff5512f25e8b388dc15c67b79b07213da06014cd1fe70942",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-29c63b5876bd4d00/preflight.log": "38f961fdedbfeece9786bffa8cae6a1ce691754942b08fa59d6677eb83d6fe32"
+      },
+      "platform_result": {
+        "status": "ERROR",
+        "fpga": 4,
+        "sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "capture_seconds": 120,
+        "baud": 115200,
+        "error": "UVHS resource query exited 1",
+        "uart_input_bytes_written": 0,
+        "uart_interactive_bytes_written": 0,
+        "uart_input_unacknowledged_requests": 0
+      }
+    },
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "fpga": 4,
+      "method": "manual scp + minicom terminal A + make uv_run4 terminal B",
+      "status": "NOT EXECUTED",
+      "reason": "Manual make uv_run4 padded the image, then UVHS initialization failed because daemon was unavailable, before DDR loading/CPU startup.",
+      "sudo_used": false,
+      "fpga_run_script_used": false,
+      "upload": "PASS",
+      "remote_raw_path": "/home/hjuser/Desktop/fpga-tester-ISCAS/test/conv_stem_manual_20260929.bin",
+      "raw_bytes": 85466,
+      "bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "remote_padded_path": "/home/hjuser/Desktop/fpga-tester-ISCAS/test/conv_stem_manual_20260929_padded.bin",
+      "padded_bytes": 1048576,
+      "padded_sha256": "4d5f430ffce218ebcea3e4487db83b960b0e1e5a5c171669a16b65b81d0054ac",
+      "raw_prefix_and_zero_padding_verified": true,
+      "serial": {
+        "device": "/dev/FPGA4",
+        "baud": 115200,
+        "data_bits": 8,
+        "parity": "none",
+        "stop_bits": 1,
+        "hardware_flow_control": false,
+        "software_flow_control": false,
+        "settings_verified_with_stty": true,
+        "opened_before_make": true,
+        "uart_bytes": 0
+      },
+      "make_command": "cd ~/Desktop/fpga-tester-ISCAS && make uv_run4 test=test/conv_stem_manual_20260929.bin",
+      "make_returncode": 2,
+      "make_log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.make.log",
+      "uart_log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.uart.log",
+      "artifacts": {
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.make.log": "29236d9a60834202c66e88a9ec6e7f83836b7a2b78f3294e16c2b19433008c2f",
+        "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/validation/conv-stem/manual-20260929/conv_stem_manual_20260929.uart.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "completed_at_utc": "2026-09-29T05:32:30.321397+00:00",
+      "cleanup": "Minicom exited normally with Ctrl-A X; temporary minicom profile removed; no other user session terminated"
+    }
+  ],
+  "fpga_reason": "Manual make uv_run4 padded the image, then UVHS initialization failed because daemon was unavailable, before DDR loading/CPU startup.",
+  "sudo_used": false
+}

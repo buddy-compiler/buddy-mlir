@@ -1,0 +1,30 @@
+{
+  "name": "hardsigmoid_count16",
+  "family": "hardsigmoid",
+  "kernel": "hardsigmoid",
+  "symbol": "hardsigmoid_count16",
+  "dtype": "float32",
+  "layout": "NCHW contiguous",
+  "shapes": [
+    [
+      1,
+      16,
+      1,
+      1
+    ]
+  ],
+  "constexprs": {
+    "COUNT": 16,
+    "BLOCK": 128
+  },
+  "signature": {
+    "X": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    1,
+    1,
+    1
+  ],
+  "tail": 16
+}

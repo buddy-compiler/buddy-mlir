@@ -1,0 +1,9 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+verify dwconv_c576_h7_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=377AA000
+[nr] launch cycles=0x00000000E4105AB3 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

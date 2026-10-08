@@ -1,0 +1,43 @@
+{
+  "name": "se_mul_c16_h56_w56",
+  "family": "se_mul",
+  "kernel": "se_mul",
+  "symbol": "se_mul_c16_h56_w56",
+  "dtype": "float32",
+  "layout": "NCHW contiguous",
+  "shapes": [
+    [
+      1,
+      16,
+      56,
+      56
+    ]
+  ],
+  "constexprs": {
+    "COUNT": 50176,
+    "SPATIAL": 3136,
+    "BLOCK": 128
+  },
+  "signature": {
+    "X": "*fp32",
+    "Scale": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    25,
+    16,
+    1
+  ],
+  "tail": 64,
+  "scale_shape": [
+    1,
+    16,
+    1,
+    1
+  ],
+  "grid_axes": [
+    "spatial_tile",
+    "channel",
+    "unused"
+  ]
+}

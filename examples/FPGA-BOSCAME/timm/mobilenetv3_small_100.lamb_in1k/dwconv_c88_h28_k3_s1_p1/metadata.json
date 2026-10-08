@@ -1,0 +1,81 @@
+{
+  "name": "dwconv_c88_h28_k3_s1_p1",
+  "family": "depthwise_conv2d",
+  "kernel": "depthwise_conv2d",
+  "symbol": "dwconv_c88_h28_k3_s1_p1",
+  "dtype": "float32",
+  "layout": "NCHW contiguous; OIHW Weight[C,1,KH,KW]",
+  "shapes": [
+    [
+      1,
+      88,
+      28,
+      28
+    ]
+  ],
+  "weight_shape": [
+    88,
+    1,
+    3,
+    3
+  ],
+  "bias_shape": [
+    88
+  ],
+  "output_shape": [
+    1,
+    88,
+    28,
+    28
+  ],
+  "groups": 88,
+  "dilation": [
+    1,
+    1
+  ],
+  "stride": [
+    1,
+    1
+  ],
+  "padding": [
+    1,
+    1
+  ],
+  "constexprs": {
+    "C": 88,
+    "H": 28,
+    "W": 28,
+    "KH": 3,
+    "KW": 3,
+    "SH": 1,
+    "SW": 1,
+    "PH": 1,
+    "PW": 1,
+    "OH": 28,
+    "OW": 28,
+    "BLOCK": 128
+  },
+  "signature": {
+    "X": "*fp32",
+    "Weight": "*fp32",
+    "Bias": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    7,
+    88,
+    1
+  ],
+  "grid_axes": [
+    "output_spatial_tile",
+    "channel",
+    "unused"
+  ],
+  "tail": 16,
+  "tolerance": {
+    "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+    "unit_roundoff": 5.960464477539063e-08,
+    "gamma": 6.556515224079339e-07,
+    "absolute_floor": 1.5414283107572988e-44
+  }
+}

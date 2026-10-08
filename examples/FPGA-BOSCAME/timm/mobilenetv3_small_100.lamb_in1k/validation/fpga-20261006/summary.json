@@ -1,0 +1,2028 @@
+{
+  "scope": "Per-operator verification; mixed bitstream versions; not full-model inference",
+  "fpga_test_date": "2026-10-06",
+  "host_recheck_date": "2026-10-08",
+  "case_count": 88,
+  "host_pass": 88,
+  "fpga_pass": 88,
+  "hardware_counts": {
+    "nr-patch5": 46,
+    "nr-patch6": 42
+  },
+  "bn_folding_regression_tests": 8,
+  "hardware_issue": "Original patch6 RVV zero reductions remain FAIL; Linear uses the documented software workaround",
+  "results": [
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "family": "conv_stem",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-6db92357bbff4aa1",
+      "uploaded_bin_sha256": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/conv_stem_cin3_cout16_h224_k3_s2_p1.log",
+      "uart_sha256": "f444126607639f0112bc2d0e2e9d93c26407a9bcfb48b61495c5bb43b3224708",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "d918184592fb34c78534340c5652c855906ff476aee5e8dbfce00b88b7b8c55d",
+        "output": "conv_stem metrics max_abs_error=1.3060039254497724e-06 max_error_over_bound=0.15276565326807265 max_bound=4.6670517530739806e-05\nverify conv_stem_cin3_cout16_h224_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35af49f4\n",
+        "metrics": {
+          "max_abs_error": 1.3060039254497724e-06,
+          "max_error_over_bound": 0.15276565326807265,
+          "max_bound": 4.6670517530739806e-05
+        }
+      }
+    },
+    {
+      "case": "dwconv_c120_h14_k5_s1_p2",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-cf23ecebd72f402b",
+      "uploaded_bin_sha256": "2d4bef9809cd8be7e996e75f87724c87595fea79930fae72e42bfcf2567d8fda",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c120_h14_k5_s1_p2.log",
+      "uart_sha256": "006ace24d20961220caf58e715439f18ff872ae015e1fa892209ee97d7e9bf7e",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "6fbd9b3584e6f164d02dc3c4dece474dd2a37cea2849310160a4fecbf478e48e",
+        "output": "depthwise_conv2d metrics max_abs_error=3.5911798477172852e-06 max_error_over_bound=0.13459050265887268 max_bound=7.7709625302736508e-05\nverify dwconv_c120_h14_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=36710000\n",
+        "metrics": {
+          "max_abs_error": 3.591179847717285e-06,
+          "max_error_over_bound": 0.13459050265887268,
+          "max_bound": 7.770962530273651e-05
+        }
+      }
+    },
+    {
+      "case": "dwconv_c144_h14_k5_s1_p2",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-28046f9435a4499c",
+      "uploaded_bin_sha256": "c7b15915984c444da6c5802d4a99a9342237161e79666ee4aa5b6f1316e078a6",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c144_h14_k5_s1_p2.log",
+      "uart_sha256": "af6fabf6f0abf07841794433a17c43915a4fb40bdaf3b7710b7c3b1cb7632554",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "163602da48c0655ab02b8c8b9ce1b0347ed3818cc5b753cf9c02fc23aab7f5ca",
+        "output": "depthwise_conv2d metrics max_abs_error=3.6209821701049805e-06 max_error_over_bound=0.13459050265887268 max_bound=9.3279874538308496e-05\nverify dwconv_c144_h14_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=36730000\n",
+        "metrics": {
+          "max_abs_error": 3.6209821701049805e-06,
+          "max_error_over_bound": 0.13459050265887268,
+          "max_bound": 9.32798745383085e-05
+        }
+      }
+    },
+    {
+      "case": "dwconv_c16_h112_k3_s2_p1",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-ab041863e1e74422",
+      "uploaded_bin_sha256": "9c82b8d453ab7a9051c7bee9da71663b9ee6ba2eefafa9bca1ee9e4eabbb0ac7",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c16_h112_k3_s2_p1.log",
+      "uart_sha256": "5c164ec1a016630820ea4d5a36de010389d3d4d61db5d0ceb6a99d9c04ada3da",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "f1d3d48792c7968ac6750616d45f751e28de19808e555d344868f9ce6fdf2f0f",
+        "output": "depthwise_conv2d metrics max_abs_error=6.914846810701647e-07 max_error_over_bound=0.27426290353711824 max_bound=5.0829908517900838e-06\nverify dwconv_c16_h112_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35399e77\n",
+        "metrics": {
+          "max_abs_error": 6.914846810701647e-07,
+          "max_error_over_bound": 0.27426290353711824,
+          "max_bound": 5.082990851790084e-06
+        }
+      }
+    },
+    {
+      "case": "dwconv_c240_h14_k5_s1_p2",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-89d3951ab856421a",
+      "uploaded_bin_sha256": "03b89c76a3d9847327e7569be3244798db0cdc39a2d562783b3eeec9a3a6f5a0",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c240_h14_k5_s1_p2.log",
+      "uart_sha256": "730b53c3b4b8adc88f38b51a7f84a3cdb6728dcffa78fcf53d7f0918a72b5511",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "c3f3f4c18c38e30a766c63497916c23863ecef2bbd02af48702d31c9422bcf3a",
+        "output": "depthwise_conv2d metrics max_abs_error=7.3611736297607422e-06 max_error_over_bound=0.13459050265887268 max_bound=0.00015697064288280877\nverify dwconv_c240_h14_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=36f70000\n",
+        "metrics": {
+          "max_abs_error": 7.361173629760742e-06,
+          "max_error_over_bound": 0.13459050265887268,
+          "max_bound": 0.00015697064288280877
+        }
+      }
+    },
+    {
+      "case": "dwconv_c288_h14_k5_s2_p2",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-9b1811c95c864e49",
+      "uploaded_bin_sha256": "6a32ea4474cd3dc4987e4aed29679aab967179e6abacd36a701c89c45bfa5d14",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c288_h14_k5_s2_p2.log",
+      "uart_sha256": "9cb41262dfaab8ec4b74850382f677ef6d63266d68bc44525a238d76afdc8b22",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "28f854e5300aab568875534c2bfec96c9fc6d78808414a21ce3f96e630202b07",
+        "output": "depthwise_conv2d metrics max_abs_error=7.0258975028991699e-06 max_error_over_bound=0.11055334603199397 max_bound=0.00018581945815972757\nverify dwconv_c288_h14_k5_s2_p2: PASS errors=00000000 max_abs_error_f32_bits=36ebc000\n",
+        "metrics": {
+          "max_abs_error": 7.02589750289917e-06,
+          "max_error_over_bound": 0.11055334603199397,
+          "max_bound": 0.00018581945815972757
+        }
+      }
+    },
+    {
+      "case": "dwconv_c576_h7_k5_s1_p2",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-cefdb8d136f8412f",
+      "uploaded_bin_sha256": "e9830b18729848bf69821f9e077cd8971616e0ab49bad9764ee2495d1e03f91d",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c576_h7_k5_s1_p2.log",
+      "uart_sha256": "dc0f54fe94517f6c9b3e61886a9d6075500e6df747761e74cdbfb175a1ce9adb",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "bc347f93e42d9b5b25f3c4ad76f53909c95de67e06710cc543dc8cbcc71d370c",
+        "output": "depthwise_conv2d metrics max_abs_error=1.4938414096832275e-05 max_error_over_bound=0.13894044095748698 max_bound=0.00037714281836623162\nverify dwconv_c576_h7_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=377aa000\n",
+        "metrics": {
+          "max_abs_error": 1.4938414096832275e-05,
+          "max_error_over_bound": 0.13894044095748698,
+          "max_bound": 0.0003771428183662316
+        }
+      }
+    },
+    {
+      "case": "dwconv_c72_h56_k3_s2_p1",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-fd3755ead7414dac",
+      "uploaded_bin_sha256": "2f5086391b9da614514b7f74ba73baf017df819e06251c60fcd56ff42835696e",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c72_h56_k3_s2_p1.log",
+      "uart_sha256": "542ba99c15c091153e3ecfe8d2e89d3b33b7a835804247668c86627c16a1d0d7",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "7cfc60fcba3e67d25018a488741eb20c8b3c54d71b5175b6e189f5a07a6b4bc6",
+        "output": "depthwise_conv2d metrics max_abs_error=1.6689300537109375e-06 max_error_over_bound=0.27426290353711824 max_bound=1.8312348530118408e-05\nverify dwconv_c72_h56_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35e00000\n",
+        "metrics": {
+          "max_abs_error": 1.6689300537109375e-06,
+          "max_error_over_bound": 0.27426290353711824,
+          "max_bound": 1.8312348530118408e-05
+        }
+      }
+    },
+    {
+      "case": "dwconv_c88_h28_k3_s1_p1",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-5a248512482e4f06",
+      "uploaded_bin_sha256": "f19489a891c2a19b959e4cee4b02060b2cb8c650b543e98bf243ca795321f56d",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c88_h28_k3_s1_p1.log",
+      "uart_sha256": "1324440b966496b6465987c899cabbc97bdb2886545beb017513d7212fbd5a0d",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "49e0e07b4fb3262537843a671da104b13d807d0ef292fe678e0bae06f161e6f4",
+        "output": "depthwise_conv2d metrics max_abs_error=1.9967555999755859e-06 max_error_over_bound=0.30849806354915749 max_bound=2.2941575300284732e-05\nverify dwconv_c88_h28_k3_s1_p1: PASS errors=00000000 max_abs_error_f32_bits=36060000\n",
+        "metrics": {
+          "max_abs_error": 1.996755599975586e-06,
+          "max_error_over_bound": 0.3084980635491575,
+          "max_bound": 2.2941575300284732e-05
+        }
+      }
+    },
+    {
+      "case": "dwconv_c96_h28_k5_s2_p2",
+      "family": "depthwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-311b30b1c6204636",
+      "uploaded_bin_sha256": "52711bf436a0191903ff46cddfbea1e32a3ed2775f0cbac6ba252332acd6b563",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/dwconv_c96_h28_k5_s2_p2.log",
+      "uart_sha256": "306144e23baf4601db2592c9c5da7ed02e66c000cb1a66900c21788ed852aeb8",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "d1bbf3770cec35675f91bbbad22163d9f17b9e1f57df0fbfe67f86fbf11c337c",
+        "output": "depthwise_conv2d metrics max_abs_error=2.2947788238525391e-06 max_error_over_bound=0.10425170127617699 max_bound=5.8605291586062559e-05\nverify dwconv_c96_h28_k5_s2_p2: PASS errors=00000000 max_abs_error_f32_bits=361a0000\n",
+        "metrics": {
+          "max_abs_error": 2.294778823852539e-06,
+          "max_error_over_bound": 0.10425170127617699,
+          "max_bound": 5.860529158606256e-05
+        }
+      }
+    },
+    {
+      "case": "hardsigmoid_count120",
+      "family": "hardsigmoid",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-f4b71299d4074bbf",
+      "uploaded_bin_sha256": "79b18becb2105bbb5417f8a6adc44cabe5ec56741401ea9085f99a3468cd439c",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardsigmoid_count120.log",
+      "uart_sha256": "e20f9241cfcdeae255c903a3115bc1d5a10171d689ebab696aa73c79f36c2075",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "27e4f72c95ea80c7ae9c50909012f288eed13765bfd39adb39ba2a6c491a1153",
+        "output": "verify hardsigmoid_count120: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardsigmoid_count144",
+      "family": "hardsigmoid",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-64d9e682b64d484e",
+      "uploaded_bin_sha256": "3847e6f0c4a66d6b8411dbbe8a323c06f5bc778aae6c24f571cc26769999b673",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardsigmoid_count144.log",
+      "uart_sha256": "18fc13d8f243114b921a2183b954f53d5c18436a38f90c838070084da33cf5e2",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "58ca4a61cfaff79b2008fe3fea66762f11ca3f1992271310d08effad0bc1ea06",
+        "output": "verify hardsigmoid_count144: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardsigmoid_count16",
+      "family": "hardsigmoid",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-99fb74f9b2014751",
+      "uploaded_bin_sha256": "a86f5e5d8a2436b96303383f863d16f923437906fd93f120432913e6e7dc55f0",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardsigmoid_count16.log",
+      "uart_sha256": "e4c3b3c409625eb7e31e161439a4bb43843a225c1081769bd6a7637da6356fa7",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "80a6f526493d68ccb8f7f7b0b1d748a7d0552b6f72b77631d92ac371422ed89e",
+        "output": "verify hardsigmoid_count16: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardsigmoid_count240",
+      "family": "hardsigmoid",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-fe75e476b8a941ac",
+      "uploaded_bin_sha256": "718d6f10a4fb4211c937fde4ec8033af066fca72f6756118eb46c8d7956a43db",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardsigmoid_count240.log",
+      "uart_sha256": "51975c261828086081ccdd05d26e161fe59c8debcb3d0a0b32687fc06e17f65a",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "cc11e96e7f4faf72bf6c9ef0b46b8a5a418afc8dc42c2bb951ac9a529a7bd1ff",
+        "output": "verify hardsigmoid_count240: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardsigmoid_count288",
+      "family": "hardsigmoid",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-e8fc3989cd274171",
+      "uploaded_bin_sha256": "637f6172d1c2da2bef50c77fdef21146a50d9640280842ea44c9b9c9450c265c",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardsigmoid_count288.log",
+      "uart_sha256": "eea829bc2139f548ad86f1bf1f07c57b508ff4b5d90925786731093bd7e5784b",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "e29c36e451dc15d70e8914719068a3d7f6335bbf041836fd3554c136a9650382",
+        "output": "verify hardsigmoid_count288: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardsigmoid_count576",
+      "family": "hardsigmoid",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-4525a15d9c86418e",
+      "uploaded_bin_sha256": "1f261ece2bec10e81c996cfac8f459244f3cd1925a4019043441b16f86682c84",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardsigmoid_count576.log",
+      "uart_sha256": "27731b694f52e14efca60a875ae3b47dfc2c13e6dfcca3645793e14c5752be6a",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "c68b594750799e579ed10f4f69e61753e8d311caa32fba940941ff0ab73432ae",
+        "output": "verify hardsigmoid_count576: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardsigmoid_count96",
+      "family": "hardsigmoid",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-87e2d3bab6e540bb",
+      "uploaded_bin_sha256": "f5024675c2d2a026cd63ccda84ccea4df5dc35a67b674f9a5c9cfbc7bf75eac4",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardsigmoid_count96.log",
+      "uart_sha256": "1e03a7d66120c2693cbf57477c182bdc298fb17007f228b088f6b5a7008971a9",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "771829a3ee0e3f49c0416705d210a10525f6f95b5f55e2e37fdf4cd108ac3bb3",
+        "output": "verify hardsigmoid_count96: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count1024",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-41a9e9b41819440c",
+      "uploaded_bin_sha256": "b8c410971ce426f1aafa22d051414186680befcf5e1382af920c09ca9bb44594",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count1024.log",
+      "uart_sha256": "c087d3259e8f8c9a1ba79475c55fedda732efec678e8986d5d6d08b71dbfb7c3",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "8cac74678d3400bc7d4f890bab2a1b8a259169c0181318a9acff8281229757db",
+        "output": "verify hardswish_count1024: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count14112",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-3001cb36327d4135",
+      "uploaded_bin_sha256": "fd0d46adf9e1869660c633292baa9c63861ac7470a0149923bcbb53e9eff2022",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count14112.log",
+      "uart_sha256": "51b83e26423b6bc2155598c72e78f9773d1dfb5f7a3f4586949340954a53ec3c",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "0565d778fdf580b0f35d58aaf15a23716a875e2266cf68e8a38e8cbb363335d8",
+        "output": "verify hardswish_count14112: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count18816",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-8a926830c97145ff",
+      "uploaded_bin_sha256": "6a94c9f3e0a4ce10e1bb669f06524d19648ec9aa3d832cbfb84e7b7fdbbc1677",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count18816.log",
+      "uart_sha256": "10ed796f167dbd4d7196f538abdfc50cb6becfad988ed3664a6bd6c42439ebc3",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "30a2671ca305cbbd3d1cda12b53c125ecbe8035077b19fc6773f59c19a742b7e",
+        "output": "verify hardswish_count18816: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count200704",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-34f412688d204f0d",
+      "uploaded_bin_sha256": "bb5625b2168f0bf1efa708ca953d4d3e200adf39978ad8e92a2c718284ade594",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count200704.log",
+      "uart_sha256": "78d8ecbd9b98d2eff69a31dce6e0599674d16fe819b9240992916b98694cc804",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "c934b0fecde5b74544d8cdbcc72ee7d163b9751b69d246fb3249cb8c23e5dc72",
+        "output": "verify hardswish_count200704: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count23520",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-a1098203885d4c8f",
+      "uploaded_bin_sha256": "81429349b4eb5ad433a022211cc0e887c62cad91105b79a380f3277e563af355",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count23520.log",
+      "uart_sha256": "b4f4eca3fc125792b6a7ce610ce7ef7aa1a1c7d8a0a9305d718adae92026e47c",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "4831bb7738aa9405aca566ad6e586eccabe4810b136b0aa5a678f4ce91efc578",
+        "output": "verify hardswish_count23520: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count28224",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-523a1ced16e447da",
+      "uploaded_bin_sha256": "996e8371a921d0ad3b90f4ef766c56a44af209678d27bcbc5b03d590ee7e8c2e",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count28224.log",
+      "uart_sha256": "19cd41814926952a8bcd61521e588a33b05c9c955ef402b285b39539b224b186",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "5b838e1f01c99a0b015777b39daa9273cab968fcc3b64375612e7695e6b7dfd3",
+        "output": "verify hardswish_count28224: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count47040",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-d317d44d8d254afc",
+      "uploaded_bin_sha256": "47ae6b68ead1ac0e1369fb494d4372a36ca2f527bc43e7a91e2b93a499597fc5",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count47040.log",
+      "uart_sha256": "81cc99299a43ea855d858713a3be198409471000ce56760572ee0130ab9c8aa1",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "a776e318665c41ce02a464f683ae7eb9f8fb8ecb8fc40f6e1150a9105f2603d7",
+        "output": "verify hardswish_count47040: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count56448",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-18f349ac2cb3443b",
+      "uploaded_bin_sha256": "8c2a26dca719d18df2e2577cb03fef1eaf2ed3772ede47936b72f86f0e330e98",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count56448.log",
+      "uart_sha256": "a48a3954998631ccca7ca18a4867a4ec04576dde91c743b1ed25bd581b6de5ad",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "00099c7d272ee7f0d71740bc9d217de07c9816a8f4ad84ac347da7389a61b7f9",
+        "output": "verify hardswish_count56448: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "hardswish_count75264",
+      "family": "hardswish",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-e13ab842bd8c44b5",
+      "uploaded_bin_sha256": "c560d50843ac73b0058f64142c479f69e280fd7da023e51e3d3d3b7ae769186c",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/hardswish_count75264.log",
+      "uart_sha256": "d9f9b678aee41314355a6a6ffc06c8f92565124f2c748da99aba5a2482328c8d",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "e039ceb229538cb53470269a7020447a15641632b609a0758174dd4fd494357e",
+        "output": "verify hardswish_count75264: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "linear_m1_n1000_k1024",
+      "family": "linear",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-29143dcf7fa84d5e",
+      "uploaded_bin_sha256": "1ba0544a83b073bc09f17adf0516e4ad513ac9fd042ceb79aed52c632cbc7c68",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/linear_m1_n1000_k1024.log",
+      "uart_sha256": "62ecdd9854b6fa1f05fef880ce6eeef3cd7f1a2b2f38af6891a96eba0a50963e",
+      "max_abs_error": 8.708439054316841e-06,
+      "compiler_workaround": "N-lane vector FMA; avoid horizontal FP reduction; original oracle and tolerance unchanged",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "911d747369f1ed68d0ac1523db613b828d904315544fe433a4cf9d1c869e4ab1",
+        "output": "linear metrics max_abs_error=1.0779388211368257e-05 max_error_over_bound=0.00097129682857841505 max_bound=0.25063099305323788\nverify linear_m1_n1000_k1024: PASS errors=00000000 max_abs_error_f32_bits=3734d91f\n",
+        "metrics": {
+          "max_abs_error": 1.0779388211368257e-05,
+          "max_error_over_bound": 0.000971296828578415,
+          "max_bound": 0.2506309930532379
+        }
+      }
+    },
+    {
+      "case": "mean_hw_c120_h14_w14",
+      "family": "mean_hw",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-bb60f15cf8384e8b",
+      "uploaded_bin_sha256": "1d33906518d319b9a8ef6a48c4dbc8113558c9e21f333de736a35c48dd16b952",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/mean_hw_c120_h14_w14.log",
+      "uart_sha256": "0b680392460aa0546dee4224d2cba6512858587a5f88d4a5e7a69d161bbae7ba",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "879a911fff8a1d5ea306b695e39483a66a860f48f0805062722ec0e02a41e368",
+        "output": "mean_hw metrics max_abs_error=1.7698930232512566e-07 max_error_over_bound=0.012545592007087852 max_bound=0.00037575209884457069\nverify mean_hw_c120_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=343e0a73\n",
+        "metrics": {
+          "max_abs_error": 1.7698930232512566e-07,
+          "max_error_over_bound": 0.012545592007087852,
+          "max_bound": 0.0003757520988445707
+        }
+      }
+    },
+    {
+      "case": "mean_hw_c144_h14_w14",
+      "family": "mean_hw",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-69b9ccc5583f46fd",
+      "uploaded_bin_sha256": "44cbaf413859eae82068e8c33bedc4c0d29e657071d7f9395f6976f06bf711f2",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/mean_hw_c144_h14_w14.log",
+      "uart_sha256": "f338d6e444b08ee910119f694b1c8e94e0c68c23680b6aeb4fc78812cf54a26b",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "5972e2b5225d536f8a1c13c1dfc188c4c9e306d5ec13322408da740de764299b",
+        "output": "mean_hw metrics max_abs_error=1.7698930232512566e-07 max_error_over_bound=0.012545592007087852 max_bound=0.00037575209884457069\nverify mean_hw_c144_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=343e0a73\n",
+        "metrics": {
+          "max_abs_error": 1.7698930232512566e-07,
+          "max_error_over_bound": 0.012545592007087852,
+          "max_bound": 0.0003757520988445707
+        }
+      }
+    },
+    {
+      "case": "mean_hw_c16_h56_w56",
+      "family": "mean_hw",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-475e23b0852b4619",
+      "uploaded_bin_sha256": "3cc46d3a7517dec32c89fb501e18d2e50b664c2f20190d1059e232a83efae273",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/mean_hw_c16_h56_w56.log",
+      "uart_sha256": "aabc52983d4fd7a1e5875e20603d37e00df821bdfb9250313426a855e984b26d",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "956169869af86ba044f262b3129803f472f6c9a046ddd63296e604574f5f7de2",
+        "output": "mean_hw metrics max_abs_error=3.1609848445413036e-06 max_error_over_bound=0.012476119512563702 max_bound=0.0059844716660679073\nverify mean_hw_c16_h56_w56: PASS errors=00000000 max_abs_error_f32_bits=3654214e\n",
+        "metrics": {
+          "max_abs_error": 3.1609848445413036e-06,
+          "max_error_over_bound": 0.012476119512563702,
+          "max_bound": 0.005984471666067907
+        }
+      }
+    },
+    {
+      "case": "mean_hw_c240_h14_w14",
+      "family": "mean_hw",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-bb37b79516364274",
+      "uploaded_bin_sha256": "66b1b49c3e8fa9915d445b8432e82f53f2a74e00f7d2f55da57b8ec17810cc23",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/mean_hw_c240_h14_w14.log",
+      "uart_sha256": "9c75cf7f464f1777ae72d09c6680c04505354ed2e74d1ff10f4cbc190adcadc2",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "3d162ff60b2d85a951865bc37add71716209eef1f37e5f093c28fd7460dfc6dd",
+        "output": "mean_hw metrics max_abs_error=1.7698930232512566e-07 max_error_over_bound=0.012545592007087852 max_bound=0.00037575209884457069\nverify mean_hw_c240_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=343e0a73\n",
+        "metrics": {
+          "max_abs_error": 1.7698930232512566e-07,
+          "max_error_over_bound": 0.012545592007087852,
+          "max_bound": 0.0003757520988445707
+        }
+      }
+    },
+    {
+      "case": "mean_hw_c288_h7_w7",
+      "family": "mean_hw",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-6d2d1b7abb564e11",
+      "uploaded_bin_sha256": "ef29a10fc210c04e5518f51258d0f7c24476e5c8fd30a402798c4151ae953c8f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/mean_hw_c288_h7_w7.log",
+      "uart_sha256": "81180a0580da75cbfc0af0e16f769ea7ab0a615c2d711b82941c48084f47b0e5",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "59c642290ed149f5719191d252ef74100d744ff892437cc427c87ff92a2a6c80",
+        "output": "mean_hw metrics max_abs_error=1.2894066014901284e-07 max_error_over_bound=0.030875883216821269 max_bound=0.00010728868034088712\nverify mean_hw_c288_h7_w7: PASS errors=00000000 max_abs_error_f32_bits=340a72f0\n",
+        "metrics": {
+          "max_abs_error": 1.2894066014901284e-07,
+          "max_error_over_bound": 0.03087588321682127,
+          "max_bound": 0.00010728868034088712
+        }
+      }
+    },
+    {
+      "case": "mean_hw_c576_h7_w7",
+      "family": "mean_hw",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-8b42d2657e54416f",
+      "uploaded_bin_sha256": "69cbc2aeea97b25e1a7e31f5a51d4ad3576691f0a4ab4de419fdac8d37bca9be",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/mean_hw_c576_h7_w7.log",
+      "uart_sha256": "3bdb76f0f537d49d55971da3677361dbb887db8487599b84d829fe15462e0a6e",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "234a15f0461a1a30d380561e85ab8bac7b56e15cd9cea289bd65bbd678394145",
+        "output": "mean_hw metrics max_abs_error=1.2894066014901284e-07 max_error_over_bound=0.030875883216821269 max_bound=0.00021457736068177424\nverify mean_hw_c576_h7_w7: PASS errors=00000000 max_abs_error_f32_bits=340a72f0\n",
+        "metrics": {
+          "max_abs_error": 1.2894066014901284e-07,
+          "max_error_over_bound": 0.03087588321682127,
+          "max_bound": 0.00021457736068177424
+        }
+      }
+    },
+    {
+      "case": "mean_hw_c96_h14_w14",
+      "family": "mean_hw",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-48428b03b1db41ec",
+      "uploaded_bin_sha256": "9ba10765deb94bcb0374fc7ab1c24de7b6a5e04aa12883583b875628f59ac1f6",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/mean_hw_c96_h14_w14.log",
+      "uart_sha256": "bd3040ab29ac70aecd688d3ad8f95a7332c775395b28d4ccf5e5fdc5058c0895",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "55c5c00d4ff261487775b4d0911120727bcfeb68b8eae45e843de4f34267f4f9",
+        "output": "mean_hw metrics max_abs_error=1.7698930232512566e-07 max_error_over_bound=0.012545592007087852 max_bound=0.00037575209884457069\nverify mean_hw_c96_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=343e0a73\n",
+        "metrics": {
+          "max_abs_error": 1.7698930232512566e-07,
+          "max_error_over_bound": 0.012545592007087852,
+          "max_bound": 0.0003757520988445707
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin120_cout32_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-cb8bab36525a49a9",
+      "uploaded_bin_sha256": "883b14949096b7d60472f6bef252b307be52903eff122c127934c877dee4b1ac",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin120_cout32_h1_w1.log",
+      "uart_sha256": "890bf028998a803a2e3aef6e28af7af44c6b3868cfcfc9577669cd7a56ed8a4d",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "929185cb88e357501c207aaf1b902bd9bddc1f932046abb668833d406bcded4e",
+        "output": "pointwise_conv2d metrics max_abs_error=1.2399395927786827e-06 max_error_over_bound=0.0073054023392764384 max_bound=0.00053055877947327779\nverify pwconv_cin120_cout32_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=35a66c00\n",
+        "metrics": {
+          "max_abs_error": 1.2399395927786827e-06,
+          "max_error_over_bound": 0.0073054023392764384,
+          "max_bound": 0.0005305587794732778
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin120_cout48_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-8874bbd1fc394884",
+      "uploaded_bin_sha256": "8da86f570e546ccdd983deb6b9c570b2d423022bf652a9ea332299a87dbaf23b",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin120_cout48_h14_w14.log",
+      "uart_sha256": "7f9a21516500542ac05140dd9803c8b39f61712adc8d15136a791f91bf030539",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "159b0b44609934213d460940151165da9379ce236b4d60ab7e534913d6abdd2f",
+        "output": "pointwise_conv2d metrics max_abs_error=5.9772282838821411e-06 max_error_over_bound=0.014421899275839008 max_bound=0.0021123963459441382\nverify pwconv_cin120_cout48_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=36c89000\n",
+        "metrics": {
+          "max_abs_error": 5.977228283882141e-06,
+          "max_error_over_bound": 0.014421899275839008,
+          "max_bound": 0.0021123963459441382
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin144_cout40_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-d7bc2d11ddd5498c",
+      "uploaded_bin_sha256": "904f32fbd60c797f7ac0db1c7fd9e3aef3a780f861fb842b3c8e8e6c8b5d326d",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin144_cout40_h1_w1.log",
+      "uart_sha256": "43e2abdca6c27bedc1c30d33486ca550734bc412047d5b1b1111a01b14e7eb99",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "99272952c9299dcfc02da8361a037f496c0c26119d9f9fbb7be469c4b6721714",
+        "output": "pointwise_conv2d metrics max_abs_error=1.4738179743289948e-06 max_error_over_bound=0.0057983119133944777 max_bound=0.00090913737256251672\nverify pwconv_cin144_cout40_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=35c5d000\n",
+        "metrics": {
+          "max_abs_error": 1.4738179743289948e-06,
+          "max_error_over_bound": 0.005798311913394478,
+          "max_bound": 0.0009091373725625167
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin144_cout48_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-da71625c1d254e93",
+      "uploaded_bin_sha256": "6a68eb808b076b307258e6bbf69df45a9500e3f976d79657cabde5e632b9da42",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin144_cout48_h14_w14.log",
+      "uart_sha256": "5749553d8203ee61f686cf4ce2701d10d1630521901e70e8545f4cdacdf0aac0",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "b9f970b4b502d2040ee628a6ebc03cbdacf7faa49118f477dcc745b12271bc0e",
+        "output": "pointwise_conv2d metrics max_abs_error=7.4277631938457489e-06 max_error_over_bound=0.01126241809227754 max_bound=0.0036248839865567679\nverify pwconv_cin144_cout48_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=36f93c00\n",
+        "metrics": {
+          "max_abs_error": 7.427763193845749e-06,
+          "max_error_over_bound": 0.01126241809227754,
+          "max_bound": 0.003624883986556768
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin144_cout576_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-2471c2366bbe43b9",
+      "uploaded_bin_sha256": "ed72e3d0c879a3bcf8b3ac239368e7df6385a84a7c1cea7f882edcb79e385484",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin144_cout576_h1_w1.log",
+      "uart_sha256": "53b056b4f300671ed05561719e3ceb0917d44bda48f5d49c146e7ce02b064241",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "dcbc3359c03a956da0225aeff06338fbfc0bf03a84c3b18ffe3acd85c1995348",
+        "output": "pointwise_conv2d metrics max_abs_error=2.1570594981312752e-06 max_error_over_bound=0.0091813076920565454 max_bound=0.00091037419580655861\nverify pwconv_cin144_cout576_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=3610c200\n",
+        "metrics": {
+          "max_abs_error": 2.157059498131275e-06,
+          "max_error_over_bound": 0.009181307692056545,
+          "max_bound": 0.0009103741958065586
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin16_cout16_h56_w56",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-135c1189b3654edd",
+      "uploaded_bin_sha256": "6dcca4b86a4ce4c0189b115783057256f792c8ba8da367f9ddce55b3117888df",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin16_cout16_h56_w56.log",
+      "uart_sha256": "cd61ca98273c06feb15af907b5adadefc7591e507c9f45882a9c16148b63646b",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "fb08c6ac55fc60508267509faf74eb441673acd2a5be03f6da0e03a0b4088d81",
+        "output": "pointwise_conv2d metrics max_abs_error=6.1064115541853425e-07 max_error_over_bound=0.11389431964364713 max_bound=1.0648423865292176e-05\nverify pwconv_cin16_cout16_h56_w56: PASS errors=00000000 max_abs_error_f32_bits=3523eaf1\n",
+        "metrics": {
+          "max_abs_error": 6.106411554185343e-07,
+          "max_error_over_bound": 0.11389431964364713,
+          "max_bound": 1.0648423865292176e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin16_cout72_h56_w56",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-237e78ae015c4762",
+      "uploaded_bin_sha256": "54738516a3f95d8cac343420f323817567635c4a1b2fa19389d83afcdbbee09f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin16_cout72_h56_w56.log",
+      "uart_sha256": "6fefe677055cd9df695fe9e46ffce99da92b5258ed77d21359f574343dc9d920",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "7818ee6471e75872a97e4802cae7c3d70b26f6d1299fe435ac1495b8cc1063ce",
+        "output": "pointwise_conv2d metrics max_abs_error=6.1064115541853425e-07 max_error_over_bound=0.13012039423455554 max_bound=1.0648423865292176e-05\nverify pwconv_cin16_cout72_h56_w56: PASS errors=00000000 max_abs_error_f32_bits=3523eaf1\n",
+        "metrics": {
+          "max_abs_error": 6.106411554185343e-07,
+          "max_error_over_bound": 0.13012039423455554,
+          "max_bound": 1.0648423865292176e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin16_cout8_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-9699646c1ddd4f14",
+      "uploaded_bin_sha256": "9d97a1df82f1b0ae00dbab4c5786e28e8b9d405c0921c288edcfe70415979a85",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin16_cout8_h1_w1.log",
+      "uart_sha256": "ac70dd3ceb4275f281c94cb3bd66e6cfad3947e07d231f7bb4fad4c93269d5ff",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "223ede70138cd8830b525778b7a76d967d7ca9cee74ce564a8fb22eb5380a79f",
+        "output": "pointwise_conv2d metrics max_abs_error=9.8208039700509175e-08 max_error_over_bound=0.043267520901922069 max_bound=3.7758033242398278e-06\nverify pwconv_cin16_cout8_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=33d2e671\n",
+        "metrics": {
+          "max_abs_error": 9.820803970050918e-08,
+          "max_error_over_bound": 0.04326752090192207,
+          "max_bound": 3.7758033242398278e-06
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin240_cout40_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-5aa4b61b6b174bcf",
+      "uploaded_bin_sha256": "d07ebf76d51662d50c96c3a276a84c442f683a4a179f622283bec423699c988f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin240_cout40_h14_w14.log",
+      "uart_sha256": "6c8ecceb46aa6f940af0e3e642b82cfb3579f527fd77757f3fdd99fb3c75cfe4",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "41e97eff380f51370d7a9cd8cf2034e3584608855242dbb7f31834811f555f39",
+        "output": "pointwise_conv2d metrics max_abs_error=1.9118189811706543e-05 max_error_over_bound=0.0067946431097353176 max_bound=0.016564972482981385\nverify pwconv_cin240_cout40_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=37a06000\n",
+        "metrics": {
+          "max_abs_error": 1.9118189811706543e-05,
+          "max_error_over_bound": 0.006794643109735318,
+          "max_bound": 0.016564972482981385
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin240_cout64_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-338bd10194884822",
+      "uploaded_bin_sha256": "094801e6a47c6ddc2f6d7595e1585f97f58d7e9ea22bd2150ee6d3ea37812a76",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin240_cout64_h1_w1.log",
+      "uart_sha256": "870bc34f8be73be0278acb7ed0693c95936330aa23d75991df4946e1677ac04d",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "004e040e168e350278e8cb97b12a0aef438bf22b897e1d1d6f26db17d4c0e78f",
+        "output": "pointwise_conv2d metrics max_abs_error=4.7795474529266357e-06 max_error_over_bound=0.0040118173468624545 max_bound=0.0041464792258691903\nverify pwconv_cin240_cout64_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=36a06000\n",
+        "metrics": {
+          "max_abs_error": 4.779547452926636e-06,
+          "max_error_over_bound": 0.0040118173468624545,
+          "max_bound": 0.00414647922586919
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin24_cout88_h28_w28",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-310fb330ac0e4d68",
+      "uploaded_bin_sha256": "84cdcb5061b231393b39f46c7097998df23aec4f7a6e721ba04051f1f78855db",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin24_cout88_h28_w28.log",
+      "uart_sha256": "00ad9720b0e7703764b1f334b316bcec18a4c6a821b940045919eb233f469774",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "b75e7c3a8445b570d973fcb37b77dfd80cbb13ed46e81607811be05f0de97553",
+        "output": "pointwise_conv2d metrics max_abs_error=7.7670872355994902e-07 max_error_over_bound=0.10299970441886767 max_bound=2.0455571287939681e-05\nverify pwconv_cin24_cout88_h28_w28: PASS errors=00000000 max_abs_error_f32_bits=35507f04\n",
+        "metrics": {
+          "max_abs_error": 7.76708723559949e-07,
+          "max_error_over_bound": 0.10299970441886767,
+          "max_bound": 2.045557128793968e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin24_cout96_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-5663d0bd74ff402b",
+      "uploaded_bin_sha256": "cec2c9bdf5ee7c09e50c7e7e20fc1f7cf24fb2ff3f7d53a5f186237e8b056e3d",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin24_cout96_h1_w1.log",
+      "uart_sha256": "c329e566e8219fd8646cdee4471511ff44fa6f35e58befc9f423456d676fac97",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "c8d02853c682cf9bbaa6a53c78e12b38305988cfb51f5e0140b82d935998f9a4",
+        "output": "pointwise_conv2d metrics max_abs_error=3.0091935654397162e-07 max_error_over_bound=0.047859364472423609 max_bound=7.7977807800215403e-06\nverify pwconv_cin24_cout96_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=34a18e0b\n",
+        "metrics": {
+          "max_abs_error": 3.009193565439716e-07,
+          "max_error_over_bound": 0.04785936447242361,
+          "max_bound": 7.79778078002154e-06
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin24_cout96_h28_w28",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-537aee7157a44a6b",
+      "uploaded_bin_sha256": "60cfc5e76989c3367093c3606063f11f6bc87daaa7eb2899a49373a330b64884",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin24_cout96_h28_w28.log",
+      "uart_sha256": "665e2216c80bd8e09fd4709a76a932daa6ad7e2488ad383449fdebdd393c0264",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "50ebf3ee89ffd286b6bab2b9b680f170a7aacc2b80f2d3aa6e0458ab94a7c7e8",
+        "output": "pointwise_conv2d metrics max_abs_error=7.7670872355994902e-07 max_error_over_bound=0.10299970441886767 max_bound=2.0455571287939681e-05\nverify pwconv_cin24_cout96_h28_w28: PASS errors=00000000 max_abs_error_f32_bits=35507f04\n",
+        "metrics": {
+          "max_abs_error": 7.76708723559949e-07,
+          "max_error_over_bound": 0.10299970441886767,
+          "max_bound": 2.045557128793968e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin288_cout72_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-3a500b5b78bc4ce7",
+      "uploaded_bin_sha256": "d198a0e2ae0357224fec2fae5b588db53cf59e7d0c2d78c593f4686813ed0876",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin288_cout72_h1_w1.log",
+      "uart_sha256": "b1c3afcdc5eb60641e4eb9851c68a886c23cd9dd2280dee441cc972bee10f3db",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "5c0fe59e4066e9fc37647be9f21c52ae092f286a01ee81e45dd479efa3d0b2ed",
+        "output": "pointwise_conv2d metrics max_abs_error=5.7849101722240448e-06 max_error_over_bound=0.0037294142024578672 max_bound=0.0071391765644342291\nverify pwconv_cin288_cout72_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=36c21c00\n",
+        "metrics": {
+          "max_abs_error": 5.784910172224045e-06,
+          "max_error_over_bound": 0.0037294142024578672,
+          "max_bound": 0.007139176564434229
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin288_cout96_h7_w7",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-1f81ed37003a4b19",
+      "uploaded_bin_sha256": "bd6dff649ae7a777016a3ab227641559ece3d351b4cace8a30bb902455961851",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin288_cout96_h7_w7.log",
+      "uart_sha256": "d3c5373c39497568bdb43d6e16d38168d8d199dcf96917b56d6a03571e65acc4",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "30a73b042954110598413baad9ca103577d82adf539c457f5b704b4f221270fa",
+        "output": "pointwise_conv2d metrics max_abs_error=2.6692170649766922e-05 max_error_over_bound=0.0057826876374284858 max_bound=0.028530466648368037\nverify pwconv_cin288_cout96_h7_w7: PASS errors=00000000 max_abs_error_f32_bits=37dfe900\n",
+        "metrics": {
+          "max_abs_error": 2.6692170649766922e-05,
+          "max_error_over_bound": 0.005782687637428486,
+          "max_bound": 0.028530466648368037
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin32_cout120_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-16661f68e5d8429e",
+      "uploaded_bin_sha256": "0f8aa96649084a514ded450c894f599e45a7798329adc0d0b07718a7374c2c9d",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin32_cout120_h1_w1.log",
+      "uart_sha256": "042713c9a3de2c0b54a1e8661cdcad8b4f64091e8375834bb051efc0e1697981",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "a1b53e645f39abac9f5d5563110f89df3842e57f66b2dd7b1b4dad3094e34162",
+        "output": "pointwise_conv2d metrics max_abs_error=3.8684555914159091e-07 max_error_over_bound=0.033063875530626036 max_bound=1.323912437254675e-05\nverify pwconv_cin32_cout120_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=34cfafa6\n",
+        "metrics": {
+          "max_abs_error": 3.868455591415909e-07,
+          "max_error_over_bound": 0.033063875530626036,
+          "max_bound": 1.323912437254675e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin40_cout120_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-6df163505b9549a8",
+      "uploaded_bin_sha256": "99cbe6b7346012ee852126475bb6d1968b18197d7a7540ceccc76e07c6ca01f5",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin40_cout120_h14_w14.log",
+      "uart_sha256": "c873f91e7ed16cef413e1a1a16d03df0efec0bf956936dff20e81413672a2bad",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "143b42100cb7eddaebcdff4ecbbc943094b889fd9b983283da4ba8e19406c993",
+        "output": "pointwise_conv2d metrics max_abs_error=1.0462219153239971e-06 max_error_over_bound=0.054163778963497125 max_bound=8.5957103340192405e-05\nverify pwconv_cin40_cout120_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=358c6be9\n",
+        "metrics": {
+          "max_abs_error": 1.0462219153239971e-06,
+          "max_error_over_bound": 0.054163778963497125,
+          "max_bound": 8.59571033401924e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin40_cout144_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-dd65b20f920b43ec",
+      "uploaded_bin_sha256": "f0c2f5c990654a2e568edd0962512f2a732324b08ff686b3777939418a38fe2a",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin40_cout144_h1_w1.log",
+      "uart_sha256": "52002af673477b46c33c82bd937242a74b250314f33ec0db15273ba1751e1cb4",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "1c15a475240db5e06dd93d079bc6ac3a484ce18c7b28eb0f84960dd409dd48bc",
+        "output": "pointwise_conv2d metrics max_abs_error=3.811413344934067e-07 max_error_over_bound=0.026333048778631494 max_bound=2.2480622763313718e-05\nverify pwconv_cin40_cout144_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=34cc9fab\n",
+        "metrics": {
+          "max_abs_error": 3.811413344934067e-07,
+          "max_error_over_bound": 0.026333048778631494,
+          "max_bound": 2.2480622763313718e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin40_cout240_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-6d0b3fa74f6245a1",
+      "uploaded_bin_sha256": "133965cde0b4bd7f8a8f16c2e0a850d76db696408cf02ac4a8ce596ec9353177",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin40_cout240_h14_w14.log",
+      "uart_sha256": "0e63be4ad578d2b1f38d5365fa90e236ab7606848bb8bc48fe2e2fe0300f9ad7",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "0af3a0eb522dabdafbcdad42b5ff6b3f63176c64bcf63f13e0b6fd65f8c30859",
+        "output": "pointwise_conv2d metrics max_abs_error=1.0462219153239971e-06 max_error_over_bound=0.054163778963497125 max_bound=8.5957103340192405e-05\nverify pwconv_cin40_cout240_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=358c6be9\n",
+        "metrics": {
+          "max_abs_error": 1.0462219153239971e-06,
+          "max_error_over_bound": 0.054163778963497125,
+          "max_bound": 8.59571033401924e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin48_cout144_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-0aac6a761502453b",
+      "uploaded_bin_sha256": "28f0d31f30338b2d51687b9e23f4b31377fff60994f69927247bf0fccb477ee8",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin48_cout144_h14_w14.log",
+      "uart_sha256": "f2faeee2c3049dc6bf45b7a782ff16ede6298c8601f5337f7baa131a45fbcbc5",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "fc06cf7f9158b9dac7e62b2df296fe107d69c5896eb509f07e5d7c17dc8ac907",
+        "output": "pointwise_conv2d metrics max_abs_error=1.1223048561603832e-06 max_error_over_bound=0.042739692546669213 max_bound=0.00014461545832973878\nverify pwconv_cin48_cout144_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=3596a21a\n",
+        "metrics": {
+          "max_abs_error": 1.1223048561603832e-06,
+          "max_error_over_bound": 0.04273969254666921,
+          "max_bound": 0.00014461545832973878
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin48_cout288_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-b4e72f0fecbd4945",
+      "uploaded_bin_sha256": "9d4881f90c9fe4a19f6a28102667095124c84c6aa7badf9a050aa63f899fc6dd",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin48_cout288_h14_w14.log",
+      "uart_sha256": "c82d70a0b0a84d580f6c79c0ebab41f9e6cfbeee2847062a963e2e743040e994",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "c2afeb56afeb97b683de7f4e759b4cc30a4307d2696f90a078e31524a4377247",
+        "output": "pointwise_conv2d metrics max_abs_error=1.1223048561603832e-06 max_error_over_bound=0.042739692546669213 max_bound=0.00014461545832973878\nverify pwconv_cin48_cout288_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=3596a21a\n",
+        "metrics": {
+          "max_abs_error": 1.1223048561603832e-06,
+          "max_error_over_bound": 0.04273969254666921,
+          "max_bound": 0.00014461545832973878
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin576_cout1024_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-7b8741779bb34780",
+      "uploaded_bin_sha256": "6fabab0aebd373386423a286299ccfe2d350e2975eaa35a2162eac589f4f8ac8",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin576_cout1024_h1_w1.log",
+      "uart_sha256": "7917af69587ce097c943b53d7ced471f0f93b9d544b5130e10d97cb9703a1aa1",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "201e8420e4f90cf6f92251e89664508f2d24b6902294211a69780e912d7fcfd6",
+        "output": "pointwise_conv2d metrics max_abs_error=1.3578683137893677e-05 max_error_over_bound=0.0020267622106823657 max_bound=0.056591212250898054\nverify pwconv_cin576_cout1024_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=3763d000\n",
+        "metrics": {
+          "max_abs_error": 1.3578683137893677e-05,
+          "max_error_over_bound": 0.0020267622106823657,
+          "max_bound": 0.056591212250898054
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin576_cout144_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-28f2f15a9f2a4a39",
+      "uploaded_bin_sha256": "49385ed5435269df683f7c6f3a205b1bcd8bfe5a2d721b28b21bd7d178df90f5",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin576_cout144_h1_w1.log",
+      "uart_sha256": "c89ec97725429aac75ac93561a82634b8b9e5c5e1f55ee04fa4a57b3ecd2f31c",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "9fd963e83cb05dfde8031183c8b4a81d301f7eb47379b1782c76a93f83b63c4b",
+        "output": "pointwise_conv2d metrics max_abs_error=1.3578683137893677e-05 max_error_over_bound=0.0018711272538009032 max_bound=0.056591212250898054\nverify pwconv_cin576_cout144_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=3763d000\n",
+        "metrics": {
+          "max_abs_error": 1.3578683137893677e-05,
+          "max_error_over_bound": 0.0018711272538009032,
+          "max_bound": 0.056591212250898054
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin576_cout96_h7_w7",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-5b8671e1ef014ab8",
+      "uploaded_bin_sha256": "1a74343f66fc471c3dc2ee24223ee9e3633d2b058e989c5f12dd0fb6a89757b7",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin576_cout96_h7_w7.log",
+      "uart_sha256": "5cb2eda99fac9742e22a61c061f8caef38962e677749b9d526381161adbf95c4",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "f62b278bc6613574376c24491ec0d2f3987cedc700096f9f978790a8e07a514b",
+        "output": "pointwise_conv2d metrics max_abs_error=5.4463744163513184e-05 max_error_over_bound=0.0026357883283938096 max_bound=0.22631027597203257\nverify pwconv_cin576_cout96_h7_w7: PASS errors=00000000 max_abs_error_f32_bits=38647000\n",
+        "metrics": {
+          "max_abs_error": 5.4463744163513184e-05,
+          "max_error_over_bound": 0.0026357883283938096,
+          "max_bound": 0.22631027597203257
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin64_cout240_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-5d4897ad92f94e12",
+      "uploaded_bin_sha256": "dfad49f692a2c496860edcf3bb177f615fb7cdc9eda97badf15df63cff931822",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin64_cout240_h1_w1.log",
+      "uart_sha256": "4aaf43a63e5b7df8dad8e1966f84cddb377b89d1f366a07f2ffdd9195120c79b",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "e959b2e3e8597669684328de98d78f2ad2310309652a32b685a778e0aeaf0084",
+        "output": "pointwise_conv2d metrics max_abs_error=5.1455572247505188e-07 max_error_over_bound=0.016757370705605571 max_bound=8.4244818451107521e-05\nverify pwconv_cin64_cout240_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=350a2000\n",
+        "metrics": {
+          "max_abs_error": 5.145557224750519e-07,
+          "max_error_over_bound": 0.01675737070560557,
+          "max_bound": 8.424481845110752e-05
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin72_cout24_h28_w28",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-be308638d5334cd4",
+      "uploaded_bin_sha256": "293c146c3f50739127c79f7d1d0bd01e8be74c89be5cc32870ed69a02f28bb70",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin72_cout24_h28_w28.log",
+      "uart_sha256": "70319e3695631bc3c92094a514ee5c4ede58fea88433c05e1c90a078fa2ba721",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "4cb7620e06e7d8b5e3073263c7f5001ff931c4cdf50ceab1f4eecb3aca6a9a37",
+        "output": "pointwise_conv2d metrics max_abs_error=2.0749866962432861e-06 max_error_over_bound=0.022220541867026364 max_bound=0.0004688547605517772\nverify pwconv_cin72_cout24_h28_w28: PASS errors=00000000 max_abs_error_f32_bits=360b4000\n",
+        "metrics": {
+          "max_abs_error": 2.074986696243286e-06,
+          "max_error_over_bound": 0.022220541867026364,
+          "max_bound": 0.0004688547605517772
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin72_cout288_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-c97813de9b3346d4",
+      "uploaded_bin_sha256": "37a927f8c0da969df9f74b9f0feb73a895fc48a890108ab7832397be31bd1b0c",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin72_cout288_h1_w1.log",
+      "uart_sha256": "fb5a31720d3e890f048894d0e37a0dc1bcbbed5186195a259065d0126a38288a",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "19df1402ad91af3cfb66f3172dc2876e87f35cbfc022a3e4562f463bb072784a",
+        "output": "pointwise_conv2d metrics max_abs_error=5.2805989980697632e-07 max_error_over_bound=0.014117691223847087 max_bound=0.00011882430766277565\nverify pwconv_cin72_cout288_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=350dc000\n",
+        "metrics": {
+          "max_abs_error": 5.280598998069763e-07,
+          "max_error_over_bound": 0.014117691223847087,
+          "max_bound": 0.00011882430766277565
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin88_cout24_h28_w28",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-471234f7ff27486d",
+      "uploaded_bin_sha256": "141da4209570cabb27441ff159197e66a7be3d4ab210dd2adfe888d6b84dba07",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin88_cout24_h28_w28.log",
+      "uart_sha256": "b8e50685a119e7d13522936e48450d614062251386e91a67ed83e293b84914dd",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "6c601ae519cc9c24fe8162f442017a30de37c64c47808097033d4a679e7f947f",
+        "output": "pointwise_conv2d metrics max_abs_error=3.0910596251487732e-06 max_error_over_bound=0.018270205888968761 max_bound=0.0008455038870730365\nverify pwconv_cin88_cout24_h28_w28: PASS errors=00000000 max_abs_error_f32_bits=364f7000\n",
+        "metrics": {
+          "max_abs_error": 3.091059625148773e-06,
+          "max_error_over_bound": 0.01827020588896876,
+          "max_bound": 0.0008455038870730365
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin8_cout16_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-37023dbac036477e",
+      "uploaded_bin_sha256": "10c294d994e56876ed43d8afedf90b1ab633fe247d0e8f31361f8574e4a1775f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin8_cout16_h1_w1.log",
+      "uart_sha256": "3f42e66e137c4daa36431d30ad041b7147a0111d923a7cc4ad535c253d95857e",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "6f962336e9f0fd50a2ad5ff04c7b271fcdc1d5ef0b776aa3975b3e7cb9fcb41e",
+        "output": "pointwise_conv2d metrics max_abs_error=4.4830947287799461e-08 max_error_over_bound=0.089445387296117326 max_bound=1.2030608752415675e-06\nverify pwconv_cin8_cout16_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=33408c26\n",
+        "metrics": {
+          "max_abs_error": 4.483094728779946e-08,
+          "max_error_over_bound": 0.08944538729611733,
+          "max_bound": 1.2030608752415675e-06
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin96_cout24_h1_w1",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-7537852bb7f94cc2",
+      "uploaded_bin_sha256": "0188b87401bbf194f2e82cf4115454ad119e0fe33b495cab4ef74492d8ec476d",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin96_cout24_h1_w1.log",
+      "uart_sha256": "7dad0956604047b32b8aaa34e709ad60ae2116ceb15e616ea0ca4fea878aaa5c",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "6df7d7f9f1abcb15cc0a6cde1bc6a8218990bd7ffec5fafe212721fdc79c588c",
+        "output": "pointwise_conv2d metrics max_abs_error=5.9022568166255951e-07 max_error_over_bound=0.0079470577811174004 max_bound=0.00027560846288985903\nverify pwconv_cin96_cout24_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=351e7000\n",
+        "metrics": {
+          "max_abs_error": 5.902256816625595e-07,
+          "max_error_over_bound": 0.0079470577811174,
+          "max_bound": 0.00027560846288985903
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin96_cout40_h14_w14",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-5d82b2e88bb5409f",
+      "uploaded_bin_sha256": "84be806a0686e58ea734dbad5d5cd6ffea584f9b37ce4dbd3d2569fcf703ed9f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin96_cout40_h14_w14.log",
+      "uart_sha256": "86af208a6e276ba14215ee6141d1f8bcc944af0d99fffc6c8e5d3981b3b3466c",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "96216b5028035d3fa7e26047218affd73338ec41f4bb6dbf74daf3a39603740f",
+        "output": "pointwise_conv2d metrics max_abs_error=3.7844292819499969e-06 max_error_over_bound=0.016778752509498035 max_bound=0.0010941450622062227\nverify pwconv_cin96_cout40_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=367df800\n",
+        "metrics": {
+          "max_abs_error": 3.784429281949997e-06,
+          "max_error_over_bound": 0.016778752509498035,
+          "max_bound": 0.0010941450622062227
+        }
+      }
+    },
+    {
+      "case": "pwconv_cin96_cout576_h7_w7",
+      "family": "pointwise_conv2d",
+      "status": "PASS",
+      "hardware": "nr-patch6",
+      "fpga": 7,
+      "sys_clk_hz": 11059200,
+      "uart_divisor": 6,
+      "run_id": "run-6208aca139c54a16",
+      "uploaded_bin_sha256": "3eb9a7c6d04755b4d653710c0de725bfca350591d90aebf7f392bf13a9941e4f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/pwconv_cin96_cout576_h7_w7.log",
+      "uart_sha256": "c24be70333ee699bf3eca1ac7807161e2932fd2162c13fdde178d2826ea55dd3",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "cb9a7fc8b4c466a125de34bd4537644578d045d46cc39ca1271d16ade037ff33",
+        "output": "pointwise_conv2d metrics max_abs_error=5.550682544708252e-06 max_error_over_bound=0.017272996005772603 max_bound=0.0010941450622062227\nverify pwconv_cin96_cout576_h7_w7: PASS errors=00000000 max_abs_error_f32_bits=36ba4000\n",
+        "metrics": {
+          "max_abs_error": 5.550682544708252e-06,
+          "max_error_over_bound": 0.017272996005772603,
+          "max_bound": 0.0010941450622062227
+        }
+      }
+    },
+    {
+      "case": "relu_count144",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-b7f5c06e3d31442a",
+      "uploaded_bin_sha256": "7b933c0e92940ff7680b79799292e2c991ce0b83ef07dfd260050e7a35c2baa2",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count144.log",
+      "uart_sha256": "c8a08dbf3699180ea38b6789e359c8ec43227c4252e686bdc197345e2087f3ff",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "53e17f4306daa757bea98551dc7648e067a178f9702a3b36ebb8f03b601fa0a5",
+        "output": "verify relu_count144: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count225792",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-10095bd665504ada",
+      "uploaded_bin_sha256": "f807c84ef65c92e6df9cb0ae9b3b6c225d5ac8b461250e1ff486fc5358ac866c",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count225792.log",
+      "uart_sha256": "10b5c32ca2d1101064561d8e06f2ff2cf30723bbae77a7b957c30aed447043f0",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "902b7ed0b104b6f5b29200056043330020981f501b4c5122ac7a01ff53dc6f34",
+        "output": "verify relu_count225792: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count24",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-156227baf3684fe3",
+      "uploaded_bin_sha256": "e26abf80c4ed72d2e5e164244a75847da8e4a372ab6bc9b1d5e7a87b044bae68",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count24.log",
+      "uart_sha256": "4326d7b97d06114d67070264551109fc855016cc69e53570f3aad7db54d84ffa",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "3ea6c85a190f464d9d010aec3b6b105a0865077fa8383bf35ae1b863f910a4f0",
+        "output": "verify relu_count24: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count32",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-d217ec4788774a24",
+      "uploaded_bin_sha256": "c9cec923786fa40011ecfa3169f12eb8d4b92ff7370cc7595fa8889bbfb2669c",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count32.log",
+      "uart_sha256": "f3acb45e4a68cb086eeaccbbe0e486c95136f1a7e328442f96ec5d84ea1183f9",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "096af4313105998ce5e8de7d79f68fa48f38b5abfc506264abeb7daf61078658",
+        "output": "verify relu_count32: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count40",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-6b1689b57b084c20",
+      "uploaded_bin_sha256": "f690df968a10a19443bfe5d2b2c415345d9524907ea03bc63b7d3ae4973d0396",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count40.log",
+      "uart_sha256": "24ff73a6e330e47d19f94502d85036ba838e56596d9450be71dfaa927638a13b",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "4938413e92b700868c75354180d4d2ee10924aa2791a915993143c32b107011f",
+        "output": "verify relu_count40: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count50176",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-1079e3aceaf4422c",
+      "uploaded_bin_sha256": "965a166ecbcb41daa4a9d668661a70389cea8f4d3f51e22310b551a891b79a05",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count50176.log",
+      "uart_sha256": "8582b4e4e0521c89eceac56ec1d73f997618f498c98615c133525d6f4c098f12",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "64c10a8deaf2914af35bf065a50de922051e73f9e8781a2b4f6a160eb95ca301",
+        "output": "verify relu_count50176: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count56448",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-d54bcd16d3bf48eb",
+      "uploaded_bin_sha256": "14704e8bce8e2f71ba11ac10a914ca7db6ba1a83552b575483f7169a5f23033a",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count56448.log",
+      "uart_sha256": "eec4e1e5b45140fd83fa59614b72d1cebe2607a951f9e6505d25cbf5b7174162",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "88a63cedb1c428924fdcba815959f6839a86fcdddbd39875b7a63fb61163125e",
+        "output": "verify relu_count56448: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count64",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-60dd814f47684548",
+      "uploaded_bin_sha256": "6110f54641b4300bd517139126ec2cd49f6ce7f60d54c8f80a74f4070b2e5881",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count64.log",
+      "uart_sha256": "8e605f490c6120ecc787c0de9cfb3ae8dd69d8b103657eabbf8a0467f96b4375",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "e07e662de8e833378107fb04ce29babbca9394ea1d4e502663618fef67e2cfdf",
+        "output": "verify relu_count64: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count68992",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-c1e4862d20c34c4e",
+      "uploaded_bin_sha256": "9f2d86e17a97d176329764f5904b6a7c31201ac8ae016ccfd1c3e433ff081a2f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count68992.log",
+      "uart_sha256": "076874c0aef4ab22bf3089f0992e13ddaa3ca455e8cedca78fcf0bf7dd1b47bb",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "a6a3f9cd787aafa41b020ec762f2a39d52263d9c45fbcfc8480866c441eaffbf",
+        "output": "verify relu_count68992: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count72",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-d82e27f31c98434e",
+      "uploaded_bin_sha256": "7db64e840e79394964a04a478ba4d9239491731fc4c4860d3f52b7e29e634a9d",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count72.log",
+      "uart_sha256": "20d0c8909e8bee1435eab582525be9b8ec8c093f0b9a7e14efd266ffb7e7c5f6",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "2f792de45d9d30e1ba6dade88b01deace609ca93505ce922f52c870a54cf9d40",
+        "output": "verify relu_count72: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "relu_count8",
+      "family": "relu",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-5834407f44344f26",
+      "uploaded_bin_sha256": "e74d949ad55ffb0eebf302da984ae50a063a17e3253e40a9dc4816890b54965f",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/relu_count8.log",
+      "uart_sha256": "2962a72b9a573c5a10c7ec7e5ef2f141678e0afa8d3597bce566dd7e76f08a2b",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "c3d283c35566d834afb6a4423c1b8a6c30a74a0d5fab8f07794e65ebcdb8e2af",
+        "output": "verify relu_count8: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "add_count18816",
+      "family": "residual_add",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-3e29e3cd0c2d4417",
+      "uploaded_bin_sha256": "657ede96f5fe86fc5950ad4c850a61f26408b3b87c14a7b3b19edadbe7b2df3b",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/add_count18816.log",
+      "uart_sha256": "2ee88ba6240247c02d8496bac366f869bb291b460152ffee5e44310efbd7ad2c",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "7b1f41320a78078ce5a300c82fe341d9e0ec6d49dacd6a3f05cb5be003a64997",
+        "output": "verify add_count18816: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "add_count4704",
+      "family": "residual_add",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-89c4285e948a41a0",
+      "uploaded_bin_sha256": "48ce10d1a1600838aaab65c723665aa83554b466045e30da4dda27688daecac5",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/add_count4704.log",
+      "uart_sha256": "f0caa8b0d1000ec985e8c90ec5d22f827f4b6e2130d7fd72eb030ce908570cc0",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "d889fe871d853e9ad641d3ea5489b200d8a6abe259c182f51d33095711952928",
+        "output": "verify add_count4704: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "add_count7840",
+      "family": "residual_add",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-061f9dd887fc4d0f",
+      "uploaded_bin_sha256": "d42f244b21d288b43de37b22bfded3ec08d85808c720a1e6b51d9457e8c817ec",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/add_count7840.log",
+      "uart_sha256": "28ef832bbc95931ac489f5160255121c81cb2723762a3fd965effe7091ab7a42",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "068844df79602b29354fc879802b061255bcecf9c9ae2d13a78ef8fd1a1bb66b",
+        "output": "verify add_count7840: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "add_count9408",
+      "family": "residual_add",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-7a4e8eb51f994938",
+      "uploaded_bin_sha256": "519c20199a471a373716e5bbf2b5abf73448b3cc0e647a5dc1536a99b727e765",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/add_count9408.log",
+      "uart_sha256": "43cd88e83e92f4bbd0af53a5c8704bd403f4a9b7d4bf9dd1a09ab04aa054ccd3",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "51ffcae30d0f0417a558dfd0b66cf6b2b2e2f50a776b7c64fda86f521444c69c",
+        "output": "verify add_count9408: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "se_mul_c120_h14_w14",
+      "family": "se_mul",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-c28213527ff34156",
+      "uploaded_bin_sha256": "b3d6f22eae92c6ee9616bb42381394d4b8dafb0d80885c757e106963e2f1a58c",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/se_mul_c120_h14_w14.log",
+      "uart_sha256": "b8d9c976ed04d31b5cd40fe532d57f1edb11716db6693640462aadb0818d956c",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "98298c8f059b798fdb0fedca2d0c5428abf74203ebfaa5446168b54b2c564169",
+        "output": "verify se_mul_c120_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "se_mul_c144_h14_w14",
+      "family": "se_mul",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-bf151e21f6a94629",
+      "uploaded_bin_sha256": "c33baeeff2755ac6b4099cb76ebc4b6ff719f71a0cbcc703f7ea049e8bb20048",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/se_mul_c144_h14_w14.log",
+      "uart_sha256": "35c0efc8d64789254b371c98886caca7f9b96673210949d65e19fc14396f6fa1",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "a5d04f8937a64197e92d8750e32c5bcd949bd378b56aad4d58431d146c0366e3",
+        "output": "verify se_mul_c144_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "se_mul_c16_h56_w56",
+      "family": "se_mul",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-8440c7dd8c4b4dd3",
+      "uploaded_bin_sha256": "c7bbbe82e784f61553e0d12b1187c45752ae8106c9afcd2c079fa89b059dbead",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/se_mul_c16_h56_w56.log",
+      "uart_sha256": "22119ee0c15bbcb094af44b14055e4653b508d669f965dc07abf41d464d84f40",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "b10e1bc710ac7a885a3c99ba4d2c6c465975536e226c944b65d142fb1fe24523",
+        "output": "verify se_mul_c16_h56_w56: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "se_mul_c240_h14_w14",
+      "family": "se_mul",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-96d22362772a4f5c",
+      "uploaded_bin_sha256": "a9e0cdce374daae5529f06d85bdbfa1c51fdb85aa476e626f95f032a6bc98aa3",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/se_mul_c240_h14_w14.log",
+      "uart_sha256": "40ecc3cffddf60120f453e4afac6ac89ecb09ccbc811d76b839292c988e2574e",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "43fbec87a5ccfc65cda9512d3224e200c2268d4d71614b6fd14f730ab423a997",
+        "output": "verify se_mul_c240_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "se_mul_c288_h7_w7",
+      "family": "se_mul",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-325a1cf90e5f49f5",
+      "uploaded_bin_sha256": "21d8d9dadad3a9fdcf918eb7b565024bcd043ea63da844a33419980076b56c83",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/se_mul_c288_h7_w7.log",
+      "uart_sha256": "283e02a2aab203074f4740a7b79b7c4b107603d6c092936aa14d31ce98198ac0",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "25b17afc7bdfde65b5561285e491dafe7d5df0755f8842f3583dabe765692715",
+        "output": "verify se_mul_c288_h7_w7: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "se_mul_c576_h7_w7",
+      "family": "se_mul",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-adad1d2fd01f4455",
+      "uploaded_bin_sha256": "5571e309531b95c96ab4b49aa92a2c80bc274ce4e177d5613b5851320e7a07ef",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/se_mul_c576_h7_w7.log",
+      "uart_sha256": "35f19e9bc316cef7836afed01d6abe6b06faebdfabaa3ddce24fa46cc5d73c83",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "d29e5897978dfc59bddf9b7100d834056b4fa697759ce0873bb1df7dae732310",
+        "output": "verify se_mul_c576_h7_w7: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    },
+    {
+      "case": "se_mul_c96_h14_w14",
+      "family": "se_mul",
+      "status": "PASS",
+      "hardware": "nr-patch5",
+      "fpga": 7,
+      "sys_clk_hz": 14745600,
+      "uart_divisor": 8,
+      "run_id": "run-183cd26d69e94f76",
+      "uploaded_bin_sha256": "7d7a32712001969ef82cdc07f475018aace485f738e7eadd79190683a219bbca",
+      "ddr_readback_matches": true,
+      "uart_log": "uart/se_mul_c96_h14_w14.log",
+      "uart_sha256": "fcc919bc1c8ade084a302b5fa9ee3d0cc767b2309355395eb951bdb8bc83ff42",
+      "host": {
+        "status": "PASS",
+        "rechecked_date": "2026-10-08",
+        "executable_sha256": "6549e834b6f01163e4c2a142d6e6da2ca5e2587a7ade9311d583a3204b5b0f39",
+        "output": "verify se_mul_c96_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+      }
+    }
+  ]
+}

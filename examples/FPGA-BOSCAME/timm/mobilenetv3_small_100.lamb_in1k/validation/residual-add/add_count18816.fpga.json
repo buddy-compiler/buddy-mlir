@@ -1,0 +1,15 @@
+{
+  "case": "add_count18816",
+  "status": "NOT EXECUTED",
+  "command": [
+    "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/fpga_run.sh",
+    "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/mobilenetv3_small_100.lamb_in1k/triton/build/add_count18816/nr/add_count18816.bin",
+    "--fpga=5",
+    "--capture-seconds=120",
+    "--completion-marker=[nr] RA returned:"
+  ],
+  "returncode": 1,
+  "log": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/mobilenetv3_small_100.lamb_in1k/validation/residual-add/add_count18816.fpga.log",
+  "log_sha256": "0db34cea3aef1c81eb1412638071dff40fe7de11b2b3a1d48e86e9a8296b2934",
+  "bin_sha256": "657ede96f5fe86fc5950ad4c850a61f26408b3b87c14a7b3b19edadbe7b2df3b"
+}

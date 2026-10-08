@@ -1,0 +1,9 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+verify linear_m1_n1000_k1024: FAIL errors=00000F95 max_abs_error_f32_bits=4380094B
+[nr] launch cycles=0x00000000281FC4C8 status=0x00000001
+[nr] RA returned: FAIL
+verify NR runtime: FAIL

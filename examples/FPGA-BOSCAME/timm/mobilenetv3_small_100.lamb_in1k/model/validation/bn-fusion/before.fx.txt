@@ -1,0 +1,500 @@
+graph():
+    %x : torch.Tensor [num_users=1] = placeholder[target=x]
+    %conv_stem : [num_users=3] = call_module[target=conv_stem](args = (%x,), kwargs = {})
+    %getattr_1 : [num_users=1] = call_function[target=builtins.getattr](args = (%conv_stem, ndim), kwargs = {})
+    %eq : [num_users=1] = call_function[target=operator.eq](args = (%getattr_1, 4), kwargs = {})
+    %getattr_2 : [num_users=0] = call_function[target=builtins.getattr](args = (%conv_stem, ndim), kwargs = {})
+    %_assert : [num_users=0] = call_function[target=torch._assert](args = (%eq, expected 4D input (got Proxy(getattr_2)D input)), kwargs = {})
+    %bn1_weight : [num_users=1] = get_attr[target=bn1.weight]
+    %bn1_bias : [num_users=1] = get_attr[target=bn1.bias]
+    %bn1_running_mean : [num_users=1] = get_attr[target=bn1.running_mean]
+    %bn1_running_var : [num_users=1] = get_attr[target=bn1.running_var]
+    %batch_norm : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%conv_stem, %bn1_running_mean, %bn1_running_var), kwargs = {weight: %bn1_weight, bias: %bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %bn1_drop : [num_users=1] = call_module[target=bn1.drop](args = (%batch_norm,), kwargs = {})
+    %bn1_act : [num_users=1] = call_module[target=bn1.act](args = (%bn1_drop,), kwargs = {})
+    %blocks_0_0_conv_dw : [num_users=3] = call_module[target=blocks.0.0.conv_dw](args = (%bn1_act,), kwargs = {})
+    %getattr_3 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_0_0_conv_dw, ndim), kwargs = {})
+    %eq_1 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_3, 4), kwargs = {})
+    %getattr_4 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_0_0_conv_dw, ndim), kwargs = {})
+    %_assert_1 : [num_users=0] = call_function[target=torch._assert](args = (%eq_1, expected 4D input (got Proxy(getattr_4)D input)), kwargs = {})
+    %blocks_0_0_bn1_weight : [num_users=1] = get_attr[target=blocks.0.0.bn1.weight]
+    %blocks_0_0_bn1_bias : [num_users=1] = get_attr[target=blocks.0.0.bn1.bias]
+    %blocks_0_0_bn1_running_mean : [num_users=1] = get_attr[target=blocks.0.0.bn1.running_mean]
+    %blocks_0_0_bn1_running_var : [num_users=1] = get_attr[target=blocks.0.0.bn1.running_var]
+    %batch_norm_1 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_0_0_conv_dw, %blocks_0_0_bn1_running_mean, %blocks_0_0_bn1_running_var), kwargs = {weight: %blocks_0_0_bn1_weight, bias: %blocks_0_0_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_0_0_bn1_drop : [num_users=1] = call_module[target=blocks.0.0.bn1.drop](args = (%batch_norm_1,), kwargs = {})
+    %blocks_0_0_bn1_act : [num_users=1] = call_module[target=blocks.0.0.bn1.act](args = (%blocks_0_0_bn1_drop,), kwargs = {})
+    %blocks_0_0_aa : [num_users=2] = call_module[target=blocks.0.0.aa](args = (%blocks_0_0_bn1_act,), kwargs = {})
+    %mean : [num_users=1] = call_method[target=mean](args = (%blocks_0_0_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_0_0_se_conv_reduce : [num_users=1] = call_module[target=blocks.0.0.se.conv_reduce](args = (%mean,), kwargs = {})
+    %blocks_0_0_se_act1 : [num_users=1] = call_module[target=blocks.0.0.se.act1](args = (%blocks_0_0_se_conv_reduce,), kwargs = {})
+    %blocks_0_0_se_conv_expand : [num_users=1] = call_module[target=blocks.0.0.se.conv_expand](args = (%blocks_0_0_se_act1,), kwargs = {})
+    %blocks_0_0_se_gate : [num_users=1] = call_module[target=blocks.0.0.se.gate](args = (%blocks_0_0_se_conv_expand,), kwargs = {})
+    %mul : [num_users=1] = call_function[target=operator.mul](args = (%blocks_0_0_aa, %blocks_0_0_se_gate), kwargs = {})
+    %blocks_0_0_conv_pw : [num_users=3] = call_module[target=blocks.0.0.conv_pw](args = (%mul,), kwargs = {})
+    %getattr_5 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_0_0_conv_pw, ndim), kwargs = {})
+    %eq_2 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_5, 4), kwargs = {})
+    %getattr_6 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_0_0_conv_pw, ndim), kwargs = {})
+    %_assert_2 : [num_users=0] = call_function[target=torch._assert](args = (%eq_2, expected 4D input (got Proxy(getattr_6)D input)), kwargs = {})
+    %blocks_0_0_bn2_weight : [num_users=1] = get_attr[target=blocks.0.0.bn2.weight]
+    %blocks_0_0_bn2_bias : [num_users=1] = get_attr[target=blocks.0.0.bn2.bias]
+    %blocks_0_0_bn2_running_mean : [num_users=1] = get_attr[target=blocks.0.0.bn2.running_mean]
+    %blocks_0_0_bn2_running_var : [num_users=1] = get_attr[target=blocks.0.0.bn2.running_var]
+    %batch_norm_2 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_0_0_conv_pw, %blocks_0_0_bn2_running_mean, %blocks_0_0_bn2_running_var), kwargs = {weight: %blocks_0_0_bn2_weight, bias: %blocks_0_0_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_0_0_bn2_drop : [num_users=1] = call_module[target=blocks.0.0.bn2.drop](args = (%batch_norm_2,), kwargs = {})
+    %blocks_0_0_bn2_act : [num_users=1] = call_module[target=blocks.0.0.bn2.act](args = (%blocks_0_0_bn2_drop,), kwargs = {})
+    %blocks_1_0_conv_pw : [num_users=3] = call_module[target=blocks.1.0.conv_pw](args = (%blocks_0_0_bn2_act,), kwargs = {})
+    %getattr_7 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_1_0_conv_pw, ndim), kwargs = {})
+    %eq_3 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_7, 4), kwargs = {})
+    %getattr_8 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_1_0_conv_pw, ndim), kwargs = {})
+    %_assert_3 : [num_users=0] = call_function[target=torch._assert](args = (%eq_3, expected 4D input (got Proxy(getattr_8)D input)), kwargs = {})
+    %blocks_1_0_bn1_weight : [num_users=1] = get_attr[target=blocks.1.0.bn1.weight]
+    %blocks_1_0_bn1_bias : [num_users=1] = get_attr[target=blocks.1.0.bn1.bias]
+    %blocks_1_0_bn1_running_mean : [num_users=1] = get_attr[target=blocks.1.0.bn1.running_mean]
+    %blocks_1_0_bn1_running_var : [num_users=1] = get_attr[target=blocks.1.0.bn1.running_var]
+    %batch_norm_3 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_1_0_conv_pw, %blocks_1_0_bn1_running_mean, %blocks_1_0_bn1_running_var), kwargs = {weight: %blocks_1_0_bn1_weight, bias: %blocks_1_0_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_1_0_bn1_drop : [num_users=1] = call_module[target=blocks.1.0.bn1.drop](args = (%batch_norm_3,), kwargs = {})
+    %blocks_1_0_bn1_act : [num_users=1] = call_module[target=blocks.1.0.bn1.act](args = (%blocks_1_0_bn1_drop,), kwargs = {})
+    %blocks_1_0_conv_dw : [num_users=3] = call_module[target=blocks.1.0.conv_dw](args = (%blocks_1_0_bn1_act,), kwargs = {})
+    %getattr_9 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_1_0_conv_dw, ndim), kwargs = {})
+    %eq_4 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_9, 4), kwargs = {})
+    %getattr_10 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_1_0_conv_dw, ndim), kwargs = {})
+    %_assert_4 : [num_users=0] = call_function[target=torch._assert](args = (%eq_4, expected 4D input (got Proxy(getattr_10)D input)), kwargs = {})
+    %blocks_1_0_bn2_weight : [num_users=1] = get_attr[target=blocks.1.0.bn2.weight]
+    %blocks_1_0_bn2_bias : [num_users=1] = get_attr[target=blocks.1.0.bn2.bias]
+    %blocks_1_0_bn2_running_mean : [num_users=1] = get_attr[target=blocks.1.0.bn2.running_mean]
+    %blocks_1_0_bn2_running_var : [num_users=1] = get_attr[target=blocks.1.0.bn2.running_var]
+    %batch_norm_4 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_1_0_conv_dw, %blocks_1_0_bn2_running_mean, %blocks_1_0_bn2_running_var), kwargs = {weight: %blocks_1_0_bn2_weight, bias: %blocks_1_0_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_1_0_bn2_drop : [num_users=1] = call_module[target=blocks.1.0.bn2.drop](args = (%batch_norm_4,), kwargs = {})
+    %blocks_1_0_bn2_act : [num_users=1] = call_module[target=blocks.1.0.bn2.act](args = (%blocks_1_0_bn2_drop,), kwargs = {})
+    %blocks_1_0_aa : [num_users=1] = call_module[target=blocks.1.0.aa](args = (%blocks_1_0_bn2_act,), kwargs = {})
+    %blocks_1_0_se : [num_users=1] = call_module[target=blocks.1.0.se](args = (%blocks_1_0_aa,), kwargs = {})
+    %blocks_1_0_conv_pwl : [num_users=3] = call_module[target=blocks.1.0.conv_pwl](args = (%blocks_1_0_se,), kwargs = {})
+    %getattr_11 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_1_0_conv_pwl, ndim), kwargs = {})
+    %eq_5 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_11, 4), kwargs = {})
+    %getattr_12 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_1_0_conv_pwl, ndim), kwargs = {})
+    %_assert_5 : [num_users=0] = call_function[target=torch._assert](args = (%eq_5, expected 4D input (got Proxy(getattr_12)D input)), kwargs = {})
+    %blocks_1_0_bn3_weight : [num_users=1] = get_attr[target=blocks.1.0.bn3.weight]
+    %blocks_1_0_bn3_bias : [num_users=1] = get_attr[target=blocks.1.0.bn3.bias]
+    %blocks_1_0_bn3_running_mean : [num_users=1] = get_attr[target=blocks.1.0.bn3.running_mean]
+    %blocks_1_0_bn3_running_var : [num_users=1] = get_attr[target=blocks.1.0.bn3.running_var]
+    %batch_norm_5 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_1_0_conv_pwl, %blocks_1_0_bn3_running_mean, %blocks_1_0_bn3_running_var), kwargs = {weight: %blocks_1_0_bn3_weight, bias: %blocks_1_0_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_1_0_bn3_drop : [num_users=1] = call_module[target=blocks.1.0.bn3.drop](args = (%batch_norm_5,), kwargs = {})
+    %blocks_1_0_bn3_act : [num_users=2] = call_module[target=blocks.1.0.bn3.act](args = (%blocks_1_0_bn3_drop,), kwargs = {})
+    %blocks_1_1_conv_pw : [num_users=3] = call_module[target=blocks.1.1.conv_pw](args = (%blocks_1_0_bn3_act,), kwargs = {})
+    %getattr_13 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_1_1_conv_pw, ndim), kwargs = {})
+    %eq_6 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_13, 4), kwargs = {})
+    %getattr_14 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_1_1_conv_pw, ndim), kwargs = {})
+    %_assert_6 : [num_users=0] = call_function[target=torch._assert](args = (%eq_6, expected 4D input (got Proxy(getattr_14)D input)), kwargs = {})
+    %blocks_1_1_bn1_weight : [num_users=1] = get_attr[target=blocks.1.1.bn1.weight]
+    %blocks_1_1_bn1_bias : [num_users=1] = get_attr[target=blocks.1.1.bn1.bias]
+    %blocks_1_1_bn1_running_mean : [num_users=1] = get_attr[target=blocks.1.1.bn1.running_mean]
+    %blocks_1_1_bn1_running_var : [num_users=1] = get_attr[target=blocks.1.1.bn1.running_var]
+    %batch_norm_6 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_1_1_conv_pw, %blocks_1_1_bn1_running_mean, %blocks_1_1_bn1_running_var), kwargs = {weight: %blocks_1_1_bn1_weight, bias: %blocks_1_1_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_1_1_bn1_drop : [num_users=1] = call_module[target=blocks.1.1.bn1.drop](args = (%batch_norm_6,), kwargs = {})
+    %blocks_1_1_bn1_act : [num_users=1] = call_module[target=blocks.1.1.bn1.act](args = (%blocks_1_1_bn1_drop,), kwargs = {})
+    %blocks_1_1_conv_dw : [num_users=3] = call_module[target=blocks.1.1.conv_dw](args = (%blocks_1_1_bn1_act,), kwargs = {})
+    %getattr_15 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_1_1_conv_dw, ndim), kwargs = {})
+    %eq_7 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_15, 4), kwargs = {})
+    %getattr_16 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_1_1_conv_dw, ndim), kwargs = {})
+    %_assert_7 : [num_users=0] = call_function[target=torch._assert](args = (%eq_7, expected 4D input (got Proxy(getattr_16)D input)), kwargs = {})
+    %blocks_1_1_bn2_weight : [num_users=1] = get_attr[target=blocks.1.1.bn2.weight]
+    %blocks_1_1_bn2_bias : [num_users=1] = get_attr[target=blocks.1.1.bn2.bias]
+    %blocks_1_1_bn2_running_mean : [num_users=1] = get_attr[target=blocks.1.1.bn2.running_mean]
+    %blocks_1_1_bn2_running_var : [num_users=1] = get_attr[target=blocks.1.1.bn2.running_var]
+    %batch_norm_7 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_1_1_conv_dw, %blocks_1_1_bn2_running_mean, %blocks_1_1_bn2_running_var), kwargs = {weight: %blocks_1_1_bn2_weight, bias: %blocks_1_1_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_1_1_bn2_drop : [num_users=1] = call_module[target=blocks.1.1.bn2.drop](args = (%batch_norm_7,), kwargs = {})
+    %blocks_1_1_bn2_act : [num_users=1] = call_module[target=blocks.1.1.bn2.act](args = (%blocks_1_1_bn2_drop,), kwargs = {})
+    %blocks_1_1_aa : [num_users=1] = call_module[target=blocks.1.1.aa](args = (%blocks_1_1_bn2_act,), kwargs = {})
+    %blocks_1_1_se : [num_users=1] = call_module[target=blocks.1.1.se](args = (%blocks_1_1_aa,), kwargs = {})
+    %blocks_1_1_conv_pwl : [num_users=3] = call_module[target=blocks.1.1.conv_pwl](args = (%blocks_1_1_se,), kwargs = {})
+    %getattr_17 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_1_1_conv_pwl, ndim), kwargs = {})
+    %eq_8 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_17, 4), kwargs = {})
+    %getattr_18 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_1_1_conv_pwl, ndim), kwargs = {})
+    %_assert_8 : [num_users=0] = call_function[target=torch._assert](args = (%eq_8, expected 4D input (got Proxy(getattr_18)D input)), kwargs = {})
+    %blocks_1_1_bn3_weight : [num_users=1] = get_attr[target=blocks.1.1.bn3.weight]
+    %blocks_1_1_bn3_bias : [num_users=1] = get_attr[target=blocks.1.1.bn3.bias]
+    %blocks_1_1_bn3_running_mean : [num_users=1] = get_attr[target=blocks.1.1.bn3.running_mean]
+    %blocks_1_1_bn3_running_var : [num_users=1] = get_attr[target=blocks.1.1.bn3.running_var]
+    %batch_norm_8 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_1_1_conv_pwl, %blocks_1_1_bn3_running_mean, %blocks_1_1_bn3_running_var), kwargs = {weight: %blocks_1_1_bn3_weight, bias: %blocks_1_1_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_1_1_bn3_drop : [num_users=1] = call_module[target=blocks.1.1.bn3.drop](args = (%batch_norm_8,), kwargs = {})
+    %blocks_1_1_bn3_act : [num_users=1] = call_module[target=blocks.1.1.bn3.act](args = (%blocks_1_1_bn3_drop,), kwargs = {})
+    %blocks_1_1_drop_path : [num_users=1] = call_module[target=blocks.1.1.drop_path](args = (%blocks_1_1_bn3_act,), kwargs = {})
+    %add : [num_users=1] = call_function[target=operator.add](args = (%blocks_1_1_drop_path, %blocks_1_0_bn3_act), kwargs = {})
+    %blocks_2_0_conv_pw : [num_users=3] = call_module[target=blocks.2.0.conv_pw](args = (%add,), kwargs = {})
+    %getattr_19 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_0_conv_pw, ndim), kwargs = {})
+    %eq_9 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_19, 4), kwargs = {})
+    %getattr_20 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_0_conv_pw, ndim), kwargs = {})
+    %_assert_9 : [num_users=0] = call_function[target=torch._assert](args = (%eq_9, expected 4D input (got Proxy(getattr_20)D input)), kwargs = {})
+    %blocks_2_0_bn1_weight : [num_users=1] = get_attr[target=blocks.2.0.bn1.weight]
+    %blocks_2_0_bn1_bias : [num_users=1] = get_attr[target=blocks.2.0.bn1.bias]
+    %blocks_2_0_bn1_running_mean : [num_users=1] = get_attr[target=blocks.2.0.bn1.running_mean]
+    %blocks_2_0_bn1_running_var : [num_users=1] = get_attr[target=blocks.2.0.bn1.running_var]
+    %batch_norm_9 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_0_conv_pw, %blocks_2_0_bn1_running_mean, %blocks_2_0_bn1_running_var), kwargs = {weight: %blocks_2_0_bn1_weight, bias: %blocks_2_0_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_0_bn1_drop : [num_users=1] = call_module[target=blocks.2.0.bn1.drop](args = (%batch_norm_9,), kwargs = {})
+    %blocks_2_0_bn1_act : [num_users=1] = call_module[target=blocks.2.0.bn1.act](args = (%blocks_2_0_bn1_drop,), kwargs = {})
+    %blocks_2_0_conv_dw : [num_users=3] = call_module[target=blocks.2.0.conv_dw](args = (%blocks_2_0_bn1_act,), kwargs = {})
+    %getattr_21 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_0_conv_dw, ndim), kwargs = {})
+    %eq_10 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_21, 4), kwargs = {})
+    %getattr_22 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_0_conv_dw, ndim), kwargs = {})
+    %_assert_10 : [num_users=0] = call_function[target=torch._assert](args = (%eq_10, expected 4D input (got Proxy(getattr_22)D input)), kwargs = {})
+    %blocks_2_0_bn2_weight : [num_users=1] = get_attr[target=blocks.2.0.bn2.weight]
+    %blocks_2_0_bn2_bias : [num_users=1] = get_attr[target=blocks.2.0.bn2.bias]
+    %blocks_2_0_bn2_running_mean : [num_users=1] = get_attr[target=blocks.2.0.bn2.running_mean]
+    %blocks_2_0_bn2_running_var : [num_users=1] = get_attr[target=blocks.2.0.bn2.running_var]
+    %batch_norm_10 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_0_conv_dw, %blocks_2_0_bn2_running_mean, %blocks_2_0_bn2_running_var), kwargs = {weight: %blocks_2_0_bn2_weight, bias: %blocks_2_0_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_0_bn2_drop : [num_users=1] = call_module[target=blocks.2.0.bn2.drop](args = (%batch_norm_10,), kwargs = {})
+    %blocks_2_0_bn2_act : [num_users=1] = call_module[target=blocks.2.0.bn2.act](args = (%blocks_2_0_bn2_drop,), kwargs = {})
+    %blocks_2_0_aa : [num_users=2] = call_module[target=blocks.2.0.aa](args = (%blocks_2_0_bn2_act,), kwargs = {})
+    %mean_1 : [num_users=1] = call_method[target=mean](args = (%blocks_2_0_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_2_0_se_conv_reduce : [num_users=1] = call_module[target=blocks.2.0.se.conv_reduce](args = (%mean_1,), kwargs = {})
+    %blocks_2_0_se_act1 : [num_users=1] = call_module[target=blocks.2.0.se.act1](args = (%blocks_2_0_se_conv_reduce,), kwargs = {})
+    %blocks_2_0_se_conv_expand : [num_users=1] = call_module[target=blocks.2.0.se.conv_expand](args = (%blocks_2_0_se_act1,), kwargs = {})
+    %blocks_2_0_se_gate : [num_users=1] = call_module[target=blocks.2.0.se.gate](args = (%blocks_2_0_se_conv_expand,), kwargs = {})
+    %mul_1 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_2_0_aa, %blocks_2_0_se_gate), kwargs = {})
+    %blocks_2_0_conv_pwl : [num_users=3] = call_module[target=blocks.2.0.conv_pwl](args = (%mul_1,), kwargs = {})
+    %getattr_23 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_0_conv_pwl, ndim), kwargs = {})
+    %eq_11 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_23, 4), kwargs = {})
+    %getattr_24 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_0_conv_pwl, ndim), kwargs = {})
+    %_assert_11 : [num_users=0] = call_function[target=torch._assert](args = (%eq_11, expected 4D input (got Proxy(getattr_24)D input)), kwargs = {})
+    %blocks_2_0_bn3_weight : [num_users=1] = get_attr[target=blocks.2.0.bn3.weight]
+    %blocks_2_0_bn3_bias : [num_users=1] = get_attr[target=blocks.2.0.bn3.bias]
+    %blocks_2_0_bn3_running_mean : [num_users=1] = get_attr[target=blocks.2.0.bn3.running_mean]
+    %blocks_2_0_bn3_running_var : [num_users=1] = get_attr[target=blocks.2.0.bn3.running_var]
+    %batch_norm_11 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_0_conv_pwl, %blocks_2_0_bn3_running_mean, %blocks_2_0_bn3_running_var), kwargs = {weight: %blocks_2_0_bn3_weight, bias: %blocks_2_0_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_0_bn3_drop : [num_users=1] = call_module[target=blocks.2.0.bn3.drop](args = (%batch_norm_11,), kwargs = {})
+    %blocks_2_0_bn3_act : [num_users=2] = call_module[target=blocks.2.0.bn3.act](args = (%blocks_2_0_bn3_drop,), kwargs = {})
+    %blocks_2_1_conv_pw : [num_users=3] = call_module[target=blocks.2.1.conv_pw](args = (%blocks_2_0_bn3_act,), kwargs = {})
+    %getattr_25 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_1_conv_pw, ndim), kwargs = {})
+    %eq_12 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_25, 4), kwargs = {})
+    %getattr_26 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_1_conv_pw, ndim), kwargs = {})
+    %_assert_12 : [num_users=0] = call_function[target=torch._assert](args = (%eq_12, expected 4D input (got Proxy(getattr_26)D input)), kwargs = {})
+    %blocks_2_1_bn1_weight : [num_users=1] = get_attr[target=blocks.2.1.bn1.weight]
+    %blocks_2_1_bn1_bias : [num_users=1] = get_attr[target=blocks.2.1.bn1.bias]
+    %blocks_2_1_bn1_running_mean : [num_users=1] = get_attr[target=blocks.2.1.bn1.running_mean]
+    %blocks_2_1_bn1_running_var : [num_users=1] = get_attr[target=blocks.2.1.bn1.running_var]
+    %batch_norm_12 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_1_conv_pw, %blocks_2_1_bn1_running_mean, %blocks_2_1_bn1_running_var), kwargs = {weight: %blocks_2_1_bn1_weight, bias: %blocks_2_1_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_1_bn1_drop : [num_users=1] = call_module[target=blocks.2.1.bn1.drop](args = (%batch_norm_12,), kwargs = {})
+    %blocks_2_1_bn1_act : [num_users=1] = call_module[target=blocks.2.1.bn1.act](args = (%blocks_2_1_bn1_drop,), kwargs = {})
+    %blocks_2_1_conv_dw : [num_users=3] = call_module[target=blocks.2.1.conv_dw](args = (%blocks_2_1_bn1_act,), kwargs = {})
+    %getattr_27 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_1_conv_dw, ndim), kwargs = {})
+    %eq_13 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_27, 4), kwargs = {})
+    %getattr_28 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_1_conv_dw, ndim), kwargs = {})
+    %_assert_13 : [num_users=0] = call_function[target=torch._assert](args = (%eq_13, expected 4D input (got Proxy(getattr_28)D input)), kwargs = {})
+    %blocks_2_1_bn2_weight : [num_users=1] = get_attr[target=blocks.2.1.bn2.weight]
+    %blocks_2_1_bn2_bias : [num_users=1] = get_attr[target=blocks.2.1.bn2.bias]
+    %blocks_2_1_bn2_running_mean : [num_users=1] = get_attr[target=blocks.2.1.bn2.running_mean]
+    %blocks_2_1_bn2_running_var : [num_users=1] = get_attr[target=blocks.2.1.bn2.running_var]
+    %batch_norm_13 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_1_conv_dw, %blocks_2_1_bn2_running_mean, %blocks_2_1_bn2_running_var), kwargs = {weight: %blocks_2_1_bn2_weight, bias: %blocks_2_1_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_1_bn2_drop : [num_users=1] = call_module[target=blocks.2.1.bn2.drop](args = (%batch_norm_13,), kwargs = {})
+    %blocks_2_1_bn2_act : [num_users=1] = call_module[target=blocks.2.1.bn2.act](args = (%blocks_2_1_bn2_drop,), kwargs = {})
+    %blocks_2_1_aa : [num_users=2] = call_module[target=blocks.2.1.aa](args = (%blocks_2_1_bn2_act,), kwargs = {})
+    %mean_2 : [num_users=1] = call_method[target=mean](args = (%blocks_2_1_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_2_1_se_conv_reduce : [num_users=1] = call_module[target=blocks.2.1.se.conv_reduce](args = (%mean_2,), kwargs = {})
+    %blocks_2_1_se_act1 : [num_users=1] = call_module[target=blocks.2.1.se.act1](args = (%blocks_2_1_se_conv_reduce,), kwargs = {})
+    %blocks_2_1_se_conv_expand : [num_users=1] = call_module[target=blocks.2.1.se.conv_expand](args = (%blocks_2_1_se_act1,), kwargs = {})
+    %blocks_2_1_se_gate : [num_users=1] = call_module[target=blocks.2.1.se.gate](args = (%blocks_2_1_se_conv_expand,), kwargs = {})
+    %mul_2 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_2_1_aa, %blocks_2_1_se_gate), kwargs = {})
+    %blocks_2_1_conv_pwl : [num_users=3] = call_module[target=blocks.2.1.conv_pwl](args = (%mul_2,), kwargs = {})
+    %getattr_29 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_1_conv_pwl, ndim), kwargs = {})
+    %eq_14 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_29, 4), kwargs = {})
+    %getattr_30 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_1_conv_pwl, ndim), kwargs = {})
+    %_assert_14 : [num_users=0] = call_function[target=torch._assert](args = (%eq_14, expected 4D input (got Proxy(getattr_30)D input)), kwargs = {})
+    %blocks_2_1_bn3_weight : [num_users=1] = get_attr[target=blocks.2.1.bn3.weight]
+    %blocks_2_1_bn3_bias : [num_users=1] = get_attr[target=blocks.2.1.bn3.bias]
+    %blocks_2_1_bn3_running_mean : [num_users=1] = get_attr[target=blocks.2.1.bn3.running_mean]
+    %blocks_2_1_bn3_running_var : [num_users=1] = get_attr[target=blocks.2.1.bn3.running_var]
+    %batch_norm_14 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_1_conv_pwl, %blocks_2_1_bn3_running_mean, %blocks_2_1_bn3_running_var), kwargs = {weight: %blocks_2_1_bn3_weight, bias: %blocks_2_1_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_1_bn3_drop : [num_users=1] = call_module[target=blocks.2.1.bn3.drop](args = (%batch_norm_14,), kwargs = {})
+    %blocks_2_1_bn3_act : [num_users=1] = call_module[target=blocks.2.1.bn3.act](args = (%blocks_2_1_bn3_drop,), kwargs = {})
+    %blocks_2_1_drop_path : [num_users=1] = call_module[target=blocks.2.1.drop_path](args = (%blocks_2_1_bn3_act,), kwargs = {})
+    %add_1 : [num_users=2] = call_function[target=operator.add](args = (%blocks_2_1_drop_path, %blocks_2_0_bn3_act), kwargs = {})
+    %blocks_2_2_conv_pw : [num_users=3] = call_module[target=blocks.2.2.conv_pw](args = (%add_1,), kwargs = {})
+    %getattr_31 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_2_conv_pw, ndim), kwargs = {})
+    %eq_15 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_31, 4), kwargs = {})
+    %getattr_32 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_2_conv_pw, ndim), kwargs = {})
+    %_assert_15 : [num_users=0] = call_function[target=torch._assert](args = (%eq_15, expected 4D input (got Proxy(getattr_32)D input)), kwargs = {})
+    %blocks_2_2_bn1_weight : [num_users=1] = get_attr[target=blocks.2.2.bn1.weight]
+    %blocks_2_2_bn1_bias : [num_users=1] = get_attr[target=blocks.2.2.bn1.bias]
+    %blocks_2_2_bn1_running_mean : [num_users=1] = get_attr[target=blocks.2.2.bn1.running_mean]
+    %blocks_2_2_bn1_running_var : [num_users=1] = get_attr[target=blocks.2.2.bn1.running_var]
+    %batch_norm_15 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_2_conv_pw, %blocks_2_2_bn1_running_mean, %blocks_2_2_bn1_running_var), kwargs = {weight: %blocks_2_2_bn1_weight, bias: %blocks_2_2_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_2_bn1_drop : [num_users=1] = call_module[target=blocks.2.2.bn1.drop](args = (%batch_norm_15,), kwargs = {})
+    %blocks_2_2_bn1_act : [num_users=1] = call_module[target=blocks.2.2.bn1.act](args = (%blocks_2_2_bn1_drop,), kwargs = {})
+    %blocks_2_2_conv_dw : [num_users=3] = call_module[target=blocks.2.2.conv_dw](args = (%blocks_2_2_bn1_act,), kwargs = {})
+    %getattr_33 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_2_conv_dw, ndim), kwargs = {})
+    %eq_16 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_33, 4), kwargs = {})
+    %getattr_34 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_2_conv_dw, ndim), kwargs = {})
+    %_assert_16 : [num_users=0] = call_function[target=torch._assert](args = (%eq_16, expected 4D input (got Proxy(getattr_34)D input)), kwargs = {})
+    %blocks_2_2_bn2_weight : [num_users=1] = get_attr[target=blocks.2.2.bn2.weight]
+    %blocks_2_2_bn2_bias : [num_users=1] = get_attr[target=blocks.2.2.bn2.bias]
+    %blocks_2_2_bn2_running_mean : [num_users=1] = get_attr[target=blocks.2.2.bn2.running_mean]
+    %blocks_2_2_bn2_running_var : [num_users=1] = get_attr[target=blocks.2.2.bn2.running_var]
+    %batch_norm_16 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_2_conv_dw, %blocks_2_2_bn2_running_mean, %blocks_2_2_bn2_running_var), kwargs = {weight: %blocks_2_2_bn2_weight, bias: %blocks_2_2_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_2_bn2_drop : [num_users=1] = call_module[target=blocks.2.2.bn2.drop](args = (%batch_norm_16,), kwargs = {})
+    %blocks_2_2_bn2_act : [num_users=1] = call_module[target=blocks.2.2.bn2.act](args = (%blocks_2_2_bn2_drop,), kwargs = {})
+    %blocks_2_2_aa : [num_users=2] = call_module[target=blocks.2.2.aa](args = (%blocks_2_2_bn2_act,), kwargs = {})
+    %mean_3 : [num_users=1] = call_method[target=mean](args = (%blocks_2_2_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_2_2_se_conv_reduce : [num_users=1] = call_module[target=blocks.2.2.se.conv_reduce](args = (%mean_3,), kwargs = {})
+    %blocks_2_2_se_act1 : [num_users=1] = call_module[target=blocks.2.2.se.act1](args = (%blocks_2_2_se_conv_reduce,), kwargs = {})
+    %blocks_2_2_se_conv_expand : [num_users=1] = call_module[target=blocks.2.2.se.conv_expand](args = (%blocks_2_2_se_act1,), kwargs = {})
+    %blocks_2_2_se_gate : [num_users=1] = call_module[target=blocks.2.2.se.gate](args = (%blocks_2_2_se_conv_expand,), kwargs = {})
+    %mul_3 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_2_2_aa, %blocks_2_2_se_gate), kwargs = {})
+    %blocks_2_2_conv_pwl : [num_users=3] = call_module[target=blocks.2.2.conv_pwl](args = (%mul_3,), kwargs = {})
+    %getattr_35 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_2_2_conv_pwl, ndim), kwargs = {})
+    %eq_17 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_35, 4), kwargs = {})
+    %getattr_36 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_2_2_conv_pwl, ndim), kwargs = {})
+    %_assert_17 : [num_users=0] = call_function[target=torch._assert](args = (%eq_17, expected 4D input (got Proxy(getattr_36)D input)), kwargs = {})
+    %blocks_2_2_bn3_weight : [num_users=1] = get_attr[target=blocks.2.2.bn3.weight]
+    %blocks_2_2_bn3_bias : [num_users=1] = get_attr[target=blocks.2.2.bn3.bias]
+    %blocks_2_2_bn3_running_mean : [num_users=1] = get_attr[target=blocks.2.2.bn3.running_mean]
+    %blocks_2_2_bn3_running_var : [num_users=1] = get_attr[target=blocks.2.2.bn3.running_var]
+    %batch_norm_17 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_2_2_conv_pwl, %blocks_2_2_bn3_running_mean, %blocks_2_2_bn3_running_var), kwargs = {weight: %blocks_2_2_bn3_weight, bias: %blocks_2_2_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_2_2_bn3_drop : [num_users=1] = call_module[target=blocks.2.2.bn3.drop](args = (%batch_norm_17,), kwargs = {})
+    %blocks_2_2_bn3_act : [num_users=1] = call_module[target=blocks.2.2.bn3.act](args = (%blocks_2_2_bn3_drop,), kwargs = {})
+    %blocks_2_2_drop_path : [num_users=1] = call_module[target=blocks.2.2.drop_path](args = (%blocks_2_2_bn3_act,), kwargs = {})
+    %add_2 : [num_users=1] = call_function[target=operator.add](args = (%blocks_2_2_drop_path, %add_1), kwargs = {})
+    %blocks_3_0_conv_pw : [num_users=3] = call_module[target=blocks.3.0.conv_pw](args = (%add_2,), kwargs = {})
+    %getattr_37 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_3_0_conv_pw, ndim), kwargs = {})
+    %eq_18 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_37, 4), kwargs = {})
+    %getattr_38 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_3_0_conv_pw, ndim), kwargs = {})
+    %_assert_18 : [num_users=0] = call_function[target=torch._assert](args = (%eq_18, expected 4D input (got Proxy(getattr_38)D input)), kwargs = {})
+    %blocks_3_0_bn1_weight : [num_users=1] = get_attr[target=blocks.3.0.bn1.weight]
+    %blocks_3_0_bn1_bias : [num_users=1] = get_attr[target=blocks.3.0.bn1.bias]
+    %blocks_3_0_bn1_running_mean : [num_users=1] = get_attr[target=blocks.3.0.bn1.running_mean]
+    %blocks_3_0_bn1_running_var : [num_users=1] = get_attr[target=blocks.3.0.bn1.running_var]
+    %batch_norm_18 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_3_0_conv_pw, %blocks_3_0_bn1_running_mean, %blocks_3_0_bn1_running_var), kwargs = {weight: %blocks_3_0_bn1_weight, bias: %blocks_3_0_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_3_0_bn1_drop : [num_users=1] = call_module[target=blocks.3.0.bn1.drop](args = (%batch_norm_18,), kwargs = {})
+    %blocks_3_0_bn1_act : [num_users=1] = call_module[target=blocks.3.0.bn1.act](args = (%blocks_3_0_bn1_drop,), kwargs = {})
+    %blocks_3_0_conv_dw : [num_users=3] = call_module[target=blocks.3.0.conv_dw](args = (%blocks_3_0_bn1_act,), kwargs = {})
+    %getattr_39 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_3_0_conv_dw, ndim), kwargs = {})
+    %eq_19 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_39, 4), kwargs = {})
+    %getattr_40 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_3_0_conv_dw, ndim), kwargs = {})
+    %_assert_19 : [num_users=0] = call_function[target=torch._assert](args = (%eq_19, expected 4D input (got Proxy(getattr_40)D input)), kwargs = {})
+    %blocks_3_0_bn2_weight : [num_users=1] = get_attr[target=blocks.3.0.bn2.weight]
+    %blocks_3_0_bn2_bias : [num_users=1] = get_attr[target=blocks.3.0.bn2.bias]
+    %blocks_3_0_bn2_running_mean : [num_users=1] = get_attr[target=blocks.3.0.bn2.running_mean]
+    %blocks_3_0_bn2_running_var : [num_users=1] = get_attr[target=blocks.3.0.bn2.running_var]
+    %batch_norm_19 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_3_0_conv_dw, %blocks_3_0_bn2_running_mean, %blocks_3_0_bn2_running_var), kwargs = {weight: %blocks_3_0_bn2_weight, bias: %blocks_3_0_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_3_0_bn2_drop : [num_users=1] = call_module[target=blocks.3.0.bn2.drop](args = (%batch_norm_19,), kwargs = {})
+    %blocks_3_0_bn2_act : [num_users=1] = call_module[target=blocks.3.0.bn2.act](args = (%blocks_3_0_bn2_drop,), kwargs = {})
+    %blocks_3_0_aa : [num_users=2] = call_module[target=blocks.3.0.aa](args = (%blocks_3_0_bn2_act,), kwargs = {})
+    %mean_4 : [num_users=1] = call_method[target=mean](args = (%blocks_3_0_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_3_0_se_conv_reduce : [num_users=1] = call_module[target=blocks.3.0.se.conv_reduce](args = (%mean_4,), kwargs = {})
+    %blocks_3_0_se_act1 : [num_users=1] = call_module[target=blocks.3.0.se.act1](args = (%blocks_3_0_se_conv_reduce,), kwargs = {})
+    %blocks_3_0_se_conv_expand : [num_users=1] = call_module[target=blocks.3.0.se.conv_expand](args = (%blocks_3_0_se_act1,), kwargs = {})
+    %blocks_3_0_se_gate : [num_users=1] = call_module[target=blocks.3.0.se.gate](args = (%blocks_3_0_se_conv_expand,), kwargs = {})
+    %mul_4 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_3_0_aa, %blocks_3_0_se_gate), kwargs = {})
+    %blocks_3_0_conv_pwl : [num_users=3] = call_module[target=blocks.3.0.conv_pwl](args = (%mul_4,), kwargs = {})
+    %getattr_41 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_3_0_conv_pwl, ndim), kwargs = {})
+    %eq_20 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_41, 4), kwargs = {})
+    %getattr_42 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_3_0_conv_pwl, ndim), kwargs = {})
+    %_assert_20 : [num_users=0] = call_function[target=torch._assert](args = (%eq_20, expected 4D input (got Proxy(getattr_42)D input)), kwargs = {})
+    %blocks_3_0_bn3_weight : [num_users=1] = get_attr[target=blocks.3.0.bn3.weight]
+    %blocks_3_0_bn3_bias : [num_users=1] = get_attr[target=blocks.3.0.bn3.bias]
+    %blocks_3_0_bn3_running_mean : [num_users=1] = get_attr[target=blocks.3.0.bn3.running_mean]
+    %blocks_3_0_bn3_running_var : [num_users=1] = get_attr[target=blocks.3.0.bn3.running_var]
+    %batch_norm_20 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_3_0_conv_pwl, %blocks_3_0_bn3_running_mean, %blocks_3_0_bn3_running_var), kwargs = {weight: %blocks_3_0_bn3_weight, bias: %blocks_3_0_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_3_0_bn3_drop : [num_users=1] = call_module[target=blocks.3.0.bn3.drop](args = (%batch_norm_20,), kwargs = {})
+    %blocks_3_0_bn3_act : [num_users=2] = call_module[target=blocks.3.0.bn3.act](args = (%blocks_3_0_bn3_drop,), kwargs = {})
+    %blocks_3_1_conv_pw : [num_users=3] = call_module[target=blocks.3.1.conv_pw](args = (%blocks_3_0_bn3_act,), kwargs = {})
+    %getattr_43 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_3_1_conv_pw, ndim), kwargs = {})
+    %eq_21 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_43, 4), kwargs = {})
+    %getattr_44 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_3_1_conv_pw, ndim), kwargs = {})
+    %_assert_21 : [num_users=0] = call_function[target=torch._assert](args = (%eq_21, expected 4D input (got Proxy(getattr_44)D input)), kwargs = {})
+    %blocks_3_1_bn1_weight : [num_users=1] = get_attr[target=blocks.3.1.bn1.weight]
+    %blocks_3_1_bn1_bias : [num_users=1] = get_attr[target=blocks.3.1.bn1.bias]
+    %blocks_3_1_bn1_running_mean : [num_users=1] = get_attr[target=blocks.3.1.bn1.running_mean]
+    %blocks_3_1_bn1_running_var : [num_users=1] = get_attr[target=blocks.3.1.bn1.running_var]
+    %batch_norm_21 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_3_1_conv_pw, %blocks_3_1_bn1_running_mean, %blocks_3_1_bn1_running_var), kwargs = {weight: %blocks_3_1_bn1_weight, bias: %blocks_3_1_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_3_1_bn1_drop : [num_users=1] = call_module[target=blocks.3.1.bn1.drop](args = (%batch_norm_21,), kwargs = {})
+    %blocks_3_1_bn1_act : [num_users=1] = call_module[target=blocks.3.1.bn1.act](args = (%blocks_3_1_bn1_drop,), kwargs = {})
+    %blocks_3_1_conv_dw : [num_users=3] = call_module[target=blocks.3.1.conv_dw](args = (%blocks_3_1_bn1_act,), kwargs = {})
+    %getattr_45 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_3_1_conv_dw, ndim), kwargs = {})
+    %eq_22 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_45, 4), kwargs = {})
+    %getattr_46 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_3_1_conv_dw, ndim), kwargs = {})
+    %_assert_22 : [num_users=0] = call_function[target=torch._assert](args = (%eq_22, expected 4D input (got Proxy(getattr_46)D input)), kwargs = {})
+    %blocks_3_1_bn2_weight : [num_users=1] = get_attr[target=blocks.3.1.bn2.weight]
+    %blocks_3_1_bn2_bias : [num_users=1] = get_attr[target=blocks.3.1.bn2.bias]
+    %blocks_3_1_bn2_running_mean : [num_users=1] = get_attr[target=blocks.3.1.bn2.running_mean]
+    %blocks_3_1_bn2_running_var : [num_users=1] = get_attr[target=blocks.3.1.bn2.running_var]
+    %batch_norm_22 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_3_1_conv_dw, %blocks_3_1_bn2_running_mean, %blocks_3_1_bn2_running_var), kwargs = {weight: %blocks_3_1_bn2_weight, bias: %blocks_3_1_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_3_1_bn2_drop : [num_users=1] = call_module[target=blocks.3.1.bn2.drop](args = (%batch_norm_22,), kwargs = {})
+    %blocks_3_1_bn2_act : [num_users=1] = call_module[target=blocks.3.1.bn2.act](args = (%blocks_3_1_bn2_drop,), kwargs = {})
+    %blocks_3_1_aa : [num_users=2] = call_module[target=blocks.3.1.aa](args = (%blocks_3_1_bn2_act,), kwargs = {})
+    %mean_5 : [num_users=1] = call_method[target=mean](args = (%blocks_3_1_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_3_1_se_conv_reduce : [num_users=1] = call_module[target=blocks.3.1.se.conv_reduce](args = (%mean_5,), kwargs = {})
+    %blocks_3_1_se_act1 : [num_users=1] = call_module[target=blocks.3.1.se.act1](args = (%blocks_3_1_se_conv_reduce,), kwargs = {})
+    %blocks_3_1_se_conv_expand : [num_users=1] = call_module[target=blocks.3.1.se.conv_expand](args = (%blocks_3_1_se_act1,), kwargs = {})
+    %blocks_3_1_se_gate : [num_users=1] = call_module[target=blocks.3.1.se.gate](args = (%blocks_3_1_se_conv_expand,), kwargs = {})
+    %mul_5 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_3_1_aa, %blocks_3_1_se_gate), kwargs = {})
+    %blocks_3_1_conv_pwl : [num_users=3] = call_module[target=blocks.3.1.conv_pwl](args = (%mul_5,), kwargs = {})
+    %getattr_47 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_3_1_conv_pwl, ndim), kwargs = {})
+    %eq_23 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_47, 4), kwargs = {})
+    %getattr_48 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_3_1_conv_pwl, ndim), kwargs = {})
+    %_assert_23 : [num_users=0] = call_function[target=torch._assert](args = (%eq_23, expected 4D input (got Proxy(getattr_48)D input)), kwargs = {})
+    %blocks_3_1_bn3_weight : [num_users=1] = get_attr[target=blocks.3.1.bn3.weight]
+    %blocks_3_1_bn3_bias : [num_users=1] = get_attr[target=blocks.3.1.bn3.bias]
+    %blocks_3_1_bn3_running_mean : [num_users=1] = get_attr[target=blocks.3.1.bn3.running_mean]
+    %blocks_3_1_bn3_running_var : [num_users=1] = get_attr[target=blocks.3.1.bn3.running_var]
+    %batch_norm_23 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_3_1_conv_pwl, %blocks_3_1_bn3_running_mean, %blocks_3_1_bn3_running_var), kwargs = {weight: %blocks_3_1_bn3_weight, bias: %blocks_3_1_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_3_1_bn3_drop : [num_users=1] = call_module[target=blocks.3.1.bn3.drop](args = (%batch_norm_23,), kwargs = {})
+    %blocks_3_1_bn3_act : [num_users=1] = call_module[target=blocks.3.1.bn3.act](args = (%blocks_3_1_bn3_drop,), kwargs = {})
+    %blocks_3_1_drop_path : [num_users=1] = call_module[target=blocks.3.1.drop_path](args = (%blocks_3_1_bn3_act,), kwargs = {})
+    %add_3 : [num_users=1] = call_function[target=operator.add](args = (%blocks_3_1_drop_path, %blocks_3_0_bn3_act), kwargs = {})
+    %blocks_4_0_conv_pw : [num_users=3] = call_module[target=blocks.4.0.conv_pw](args = (%add_3,), kwargs = {})
+    %getattr_49 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_0_conv_pw, ndim), kwargs = {})
+    %eq_24 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_49, 4), kwargs = {})
+    %getattr_50 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_0_conv_pw, ndim), kwargs = {})
+    %_assert_24 : [num_users=0] = call_function[target=torch._assert](args = (%eq_24, expected 4D input (got Proxy(getattr_50)D input)), kwargs = {})
+    %blocks_4_0_bn1_weight : [num_users=1] = get_attr[target=blocks.4.0.bn1.weight]
+    %blocks_4_0_bn1_bias : [num_users=1] = get_attr[target=blocks.4.0.bn1.bias]
+    %blocks_4_0_bn1_running_mean : [num_users=1] = get_attr[target=blocks.4.0.bn1.running_mean]
+    %blocks_4_0_bn1_running_var : [num_users=1] = get_attr[target=blocks.4.0.bn1.running_var]
+    %batch_norm_24 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_0_conv_pw, %blocks_4_0_bn1_running_mean, %blocks_4_0_bn1_running_var), kwargs = {weight: %blocks_4_0_bn1_weight, bias: %blocks_4_0_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_0_bn1_drop : [num_users=1] = call_module[target=blocks.4.0.bn1.drop](args = (%batch_norm_24,), kwargs = {})
+    %blocks_4_0_bn1_act : [num_users=1] = call_module[target=blocks.4.0.bn1.act](args = (%blocks_4_0_bn1_drop,), kwargs = {})
+    %blocks_4_0_conv_dw : [num_users=3] = call_module[target=blocks.4.0.conv_dw](args = (%blocks_4_0_bn1_act,), kwargs = {})
+    %getattr_51 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_0_conv_dw, ndim), kwargs = {})
+    %eq_25 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_51, 4), kwargs = {})
+    %getattr_52 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_0_conv_dw, ndim), kwargs = {})
+    %_assert_25 : [num_users=0] = call_function[target=torch._assert](args = (%eq_25, expected 4D input (got Proxy(getattr_52)D input)), kwargs = {})
+    %blocks_4_0_bn2_weight : [num_users=1] = get_attr[target=blocks.4.0.bn2.weight]
+    %blocks_4_0_bn2_bias : [num_users=1] = get_attr[target=blocks.4.0.bn2.bias]
+    %blocks_4_0_bn2_running_mean : [num_users=1] = get_attr[target=blocks.4.0.bn2.running_mean]
+    %blocks_4_0_bn2_running_var : [num_users=1] = get_attr[target=blocks.4.0.bn2.running_var]
+    %batch_norm_25 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_0_conv_dw, %blocks_4_0_bn2_running_mean, %blocks_4_0_bn2_running_var), kwargs = {weight: %blocks_4_0_bn2_weight, bias: %blocks_4_0_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_0_bn2_drop : [num_users=1] = call_module[target=blocks.4.0.bn2.drop](args = (%batch_norm_25,), kwargs = {})
+    %blocks_4_0_bn2_act : [num_users=1] = call_module[target=blocks.4.0.bn2.act](args = (%blocks_4_0_bn2_drop,), kwargs = {})
+    %blocks_4_0_aa : [num_users=2] = call_module[target=blocks.4.0.aa](args = (%blocks_4_0_bn2_act,), kwargs = {})
+    %mean_6 : [num_users=1] = call_method[target=mean](args = (%blocks_4_0_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_4_0_se_conv_reduce : [num_users=1] = call_module[target=blocks.4.0.se.conv_reduce](args = (%mean_6,), kwargs = {})
+    %blocks_4_0_se_act1 : [num_users=1] = call_module[target=blocks.4.0.se.act1](args = (%blocks_4_0_se_conv_reduce,), kwargs = {})
+    %blocks_4_0_se_conv_expand : [num_users=1] = call_module[target=blocks.4.0.se.conv_expand](args = (%blocks_4_0_se_act1,), kwargs = {})
+    %blocks_4_0_se_gate : [num_users=1] = call_module[target=blocks.4.0.se.gate](args = (%blocks_4_0_se_conv_expand,), kwargs = {})
+    %mul_6 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_4_0_aa, %blocks_4_0_se_gate), kwargs = {})
+    %blocks_4_0_conv_pwl : [num_users=3] = call_module[target=blocks.4.0.conv_pwl](args = (%mul_6,), kwargs = {})
+    %getattr_53 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_0_conv_pwl, ndim), kwargs = {})
+    %eq_26 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_53, 4), kwargs = {})
+    %getattr_54 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_0_conv_pwl, ndim), kwargs = {})
+    %_assert_26 : [num_users=0] = call_function[target=torch._assert](args = (%eq_26, expected 4D input (got Proxy(getattr_54)D input)), kwargs = {})
+    %blocks_4_0_bn3_weight : [num_users=1] = get_attr[target=blocks.4.0.bn3.weight]
+    %blocks_4_0_bn3_bias : [num_users=1] = get_attr[target=blocks.4.0.bn3.bias]
+    %blocks_4_0_bn3_running_mean : [num_users=1] = get_attr[target=blocks.4.0.bn3.running_mean]
+    %blocks_4_0_bn3_running_var : [num_users=1] = get_attr[target=blocks.4.0.bn3.running_var]
+    %batch_norm_26 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_0_conv_pwl, %blocks_4_0_bn3_running_mean, %blocks_4_0_bn3_running_var), kwargs = {weight: %blocks_4_0_bn3_weight, bias: %blocks_4_0_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_0_bn3_drop : [num_users=1] = call_module[target=blocks.4.0.bn3.drop](args = (%batch_norm_26,), kwargs = {})
+    %blocks_4_0_bn3_act : [num_users=2] = call_module[target=blocks.4.0.bn3.act](args = (%blocks_4_0_bn3_drop,), kwargs = {})
+    %blocks_4_1_conv_pw : [num_users=3] = call_module[target=blocks.4.1.conv_pw](args = (%blocks_4_0_bn3_act,), kwargs = {})
+    %getattr_55 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_1_conv_pw, ndim), kwargs = {})
+    %eq_27 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_55, 4), kwargs = {})
+    %getattr_56 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_1_conv_pw, ndim), kwargs = {})
+    %_assert_27 : [num_users=0] = call_function[target=torch._assert](args = (%eq_27, expected 4D input (got Proxy(getattr_56)D input)), kwargs = {})
+    %blocks_4_1_bn1_weight : [num_users=1] = get_attr[target=blocks.4.1.bn1.weight]
+    %blocks_4_1_bn1_bias : [num_users=1] = get_attr[target=blocks.4.1.bn1.bias]
+    %blocks_4_1_bn1_running_mean : [num_users=1] = get_attr[target=blocks.4.1.bn1.running_mean]
+    %blocks_4_1_bn1_running_var : [num_users=1] = get_attr[target=blocks.4.1.bn1.running_var]
+    %batch_norm_27 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_1_conv_pw, %blocks_4_1_bn1_running_mean, %blocks_4_1_bn1_running_var), kwargs = {weight: %blocks_4_1_bn1_weight, bias: %blocks_4_1_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_1_bn1_drop : [num_users=1] = call_module[target=blocks.4.1.bn1.drop](args = (%batch_norm_27,), kwargs = {})
+    %blocks_4_1_bn1_act : [num_users=1] = call_module[target=blocks.4.1.bn1.act](args = (%blocks_4_1_bn1_drop,), kwargs = {})
+    %blocks_4_1_conv_dw : [num_users=3] = call_module[target=blocks.4.1.conv_dw](args = (%blocks_4_1_bn1_act,), kwargs = {})
+    %getattr_57 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_1_conv_dw, ndim), kwargs = {})
+    %eq_28 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_57, 4), kwargs = {})
+    %getattr_58 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_1_conv_dw, ndim), kwargs = {})
+    %_assert_28 : [num_users=0] = call_function[target=torch._assert](args = (%eq_28, expected 4D input (got Proxy(getattr_58)D input)), kwargs = {})
+    %blocks_4_1_bn2_weight : [num_users=1] = get_attr[target=blocks.4.1.bn2.weight]
+    %blocks_4_1_bn2_bias : [num_users=1] = get_attr[target=blocks.4.1.bn2.bias]
+    %blocks_4_1_bn2_running_mean : [num_users=1] = get_attr[target=blocks.4.1.bn2.running_mean]
+    %blocks_4_1_bn2_running_var : [num_users=1] = get_attr[target=blocks.4.1.bn2.running_var]
+    %batch_norm_28 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_1_conv_dw, %blocks_4_1_bn2_running_mean, %blocks_4_1_bn2_running_var), kwargs = {weight: %blocks_4_1_bn2_weight, bias: %blocks_4_1_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_1_bn2_drop : [num_users=1] = call_module[target=blocks.4.1.bn2.drop](args = (%batch_norm_28,), kwargs = {})
+    %blocks_4_1_bn2_act : [num_users=1] = call_module[target=blocks.4.1.bn2.act](args = (%blocks_4_1_bn2_drop,), kwargs = {})
+    %blocks_4_1_aa : [num_users=2] = call_module[target=blocks.4.1.aa](args = (%blocks_4_1_bn2_act,), kwargs = {})
+    %mean_7 : [num_users=1] = call_method[target=mean](args = (%blocks_4_1_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_4_1_se_conv_reduce : [num_users=1] = call_module[target=blocks.4.1.se.conv_reduce](args = (%mean_7,), kwargs = {})
+    %blocks_4_1_se_act1 : [num_users=1] = call_module[target=blocks.4.1.se.act1](args = (%blocks_4_1_se_conv_reduce,), kwargs = {})
+    %blocks_4_1_se_conv_expand : [num_users=1] = call_module[target=blocks.4.1.se.conv_expand](args = (%blocks_4_1_se_act1,), kwargs = {})
+    %blocks_4_1_se_gate : [num_users=1] = call_module[target=blocks.4.1.se.gate](args = (%blocks_4_1_se_conv_expand,), kwargs = {})
+    %mul_7 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_4_1_aa, %blocks_4_1_se_gate), kwargs = {})
+    %blocks_4_1_conv_pwl : [num_users=3] = call_module[target=blocks.4.1.conv_pwl](args = (%mul_7,), kwargs = {})
+    %getattr_59 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_1_conv_pwl, ndim), kwargs = {})
+    %eq_29 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_59, 4), kwargs = {})
+    %getattr_60 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_1_conv_pwl, ndim), kwargs = {})
+    %_assert_29 : [num_users=0] = call_function[target=torch._assert](args = (%eq_29, expected 4D input (got Proxy(getattr_60)D input)), kwargs = {})
+    %blocks_4_1_bn3_weight : [num_users=1] = get_attr[target=blocks.4.1.bn3.weight]
+    %blocks_4_1_bn3_bias : [num_users=1] = get_attr[target=blocks.4.1.bn3.bias]
+    %blocks_4_1_bn3_running_mean : [num_users=1] = get_attr[target=blocks.4.1.bn3.running_mean]
+    %blocks_4_1_bn3_running_var : [num_users=1] = get_attr[target=blocks.4.1.bn3.running_var]
+    %batch_norm_29 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_1_conv_pwl, %blocks_4_1_bn3_running_mean, %blocks_4_1_bn3_running_var), kwargs = {weight: %blocks_4_1_bn3_weight, bias: %blocks_4_1_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_1_bn3_drop : [num_users=1] = call_module[target=blocks.4.1.bn3.drop](args = (%batch_norm_29,), kwargs = {})
+    %blocks_4_1_bn3_act : [num_users=1] = call_module[target=blocks.4.1.bn3.act](args = (%blocks_4_1_bn3_drop,), kwargs = {})
+    %blocks_4_1_drop_path : [num_users=1] = call_module[target=blocks.4.1.drop_path](args = (%blocks_4_1_bn3_act,), kwargs = {})
+    %add_4 : [num_users=2] = call_function[target=operator.add](args = (%blocks_4_1_drop_path, %blocks_4_0_bn3_act), kwargs = {})
+    %blocks_4_2_conv_pw : [num_users=3] = call_module[target=blocks.4.2.conv_pw](args = (%add_4,), kwargs = {})
+    %getattr_61 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_2_conv_pw, ndim), kwargs = {})
+    %eq_30 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_61, 4), kwargs = {})
+    %getattr_62 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_2_conv_pw, ndim), kwargs = {})
+    %_assert_30 : [num_users=0] = call_function[target=torch._assert](args = (%eq_30, expected 4D input (got Proxy(getattr_62)D input)), kwargs = {})
+    %blocks_4_2_bn1_weight : [num_users=1] = get_attr[target=blocks.4.2.bn1.weight]
+    %blocks_4_2_bn1_bias : [num_users=1] = get_attr[target=blocks.4.2.bn1.bias]
+    %blocks_4_2_bn1_running_mean : [num_users=1] = get_attr[target=blocks.4.2.bn1.running_mean]
+    %blocks_4_2_bn1_running_var : [num_users=1] = get_attr[target=blocks.4.2.bn1.running_var]
+    %batch_norm_30 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_2_conv_pw, %blocks_4_2_bn1_running_mean, %blocks_4_2_bn1_running_var), kwargs = {weight: %blocks_4_2_bn1_weight, bias: %blocks_4_2_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_2_bn1_drop : [num_users=1] = call_module[target=blocks.4.2.bn1.drop](args = (%batch_norm_30,), kwargs = {})
+    %blocks_4_2_bn1_act : [num_users=1] = call_module[target=blocks.4.2.bn1.act](args = (%blocks_4_2_bn1_drop,), kwargs = {})
+    %blocks_4_2_conv_dw : [num_users=3] = call_module[target=blocks.4.2.conv_dw](args = (%blocks_4_2_bn1_act,), kwargs = {})
+    %getattr_63 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_2_conv_dw, ndim), kwargs = {})
+    %eq_31 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_63, 4), kwargs = {})
+    %getattr_64 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_2_conv_dw, ndim), kwargs = {})
+    %_assert_31 : [num_users=0] = call_function[target=torch._assert](args = (%eq_31, expected 4D input (got Proxy(getattr_64)D input)), kwargs = {})
+    %blocks_4_2_bn2_weight : [num_users=1] = get_attr[target=blocks.4.2.bn2.weight]
+    %blocks_4_2_bn2_bias : [num_users=1] = get_attr[target=blocks.4.2.bn2.bias]
+    %blocks_4_2_bn2_running_mean : [num_users=1] = get_attr[target=blocks.4.2.bn2.running_mean]
+    %blocks_4_2_bn2_running_var : [num_users=1] = get_attr[target=blocks.4.2.bn2.running_var]
+    %batch_norm_31 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_2_conv_dw, %blocks_4_2_bn2_running_mean, %blocks_4_2_bn2_running_var), kwargs = {weight: %blocks_4_2_bn2_weight, bias: %blocks_4_2_bn2_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_2_bn2_drop : [num_users=1] = call_module[target=blocks.4.2.bn2.drop](args = (%batch_norm_31,), kwargs = {})
+    %blocks_4_2_bn2_act : [num_users=1] = call_module[target=blocks.4.2.bn2.act](args = (%blocks_4_2_bn2_drop,), kwargs = {})
+    %blocks_4_2_aa : [num_users=2] = call_module[target=blocks.4.2.aa](args = (%blocks_4_2_bn2_act,), kwargs = {})
+    %mean_8 : [num_users=1] = call_method[target=mean](args = (%blocks_4_2_aa, (2, 3)), kwargs = {keepdim: True})
+    %blocks_4_2_se_conv_reduce : [num_users=1] = call_module[target=blocks.4.2.se.conv_reduce](args = (%mean_8,), kwargs = {})
+    %blocks_4_2_se_act1 : [num_users=1] = call_module[target=blocks.4.2.se.act1](args = (%blocks_4_2_se_conv_reduce,), kwargs = {})
+    %blocks_4_2_se_conv_expand : [num_users=1] = call_module[target=blocks.4.2.se.conv_expand](args = (%blocks_4_2_se_act1,), kwargs = {})
+    %blocks_4_2_se_gate : [num_users=1] = call_module[target=blocks.4.2.se.gate](args = (%blocks_4_2_se_conv_expand,), kwargs = {})
+    %mul_8 : [num_users=1] = call_function[target=operator.mul](args = (%blocks_4_2_aa, %blocks_4_2_se_gate), kwargs = {})
+    %blocks_4_2_conv_pwl : [num_users=3] = call_module[target=blocks.4.2.conv_pwl](args = (%mul_8,), kwargs = {})
+    %getattr_65 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_4_2_conv_pwl, ndim), kwargs = {})
+    %eq_32 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_65, 4), kwargs = {})
+    %getattr_66 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_4_2_conv_pwl, ndim), kwargs = {})
+    %_assert_32 : [num_users=0] = call_function[target=torch._assert](args = (%eq_32, expected 4D input (got Proxy(getattr_66)D input)), kwargs = {})
+    %blocks_4_2_bn3_weight : [num_users=1] = get_attr[target=blocks.4.2.bn3.weight]
+    %blocks_4_2_bn3_bias : [num_users=1] = get_attr[target=blocks.4.2.bn3.bias]
+    %blocks_4_2_bn3_running_mean : [num_users=1] = get_attr[target=blocks.4.2.bn3.running_mean]
+    %blocks_4_2_bn3_running_var : [num_users=1] = get_attr[target=blocks.4.2.bn3.running_var]
+    %batch_norm_32 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_4_2_conv_pwl, %blocks_4_2_bn3_running_mean, %blocks_4_2_bn3_running_var), kwargs = {weight: %blocks_4_2_bn3_weight, bias: %blocks_4_2_bn3_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_4_2_bn3_drop : [num_users=1] = call_module[target=blocks.4.2.bn3.drop](args = (%batch_norm_32,), kwargs = {})
+    %blocks_4_2_bn3_act : [num_users=1] = call_module[target=blocks.4.2.bn3.act](args = (%blocks_4_2_bn3_drop,), kwargs = {})
+    %blocks_4_2_drop_path : [num_users=1] = call_module[target=blocks.4.2.drop_path](args = (%blocks_4_2_bn3_act,), kwargs = {})
+    %add_5 : [num_users=1] = call_function[target=operator.add](args = (%blocks_4_2_drop_path, %add_4), kwargs = {})
+    %blocks_5_0_conv : [num_users=3] = call_module[target=blocks.5.0.conv](args = (%add_5,), kwargs = {})
+    %getattr_67 : [num_users=1] = call_function[target=builtins.getattr](args = (%blocks_5_0_conv, ndim), kwargs = {})
+    %eq_33 : [num_users=1] = call_function[target=operator.eq](args = (%getattr_67, 4), kwargs = {})
+    %getattr_68 : [num_users=0] = call_function[target=builtins.getattr](args = (%blocks_5_0_conv, ndim), kwargs = {})
+    %_assert_33 : [num_users=0] = call_function[target=torch._assert](args = (%eq_33, expected 4D input (got Proxy(getattr_68)D input)), kwargs = {})
+    %blocks_5_0_bn1_weight : [num_users=1] = get_attr[target=blocks.5.0.bn1.weight]
+    %blocks_5_0_bn1_bias : [num_users=1] = get_attr[target=blocks.5.0.bn1.bias]
+    %blocks_5_0_bn1_running_mean : [num_users=1] = get_attr[target=blocks.5.0.bn1.running_mean]
+    %blocks_5_0_bn1_running_var : [num_users=1] = get_attr[target=blocks.5.0.bn1.running_var]
+    %batch_norm_33 : [num_users=1] = call_function[target=torch.nn.functional.batch_norm](args = (%blocks_5_0_conv, %blocks_5_0_bn1_running_mean, %blocks_5_0_bn1_running_var), kwargs = {weight: %blocks_5_0_bn1_weight, bias: %blocks_5_0_bn1_bias, training: False, momentum: 0.1, eps: 1e-05})
+    %blocks_5_0_bn1_drop : [num_users=1] = call_module[target=blocks.5.0.bn1.drop](args = (%batch_norm_33,), kwargs = {})
+    %blocks_5_0_bn1_act : [num_users=1] = call_module[target=blocks.5.0.bn1.act](args = (%blocks_5_0_bn1_drop,), kwargs = {})
+    %blocks_5_0_aa : [num_users=1] = call_module[target=blocks.5.0.aa](args = (%blocks_5_0_bn1_act,), kwargs = {})
+    %global_pool_pool : [num_users=1] = call_module[target=global_pool.pool](args = (%blocks_5_0_aa,), kwargs = {})
+    %global_pool_flatten : [num_users=1] = call_module[target=global_pool.flatten](args = (%global_pool_pool,), kwargs = {})
+    %conv_head : [num_users=1] = call_module[target=conv_head](args = (%global_pool_flatten,), kwargs = {})
+    %norm_head : [num_users=1] = call_module[target=norm_head](args = (%conv_head,), kwargs = {})
+    %act2 : [num_users=1] = call_module[target=act2](args = (%norm_head,), kwargs = {})
+    %flatten : [num_users=1] = call_module[target=flatten](args = (%act2,), kwargs = {})
+    %classifier_weight : [num_users=1] = get_attr[target=classifier.weight]
+    %classifier_bias : [num_users=1] = get_attr[target=classifier.bias]
+    %linear : [num_users=1] = call_function[target=torch._C._nn.linear](args = (%flatten, %classifier_weight, %classifier_bias), kwargs = {})
+    return linear

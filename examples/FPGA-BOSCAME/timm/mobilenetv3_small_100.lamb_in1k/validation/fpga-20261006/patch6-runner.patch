@@ -1,0 +1,46 @@
+--- repository/fpga_remote.py
++++ patch6-run/fpga_remote.py
+@@ -166,9 +166,13 @@
+     if not match:
+         raise RuntimeError('platform did not report UV_RUN_IMAGE')
+     image = Path(os.fsdecode(match[1])).resolve()
+-    if image.parent != run_dir:
++    if image.parent not in (run_dir, run_dir / 'images'):
+         raise RuntimeError('platform selected an image outside this run directory')
+-    readback = Path(str(image) + '.readback')
++    readback_match = re.search(rb'readmem -rtl \S+ -file ([^\r\n]+?) -file_type bin', runtime_output)
++    readback = (Path(os.fsdecode(readback_match[1])).resolve() if readback_match
++                else Path(str(image) + '.readback'))
++    if readback.parent not in (run_dir, run_dir / 'images'):
++        raise RuntimeError('platform selected a readback outside this run directory')
+     if readback.is_symlink() or not readback.is_file():
+         raise RuntimeError('missing DDR readback')
+     raw = run_dir / 'image.bin'
+@@ -401,7 +405,8 @@
+     os.chdir(root)
+     check_paths(root, run_dir)
+     result = {'status': 'ERROR', 'fpga': args.fpga, 'sha256': args.sha256,
+-              'capture_seconds': args.capture_seconds, 'baud': args.baud}
++              'capture_seconds': args.capture_seconds, 'baud': args.baud,
++              'hardware': 'nr-patch6', 'sys_clk_hz': 11059200, 'uart_divisor': 6}
+     stopped_flag = [False]
+     old_signals = {}
+     def stop(signum, frame):
+@@ -466,7 +471,7 @@
+         # Use the known platform defaults, regardless of the login environment.
+         for key in ('UV_RUN_PLAN_TCL', 'UV_RUN_PREP_ONLY'):
+             env.pop(key, None)
+-        env.update(UV_RUN_READBACK='1', UV_RUN_SYS_CLK_HZ='14745600',
++        env.update(UV_RUN_READBACK='1', UV_RUN_SYS_CLK_HZ='11059200', UV_RUN_OUT_ROOT=str(run_dir),
+                    UV_RUN_ALIGN_BYTES='1048576', UV_RUN_MIN_BYTES='1048576',
+                    TMPDIR=str(run_dir))
+         try:
+@@ -515,7 +520,7 @@
+                         raise RuntimeError('UART input was not completely sent before capture ended')
+                     os.write(master, b'exit\n')
+                     exit_sent = now
+-                if exit_sent is not None and now - exit_sent > 20:
++                if exit_sent is not None and now - exit_sent > 60:
+                     raise RuntimeError('UVHS did not exit after capture')
+                 ready, _, _ = select.select([master, serial], [], [], 0.1)
+                 for fd in ready:

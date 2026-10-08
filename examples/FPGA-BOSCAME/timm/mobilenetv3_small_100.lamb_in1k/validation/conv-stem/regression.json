@@ -1,0 +1,482 @@
+{
+  "status": "PASS",
+  "count": 5,
+  "all_87_prior_inventories_and_9_kernel_ASTs": "UNCHANGED",
+  "results": [
+    {
+      "case": "relu_count8",
+      "status": "PASS",
+      "fingerprint": "b4154d839375fdad2f742ba97093ac35e21be69e54ed718d10aded0754727c59",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "d3834993bccc2b3111c30dc31b6263bca3dbf65b9ed6aac30a0bc37ae02699e7",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "de1303caf31c2f02066dd7a3787f5d6da01f3b35f1dbd518f5e34643d1b5178f",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "75172c5d55ab2add8030eea19b9943d27be3fc22036d4fe728da807738566b1d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "4c03ebad33574e777e8d51046a0d8dae1824f182551ea22e2ef4833d21494e61",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_relu.c.in": "bc5b2b6f17c0ef1dad848adb088b4bca37edb438d3e55ddadb917f9cabab5945",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "fdd27f4e92db92615e3ae5c36b0463a69fb7dd05488e04d00a9312f622e287ff",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/relu_count8/launch.c": "81fcb4107b5c2783eddd0677fa3cb31c9bf85bcfb862e7ae61ec4880cad03250",
+        "timm/mobilenetv3_small_100.lamb_in1k/relu_count8/metadata.json": "c53ae1c94491f448239ceabe0b370b8284a5e2d7bf67562cb6ae18c5ec623307",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/regression-stem/relu_count8/kernel.ttir": "53802aa37b0226b49aece2c1a86a32d1fce24fa8bdddb1198ead56ad8181be18",
+        "triton/build/regression-stem/relu_count8/kernel.linalg.mlir": "75fa4017ef927385fd951f5beaf60889a272429b51516ed684e3d3afee792956",
+        "triton/build/regression-stem/relu_count8/adapter.c": "b7753857d0cd92aa4d4a38d3d9eaf86ab087e3cf7e471c5cd3ba361bda28e021",
+        "triton/build/regression-stem/relu_count8/frontend.json": "c9d95098c1471201382f8695197dc2860e4cb3c8f732c73501201880b5ac3263",
+        "triton/build/regression-stem/relu_count8/host/kernel.ll": "6ffc1c0c72909bcb85579a6e30981a48941dd4c118f6238e55ddbb8ddaa1c3a0",
+        "triton/build/regression-stem/relu_count8/host/kernel.llvm.mlir": "98f36c76b6c92b8d2394e52b48d48a4b7817259340b9d7c8b82eea889dc23fe2",
+        "triton/build/regression-stem/relu_count8/host/check": "3a9e85775e5fe3247241f10e00fe59dd43d2fdddfb4317f66b3f6913d4ad4ee0",
+        "triton/build/regression-stem/relu_count8/host/output.log": "c001c0bf78e57558dde722e677b286fbe7200ceb37ca961b9c02a916cad75574"
+      },
+      "oracle": "Independent C x>0 ? x : 0, exact finite FP32 equality; two patterns with negatives, +0.0, -0.0, positives and +/-FLT_MAX; both output zero signs accepted",
+      "bounds": "Host PROT_NONE page immediately after COUNT; prefix canaries; inputs unchanged",
+      "output": "verify relu_count8: PASS errors=00000000 max_abs_error_f32_bits=00000000\n"
+    },
+    {
+      "case": "linear_m1_n1000_k1024",
+      "status": "PASS",
+      "fingerprint": "6f651cf11670509963fc75f9882290929c149ca5fcc1f54ec5933300df2f49b9",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "d3834993bccc2b3111c30dc31b6263bca3dbf65b9ed6aac30a0bc37ae02699e7",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "de1303caf31c2f02066dd7a3787f5d6da01f3b35f1dbd518f5e34643d1b5178f",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "75172c5d55ab2add8030eea19b9943d27be3fc22036d4fe728da807738566b1d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "4c03ebad33574e777e8d51046a0d8dae1824f182551ea22e2ef4833d21494e61",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_linear.c.in": "cb4090153ca0973dd4c9bf3f896310f6f08c2d5fc3069cbc5c50bc6056debe3a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_linear.py": "354910a6748028ffaef0ee39e81b2d326a9366ded3e48bfa910b90ab636e9a63",
+        "qwen3-0.6b/tools/vectorize_nr.py": "df7849f281b3e0d76064ebdc493bffe8ac83f2ac68189e25f75f989241367f94",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "fdd27f4e92db92615e3ae5c36b0463a69fb7dd05488e04d00a9312f622e287ff",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/linear_m1_n1000_k1024/launch.c": "129d387fc8bfdd697fc8d69e96250b64df351f85db11defd303f3dd372c3b0f5",
+        "timm/mobilenetv3_small_100.lamb_in1k/linear_m1_n1000_k1024/metadata.json": "837c2e7be005b47ad5fdfeb8c629ba4603e49323b8ce007db85ba1032401dccd",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/regression-stem/linear_m1_n1000_k1024/kernel.ttir": "74593e2f9523b9a9339249fafa382d1a00aa87706f0e27dd2de6c276bf14790f",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/kernel.linalg.mlir": "91d8131df288be80b8360d6a4c680e25cc473c210f2ec7d19f22773e9de0f4cf",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/adapter.c": "f053c76d0e772642f823627879cf7594ae208b78aa084c5c273228a89bd7190a",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/frontend.json": "4d3537589913a9b360c8097be11168282d43e28cde5235487659a7630865d0ee",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/host/kernel.ll": "4e4f6c57f9f6bbd78e10f6f610f4d988f6626b4cde9e3dff666640062ffcb6c8",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/host/kernel.llvm.mlir": "f1b1239a594643d7af20773ef5da0c0dcd657fafe11742d498eb798fc5fd55ed",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/host/check": "5f191218d6ddafd01464f82eef039b56143757e5e1c41fe5bfddd47b33f43117",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/host/output.log": "ade2a0cd8ebe08255387e655d105f020f2a310c0f1c77809280cfb9e587f456f",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/host/pytorch-check.so": "812b92621ff96585b3fda817c2155833b23f4896acf31c4274e71917be47bd25",
+        "triton/build/regression-stem/linear_m1_n1000_k1024/host/pytorch.json": "a9c47cfcf55ada6ea76604fd82816bb87c0e9c01c854102e997691f4980c6263"
+      },
+      "oracle": "Independent C FP64 m/n/k loops, reading Weight[n*K+k] and adding Bias[n]; gamma_(K+2)*(sum(abs(X*Weight))+abs(Bias))+(K+2)*2^-149; bias-only, first/middle/last K basis, signed non-dyadic, cancellation, last-output-channel-only patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[M*K], Weight[N*K], Bias[N], Out[M*N]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "linear metrics max_abs_error=1.0779388211368257e-05 max_error_over_bound=0.00097129682857841505 max_bound=0.25063099305323788\nverify linear_m1_n1000_k1024: PASS errors=00000000 max_abs_error_f32_bits=3734d91f\n",
+      "metrics": {
+        "max_abs_error": 1.0779388211368257e-05,
+        "max_error_over_bound": 0.000971296828578415,
+        "max_bound": 0.2506309930532379
+      },
+      "tolerance": {
+        "formula": "gamma_(K+2)*(sum_k(abs(X[m,k]*Weight[n,k]))+abs(Bias[n])) + (K+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 6.115810562469786e-05,
+        "absolute_floor": 1.4377322243972623e-42
+      },
+      "pytorch": {
+        "case": "linear_m1_n1000_k1024",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 torch.nn.functional.linear plus torch.ops.aten.linear.default",
+        "shape": [
+          1,
+          1024
+        ],
+        "weight_shape": [
+          1000,
+          1024
+        ],
+        "bias_shape": [
+          1000
+        ],
+        "output_shape": [
+          1,
+          1000
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 16,
+        "samples": 16000,
+        "per_program_store_checks": 63,
+        "output_owners_per_element": 1,
+        "max_abs_error": 0.041863346286845626,
+        "max_abs_error_vs_aten": 0.044921875,
+        "max_error_over_bound": 0.0038542493661375857,
+        "tolerance": {
+          "formula": "gamma_(K+2)*(sum_k(abs(X[m,k]*Weight[n,k]))+abs(Bias[n])) + (K+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 6.115810562469786e-05,
+          "absolute_floor": 1.4377322243972623e-42
+        },
+        "aten_comparison": "each FP32 program within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, first/middle/last K basis, cancellation, last-output-channel-only, seeded normal inputs/weights/bias at 2^-4/1/2^4 scales",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/linear_m1_n1000_k1024/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/linear_m1_n1000_k1024/host/pytorch-check.so"
+      },
+      "prior_nr_llvm": "BYTE_IDENTICAL"
+    },
+    {
+      "case": "dwconv_c96_h28_k5_s2_p2",
+      "status": "PASS",
+      "fingerprint": "9e3d564bbc73e7ff4cbc02c6ac30a986fc01519e39710928daf59f52c0d6e8ed",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "d3834993bccc2b3111c30dc31b6263bca3dbf65b9ed6aac30a0bc37ae02699e7",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "de1303caf31c2f02066dd7a3787f5d6da01f3b35f1dbd518f5e34643d1b5178f",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "75172c5d55ab2add8030eea19b9943d27be3fc22036d4fe728da807738566b1d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "4c03ebad33574e777e8d51046a0d8dae1824f182551ea22e2ef4833d21494e61",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "fdd27f4e92db92615e3ae5c36b0463a69fb7dd05488e04d00a9312f622e287ff",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c96_h28_k5_s2_p2/launch.c": "0ea11eab9192a7146d4654a44da9f77321d313b4bb317d7d496cd22f6c2ad067",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c96_h28_k5_s2_p2/metadata.json": "2ca255f6d7a4b33a2b61318989b5a98524dc4d21169a57ce9fd1d9b31b19ae87",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/kernel.ttir": "1a330dd11f071ca21ceb12b655af47957b0b01f4da69f395d8eb9395dcc82d50",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/kernel.linalg.mlir": "40e2cb839b4d96aeb60d10688973ab61764c232b83cd91d208cec9af956b3d2f",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/adapter.c": "2af7d7195af2bd74947071dbfe7b1681e00ca0d71f1617825222658060093e28",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/frontend.json": "df3f77c3f29d5c707cf2731abfb0f3ff097c37fe54c2da8f55dfefc56265e925",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/kernel.ll": "6fd5f5cbccf0f9f61d3666fc3ead678b884a67fffd20b980d3cfd3f2843c04de",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/kernel.llvm.mlir": "5cf641c89e51e5f57dc5f3edc0be97d2b0bf07836c331de500ddf7096ded7cc7",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/check": "d1bbf3770cec35675f91bbbad22163d9f17b9e1f57df0fbfe67f86fbf11c337c",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/output.log": "def4d177e444f2af9754be3525a78b8c9b6076e5ccc97fa42d119b72b3ed58d1",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/pytorch-check.so": "d95119a763f76e919a56aab797e498088be3e5466d766b7b1347ddf77e8438e3",
+        "triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/pytorch.json": "3f6291028d860ed18eba2762a512d9e825f2c6de18cdef274aa906d526067bfa"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=2.2947788238525391e-06 max_error_over_bound=0.10425170127617699 max_bound=5.8605291586062559e-05\nverify dwconv_c96_h28_k5_s2_p2: PASS errors=00000000 max_abs_error_f32_bits=361a0000\n",
+      "metrics": {
+        "max_abs_error": 2.294778823852539e-06,
+        "max_error_over_bound": 0.10425170127617699,
+        "max_bound": 5.860529158606256e-05
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.6093279988679868e-06,
+        "absolute_floor": 3.783505853677006e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c96_h28_k5_s2_p2",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          96,
+          28,
+          28
+        ],
+        "weight_shape": [
+          96,
+          1,
+          5,
+          5
+        ],
+        "output_shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 225792,
+        "per_program_store_checks": 6,
+        "checked_channels": [
+          0,
+          48,
+          95
+        ],
+        "max_abs_error": 0.0010239188313789782,
+        "max_abs_error_vs_aten": 0.001220703125,
+        "max_error_over_bound": 0.16185496233150878,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.6093279988679868e-06,
+          "absolute_floor": 3.783505853677006e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/dwconv_c96_h28_k5_s2_p2/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "pwconv_cin16_cout8_h1_w1",
+      "status": "PASS",
+      "fingerprint": "01196e71091bed97b6562b581be1da7ad074d23851bfdb1cec3f95c4ee53de02",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "d3834993bccc2b3111c30dc31b6263bca3dbf65b9ed6aac30a0bc37ae02699e7",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "de1303caf31c2f02066dd7a3787f5d6da01f3b35f1dbd518f5e34643d1b5178f",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "75172c5d55ab2add8030eea19b9943d27be3fc22036d4fe728da807738566b1d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "4c03ebad33574e777e8d51046a0d8dae1824f182551ea22e2ef4833d21494e61",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_pointwise_conv2d.c.in": "f8a41e7089f396ca23449abb047e886a86e9ffd53c72f973aae3b56065d2e8a4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_pointwise_conv2d.py": "7aa6395958e531e8b1b2b89f43e9edc4c677fdab5e262cadcef8502a6d05e3e8",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "fdd27f4e92db92615e3ae5c36b0463a69fb7dd05488e04d00a9312f622e287ff",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/pwconv_cin16_cout8_h1_w1/launch.c": "9a53fa13f335c0c3a75d4e612686a6d018e3c5633f30d7a1280ea62087523b12",
+        "timm/mobilenetv3_small_100.lamb_in1k/pwconv_cin16_cout8_h1_w1/metadata.json": "786555ef1170958eb491df4bfe11e8554c7d78ea2984181c0715f3aaf33bbd3a",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/kernel.ttir": "bcf5cdd1c31f880784e2d7803dddaef58cf735595e47877affe55f1f8849973a",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/kernel.linalg.mlir": "654093109cf6a5b7b3968967debe099390681a835509021d2cd6a70dadef7093",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/adapter.c": "53dbf132d80e4a088ed8de7363192de36645df08c6ff0a343a1f0068e1aedfde",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/frontend.json": "8d292e62d1c8a8a7dc7a45d8a6be0606652a89f6ad32212345516ea292a33b0c",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/kernel.ll": "123d71e686ac1280de21578dd14aef0646653cae6a9c05893386145ff19b5888",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/kernel.llvm.mlir": "c7fdb6c90cc30438551d260f4117f95f6feab43d1bbedd2634660703eaa59059",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/check": "223ede70138cd8830b525778b7a76d967d7ca9cee74ce564a8fb22eb5380a79f",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/output.log": "64df9899f919f69ff22988df41a8055b01fbd20ece891b4c6486ea4ce3a49332",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/pytorch-check.so": "e1ee35df4a62a9b3115edf0f97f8874c0f543c9903ec69be587ba28be0b06fb1",
+        "triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/pytorch.json": "434c134b2d7e6342d1d365b6298c7ec5a4210f18dde4b2a2321514ead364a7d9"
+      },
+      "oracle": "Independent C FP64 oc/h/w/ic Conv2D loops: X[(ic*H+h)*W+w]*Weight[oc*Cin+ic]+Bias[oc]; bias-only, spatial/channel ramps, first/last input channel, one-hot channel routing, corner impulses, cancellation, signed non-dyadic and last-output-only patterns; gamma_(Cin+2) forward error bound",
+      "bounds": "Host PROT_NONE pages immediately after X[Cin*H*W], Weight[Cout*Cin], Bias[Cout], Out[Cout*H*W]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "pointwise_conv2d metrics max_abs_error=9.8208039700509175e-08 max_error_over_bound=0.043267520901922069 max_bound=3.7758033242398278e-06\nverify pwconv_cin16_cout8_h1_w1: PASS errors=00000000 max_abs_error_f32_bits=33d2e671\n",
+      "metrics": {
+        "max_abs_error": 9.820803970050918e-08,
+        "max_error_over_bound": 0.04326752090192207,
+        "max_bound": 3.7758033242398278e-06
+      },
+      "tolerance": {
+        "formula": "gamma_(Cin+2)*(sum_ic(abs(X[ic,h,w]*Weight[oc,ic]))+abs(Bias[oc])) + (Cin+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.0728847570374982e-06,
+        "absolute_floor": 2.5223372357846707e-44
+      },
+      "pytorch": {
+        "case": "pwconv_cin16_cout8_h1_w1",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 NCHW conv2d plus torch.ops.aten.convolution.default; groups=1, kernel=1x1",
+        "shape": [
+          1,
+          16,
+          1,
+          1
+        ],
+        "weight_shape": [
+          8,
+          16,
+          1,
+          1
+        ],
+        "output_shape": [
+          1,
+          8,
+          1,
+          1
+        ],
+        "mnk": {
+          "M": 1,
+          "N": 8,
+          "K": 16
+        },
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 96,
+        "per_program_store_checks": 1,
+        "max_abs_error": 0.00020550509452732513,
+        "max_abs_error_vs_aten": 0.000244140625,
+        "max_error_over_bound": 0.08385241130027427,
+        "tolerance": {
+          "formula": "gamma_(Cin+2)*(sum_ic(abs(X[ic,h,w]*Weight[oc,ic]))+abs(Bias[oc])) + (Cin+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.0728847570374982e-06,
+          "absolute_floor": 2.5223372357846707e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, NCHW channel/spatial ramps, first/last input channel, one-hot channel routing, last output only, cancellation, corner impulses, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/pwconv_cin16_cout8_h1_w1/host/pytorch-check.so"
+      },
+      "prior_nr_llvm": "BYTE_IDENTICAL"
+    },
+    {
+      "case": "pwconv_cin240_cout40_h14_w14",
+      "status": "PASS",
+      "fingerprint": "073f38b6555e876398cef74fba0c894aeec18bcdd87aafd625b03d0125f6e52a",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "d3834993bccc2b3111c30dc31b6263bca3dbf65b9ed6aac30a0bc37ae02699e7",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "de1303caf31c2f02066dd7a3787f5d6da01f3b35f1dbd518f5e34643d1b5178f",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "75172c5d55ab2add8030eea19b9943d27be3fc22036d4fe728da807738566b1d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "4c03ebad33574e777e8d51046a0d8dae1824f182551ea22e2ef4833d21494e61",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_pointwise_conv2d.c.in": "f8a41e7089f396ca23449abb047e886a86e9ffd53c72f973aae3b56065d2e8a4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_pointwise_conv2d.py": "7aa6395958e531e8b1b2b89f43e9edc4c677fdab5e262cadcef8502a6d05e3e8",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "fdd27f4e92db92615e3ae5c36b0463a69fb7dd05488e04d00a9312f622e287ff",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/pwconv_cin240_cout40_h14_w14/launch.c": "d66ea1fa12c78c4733cee807391cce3f6727b7ed0f87f7da3032022b03e8dbec",
+        "timm/mobilenetv3_small_100.lamb_in1k/pwconv_cin240_cout40_h14_w14/metadata.json": "fc45c4dfcf81d973b4272212f166e0229c8b9fee53a5a6f5d423dd502afd9682",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/kernel.ttir": "28fa837b675dab2e4b0110a2f7c27604e2a007375a63d8c0b627129e1e9e27f6",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/kernel.linalg.mlir": "a1be8db01e202c1b07e0ca5ac58cdd11e9a78370ff984fa8f310d558352be82a",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/adapter.c": "36e93ecc4090d66807c237a211e8105f68604e7d0d8b4dccf5459a8a20b39908",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/frontend.json": "72f95012f53252e8ce33858d607b58f1785c16722cf728786c5ebdebe1193357",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/kernel.ll": "34c295d5b5f247c07d00de49243c2e54af4ba04ca4ad8f15c5750b9da55cb532",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/kernel.llvm.mlir": "8b413e0f2ae1d0f03818185a987a93a19d72a187cf38a564e6bd02967ac6c80e",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/check": "41e97eff380f51370d7a9cd8cf2034e3584608855242dbb7f31834811f555f39",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/output.log": "0685cac4988b60db5b4c87479be483a55b172bd0944d93a9d60b1f6970452b9e",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/pytorch-check.so": "0c1273cba9a420fb2da6df8bda1765fd1025c6aba9b8358d0bab93c6346e2340",
+        "triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/pytorch.json": "97ed861e242e1c8cbdd7c3018df0c817d4532b4824438216a5b363a27cebb9da"
+      },
+      "oracle": "Independent C FP64 oc/h/w/ic Conv2D loops: X[(ic*H+h)*W+w]*Weight[oc*Cin+ic]+Bias[oc]; bias-only, spatial/channel ramps, first/last input channel, one-hot channel routing, corner impulses, cancellation, signed non-dyadic and last-output-only patterns; gamma_(Cin+2) forward error bound",
+      "bounds": "Host PROT_NONE pages immediately after X[Cin*H*W], Weight[Cout*Cin], Bias[Cout], Out[Cout*H*W]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "pointwise_conv2d metrics max_abs_error=1.9118189811706543e-05 max_error_over_bound=0.0067946431097353176 max_bound=0.016564972482981385\nverify pwconv_cin240_cout40_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=37a06000\n",
+      "metrics": {
+        "max_abs_error": 1.9118189811706543e-05,
+        "max_error_over_bound": 0.006794643109735318,
+        "max_bound": 0.016564972482981385
+      },
+      "tolerance": {
+        "formula": "gamma_(Cin+2)*(sum_ic(abs(X[ic,h,w]*Weight[oc,ic]))+abs(Bias[oc])) + (Cin+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.4424532099769602e-05,
+        "absolute_floor": 3.3911422836660573e-43
+      },
+      "pytorch": {
+        "case": "pwconv_cin240_cout40_h14_w14",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 NCHW conv2d plus torch.ops.aten.convolution.default; groups=1, kernel=1x1",
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "weight_shape": [
+          40,
+          240,
+          1,
+          1
+        ],
+        "output_shape": [
+          1,
+          40,
+          14,
+          14
+        ],
+        "mnk": {
+          "M": 196,
+          "N": 40,
+          "K": 240
+        },
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 94080,
+        "per_program_store_checks": 9,
+        "max_abs_error": 0.002480161321727792,
+        "max_abs_error_vs_aten": 0.009765625,
+        "max_error_over_bound": 0.006737130005610238,
+        "tolerance": {
+          "formula": "gamma_(Cin+2)*(sum_ic(abs(X[ic,h,w]*Weight[oc,ic]))+abs(Bias[oc])) + (Cin+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.4424532099769602e-05,
+          "absolute_floor": 3.3911422836660573e-43
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, NCHW channel/spatial ramps, first/last input channel, one-hot channel routing, last output only, cancellation, corner impulses, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/regression-stem/pwconv_cin240_cout40_h14_w14/host/pytorch-check.so"
+      },
+      "prior_nr_llvm": "BYTE_IDENTICAL"
+    }
+  ]
+}

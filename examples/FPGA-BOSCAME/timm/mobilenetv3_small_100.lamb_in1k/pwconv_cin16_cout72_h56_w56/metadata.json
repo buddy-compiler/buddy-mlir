@@ -1,0 +1,94 @@
+{
+  "name": "pwconv_cin16_cout72_h56_w56",
+  "family": "pointwise_conv2d",
+  "kernel": "pointwise_conv2d",
+  "symbol": "pwconv_cin16_cout72_h56_w56",
+  "dtype": "float32",
+  "layout": "NCHW contiguous; OIHW Weight[Cout,Cin,1,1]",
+  "shapes": [
+    [
+      1,
+      16,
+      56,
+      56
+    ]
+  ],
+  "weight_shape": [
+    72,
+    16,
+    1,
+    1
+  ],
+  "bias_shape": [
+    72
+  ],
+  "output_shape": [
+    1,
+    72,
+    56,
+    56
+  ],
+  "kernel_size": [
+    1,
+    1
+  ],
+  "stride": [
+    1,
+    1
+  ],
+  "padding": [
+    0,
+    0
+  ],
+  "dilation": [
+    1,
+    1
+  ],
+  "groups": 1,
+  "mnk": {
+    "M": 3136,
+    "N": 72,
+    "K": 16
+  },
+  "logical_addressing": {
+    "A[m,k]": "X[k*(H*W)+m]",
+    "B[k,n]": "Weight[n*Cin+k]",
+    "Out[m,n]": "Out[n*(H*W)+m]"
+  },
+  "constexprs": {
+    "CIN": 16,
+    "COUT": 72,
+    "H": 56,
+    "W": 56,
+    "BM": 16,
+    "BN": 16,
+    "BK": 32
+  },
+  "signature": {
+    "X": "*fp32",
+    "Weight": "*fp32",
+    "Bias": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    196,
+    5,
+    1
+  ],
+  "grid_axes": [
+    "spatial_tile",
+    "output_channel_tile",
+    "unused"
+  ],
+  "tail": {
+    "M": 0,
+    "N": 8,
+    "K": 16
+  },
+  "tolerance": {
+    "formula": "gamma_(Cin+2)*(sum_ic(abs(X[ic,h,w]*Weight[oc,ic]))+abs(Bias[oc])) + (Cin+2)*2^-149",
+    "unit_roundoff": 5.960464477539063e-08,
+    "gamma": 1.0728847570374982e-06,
+    "absolute_floor": 2.5223372357846707e-44
+  }
+}

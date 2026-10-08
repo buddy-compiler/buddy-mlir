@@ -1,0 +1,131 @@
+{
+  "build": "PASS",
+  "count": 1,
+  "results": [
+    {
+      "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+      "build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "host_fingerprint": "565158b1b90eb174a930ef36286e6ded34fb091b03d11588e28865a836186706",
+      "llc_flags": [
+        "-O2",
+        "-filetype=asm",
+        "-mtriple=riscv64",
+        "-target-abi=lp64d",
+        "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b",
+        "-riscv-v-vector-bits-min=512",
+        "-disable-machine-licm",
+        "-disable-machine-cse",
+        "-code-model=medium"
+      ],
+      "artifacts": {
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/kernel.ttir": "cf3038434b09682e425175ac07a13f5e06643f4015746c87f2a80309289850ef",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/kernel.linalg.mlir": "b8ac52faaccf689c8b3cb57f2add71cf2b23b5fbdfb216490ab27fdf44c04353",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/adapter.c": "f043ade8c49124caa8ae2cbd7245550c9a8e1068b0f86fa8e8c5ddcd6c805de5",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/frontend.json": "449edccbfc300e3b22b343c3f46d77223278d1007cb703ddd8bdbd3b384c0d44",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/kernel.ll": "98521bf42051712846393634f745b84a3bda4943809c1fc9ec55171b6c458405",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/kernel.llvm.mlir": "269a9bd0f7aa4bf261114b17cdeda6cc71c18893aa2f12fef159d24451e97afa",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin": "7e55e38b23b7780e53f3c6f06d083fbe26365916f23cd96da369557fdfdaa926",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/vectorized.mlir": "9c80ef736518dc8026b272779dbb82b0cad9416bff7b0fa1bb7db8447e08532d",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/vector-host-check": "1566ea9debc8ca6d4ade8ba2de2d6b98838ffeb3cb048c1eb822f40aa16a7919",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/vector-host.log": "3b1cbdffcf5012f52902aa431ed8081805075c42cec1c7740ba9fb93befbe74a",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/pytorch-check.so": "c816701fab5f27cfd0b442663ed483c27f3c3be98d7a54e2eb0405240da332f4",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/pytorch.json": "403bfea7e10016930cc80b13efdce5448f595e287aa1e2946bb5845688c4b397",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/kernel.nr.S": "2b59f59cc6a77dbb42ff17edeb903189c0b3be658f0d3a94215e71298b7fd890",
+        "triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/elf-audit.json": "e46fe03a84bc7d999b5c447bb3372c939206cc70231632c74b2b9fe679fe1c81"
+      },
+      "elf": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.elf",
+      "bin": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/conv_stem_cin3_cout16_h224_k3_s2_p1.bin",
+      "elf_sha256": "a0fbe01b52fe99194483ceee6d9846b26337fde24470724455c7802ebba31e1e",
+      "audit": {
+        "status": "PASS",
+        "elf_sha256": "a0fbe01b52fe99194483ceee6d9846b26337fde24470724455c7802ebba31e1e",
+        "executable_sections": [
+          {
+            "name": ".text.init",
+            "address": "0x80000000",
+            "bytes": 244
+          },
+          {
+            "name": ".text",
+            "address": "0x80011000",
+            "bytes": 15162
+          }
+        ],
+        "instructions": 4855,
+        "ame_instructions": 0,
+        "vector_memory_instructions": 19,
+        "rvv_instructions": {
+          "vfmacc.vf": 8,
+          "vle32.v": 9,
+          "vle64.v": 1,
+          "vse32.v": 8,
+          "vse64.v": 1,
+          "vsetivli": 2
+        },
+        "errors": []
+      },
+      "vector_host": {
+        "status": "PASS",
+        "output": "conv_stem metrics max_abs_error=1.3060039254497724e-06 max_error_over_bound=0.15276565326807265 max_bound=4.6670517530739806e-05\nverify conv_stem_cin3_cout16_h224_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35af49f4\n",
+        "pytorch": {
+          "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+          "status": "PASS",
+          "torch_version": "2.10.0+cpu",
+          "reference": "FP64 NCHW conv2d plus torch.ops.aten.convolution.default; groups=1, kernel=3x3, stride=2, padding=1",
+          "shape": [
+            1,
+            3,
+            224,
+            224
+          ],
+          "weight_shape": [
+            16,
+            3,
+            3,
+            3
+          ],
+          "output_shape": [
+            1,
+            16,
+            112,
+            112
+          ],
+          "mnk": {
+            "M": 12544,
+            "N": 16,
+            "K": 27
+          },
+          "dtype": "float32",
+          "device": "cpu",
+          "seed": 0,
+          "trials": 39,
+          "samples": 7827456,
+          "per_program_store_checks": 5,
+          "max_abs_error": 0.00154868753907067,
+          "max_abs_error_vs_aten": 0.001953125,
+          "max_error_over_bound": 0.156778284065507,
+          "tolerance": {
+            "formula": "gamma_(K+2)*(sum_valid(abs(X*Weight))+abs(Bias[oc])) + (K+2)*2^-149",
+            "unit_roundoff": 5.960464477539063e-08,
+            "gamma": 1.7285376863236966e-06,
+            "absolute_floor": 4.0637655465419695e-44
+          },
+          "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+          "inputs": "bias-only, NCHW channel/spatial ramps, first/last input channel, all 27 OIHW taps, last output only, checkerboard cancellation, corner impulses, boundary stripes, all-ones valid-pixel counts, seeded random inputs/weights/bias",
+          "one_hot_taps": 27,
+          "stride": [
+            2,
+            2
+          ],
+          "padding": [
+            1,
+            1
+          ],
+          "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/kernel.ll",
+          "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/conv_stem_cin3_cout16_h224_k3_s2_p1/nr/pytorch-check.so"
+        }
+      }
+    }
+  ]
+}

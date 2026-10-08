@@ -1,0 +1,9 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+verify pwconv_cin240_cout40_h14_w14: PASS errors=00000000 max_abs_error_f32_bits=37A0B800
+[nr] launch cycles=0x0000000036D6D53A status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

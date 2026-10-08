@@ -1,0 +1,31 @@
+{
+  "name": "add_count9408",
+  "family": "residual_add",
+  "kernel": "residual_add",
+  "symbol": "residual_add_count9408",
+  "dtype": "float32",
+  "layout": "NCHW contiguous",
+  "shapes": [
+    [
+      1,
+      48,
+      14,
+      14
+    ]
+  ],
+  "constexprs": {
+    "COUNT": 9408,
+    "BLOCK": 128
+  },
+  "signature": {
+    "X": "*fp32",
+    "Y": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    74,
+    1,
+    1
+  ],
+  "tail": 64
+}

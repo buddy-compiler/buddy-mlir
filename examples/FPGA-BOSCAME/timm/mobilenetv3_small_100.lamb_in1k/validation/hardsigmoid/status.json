@@ -1,0 +1,186 @@
+{
+  "status": "COMPLETE",
+  "scope": "Hardsigmoid implementation, all C/PyTorch host checks and NR binary builds",
+  "fpga": "NOT EXECUTED",
+  "reason": "Board validation remains deferred by user",
+  "case_count": 7,
+  "results": [
+    {
+      "case": "hardsigmoid_count16",
+      "shape": [
+        1,
+        16,
+        1,
+        1
+      ],
+      "count": 16,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 560,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardsigmoid_count16/nr/hardsigmoid_count16.elf",
+      "bin": "triton/build/hardsigmoid_count16/nr/hardsigmoid_count16.bin"
+    },
+    {
+      "case": "hardsigmoid_count96",
+      "shape": [
+        1,
+        96,
+        1,
+        1
+      ],
+      "count": 96,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 3360,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardsigmoid_count96/nr/hardsigmoid_count96.elf",
+      "bin": "triton/build/hardsigmoid_count96/nr/hardsigmoid_count96.bin"
+    },
+    {
+      "case": "hardsigmoid_count240",
+      "shape": [
+        1,
+        240,
+        1,
+        1
+      ],
+      "count": 240,
+      "grid": [
+        2,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 8400,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardsigmoid_count240/nr/hardsigmoid_count240.elf",
+      "bin": "triton/build/hardsigmoid_count240/nr/hardsigmoid_count240.bin"
+    },
+    {
+      "case": "hardsigmoid_count120",
+      "shape": [
+        1,
+        120,
+        1,
+        1
+      ],
+      "count": 120,
+      "grid": [
+        1,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 4200,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardsigmoid_count120/nr/hardsigmoid_count120.elf",
+      "bin": "triton/build/hardsigmoid_count120/nr/hardsigmoid_count120.bin"
+    },
+    {
+      "case": "hardsigmoid_count144",
+      "shape": [
+        1,
+        144,
+        1,
+        1
+      ],
+      "count": 144,
+      "grid": [
+        2,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 5040,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardsigmoid_count144/nr/hardsigmoid_count144.elf",
+      "bin": "triton/build/hardsigmoid_count144/nr/hardsigmoid_count144.bin"
+    },
+    {
+      "case": "hardsigmoid_count288",
+      "shape": [
+        1,
+        288,
+        1,
+        1
+      ],
+      "count": 288,
+      "grid": [
+        3,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 10080,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardsigmoid_count288/nr/hardsigmoid_count288.elf",
+      "bin": "triton/build/hardsigmoid_count288/nr/hardsigmoid_count288.bin"
+    },
+    {
+      "case": "hardsigmoid_count576",
+      "shape": [
+        1,
+        576,
+        1,
+        1
+      ],
+      "count": 576,
+      "grid": [
+        5,
+        1,
+        1
+      ],
+      "host": "PASS",
+      "max_abs_error": 0,
+      "pytorch": "PASS",
+      "pytorch_samples": 20160,
+      "nr_build": "PASS",
+      "elf_audit": "PASS",
+      "fpga": "NOT EXECUTED",
+      "elf": "triton/build/hardsigmoid_count576/nr/hardsigmoid_count576.elf",
+      "bin": "triton/build/hardsigmoid_count576/nr/hardsigmoid_count576.bin"
+    }
+  ],
+  "evidence_sha256": {
+    "host.json": "0b0ea3b72c73b32ddb2e8fec4439ee8488c9e6596a0a781812cd74343d5afeed",
+    "nr.json": "c102fbe73b3bce7c855cba5fa64af4aeffba86127123deaabf8adee425683498",
+    "toolchain.json": "4521d889725d6f0848caca7d5110fe192ff04b7843bd61aa56f983afcd9f2323"
+  },
+  "regression": {
+    "residual_add_host": "4/4 PASS",
+    "relu_host": "11/11 PASS"
+  }
+}

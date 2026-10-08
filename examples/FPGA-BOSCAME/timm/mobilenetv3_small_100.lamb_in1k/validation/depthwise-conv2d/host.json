@@ -1,0 +1,978 @@
+{
+  "status": "PASS",
+  "count": 9,
+  "results": [
+    {
+      "case": "dwconv_c16_h112_k3_s2_p1",
+      "status": "PASS",
+      "fingerprint": "ad925f3d7de13139e0fd40455ff0486c77ce1d0321beee1df6947822bd4716b2",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c16_h112_k3_s2_p1/launch.c": "1063f6acd931e14c0ee602b6c12f1baeaea843c55a71dc48329ec28d4cdbfb24",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c16_h112_k3_s2_p1/metadata.json": "29a4eb50f076a06608deb763295997a7dc4078c3dc81d6db1563407d1457c353",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c16_h112_k3_s2_p1/kernel.ttir": "948de3bb4e8ada6ef7339307dd559c22d6fbd7634d7614af7b6f325d0f15bd88",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/kernel.linalg.mlir": "354fe8bae11443b66e28971d64941dc6f47a61c3ed44c140b7e8383b51a97905",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/adapter.c": "888fac42d4d1d91c6da31cd0cce61419968f196bbfdaacfc5134398c42d0dd6d",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/frontend.json": "8bfbf00eb457400cb7b5d98e0d08540b161c501436eecfa11ed2b8f7383e099b",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/host/kernel.ll": "ef53d98e0efc4a1821c603fb1972de662ff9f952f182a645187e8586c68a4e82",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/host/kernel.llvm.mlir": "8eb854dd5a36f8c0906167f4ace27c7e0ad0eed80690096094a10951f930d61d",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/host/check": "f1d3d48792c7968ac6750616d45f751e28de19808e555d344868f9ce6fdf2f0f",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/host/output.log": "85c99995614392571135b3cfaaef0d9bda67dad58c924786d669e8a073218e15",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/host/pytorch-check.so": "ce3ca527f5f8c1ed4b711b3982530d74fcc136909ce1e1fb0f80965fe9d48ceb",
+        "triton/build/dwconv_c16_h112_k3_s2_p1/host/pytorch.json": "3f693d75e3e6856cc8c189314946f477216e089adcb1d9ddacfd1ac2fdca097f"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=6.914846810701647e-07 max_error_over_bound=0.27426290353711824 max_bound=5.0829908517900838e-06\nverify dwconv_c16_h112_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35399e77\n",
+      "metrics": {
+        "max_abs_error": 6.914846810701647e-07,
+        "max_error_over_bound": 0.27426290353711824,
+        "max_bound": 5.082990851790084e-06
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 6.556515224079339e-07,
+        "absolute_floor": 1.5414283107572988e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c16_h112_k3_s2_p1",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          16,
+          112,
+          112
+        ],
+        "weight_shape": [
+          16,
+          1,
+          3,
+          3
+        ],
+        "output_shape": [
+          1,
+          16,
+          56,
+          56
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 602112,
+        "per_program_store_checks": 75,
+        "checked_channels": [
+          0,
+          8,
+          15
+        ],
+        "max_abs_error": 0.0005952579176664585,
+        "max_abs_error_vs_aten": 0.000732421875,
+        "max_error_over_bound": 0.3464004246570167,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 6.556515224079339e-07,
+          "absolute_floor": 1.5414283107572988e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c16_h112_k3_s2_p1/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c16_h112_k3_s2_p1/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c72_h56_k3_s2_p1",
+      "status": "PASS",
+      "fingerprint": "d139af085516ea99441311f9821d114b32f83e6c2f1a7b0497c00231d5e925fb",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c72_h56_k3_s2_p1/launch.c": "7533ad76f775500cb1b273ec766ac9f4793e4b3c9f7d139a06d46f541f5adcc8",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c72_h56_k3_s2_p1/metadata.json": "97d9b169853a56aed8fc6bc89a29495fc32388d5c63bc9f0cd206f6da86acfcb",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c72_h56_k3_s2_p1/kernel.ttir": "ce9c07e26173e432bb645e55f3330795ba942cbec48434d62eee1d73d5a8da95",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/kernel.linalg.mlir": "b4e795af0a229cf7cbc499389282d3ff7d8b38ed211811b2004b77552540624a",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/adapter.c": "3598796c5bb632c4adea705fcbfb5d15bf2a34a8617ec32a0593cd4341a61abc",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/frontend.json": "68e842747cc603b3d12f0d77d1a0e02c4b7c84554773187415dee05aa9c8c1ec",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/host/kernel.ll": "a6a847fcd816bc33a20c9635a9189a27dc9d313cc81db8060fad12a803e574c0",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/host/kernel.llvm.mlir": "a0cfd39defd3697e6a17071fccb393f2a8571100bb0711e9a1df1354dbfc5a51",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/host/check": "7cfc60fcba3e67d25018a488741eb20c8b3c54d71b5175b6e189f5a07a6b4bc6",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/host/output.log": "d1cb6fc1932db83da9453b2ede2d725367e709d2bf51a52fa8a1975fb7028fa1",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/host/pytorch-check.so": "8132cb1cd40685861d4595b81eb38260987ca0c5275771fd8d7c30766ea3b946",
+        "triton/build/dwconv_c72_h56_k3_s2_p1/host/pytorch.json": "582dc60b2824994851e7c6b3fb1006b4a7c15473a84cc9d1dc5bbe0e2e76c45d"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=1.6689300537109375e-06 max_error_over_bound=0.27426290353711824 max_bound=1.8312348530118408e-05\nverify dwconv_c72_h56_k3_s2_p1: PASS errors=00000000 max_abs_error_f32_bits=35e00000\n",
+      "metrics": {
+        "max_abs_error": 1.6689300537109375e-06,
+        "max_error_over_bound": 0.27426290353711824,
+        "max_bound": 1.8312348530118408e-05
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 6.556515224079339e-07,
+        "absolute_floor": 1.5414283107572988e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c72_h56_k3_s2_p1",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          72,
+          56,
+          56
+        ],
+        "weight_shape": [
+          72,
+          1,
+          3,
+          3
+        ],
+        "output_shape": [
+          1,
+          72,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 677376,
+        "per_program_store_checks": 21,
+        "checked_channels": [
+          0,
+          36,
+          71
+        ],
+        "max_abs_error": 0.0005637002755065623,
+        "max_abs_error_vs_aten": 0.000732421875,
+        "max_error_over_bound": 0.4376099420532439,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 6.556515224079339e-07,
+          "absolute_floor": 1.5414283107572988e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c72_h56_k3_s2_p1/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c72_h56_k3_s2_p1/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c88_h28_k3_s1_p1",
+      "status": "PASS",
+      "fingerprint": "16dc3e9877cb53f1beff15621512b5f0ca65fc16a6923da7f0172507aaa56344",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c88_h28_k3_s1_p1/launch.c": "e91b01cb01f7fce9aa881ceb51a6db507579aa7d8edd978c3118a43c45c70738",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c88_h28_k3_s1_p1/metadata.json": "39a400887b4639532df33a89657c653d11bbf068793dd63e294b35ec65318f89",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c88_h28_k3_s1_p1/kernel.ttir": "cd21f8b765ca70f1192b273ba0e4992408449dab2b62077623aa48a2cf5899c0",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/kernel.linalg.mlir": "7e952e1ccf10588c19f75eb06765cd8508b45575f7b246318a95b15a31a6540e",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/adapter.c": "ab1849a1a930603c8eb49edc5aedc1d515c92c1505a8fed459172ea48c65942e",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/frontend.json": "49819e5778e741fa514996d5e9ea2f55dcf2032d0462cc3f54b0b24561dfc998",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/host/kernel.ll": "2ce235db34dd99a9d11c385c01677f3cd244a638074c708ebbf965c9225a3ec4",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/host/kernel.llvm.mlir": "0f4c95fba857f922520c121a44757ca47b8e3b481477d0eaea77aa8163e928d6",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/host/check": "49e0e07b4fb3262537843a671da104b13d807d0ef292fe678e0bae06f161e6f4",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/host/output.log": "a3237ea40e4063fae248b2d3b6acee4ac2064b5ab3649ac599a8e775896ee664",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/host/pytorch-check.so": "d6bf98c7364d0de8ed83e12834d448dd187b67978d0c6dd58496a5fc1a6dcdf6",
+        "triton/build/dwconv_c88_h28_k3_s1_p1/host/pytorch.json": "4d944d4b1eb0270cbfb65f8cd9df2839dd5c7c110ac587420c151c25b7c3b8a6"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=1.9967555999755859e-06 max_error_over_bound=0.30849806354915749 max_bound=2.2941575300284732e-05\nverify dwconv_c88_h28_k3_s1_p1: PASS errors=00000000 max_abs_error_f32_bits=36060000\n",
+      "metrics": {
+        "max_abs_error": 1.996755599975586e-06,
+        "max_error_over_bound": 0.3084980635491575,
+        "max_bound": 2.2941575300284732e-05
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 6.556515224079339e-07,
+        "absolute_floor": 1.5414283107572988e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c88_h28_k3_s1_p1",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          88,
+          28,
+          28
+        ],
+        "weight_shape": [
+          88,
+          1,
+          3,
+          3
+        ],
+        "output_shape": [
+          1,
+          88,
+          28,
+          28
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 827904,
+        "per_program_store_checks": 21,
+        "checked_channels": [
+          0,
+          44,
+          87
+        ],
+        "max_abs_error": 0.0005723947142541874,
+        "max_abs_error_vs_aten": 0.000732421875,
+        "max_error_over_bound": 0.30453184270873823,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 6.556515224079339e-07,
+          "absolute_floor": 1.5414283107572988e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c88_h28_k3_s1_p1/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c88_h28_k3_s1_p1/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c96_h28_k5_s2_p2",
+      "status": "PASS",
+      "fingerprint": "77646d556a967fdc4f53d4a6472dc61d4a28923a3a9af753c5eab1543887c4c8",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c96_h28_k5_s2_p2/launch.c": "0ea11eab9192a7146d4654a44da9f77321d313b4bb317d7d496cd22f6c2ad067",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c96_h28_k5_s2_p2/metadata.json": "2ca255f6d7a4b33a2b61318989b5a98524dc4d21169a57ce9fd1d9b31b19ae87",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c96_h28_k5_s2_p2/kernel.ttir": "1a330dd11f071ca21ceb12b655af47957b0b01f4da69f395d8eb9395dcc82d50",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/kernel.linalg.mlir": "40e2cb839b4d96aeb60d10688973ab61764c232b83cd91d208cec9af956b3d2f",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/adapter.c": "2af7d7195af2bd74947071dbfe7b1681e00ca0d71f1617825222658060093e28",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/frontend.json": "c89090e24dbf7d0425ce2c64b69a047b2fa9ddbe838767fff19f410fd0bb57d9",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/host/kernel.ll": "6fd5f5cbccf0f9f61d3666fc3ead678b884a67fffd20b980d3cfd3f2843c04de",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/host/kernel.llvm.mlir": "5cf641c89e51e5f57dc5f3edc0be97d2b0bf07836c331de500ddf7096ded7cc7",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/host/check": "d1bbf3770cec35675f91bbbad22163d9f17b9e1f57df0fbfe67f86fbf11c337c",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/host/output.log": "8b4f4f9dd83ef6a52d851f4cd391f4428150635e31dae3f89ec7c59167a7a0fd",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/host/pytorch-check.so": "d95119a763f76e919a56aab797e498088be3e5466d766b7b1347ddf77e8438e3",
+        "triton/build/dwconv_c96_h28_k5_s2_p2/host/pytorch.json": "685125604159b21fd3d2706c50790259e0b8d827f24896396c20b2cff92e0a3c"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=2.2947788238525391e-06 max_error_over_bound=0.10425170127617699 max_bound=5.8605291586062559e-05\nverify dwconv_c96_h28_k5_s2_p2: PASS errors=00000000 max_abs_error_f32_bits=361a0000\n",
+      "metrics": {
+        "max_abs_error": 2.294778823852539e-06,
+        "max_error_over_bound": 0.10425170127617699,
+        "max_bound": 5.860529158606256e-05
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.6093279988679868e-06,
+        "absolute_floor": 3.783505853677006e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c96_h28_k5_s2_p2",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          96,
+          28,
+          28
+        ],
+        "weight_shape": [
+          96,
+          1,
+          5,
+          5
+        ],
+        "output_shape": [
+          1,
+          96,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 225792,
+        "per_program_store_checks": 6,
+        "checked_channels": [
+          0,
+          48,
+          95
+        ],
+        "max_abs_error": 0.0010239188313789782,
+        "max_abs_error_vs_aten": 0.001220703125,
+        "max_error_over_bound": 0.16185496233150878,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.6093279988679868e-06,
+          "absolute_floor": 3.783505853677006e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c96_h28_k5_s2_p2/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c96_h28_k5_s2_p2/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c240_h14_k5_s1_p2",
+      "status": "PASS",
+      "fingerprint": "f13991c798f57427923b68dcd0b1e703104cccbfc1909a9d6f8e98dff115b522",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c240_h14_k5_s1_p2/launch.c": "1117f89192dcb63811fab28267cd4d90fabb2bb3259c7fd17dfad82e6fc4bcdc",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c240_h14_k5_s1_p2/metadata.json": "3ee280e4bcba21e1935c6197a5bd9ec02ca63deb1241f2dad4a4794737168298",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c240_h14_k5_s1_p2/kernel.ttir": "93389bff83a27857997beb992301d985353897a56ff543434b1e17c46cf550a8",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/kernel.linalg.mlir": "c9746ebde8aea833e4d280a8aed6d2c344a9908a8a4578c7d4b2cbed48adba94",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/adapter.c": "13fd60586a16cc9a51473681b9202523d96f623ae452f5e80d7f045091ea30e4",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/frontend.json": "24eed701d01b6365a40f6bcee6bb886da00f5fdd88a94ed6721713cd9c272917",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/host/kernel.ll": "a89f689e28c1c2ac0ef7c5c4428856c8c0be8008e725efaa7245cbc31fe59244",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/host/kernel.llvm.mlir": "505915d6a72bda8639f294f21ad03eeb6d21434f75799afbe82e4f62ddd4024e",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/host/check": "c3f3f4c18c38e30a766c63497916c23863ecef2bbd02af48702d31c9422bcf3a",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/host/output.log": "48521f8d6f7d7b4c1bfd3838c1f6f474479242f2d0e397afa63de8bbddc1c735",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/host/pytorch-check.so": "745cc77a876a6d66f7594be781423c4716230dadec2c281c149c57876ba93847",
+        "triton/build/dwconv_c240_h14_k5_s1_p2/host/pytorch.json": "51ae902a4adb73fac68805a9ec01306ef846c04140198d7d53fceb0de03aa1d2"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=7.3611736297607422e-06 max_error_over_bound=0.13459050265887268 max_bound=0.00015697064288280877\nverify dwconv_c240_h14_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=36f70000\n",
+      "metrics": {
+        "max_abs_error": 7.361173629760742e-06,
+        "max_error_over_bound": 0.13459050265887268,
+        "max_bound": 0.00015697064288280877
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.6093279988679868e-06,
+        "absolute_floor": 3.783505853677006e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c240_h14_k5_s1_p2",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "weight_shape": [
+          240,
+          1,
+          5,
+          5
+        ],
+        "output_shape": [
+          1,
+          240,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 564480,
+        "per_program_store_checks": 6,
+        "checked_channels": [
+          0,
+          120,
+          239
+        ],
+        "max_abs_error": 0.001124560282278253,
+        "max_abs_error_vs_aten": 0.0009765625,
+        "max_error_over_bound": 0.15088498097505082,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.6093279988679868e-06,
+          "absolute_floor": 3.783505853677006e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c240_h14_k5_s1_p2/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c240_h14_k5_s1_p2/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c120_h14_k5_s1_p2",
+      "status": "PASS",
+      "fingerprint": "35fb4f95e0f1b06815fd2a7cbf356e059d5bdfd79ea241be704fdc937d8c8309",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c120_h14_k5_s1_p2/launch.c": "fb3208b08f78464366cb5a4eeead75d2c75b6eb300b5451d1c5d7dce0f9ea78c",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c120_h14_k5_s1_p2/metadata.json": "eba3a62da63a5072d6175a29cccb2b4f467fdba124f0ed0bff757399cd264a97",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c120_h14_k5_s1_p2/kernel.ttir": "174bc7fac3c5b4b2a006dc8bab516b2360d1509476c3eebdfe65be02ae1ca547",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/kernel.linalg.mlir": "9aa4a16f91f63ed4a57b0d5e75978492d3219c20826a9b13dd22a2e05c21f74f",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/adapter.c": "3cff5f223ae3b0746a8e7f504e820d62668b04dcf2ceb1d65cb65b32e6c9fe87",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/frontend.json": "907158cdc54f505df78fc8a473c3cfd8297faba0bc3120d7481a9e99f71acddb",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/host/kernel.ll": "0a7b2830245b4e732c2193e789403c9cb3a031a9da0596f1142c69c62a19461b",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/host/kernel.llvm.mlir": "751bb7a89c4e65755918c7ab27b917c6c7e70001651fb2d50fa4058f220387da",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/host/check": "6fbd9b3584e6f164d02dc3c4dece474dd2a37cea2849310160a4fecbf478e48e",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/host/output.log": "9ae0314e7d5d19bba73b5701f2530ad78e84a9a31caaafacf2a10ee3ea4d1c31",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/host/pytorch-check.so": "9d64e5e0e36912d885a27ab5dfacccbe18719cd22c9a9ec839775622d65659eb",
+        "triton/build/dwconv_c120_h14_k5_s1_p2/host/pytorch.json": "f4806ebd51031397d6239541f6242f3694e460cc790bda830a5af883a4a0548f"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=3.5911798477172852e-06 max_error_over_bound=0.13459050265887268 max_bound=7.7709625302736508e-05\nverify dwconv_c120_h14_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=36710000\n",
+      "metrics": {
+        "max_abs_error": 3.591179847717285e-06,
+        "max_error_over_bound": 0.13459050265887268,
+        "max_bound": 7.770962530273651e-05
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.6093279988679868e-06,
+        "absolute_floor": 3.783505853677006e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c120_h14_k5_s1_p2",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "weight_shape": [
+          120,
+          1,
+          5,
+          5
+        ],
+        "output_shape": [
+          1,
+          120,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 282240,
+        "per_program_store_checks": 6,
+        "checked_channels": [
+          0,
+          60,
+          119
+        ],
+        "max_abs_error": 0.001451069955692219,
+        "max_abs_error_vs_aten": 0.0009765625,
+        "max_error_over_bound": 0.15410900859841237,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.6093279988679868e-06,
+          "absolute_floor": 3.783505853677006e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c120_h14_k5_s1_p2/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c120_h14_k5_s1_p2/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c144_h14_k5_s1_p2",
+      "status": "PASS",
+      "fingerprint": "7a48e1a494d40da9290fd651a404818f97d55d3dcf3fff1ed5cb644aadd68e3d",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c144_h14_k5_s1_p2/launch.c": "74a9b3598a990c5eb1c7dbf5c61c1ff44de88eea2c050ce7e913503cb63e4c4d",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c144_h14_k5_s1_p2/metadata.json": "0aeeb5bef491c4164dba7e21900d7a35f2e417e18f1362a24a0d4ab556bb1609",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c144_h14_k5_s1_p2/kernel.ttir": "fceeb3fcaf0b564f0b80cebd1c93c3d16515580a384a4b9f4c2663ec06f6546e",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/kernel.linalg.mlir": "ebbaacb68f30b7ef32b700e82058d3c128c17cba5fa457819d8fd3cf3b4c9720",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/adapter.c": "5e68fffe3af26ed296643ad93386f728ea4d1acff154da3314e4a8f13ebed7bf",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/frontend.json": "5110c1d957941a7afcf0e572ec56f119d49c6f18ab8d15226824df35dd31d33c",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/host/kernel.ll": "7e192a2f02e31cf9e78fa3675bd93585c4df56517b65f91510698d61b83e6972",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/host/kernel.llvm.mlir": "49d11dfee0be520195ea5ca265d04c4cba8d49c6e1f5614468dc672ac98ca2bb",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/host/check": "163602da48c0655ab02b8c8b9ce1b0347ed3818cc5b753cf9c02fc23aab7f5ca",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/host/output.log": "d270454068c5ac602d477a649e5cd219f84c0932a71419d3361618033ab1af6b",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/host/pytorch-check.so": "8620f293a58767b1ae1874d53bdd44d2f489edc09e54f05be3c9aa40bb39cdd6",
+        "triton/build/dwconv_c144_h14_k5_s1_p2/host/pytorch.json": "b5d6f6a85bd93a36979cc08c7b00abe6054a6fdbbe01602a18179c2d07414e47"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=3.6209821701049805e-06 max_error_over_bound=0.13459050265887268 max_bound=9.3279874538308496e-05\nverify dwconv_c144_h14_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=36730000\n",
+      "metrics": {
+        "max_abs_error": 3.6209821701049805e-06,
+        "max_error_over_bound": 0.13459050265887268,
+        "max_bound": 9.32798745383085e-05
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.6093279988679868e-06,
+        "absolute_floor": 3.783505853677006e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c144_h14_k5_s1_p2",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "weight_shape": [
+          144,
+          1,
+          5,
+          5
+        ],
+        "output_shape": [
+          1,
+          144,
+          14,
+          14
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 338688,
+        "per_program_store_checks": 6,
+        "checked_channels": [
+          0,
+          72,
+          143
+        ],
+        "max_abs_error": 0.0011645609260995116,
+        "max_abs_error_vs_aten": 0.001220703125,
+        "max_error_over_bound": 0.15080387495875397,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.6093279988679868e-06,
+          "absolute_floor": 3.783505853677006e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c144_h14_k5_s1_p2/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c144_h14_k5_s1_p2/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c288_h14_k5_s2_p2",
+      "status": "PASS",
+      "fingerprint": "6e43a1ebe0255e9ab35ca17b54667ba1562930ebea8c83e22166c4e84d806730",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c288_h14_k5_s2_p2/launch.c": "8c9a05a9b197549ed496f3e11c457c088cd11bdf4ba1cda17b53f8efd0b58cca",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c288_h14_k5_s2_p2/metadata.json": "9c89554ebc279dc9872455e3659e5bd9321f857198ea78fe793883dc4f754f63",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c288_h14_k5_s2_p2/kernel.ttir": "e0b3c27eb91b3ffd04c8a6563e19519720db1b9da019bebfc56e4dc37713e1c3",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/kernel.linalg.mlir": "41a3f40690a3603825d6d7ff46ad7b03cc6573e878adba7d42beec03595917cd",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/adapter.c": "6168364b0b5a039fcd22c0312f954a8da6b07369387374915e5cfbeefcea434e",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/frontend.json": "b6fcfba026cb28f61c5493e1811de4865b830fbfd68a259a82eb6395053fa6d9",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/host/kernel.ll": "b20cf3b55338a22d18b39520b553dcda4fbaedba5f7b2f5e606d177d3285d0f3",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/host/kernel.llvm.mlir": "c4a55160f92e45c1fef4e9de109362ced76b7aba3d3e425376dcf83386d9d0e8",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/host/check": "28f854e5300aab568875534c2bfec96c9fc6d78808414a21ce3f96e630202b07",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/host/output.log": "580437a1ff8c13b4302aa83a94f6654ae09978a6f93767041d6cb67301c5c854",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/host/pytorch-check.so": "3a987102364d1735e9a56592d782318bcafe296d4042af6e08582cdb0db23c1d",
+        "triton/build/dwconv_c288_h14_k5_s2_p2/host/pytorch.json": "c3cf021a1d72fc9b53e4d5c388810426d0da4262f677230d13b04e9a933d630d"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=7.0258975028991699e-06 max_error_over_bound=0.11055334603199397 max_bound=0.00018581945815972757\nverify dwconv_c288_h14_k5_s2_p2: PASS errors=00000000 max_abs_error_f32_bits=36ebc000\n",
+      "metrics": {
+        "max_abs_error": 7.02589750289917e-06,
+        "max_error_over_bound": 0.11055334603199397,
+        "max_bound": 0.00018581945815972757
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.6093279988679868e-06,
+        "absolute_floor": 3.783505853677006e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c288_h14_k5_s2_p2",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          288,
+          14,
+          14
+        ],
+        "weight_shape": [
+          288,
+          1,
+          5,
+          5
+        ],
+        "output_shape": [
+          1,
+          288,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 169344,
+        "per_program_store_checks": 3,
+        "checked_channels": [
+          0,
+          144,
+          287
+        ],
+        "max_abs_error": 0.001002732896267844,
+        "max_abs_error_vs_aten": 0.0009765625,
+        "max_error_over_bound": 0.1296602533088773,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.6093279988679868e-06,
+          "absolute_floor": 3.783505853677006e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c288_h14_k5_s2_p2/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c288_h14_k5_s2_p2/host/pytorch-check.so"
+      }
+    },
+    {
+      "case": "dwconv_c576_h7_k5_s1_p2",
+      "status": "PASS",
+      "fingerprint": "be2cdd5c7546651157349f345cdcc2f1e2d3c4ffe595263f8d138bab0bbc5347",
+      "sources": {
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/kernels.py": "aecb59ea0d5f87a5f0925b0b740ba68985ebb88095da4b9f41ce283b442e9b8d",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/cases.py": "44303c10ab5193bb80ee11173230aa3eb5099aba6eb7f487dad31bcfdd040c00",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/export.py": "4013e01b9220e43985d428e75c76ab9fc65aaac042f5f521c354d01a73b4466a",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/build.py": "1de4c73b8320546dbfd72fefbb566014d66fd44f0b4b32a9cc906bdc996cece4",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/launch_depthwise_conv2d.c.in": "ff2320849a28bb33d3dc43ef2501ce8f4bd3ef0ed132e704a921de4ffe394a46",
+        "timm/mobilenetv3_small_100.lamb_in1k/triton/verify_depthwise_conv2d.py": "2f8aa545f5d40d8ca36a5434e04b268ff44ecc3e77020caac7960aab024122f3",
+        "timm/mobilenetv3_small_100.lamb_in1k/common.mk": "cf56490a47b2083edf650f37572b44ad021ddf8e861bd200aa4b540d5f197b3d",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.c": "7dc2f3c39e39d3e44461a92351ace1338eec5f25e97143e7c769b486cc6a6bed",
+        "timm/mobilenetv3_small_100.lamb_in1k/support.h": "23787c98449e447b407d56be6c69722ebafb8d1ea698336c2e16a50179e0f070",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c576_h7_k5_s1_p2/launch.c": "63616dffdfb51ba907d3d2816c69858437395808744456ec6d8aa32a67cb30fb",
+        "timm/mobilenetv3_small_100.lamb_in1k/dwconv_c576_h7_k5_s1_p2/metadata.json": "9f3c5857cf3e55e2d63c5ab48fc6af2df2d332763cfa1353b721ce56d896bf4e",
+        "common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "common/nr/crt.S": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "common/nr/nr_runtime.c": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "common/nr/nr_runtime.h": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "common/nr/nr.mk": "47cfd20ce64070676b5cce7d1e565fa1663c3cb0f87964294821a11aef461f76",
+        "common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+        "common/nr/nr_console.inc": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "common/nr/nr_hang_watch.inc": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+        "tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+        "tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd",
+        "tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+        "tools/nr_isa.py": "ef50c369633fd5de6e2e5f3f57c075bfb77062de17620d3efad6a209f59f72f7"
+      },
+      "artifacts": {
+        "triton/build/dwconv_c576_h7_k5_s1_p2/kernel.ttir": "96b96f4f92900f30a312fb37aa96ceca4277e5afb6864d91cdd2f6c3b97b2238",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/kernel.linalg.mlir": "3e3704d529387adf51bdcada6a4927fb7c52f3e4f65b0a11f3341b248fb33be2",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/adapter.c": "5e3b8ad3e0702d06995833c07730fd1272e55f5185868d29c5aee47a5a92cebf",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/frontend.json": "ef44bbd4d7ff6460fd213473d7571c40022bbc7e35247a411064bb16923753eb",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/host/kernel.ll": "2f7dca71fe5bd62a1b7823a0ea8936bbe2e9b5d0de03a30acd9b895f53dd5093",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/host/kernel.llvm.mlir": "1a45fcc44a76c657e385f23bf27564a4976d640f68877bbcfca405c9dca9f457",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/host/check": "bc347f93e42d9b5b25f3c4ad76f53909c95de67e06710cc543dc8cbcc71d370c",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/host/output.log": "baf7099a69f1803f3f3f98d5246fa2c503adf749bd94162ae8c689d2824814da",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/host/pytorch-check.so": "2c7187d325e03721865ea10989fd4ce4583a7fb44a0eecd0aa21893802db11cd",
+        "triton/build/dwconv_c576_h7_k5_s1_p2/host/pytorch.json": "d67bd459b84a56728db17cb7149f41578dd1635a5c057f33ef0e7d0f3ccc3f83"
+      },
+      "oracle": "Independent C FP64 c/oh/ow/kh/kw loops, NCHW input and OIHW Weight[C,1,KH,KW]; explicit zero padding, stride and Bias[c]; per-output forward error bound; bias-only, spatial/channel ramps, four corner impulses, last-channel-only, asymmetric one-hot weights, cancellation and signed non-dyadic patterns",
+      "bounds": "Host PROT_NONE pages immediately after X[C*H*W], Weight[C*KH*KW], Bias[C], Out[C*OH*OW]; prefix canaries; X/Weight/Bias unchanged bitwise",
+      "output": "depthwise_conv2d metrics max_abs_error=1.4938414096832275e-05 max_error_over_bound=0.13894044095748698 max_bound=0.00037714281836623162\nverify dwconv_c576_h7_k5_s1_p2: PASS errors=00000000 max_abs_error_f32_bits=377aa000\n",
+      "metrics": {
+        "max_abs_error": 1.4938414096832275e-05,
+        "max_error_over_bound": 0.13894044095748698,
+        "max_bound": 0.0003771428183662316
+      },
+      "tolerance": {
+        "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+        "unit_roundoff": 5.960464477539063e-08,
+        "gamma": 1.6093279988679868e-06,
+        "absolute_floor": 3.783505853677006e-44
+      },
+      "pytorch": {
+        "case": "dwconv_c576_h7_k5_s1_p2",
+        "status": "PASS",
+        "torch_version": "2.10.0+cpu",
+        "reference": "FP64 grouped conv2d plus torch.ops.aten.convolution.default; groups=C",
+        "shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "weight_shape": [
+          576,
+          1,
+          5,
+          5
+        ],
+        "output_shape": [
+          1,
+          576,
+          7,
+          7
+        ],
+        "dtype": "float32",
+        "device": "cpu",
+        "seed": 0,
+        "trials": 12,
+        "samples": 338688,
+        "per_program_store_checks": 3,
+        "checked_channels": [
+          0,
+          288,
+          575
+        ],
+        "max_abs_error": 0.0011513871395436581,
+        "max_abs_error_vs_aten": 0.0009765625,
+        "max_error_over_bound": 0.14671942343715058,
+        "tolerance": {
+          "formula": "gamma_(KH*KW+2)*(sum_valid(abs(X*Weight))+abs(Bias[c])) + (KH*KW+2)*2^-149",
+          "unit_roundoff": 5.960464477539063e-08,
+          "gamma": 1.6093279988679868e-06,
+          "absolute_floor": 3.783505853677006e-44
+        },
+        "aten_comparison": "each FP32 result within bound of FP64; pairwise difference <= 2*bound",
+        "inputs": "bias-only, distinct channel constants, four corner impulses, last-channel-only, asymmetric one-hot weights, checkerboard cancellation, seeded random inputs/weights/bias",
+        "compiled_program": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c576_h7_k5_s1_p2/host/kernel.ll",
+        "library": "/home/zhangwenji/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c576_h7_k5_s1_p2/host/pytorch-check.so"
+      }
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "status": "PASS",
+  "model_json_sha256": "c52bd020e6c6f8204f5e5fec7876d9f54f983b7e701326594a2a9755bda5d7ec",
+  "pointwise_operation_count": 41,
+  "unique_cases": 32,
+  "note": "Original graph shape/layout match; kernel accepts explicit Bias[Cout] for folded and originally biased layers.",
+  "matches": {
+    "pwconv_cin16_cout8_h1_w1": [
+      "blocks.0.0.se.conv_reduce"
+    ],
+    "pwconv_cin8_cout16_h1_w1": [
+      "blocks.0.0.se.conv_expand"
+    ],
+    "pwconv_cin16_cout16_h56_w56": [
+      "blocks.0.0.conv_pw"
+    ],
+    "pwconv_cin16_cout72_h56_w56": [
+      "blocks.1.0.conv_pw"
+    ],
+    "pwconv_cin72_cout24_h28_w28": [
+      "blocks.1.0.conv_pwl"
+    ],
+    "pwconv_cin24_cout88_h28_w28": [
+      "blocks.1.1.conv_pw"
+    ],
+    "pwconv_cin88_cout24_h28_w28": [
+      "blocks.1.1.conv_pwl"
+    ],
+    "pwconv_cin24_cout96_h28_w28": [
+      "blocks.2.0.conv_pw"
+    ],
+    "pwconv_cin96_cout24_h1_w1": [
+      "blocks.2.0.se.conv_reduce"
+    ],
+    "pwconv_cin24_cout96_h1_w1": [
+      "blocks.2.0.se.conv_expand"
+    ],
+    "pwconv_cin96_cout40_h14_w14": [
+      "blocks.2.0.conv_pwl"
+    ],
+    "pwconv_cin40_cout240_h14_w14": [
+      "blocks.2.1.conv_pw",
+      "blocks.2.2.conv_pw"
+    ],
+    "pwconv_cin240_cout64_h1_w1": [
+      "blocks.2.1.se.conv_reduce",
+      "blocks.2.2.se.conv_reduce"
+    ],
+    "pwconv_cin64_cout240_h1_w1": [
+      "blocks.2.1.se.conv_expand",
+      "blocks.2.2.se.conv_expand"
+    ],
+    "pwconv_cin240_cout40_h14_w14": [
+      "blocks.2.1.conv_pwl",
+      "blocks.2.2.conv_pwl"
+    ],
+    "pwconv_cin40_cout120_h14_w14": [
+      "blocks.3.0.conv_pw"
+    ],
+    "pwconv_cin120_cout32_h1_w1": [
+      "blocks.3.0.se.conv_reduce"
+    ],
+    "pwconv_cin32_cout120_h1_w1": [
+      "blocks.3.0.se.conv_expand"
+    ],
+    "pwconv_cin120_cout48_h14_w14": [
+      "blocks.3.0.conv_pwl"
+    ],
+    "pwconv_cin48_cout144_h14_w14": [
+      "blocks.3.1.conv_pw"
+    ],
+    "pwconv_cin144_cout40_h1_w1": [
+      "blocks.3.1.se.conv_reduce"
+    ],
+    "pwconv_cin40_cout144_h1_w1": [
+      "blocks.3.1.se.conv_expand"
+    ],
+    "pwconv_cin144_cout48_h14_w14": [
+      "blocks.3.1.conv_pwl"
+    ],
+    "pwconv_cin48_cout288_h14_w14": [
+      "blocks.4.0.conv_pw"
+    ],
+    "pwconv_cin288_cout72_h1_w1": [
+      "blocks.4.0.se.conv_reduce"
+    ],
+    "pwconv_cin72_cout288_h1_w1": [
+      "blocks.4.0.se.conv_expand"
+    ],
+    "pwconv_cin288_cout96_h7_w7": [
+      "blocks.4.0.conv_pwl"
+    ],
+    "pwconv_cin96_cout576_h7_w7": [
+      "blocks.4.1.conv_pw",
+      "blocks.4.2.conv_pw",
+      "blocks.5.0.conv"
+    ],
+    "pwconv_cin576_cout144_h1_w1": [
+      "blocks.4.1.se.conv_reduce",
+      "blocks.4.2.se.conv_reduce"
+    ],
+    "pwconv_cin144_cout576_h1_w1": [
+      "blocks.4.1.se.conv_expand",
+      "blocks.4.2.se.conv_expand"
+    ],
+    "pwconv_cin576_cout96_h7_w7": [
+      "blocks.4.1.conv_pwl",
+      "blocks.4.2.conv_pwl"
+    ],
+    "pwconv_cin576_cout1024_h1_w1": [
+      "conv_head"
+    ]
+  }
+}

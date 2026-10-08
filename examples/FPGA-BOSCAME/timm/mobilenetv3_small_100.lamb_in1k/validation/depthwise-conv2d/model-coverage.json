@@ -1,0 +1,39 @@
+{
+  "status": "PASS",
+  "model": "timm/mobilenetv3_small_100.lamb_in1k",
+  "model_json_sha256": "c52bd020e6c6f8204f5e5fec7876d9f54f983b7e701326594a2a9755bda5d7ec",
+  "case_count": 9,
+  "depthwise_operation_count": 11,
+  "note": "Shape/layout match against original model trace. BN folding supplies Bias[C]; kernel tests use explicit nonzero bias.",
+  "matches": {
+    "dwconv_c16_h112_k3_s2_p1": [
+      "blocks.0.0.conv_dw"
+    ],
+    "dwconv_c72_h56_k3_s2_p1": [
+      "blocks.1.0.conv_dw"
+    ],
+    "dwconv_c88_h28_k3_s1_p1": [
+      "blocks.1.1.conv_dw"
+    ],
+    "dwconv_c96_h28_k5_s2_p2": [
+      "blocks.2.0.conv_dw"
+    ],
+    "dwconv_c240_h14_k5_s1_p2": [
+      "blocks.2.1.conv_dw",
+      "blocks.2.2.conv_dw"
+    ],
+    "dwconv_c120_h14_k5_s1_p2": [
+      "blocks.3.0.conv_dw"
+    ],
+    "dwconv_c144_h14_k5_s1_p2": [
+      "blocks.3.1.conv_dw"
+    ],
+    "dwconv_c288_h14_k5_s2_p2": [
+      "blocks.4.0.conv_dw"
+    ],
+    "dwconv_c576_h7_k5_s1_p2": [
+      "blocks.4.1.conv_dw",
+      "blocks.4.2.conv_dw"
+    ]
+  }
+}

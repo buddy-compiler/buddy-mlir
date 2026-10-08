@@ -1,0 +1,30 @@
+{
+  "name": "relu_count32",
+  "family": "relu",
+  "kernel": "relu",
+  "symbol": "relu_count32",
+  "dtype": "float32",
+  "layout": "NCHW contiguous",
+  "shapes": [
+    [
+      1,
+      32,
+      1,
+      1
+    ]
+  ],
+  "constexprs": {
+    "COUNT": 32,
+    "BLOCK": 128
+  },
+  "signature": {
+    "X": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    1,
+    1,
+    1
+  ],
+  "tail": 32
+}

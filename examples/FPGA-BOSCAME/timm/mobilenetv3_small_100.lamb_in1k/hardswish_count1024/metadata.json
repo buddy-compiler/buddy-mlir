@@ -1,0 +1,30 @@
+{
+  "name": "hardswish_count1024",
+  "family": "hardswish",
+  "kernel": "hardswish",
+  "symbol": "hardswish_count1024",
+  "dtype": "float32",
+  "layout": "NCHW contiguous",
+  "shapes": [
+    [
+      1,
+      1024,
+      1,
+      1
+    ]
+  ],
+  "constexprs": {
+    "COUNT": 1024,
+    "BLOCK": 128
+  },
+  "signature": {
+    "X": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    8,
+    1,
+    1
+  ],
+  "tail": 0
+}

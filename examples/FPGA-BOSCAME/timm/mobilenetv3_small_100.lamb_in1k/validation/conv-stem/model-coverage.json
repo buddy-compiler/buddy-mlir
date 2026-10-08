@@ -1,0 +1,114 @@
+{
+  "status": "PASS",
+  "case": "conv_stem_cin3_cout16_h224_k3_s2_p1",
+  "model_json_sha256": "c52bd020e6c6f8204f5e5fec7876d9f54f983b7e701326594a2a9755bda5d7ec",
+  "original_operation": {
+    "index": 0,
+    "op": "aten.convolution.default",
+    "module": "conv_stem",
+    "arguments": {
+      "input": {
+        "shape": [
+          1,
+          3,
+          224,
+          224
+        ],
+        "dtype": "float32",
+        "stride": [
+          150528,
+          50176,
+          224,
+          1
+        ],
+        "numel": 150528
+      },
+      "weight": {
+        "shape": [
+          16,
+          3,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "stride": [
+          27,
+          9,
+          3,
+          1
+        ],
+        "numel": 432
+      },
+      "bias": null,
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "transposed": false,
+      "output_padding": [
+        0,
+        0
+      ],
+      "groups": 1
+    },
+    "outputs": {
+      "shape": [
+        1,
+        16,
+        112,
+        112
+      ],
+      "dtype": "float32",
+      "stride": [
+        200704,
+        12544,
+        112,
+        1
+      ],
+      "numel": 200704
+    }
+  },
+  "bn_fusion": {
+    "conv": "conv_stem",
+    "bn": "bn1",
+    "weight_shape": [
+      16,
+      3,
+      3,
+      3
+    ],
+    "original_bias": false,
+    "fused_bias_shape": [
+      16
+    ],
+    "groups": 1,
+    "stride": [
+      2,
+      2
+    ],
+    "padding": [
+      1,
+      1
+    ],
+    "dilation": [
+      1,
+      1
+    ],
+    "eps": 1e-05,
+    "affine": true,
+    "preserved_children": {
+      "drop": "Identity",
+      "act": "Hardswish"
+    }
+  },
+  "fused_checkpoint_sha256": "6f6b6784ecbe06c340ab3049a85eec0506ed8c9e2abe9e503c98c7af2bf576cf",
+  "note": "Shape/layout and folded bias verified; operator numerical tests use independent deterministic inputs/weights/bias."
+}

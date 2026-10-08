@@ -1,0 +1,61 @@
+{
+  "name": "linear_m1_n1000_k1024",
+  "family": "linear",
+  "kernel": "linear",
+  "symbol": "linear_m1_n1000_k1024",
+  "dtype": "float32",
+  "layout": "row-major Input[M,K], Weight[N,K], Output[M,N]",
+  "shapes": [
+    [
+      1,
+      1024
+    ]
+  ],
+  "weight_shape": [
+    1000,
+    1024
+  ],
+  "bias_shape": [
+    1000
+  ],
+  "output_shape": [
+    1,
+    1000
+  ],
+  "constexprs": {
+    "M": 1,
+    "N": 1000,
+    "K": 1024,
+    "BM": 1,
+    "BN": 16,
+    "BK": 1024
+  },
+  "signature": {
+    "X": "*fp32",
+    "Weight": "*fp32",
+    "Bias": "*fp32",
+    "Out": "*fp32"
+  },
+  "grid": [
+    1,
+    63,
+    1
+  ],
+  "grid_axes": [
+    "row_tile",
+    "output_channel_tile",
+    "unused"
+  ],
+  "tail": {
+    "M": 0,
+    "N": 8,
+    "K": 0
+  },
+  "tail_strategy": "overlap final BN weight reads; disjoint stores before/after N-BN",
+  "tolerance": {
+    "formula": "gamma_(K+2)*(sum_k(abs(X[m,k]*Weight[n,k]))+abs(Bias[n])) + (K+2)*2^-149",
+    "unit_roundoff": 5.960464477539063e-08,
+    "gamma": 6.115810562469786e-05,
+    "absolute_floor": 1.4377322243972623e-42
+  }
+}

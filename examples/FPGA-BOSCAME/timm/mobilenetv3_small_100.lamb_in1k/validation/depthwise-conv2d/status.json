@@ -1,0 +1,513 @@
+{
+  "status": "COMPLETE",
+  "scope": "depthwise_conv2d implementation, independent Host checks, NR binary build and ELF audit; FPGA execution deferred by user",
+  "case_count": 9,
+  "kernel": "depthwise_conv2d",
+  "host": "PASS",
+  "nr_build": "PASS",
+  "fpga": "NOT EXECUTED",
+  "fpga_reason": "User previously requested pausing FPGA access and preserving local artifacts; no SSH/scp/FPGA attempt in this task.",
+  "regression": {
+    "count": 46,
+    "status": "PASS",
+    "existing_kernels_AST_and_inventory": "UNCHANGED"
+  },
+  "model_coverage": {
+    "depthwise_calls": 11,
+    "unique_cases": 9,
+    "status": "PASS"
+  },
+  "modified_existing_implementation": [
+    "triton/kernels.py",
+    "triton/cases.py",
+    "triton/export.py",
+    "triton/build.py"
+  ],
+  "qwen_common_runtime_support": "UNCHANGED",
+  "reports": {
+    "toolchain.json": "3e669735503cfbc9063379100c2aefd2cd50ae1d9a203ae95cf3237e492f4aed",
+    "host.json": "7fe0c7167f58edcb247041517ddeb13d8416e2537af9475af479934ccc43e13d",
+    "nr.json": "4e313ba1cb591959a28699e22ee6064d02a1b4b66779062c84823fab0d778511",
+    "regression.json": "5d4b6f3037bf35abdd4629c6ecfd8120432e74f239efe24d4ee8715170a73c78",
+    "model-coverage.json": "15d2b0b2be2ae2c839f3228894bcf469d34c852395a4bc877857f62216799d4d"
+  },
+  "results": [
+    {
+      "case": "dwconv_c16_h112_k3_s2_p1",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 6.914846810701647e-07,
+        "max_error_over_bound": 0.27426290353711824,
+        "max_bound": 5.082990851790084e-06
+      },
+      "pytorch_max_error_over_bound": 0.3464004246570167,
+      "program_checks": 75,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c16_h112_k3_s2_p1/kernel.ttir",
+          "bytes": 18518,
+          "sha256": "948de3bb4e8ada6ef7339307dd559c22d6fbd7634d7614af7b6f325d0f15bd88"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c16_h112_k3_s2_p1/kernel.linalg.mlir",
+          "bytes": 38643,
+          "sha256": "354fe8bae11443b66e28971d64941dc6f47a61c3ed44c140b7e8383b51a97905"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c16_h112_k3_s2_p1/nr/kernel.ll",
+          "bytes": 137761,
+          "sha256": "ef53d98e0efc4a1821c603fb1972de662ff9f952f182a645187e8586c68a4e82"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c16_h112_k3_s2_p1/nr/dwconv_c16_h112_k3_s2_p1.elf",
+          "bytes": 43376,
+          "sha256": "5e5135a3e366c5b76ab01c8ee331bd9868c39fb1d473a0c1f967bff6a812b799"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c16_h112_k3_s2_p1/nr/dwconv_c16_h112_k3_s2_p1.bin",
+          "bytes": 82207,
+          "sha256": "dd0afeb38e8db0c9a43a6c6656b779d3823dcac1f29698073f31a0638e038014"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c16_h112_k3_s2_p1/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "d9e9e094e3116834eac28703312994bea590fbf644a8910d72819caafb2599a9"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c16_h112_k3_s2_p1/nr/dwconv_c16_h112_k3_s2_p1.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c72_h56_k3_s2_p1",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 1.6689300537109375e-06,
+        "max_error_over_bound": 0.27426290353711824,
+        "max_bound": 1.8312348530118408e-05
+      },
+      "pytorch_max_error_over_bound": 0.4376099420532439,
+      "program_checks": 21,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c72_h56_k3_s2_p1/kernel.ttir",
+          "bytes": 18509,
+          "sha256": "ce9c07e26173e432bb645e55f3330795ba942cbec48434d62eee1d73d5a8da95"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c72_h56_k3_s2_p1/kernel.linalg.mlir",
+          "bytes": 38629,
+          "sha256": "b4e795af0a229cf7cbc499389282d3ff7d8b38ed211811b2004b77552540624a"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c72_h56_k3_s2_p1/nr/kernel.ll",
+          "bytes": 137755,
+          "sha256": "a6a847fcd816bc33a20c9635a9189a27dc9d313cc81db8060fad12a803e574c0"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c72_h56_k3_s2_p1/nr/dwconv_c72_h56_k3_s2_p1.elf",
+          "bytes": 43344,
+          "sha256": "61b6c0aea32cbe68af9ed26620d9de01fc4a84e1ea542d1fbd9e6ee3b4e42c90"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c72_h56_k3_s2_p1/nr/dwconv_c72_h56_k3_s2_p1.bin",
+          "bytes": 82366,
+          "sha256": "b791d1bb5eb742e7cb2b84b03261e00eea342affb9ca3a95d265d9fc1dcc3b8d"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c72_h56_k3_s2_p1/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "f7600bd559898b55b136725b101ade994a59ea567a5437897e46141462a0be29"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c72_h56_k3_s2_p1/nr/dwconv_c72_h56_k3_s2_p1.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c88_h28_k3_s1_p1",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 1.996755599975586e-06,
+        "max_error_over_bound": 0.3084980635491575,
+        "max_bound": 2.2941575300284732e-05
+      },
+      "pytorch_max_error_over_bound": 0.30453184270873823,
+      "program_checks": 21,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c88_h28_k3_s1_p1/kernel.ttir",
+          "bytes": 18030,
+          "sha256": "cd21f8b765ca70f1192b273ba0e4992408449dab2b62077623aa48a2cf5899c0"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c88_h28_k3_s1_p1/kernel.linalg.mlir",
+          "bytes": 37778,
+          "sha256": "7e952e1ccf10588c19f75eb06765cd8508b45575f7b246318a95b15a31a6540e"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c88_h28_k3_s1_p1/nr/kernel.ll",
+          "bytes": 134831,
+          "sha256": "2ce235db34dd99a9d11c385c01677f3cd244a638074c708ebbf965c9225a3ec4"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c88_h28_k3_s1_p1/nr/dwconv_c88_h28_k3_s1_p1.elf",
+          "bytes": 43272,
+          "sha256": "3cb122bc3646f3e555b26dc26bc8ca92451c7401a407cd854ab2b0f5dc1917e7"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c88_h28_k3_s1_p1/nr/dwconv_c88_h28_k3_s1_p1.bin",
+          "bytes": 82294,
+          "sha256": "6f2795f6846ccee0ac0b9bf5617ead654071faf4a5ffc787e31405f3d120ea91"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c88_h28_k3_s1_p1/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "a7e59a1cd23ad02e3d0afc2e8d0dbce03131e66c702b7de4c64a349c96d0b2c3"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c88_h28_k3_s1_p1/nr/dwconv_c88_h28_k3_s1_p1.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c96_h28_k5_s2_p2",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 2.294778823852539e-06,
+        "max_error_over_bound": 0.10425170127617699,
+        "max_bound": 5.860529158606256e-05
+      },
+      "pytorch_max_error_over_bound": 0.16185496233150878,
+      "program_checks": 6,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c96_h28_k5_s2_p2/kernel.ttir",
+          "bytes": 34124,
+          "sha256": "1a330dd11f071ca21ceb12b655af47957b0b01f4da69f395d8eb9395dcc82d50"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c96_h28_k5_s2_p2/kernel.linalg.mlir",
+          "bytes": 87709,
+          "sha256": "40e2cb839b4d96aeb60d10688973ab61764c232b83cd91d208cec9af956b3d2f"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c96_h28_k5_s2_p2/nr/kernel.ll",
+          "bytes": 311989,
+          "sha256": "6fd5f5cbccf0f9f61d3666fc3ead678b884a67fffd20b980d3cfd3f2843c04de"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c96_h28_k5_s2_p2/nr/dwconv_c96_h28_k5_s2_p2.elf",
+          "bytes": 52992,
+          "sha256": "00bbfec03bb60c1aa4a11e6dfc83002908490aae8c3cf292535fb0e7ea38e688"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c96_h28_k5_s2_p2/nr/dwconv_c96_h28_k5_s2_p2.bin",
+          "bytes": 89742,
+          "sha256": "19b462bae92f7b5262aba80159c450c8e35d035b54e02a6f1f93d8de61891280"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c96_h28_k5_s2_p2/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "52d1b17fca002f4c413a4a05a372ce78e8cdb93a253b2f8effdac79748bda10b"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c96_h28_k5_s2_p2/nr/dwconv_c96_h28_k5_s2_p2.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c240_h14_k5_s1_p2",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 7.361173629760742e-06,
+        "max_error_over_bound": 0.13459050265887268,
+        "max_bound": 0.00015697064288280877
+      },
+      "pytorch_max_error_over_bound": 0.15088498097505082,
+      "program_checks": 6,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c240_h14_k5_s1_p2/kernel.ttir",
+          "bytes": 33640,
+          "sha256": "93389bff83a27857997beb992301d985353897a56ff543434b1e17c46cf550a8"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c240_h14_k5_s1_p2/kernel.linalg.mlir",
+          "bytes": 86867,
+          "sha256": "c9746ebde8aea833e4d280a8aed6d2c344a9908a8a4578c7d4b2cbed48adba94"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c240_h14_k5_s1_p2/nr/kernel.ll",
+          "bytes": 309068,
+          "sha256": "a89f689e28c1c2ac0ef7c5c4428856c8c0be8008e725efaa7245cbc31fe59244"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c240_h14_k5_s1_p2/nr/dwconv_c240_h14_k5_s1_p2.elf",
+          "bytes": 52888,
+          "sha256": "88f4ac668bac160d91b1c108dec613c9d4893fc1610174992c0fbc4552cdeae1"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c240_h14_k5_s1_p2/nr/dwconv_c240_h14_k5_s1_p2.bin",
+          "bytes": 90007,
+          "sha256": "71cdc9c6ccfeca697eec1f35855891fb9b0c112b10bc9acdffab6b96fa3699e1"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c240_h14_k5_s1_p2/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "34fcf5843b9f6061bda5dc9db7143ec154f4cf6e068637aaf34139823d4a99ca"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c240_h14_k5_s1_p2/nr/dwconv_c240_h14_k5_s1_p2.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c120_h14_k5_s1_p2",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 3.591179847717285e-06,
+        "max_error_over_bound": 0.13459050265887268,
+        "max_bound": 7.770962530273651e-05
+      },
+      "pytorch_max_error_over_bound": 0.15410900859841237,
+      "program_checks": 6,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c120_h14_k5_s1_p2/kernel.ttir",
+          "bytes": 33640,
+          "sha256": "174bc7fac3c5b4b2a006dc8bab516b2360d1509476c3eebdfe65be02ae1ca547"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c120_h14_k5_s1_p2/kernel.linalg.mlir",
+          "bytes": 86867,
+          "sha256": "9aa4a16f91f63ed4a57b0d5e75978492d3219c20826a9b13dd22a2e05c21f74f"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c120_h14_k5_s1_p2/nr/kernel.ll",
+          "bytes": 309068,
+          "sha256": "0a7b2830245b4e732c2193e789403c9cb3a031a9da0596f1142c69c62a19461b"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c120_h14_k5_s1_p2/nr/dwconv_c120_h14_k5_s1_p2.elf",
+          "bytes": 52888,
+          "sha256": "d9136893c5dbdceeddb246d55da3aa1dfabf4676706ef5c7a02a94962663a431"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c120_h14_k5_s1_p2/nr/dwconv_c120_h14_k5_s1_p2.bin",
+          "bytes": 90007,
+          "sha256": "2195b1895215b19db3048111c955c962ae662b35dd796efc3ec8f22ec85ca08e"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c120_h14_k5_s1_p2/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "e872d3a18d738684d461690b0af5711b32811d1594db4bd14499165a23b1495e"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c120_h14_k5_s1_p2/nr/dwconv_c120_h14_k5_s1_p2.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c144_h14_k5_s1_p2",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 3.6209821701049805e-06,
+        "max_error_over_bound": 0.13459050265887268,
+        "max_bound": 9.32798745383085e-05
+      },
+      "pytorch_max_error_over_bound": 0.15080387495875397,
+      "program_checks": 6,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c144_h14_k5_s1_p2/kernel.ttir",
+          "bytes": 33640,
+          "sha256": "fceeb3fcaf0b564f0b80cebd1c93c3d16515580a384a4b9f4c2663ec06f6546e"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c144_h14_k5_s1_p2/kernel.linalg.mlir",
+          "bytes": 86867,
+          "sha256": "ebbaacb68f30b7ef32b700e82058d3c128c17cba5fa457819d8fd3cf3b4c9720"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c144_h14_k5_s1_p2/nr/kernel.ll",
+          "bytes": 309068,
+          "sha256": "7e192a2f02e31cf9e78fa3675bd93585c4df56517b65f91510698d61b83e6972"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c144_h14_k5_s1_p2/nr/dwconv_c144_h14_k5_s1_p2.elf",
+          "bytes": 52888,
+          "sha256": "6a66f83aa5d2375371adc0d0dd966896bb21019c84e7b0d368d3baccaf39c35d"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c144_h14_k5_s1_p2/nr/dwconv_c144_h14_k5_s1_p2.bin",
+          "bytes": 90007,
+          "sha256": "a0e5ba180e760a1ee7098c89782a926d78925b3ed354393089c98a97934a2dd6"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c144_h14_k5_s1_p2/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "3b775f4c3356c4c133dee583f31fdadd13be9898470c6d5c773ca590762561bc"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c144_h14_k5_s1_p2/nr/dwconv_c144_h14_k5_s1_p2.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c288_h14_k5_s2_p2",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 7.02589750289917e-06,
+        "max_error_over_bound": 0.11055334603199397,
+        "max_bound": 0.00018581945815972757
+      },
+      "pytorch_max_error_over_bound": 0.1296602533088773,
+      "program_checks": 3,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c288_h14_k5_s2_p2/kernel.ttir",
+          "bytes": 34123,
+          "sha256": "e0b3c27eb91b3ffd04c8a6563e19519720db1b9da019bebfc56e4dc37713e1c3"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c288_h14_k5_s2_p2/kernel.linalg.mlir",
+          "bytes": 87703,
+          "sha256": "41a3f40690a3603825d6d7ff46ad7b03cc6573e878adba7d42beec03595917cd"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c288_h14_k5_s2_p2/nr/kernel.ll",
+          "bytes": 311987,
+          "sha256": "b20cf3b55338a22d18b39520b553dcda4fbaedba5f7b2f5e606d177d3285d0f3"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c288_h14_k5_s2_p2/nr/dwconv_c288_h14_k5_s2_p2.elf",
+          "bytes": 52960,
+          "sha256": "c328b6c9b5fefca36c58b563b3753e57774c8ff9688e36f7e5abbe47b35cef98"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c288_h14_k5_s2_p2/nr/dwconv_c288_h14_k5_s2_p2.bin",
+          "bytes": 89855,
+          "sha256": "3a56222adfe2a97fd74b1795f81b604a04b51e41b079042330b78612d116c5f9"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c288_h14_k5_s2_p2/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "bdfffbadd2373ad59bc0b6f5b8d75f9db4be9e66db9d2985d7b12df664f5d39d"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c288_h14_k5_s2_p2/nr/dwconv_c288_h14_k5_s2_p2.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    },
+    {
+      "case": "dwconv_c576_h7_k5_s1_p2",
+      "host": "PASS",
+      "nr_build": "PASS",
+      "fpga": "NOT EXECUTED",
+      "metrics": {
+        "max_abs_error": 1.4938414096832275e-05,
+        "max_error_over_bound": 0.13894044095748698,
+        "max_bound": 0.0003771428183662316
+      },
+      "pytorch_max_error_over_bound": 0.14671942343715058,
+      "program_checks": 3,
+      "host_and_nr_llvm_identical": true,
+      "artifacts": {
+        "ttir": {
+          "path": "triton/build/dwconv_c576_h7_k5_s1_p2/kernel.ttir",
+          "bytes": 33634,
+          "sha256": "96b96f4f92900f30a312fb37aa96ceca4277e5afb6864d91cdd2f6c3b97b2238"
+        },
+        "linalg": {
+          "path": "triton/build/dwconv_c576_h7_k5_s1_p2/kernel.linalg.mlir",
+          "bytes": 86856,
+          "sha256": "3e3704d529387adf51bdcada6a4927fb7c52f3e4f65b0a11f3341b248fb33be2"
+        },
+        "llvm": {
+          "path": "triton/build/dwconv_c576_h7_k5_s1_p2/nr/kernel.ll",
+          "bytes": 309063,
+          "sha256": "2f7dca71fe5bd62a1b7823a0ea8936bbe2e9b5d0de03a30acd9b895f53dd5093"
+        },
+        "elf": {
+          "path": "triton/build/dwconv_c576_h7_k5_s1_p2/nr/dwconv_c576_h7_k5_s1_p2.elf",
+          "bytes": 52856,
+          "sha256": "82f3866f005473c39fb62584bc583256286f6560cced1fba2da648964c0cad5d"
+        },
+        "bin": {
+          "path": "triton/build/dwconv_c576_h7_k5_s1_p2/nr/dwconv_c576_h7_k5_s1_p2.bin",
+          "bytes": 89982,
+          "sha256": "130b0ee8ba01d5f6522bd258498c400a087a0ad1bd24d5d360551e53b4893a96"
+        },
+        "elf_audit": {
+          "path": "triton/build/dwconv_c576_h7_k5_s1_p2/nr/elf-audit.json",
+          "bytes": 443,
+          "sha256": "22b67fa4df481bba847dc1c0c631f8bdc7c5b86662169d0682573541d1a66d69"
+        }
+      },
+      "fpga_command": [
+        "examples/FPGA-BOSCAME/fpga_run.sh",
+        "examples/FPGA-BOSCAME/timm/mobilenetv3_small_100.lamb_in1k/triton/build/dwconv_c576_h7_k5_s1_p2/nr/dwconv_c576_h7_k5_s1_p2.bin",
+        "--fpga=5",
+        "--capture-seconds=120",
+        "--completion-marker=[nr] RA returned:"
+      ]
+    }
+  ]
+}
