@@ -13,6 +13,8 @@ import subprocess
 import sys
 import tempfile
 
+from Inputs.runtime_test_utils import llc_target_args
+
 SRC = os.environ["BUDDY_SRC_ROOT"]
 sys.path.insert(0, os.path.join(SRC, "tools", "buddy-codegen"))
 import compile_pipeline  # noqa: E402
@@ -118,6 +120,7 @@ subprocess.run(
         shutil.which("llc"),
         "-filetype=obj",
         "-relocation-model=pic",
+        *llc_target_args(),
         path("f.ll"),
         "-o",
         path("f.o"),
