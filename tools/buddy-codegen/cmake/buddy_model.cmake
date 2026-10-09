@@ -41,7 +41,7 @@ option(BUDDY_RAX_EMBED_PAYLOAD
   ON)
 
 option(IS_RVV_CROSSCOMPILE
-  "Enable RVV cross-compilation for model.so (riscv64 target)"
+  "Enable RVV cross-compilation for the model and runner package (riscv64 target)"
   OFF)
 option(BUDDY_MODEL_LAYER_PARTITION
   "Build supported models with template-based layer partitioning"
@@ -553,6 +553,47 @@ function(buddy_add_model)
     list(APPEND MDL_EXTRA_STAGE4_DEPS ${RISCV_DEP_LOCALS})
   endif()
 
+  if(NOT IS_RVV_CROSSCOMPILE AND NOT APPLE)
+    # Native builds must ship the runtime dependencies inside the .rax: the
+    # runner dlopens them (RTLD_GLOBAL) before the model, and the model .so
+    # resolves them through its $ORIGIN rpath. Order matters: transitive deps
+    # (float16 / apfloat) are loaded before the libraries that need them.
+    set(_NATIVE_RUNTIME_DEPS)
+    foreach(_cand
+        "${LLVM_LIBRARY_DIR}/libmlir_float16_utils${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        "${LLVM_LIBRARY_DIR}/libmlir_apfloat_wrappers${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        "${LLVM_LIBRARY_DIR}/libmlir_c_runner_utils${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_cand}")
+        list(APPEND _NATIVE_RUNTIME_DEPS "${_cand}")
+      endif()
+    endforeach()
+    if(BUDDY_OPENMP_RUNTIME_LIBRARY AND EXISTS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+      list(APPEND _NATIVE_RUNTIME_DEPS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+    else()
+      get_filename_component(_NATIVE_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+      set(_NATIVE_OMP
+        "${_NATIVE_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_NATIVE_OMP}")
+        list(APPEND _NATIVE_RUNTIME_DEPS "${_NATIVE_OMP}")
+      endif()
+    endif()
+    foreach(_dep ${_NATIVE_RUNTIME_DEPS})
+      # Copy under the library's real (SONAME) name so it matches the NEEDED
+      # entries of the model and of the other runtime deps.
+      get_filename_component(_dep_real "${_dep}" REALPATH)
+      get_filename_component(_dep_name "${_dep_real}" NAME)
+      add_custom_command(
+        OUTPUT "${BIN}/${_dep_name}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_dep_real}" "${BIN}/${_dep_name}"
+        DEPENDS "${_dep_real}"
+        COMMENT "[${MDL_NAME}] Copying runtime dep ${_dep_name}"
+        VERBATIM)
+      list(APPEND MDL_GEN_MANIFEST_ARGS --dep-shared-lib "file:${_dep_name}")
+      list(APPEND MDL_EXTRA_STAGE4_DEPS "${BIN}/${_dep_name}")
+    endforeach()
+  endif()
+
   # ════════════════════════════════════════════════════════════════════════════
   # Part 0: Code generation (variant spec → config → C++ / MLIR manifest)
   # ════════════════════════════════════════════════════════════════════════════
@@ -1020,7 +1061,14 @@ function(buddy_add_model)
         "tools/buddy-codegen/build_model.py passes this by default.")
     endif()
 
+    # Model trees sync buddy.compiler locally, while buddy_mlir's native
+    # extension is built in the host Buddy tree. Put both roots on PYTHONPATH.
     set(BUDDY_PY_PKG_ROOT "${CMAKE_BINARY_DIR}/python_packages")
+    if(DEFINED BUDDY_MLIR_BUILD_DIR
+       AND IS_DIRECTORY "${BUDDY_MLIR_BUILD_DIR}/python_packages")
+      set(BUDDY_PY_PKG_ROOT
+        "${BUDDY_PY_PKG_ROOT}:${BUDDY_MLIR_BUILD_DIR}/python_packages")
+    endif()
     set(IMPORT_DEPS "${GEN_CONFIG}" "${MDL_IMPORT_SCRIPT}")
     if(TARGET python-package-buddy)
       list(APPEND IMPORT_DEPS python-package-buddy)
@@ -1073,8 +1121,10 @@ function(buddy_add_model)
               ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
               ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
               ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic
+                ${MDL_LLC_ATTRS_LIST}
                 -O0 -o "${_SINGLE_FORWARD_MLIR_DIR}/forward.o"
       DEPENDS "${IMPORT_STAMP}" buddy-opt
+        ${LLVM_TOOLS_BINARY_DIR}/llc
       COMMENT "[${MDL_NAME}] Stage 2: forward.mlir -> forward.o"
       VERBATIM)
 
@@ -1135,8 +1185,10 @@ function(buddy_add_model)
                 ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
                 ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
                 ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj
-                  -relocation-model=pic -O3 -o "${BIN}/subgraph0.o"
+                  -relocation-model=pic ${MDL_LLC_ATTRS_LIST}
+                  -O3 -o "${BIN}/subgraph0.o"
         DEPENDS "${IMPORT_STAMP}" buddy-opt
+          ${LLVM_TOOLS_BINARY_DIR}/llc
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o"
         VERBATIM)
     endif()
@@ -1182,7 +1234,14 @@ function(buddy_add_model)
       set(IMPORT_STAMP "${BIN}/.buddy_import_done")
       # Synced by frontend/Python → build/python_packages/buddy/compiler (target
       # python-package-buddy). import_model needs PYTHONPATH to that tree.
+      # Reuse the host buddy_mlir extension; only buddy.compiler is synced into
+      # this model build tree.
       set(BUDDY_PY_PKG_ROOT "${CMAKE_BINARY_DIR}/python_packages")
+      if(DEFINED BUDDY_MLIR_BUILD_DIR
+         AND IS_DIRECTORY "${BUDDY_MLIR_BUILD_DIR}/python_packages")
+        set(BUDDY_PY_PKG_ROOT
+          "${BUDDY_PY_PKG_ROOT}:${BUDDY_MLIR_BUILD_DIR}/python_packages")
+      endif()
       set(IMPORT_DEPS "${GEN_CONFIG}" "${BUDDY_CODEGEN_DIR}/import_model.py")
       # BUDDY_MLIR_ENABLE_PYTHON_PACKAGES is required above; target is always defined.
       if(TARGET python-package-buddy)
@@ -1372,6 +1431,9 @@ function(buddy_add_model)
       "${RISCV_OMP_SHARED}"
       "${RISCV_MLIR_C_RUNNER_UTILS}"
       -lm)
+  elseif(NOT APPLE)
+    # Native builds resolve the embedded runtime deps relative to the model.
+    list(APPEND MDL_STAGE3_LINK_OPTS "-Wl,-rpath,\$ORIGIN")
   endif()
 
   # Runtime support compiled into the model library (spec fields above).
