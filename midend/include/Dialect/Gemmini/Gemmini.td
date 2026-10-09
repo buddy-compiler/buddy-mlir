@@ -32,7 +32,7 @@ include "mlir/IR/PatternBase.td"
 def Gemmini_Dialect : Dialect {
   let name = "gemmini";
   let cppNamespace = "::buddy::gemmini";
-  // Preserve the existing attr-dict syntax for inherent attributes.
+  // Preserve the existing prop-dict attr-dict syntax for inherent attributes.
   let useStrictPropertiesInAssemblyFormat = 0;
   let summary = "Basic dialect to target RISC-V Gemmini extension";
   let description = [{
@@ -56,7 +56,7 @@ def  FlushOp : Gemmini_Op<"flush"> {
     Otherwise, the current TLB request is repeated.
   }];
   let arguments = (ins I64:$skip);
-  let assemblyFormat = "$skip attr-dict `:` type($skip)";
+  let assemblyFormat = "$skip prop-dict attr-dict `:` type($skip)";
 }
 
 def ConfigStOp : Gemmini_Op<"config_st"> {
@@ -67,7 +67,7 @@ def ConfigStOp : Gemmini_Op<"config_st"> {
   let arguments = (ins I64:$stride,
                        DefaultValuedAttr<I64Attr, "0">:$activation,
                        DefaultValuedAttr<F32Attr, "1.0">:$scale);
-  let assemblyFormat = "$stride attr-dict `:` type($stride)";
+  let assemblyFormat = "$stride prop-dict attr-dict `:` type($stride)";
 }
 
 def ConfigLdOp : Gemmini_Op<"config_ld"> {
@@ -81,7 +81,7 @@ def ConfigLdOp : Gemmini_Op<"config_ld"> {
                        DefaultValuedAttr<I64Attr, "0">:$id,
                        DefaultValuedAttr<I64Attr, "-1">:$block_mvin_stride,
                        DefaultValuedAttr<I64Attr, "1">:$pixel_repeats);
-  let assemblyFormat = "$stride attr-dict `:` type($stride)";
+  let assemblyFormat = "$stride prop-dict attr-dict `:` type($stride)";
 }
 
 def ConfigExOp : Gemmini_Op<"config_ex"> {
@@ -117,7 +117,7 @@ def ConfigExOp : Gemmini_Op<"config_ex"> {
                        DefaultValuedAttr<BoolAttr, "false">:$aTranspose,
                        DefaultValuedAttr<BoolAttr, "false">:$bTranspose,
                        DefaultValuedAttr<BoolAttr, "false">:$setOnlyStrides);
-  let assemblyFormat = "attr-dict";
+  let assemblyFormat = "prop-dict attr-dict";
 }
 
 def ConfigNormOp : Gemmini_Op<"config_norm"> {
@@ -139,7 +139,7 @@ def ConfigNormOp : Gemmini_Op<"config_norm"> {
                        DefaultValuedAttr<I64Attr, "0">:$StatsId,
                        DefaultValuedAttr<I64Attr, "0">:$igeluQb,
                        DefaultValuedAttr<I64Attr, "0">:$igeluQc);
-  let assemblyFormat = "attr-dict";
+  let assemblyFormat = "prop-dict attr-dict";
 }
 
 def MvinOp : Gemmini_Op<"mvin"> {
@@ -151,7 +151,7 @@ def MvinOp : Gemmini_Op<"mvin"> {
     - Local scratchpad or accumulator address.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
-  let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
+  let assemblyFormat = "$input $addr prop-dict attr-dict `:` type($input) type($addr)";
 }
 
 def Mvin2Op : Gemmini_Op<"mvin2"> {
@@ -164,7 +164,7 @@ def Mvin2Op : Gemmini_Op<"mvin2"> {
       - Local scratchpad or accumulator address.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
-  let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
+  let assemblyFormat = "$input $addr prop-dict attr-dict `:` type($input) type($addr)";
 }
 
 def Mvin3Op : Gemmini_Op<"mvin3"> {
@@ -177,7 +177,7 @@ def Mvin3Op : Gemmini_Op<"mvin3"> {
       - Local scratchpad or accumulator address.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
-  let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
+  let assemblyFormat = "$input $addr prop-dict attr-dict `:` type($input) type($addr)";
 }
 
 def MvoutOp : Gemmini_Op<"mvout"> {
@@ -189,13 +189,13 @@ def MvoutOp : Gemmini_Op<"mvout"> {
     - Local scratchpad address.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$output, I64:$addr);
-  let assemblyFormat = "$output $addr attr-dict `:` type($output) type($addr)";
+  let assemblyFormat = "$output $addr prop-dict attr-dict `:` type($output) type($addr)";
 }
 
 def PrintOp : Gemmini_Op<"print"> {
   let summary = "Print memref value.";
   let arguments = (ins AnyTypeOf<[I8MemRef, I32MemRef, F32MemRef, F64MemRef]>:$input);
-  let assemblyFormat = "$input attr-dict `:` type($input)";
+  let assemblyFormat = "$input prop-dict attr-dict `:` type($input)";
 }
 
 def PreloadZerosOp : Gemmini_Op<"preload_zeros"> {
@@ -207,7 +207,7 @@ def PreloadZerosOp : Gemmini_Op<"preload_zeros"> {
   }];
   let arguments = (ins I64:$addr, I64:$cRows, I64:$cCols);
   let assemblyFormat = [{
-    $addr $cRows $cCols attr-dict `:` type($addr) type($cRows) type($cCols)
+    $addr $cRows $cCols prop-dict attr-dict `:` type($addr) type($cRows) type($cCols)
   }];
 }
 
@@ -226,7 +226,7 @@ def PreloadOp : Gemmini_Op<"preload"> {
   let arguments = (ins I64:$bdAddr, I64:$cAddr, I64:$bdRows,
                        I64:$bdCols, I64:$cRows, I64:$cCols);
   let assemblyFormat = [{
-    $bdAddr $cAddr $bdRows $bdCols $cRows $cCols  attr-dict `:` type($bdAddr)
+    $bdAddr $cAddr $bdRows $bdCols $cRows $cCols  prop-dict attr-dict `:` type($bdAddr)
     type($cAddr) type($bdRows) type($bdCols) type($cRows) type($cCols)
   }];
 }
@@ -246,7 +246,7 @@ def ComputePreloadedOp : Gemmini_Op<"compute_preloaded"> {
   let arguments = (ins I64:$aAddr, I64:$bdAddr, I64:$aRows,
                        I64:$aCols, I64:$bdRows, I64:$bdCols);
   let assemblyFormat = [{
-    $aAddr $bdAddr $aRows $aCols $bdRows $bdCols attr-dict `:` type($aAddr)
+    $aAddr $bdAddr $aRows $aCols $bdRows $bdCols prop-dict attr-dict `:` type($aAddr)
     type($bdAddr) type($aRows) type($aCols) type($bdRows) type($bdCols)
   }];
 }
@@ -265,7 +265,7 @@ def ComputeAccumulatedOp : Gemmini_Op<"compute_accumulated"> {
   let arguments = (ins I64:$aAddr, I64:$bdAddr, I64:$aRows,
                        I64:$aCols, I64:$bdRows, I64:$bdCols);
   let assemblyFormat = [{
-    $aAddr $bdAddr $aRows $aCols $bdRows $bdCols attr-dict `:` type($aAddr)
+    $aAddr $bdAddr $aRows $aCols $bdRows $bdCols prop-dict attr-dict `:` type($aAddr)
     type($bdAddr) type($aRows) type($aCols) type($bdRows) type($bdCols)
   }];
 }
@@ -293,7 +293,7 @@ def TileMatMulOp : Gemmini_Op<"tile_matmul"> {
                        DefaultValuedAttr<I64Attr, "0">:$weightA,
                        DefaultValuedAttr<I64Attr, "1">:$dataflow);
   let assemblyFormat = [{
-    $aArray $bArray $cArray $dArray attr-dict `:`
+    $aArray $bArray $cArray $dArray prop-dict attr-dict `:`
     type($aArray) type($bArray) type($cArray) type($dArray)
   }];
 }
@@ -323,7 +323,7 @@ def TileConvOp : Gemmini_Op<"tile_conv"> {
                        DefaultValuedAttr<I64Attr, "0">:$poolStride,
                        DefaultValuedAttr<I64Attr, "0">:$poolPadding);
   let assemblyFormat = [{
-    $input $weights $bias $output $outRowDim $outColDim $kernelDim attr-dict `:` type($input)
+    $input $weights $bias $output $outRowDim $outColDim $kernelDim prop-dict attr-dict `:` type($input)
     type($weights) type($bias) type($output) type($outRowDim) type($outColDim) type($kernelDim)
   }];
 }

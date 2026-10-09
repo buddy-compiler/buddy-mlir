@@ -533,44 +533,15 @@ def _split_via_tosa_slice(
     dim: int,
     split_sizes: list[int],
 ) -> list[ir.Value]:
-    # tosa.slice / extract_slice on non-dim1 (esp. NHWC C) lowers wrong;
-    # always slice on dim1 via transpose.
     rank = len(input_shape)
-    if dim != 1:
-        perm = list(range(rank))
-        perm[1], perm[dim] = perm[dim], perm[1]
-        inv = [0] * rank
-        for i, j in enumerate(perm):
-            inv[j] = i
-        elem = ir.RankedTensorType(input_tensor.type).element_type
-        t_shape = [input_shape[i] for i in perm]
-        t = tosa.TransposeOp(
-            ir.RankedTensorType.get(t_shape, elem),
-            input_tensor,
-            _create_permutation_attr(perm),
-        ).result
-        parts = _split_via_tosa_slice(t, t_shape, 1, split_sizes)
-        out = []
-        for p in parts:
-            ps = [int(x) for x in ir.RankedTensorType(p.type).shape]
-            o_shape = [ps[i] for i in inv]
-            out.append(
-                tosa.TransposeOp(
-                    ir.RankedTensorType.get(o_shape, elem),
-                    p,
-                    _create_permutation_attr(inv),
-                ).result
-            )
-        return out
-
     elem = ir.RankedTensorType(input_tensor.type).element_type
     results = []
     offset = 0
     for size in split_sizes:
         start = [0] * rank
-        start[1] = offset
+        start[dim] = offset
         out_shape = list(input_shape)
-        out_shape[1] = size
+        out_shape[dim] = size
         out_ty = ir.RankedTensorType.get(out_shape, elem)
         results.append(
             tosa.SliceOp(

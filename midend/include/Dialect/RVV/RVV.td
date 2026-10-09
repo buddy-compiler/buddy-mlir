@@ -77,7 +77,7 @@ def RVVSetVlOp :
     elements. The return value of this operation is the number of elements
     for a single iteration.
   }];
-  let assemblyFormat = "$avl `,` $sew `,` $lmul attr-dict `:` type($avl)";
+  let assemblyFormat = "$avl `,` $sew `,` $lmul prop-dict attr-dict `:` type($avl)";
 }
 
 def RVVLoadOp : RVV_Op<"load">,
@@ -93,7 +93,7 @@ def RVVLoadOp : RVV_Op<"load">,
       return mlir::cast<mlir::MemRefType>(getBase().getType());
     }
   }];
-  let assemblyFormat = "$base `[` $index `]` `,` $length attr-dict `:` "
+  let assemblyFormat = "$base `[` $index `]` `,` $length prop-dict attr-dict `:` "
     "type($base) `,` type($result) `,`  type($length)";
 }
 
@@ -109,7 +109,7 @@ def RVVStoreOp : RVV_Op<"store">,
       return mlir::cast<mlir::MemRefType>(getBase().getType());
     }
   }];
-  let assemblyFormat = "$value `,` $base `[` $index `]` `,` $length attr-dict "
+  let assemblyFormat = "$value `,` $base `[` $index `]` `,` $length prop-dict attr-dict "
     "`:` type($value) `,` type($base) `,`  type($length)";
 }
 
@@ -118,7 +118,7 @@ def RsqrtOp : RVV_Op<"rsqrt", [Pure, AllTypesMatch<["src", "dst"]>]>,
     Results<(outs ScalableVectorOfAnyRank<[AnyType]>:$dst)> {
   let summary = "Reciprocal of the square-root";
   let description = "Floating-point reciprocal square-root estimated to 7 bits.";
-  let assemblyFormat = "$src `,` $length attr-dict `:` type($dst) `,`  type($length)";
+  let assemblyFormat = "$src `,` $length prop-dict attr-dict `:` type($dst) `,`  type($length)";
 }
 
 class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
@@ -135,7 +135,7 @@ class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
     AnySignlessIntegerOrIndex:$length
   );
   let results = (outs ScalableVectorOfAnyRank<[AnyInteger]>:$dst);
-  let assemblyFormat = "$src1 `,` $src2 `,` $length attr-dict `:` type($src1) "
+  let assemblyFormat = "$src1 `,` $src2 `,` $length prop-dict attr-dict `:` type($src1) "
     "`,` type($src2) `,` type($length)";
 }
 
@@ -150,7 +150,7 @@ class RVV_FloatBinaryOp<string mnemonic> :
                        AnySignlessIntegerOrIndex:$length);
   let results = (outs ScalableVectorOfAnyRank<[F32]>:$dst);
   let hasVerifier = 1;
-  let assemblyFormat = "$src1 `,` $src2 `,` $length attr-dict `:` type($src1) "
+  let assemblyFormat = "$src1 `,` $src2 `,` $length prop-dict attr-dict `:` type($src1) "
                        "`,` type($src2) `,` type($length)";
 }
 

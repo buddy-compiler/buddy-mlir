@@ -78,7 +78,7 @@ def TileMatMulOp : Tile_Op<"tile_matmul"> {
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$aMemArray,
                        MemRefRankOf<[AnyType], [2]>:$bMemArray,
                        MemRefRankOf<[AnyType], [2]>:$cMemArray);
-  let assemblyFormat = [{$aMemArray $bMemArray $cMemArray attr-dict `:`
+  let assemblyFormat = [{$aMemArray $bMemArray $cMemArray prop-dict attr-dict `:`
     type($aMemArray) type($bMemArray) type($cMemArray)}];
 }
 
@@ -96,7 +96,7 @@ def TileMegaMatmulOp : Tile_Op<"mega_matmul"> {
                        MemRefRankOf<[I8, F32], [2]>:$output,
                        I64Attr:$activation,
                        F32Attr:$outputScale);
-  let assemblyFormat = [{$input $weight $bias $scale $lut $output attr-dict `:`
+  let assemblyFormat = [{$input $weight $bias $scale $lut $output prop-dict attr-dict `:`
     type($input) type($weight) type($bias) type($scale) type($lut) type($output)}];
 }
 
@@ -106,12 +106,12 @@ def TileQuantF32ToI8Op : Tile_Op<"quant_f32_to_i8"> {
                        MemRefRankOf<[I8], [2, 4]>:$output,
                        F32Attr:$scale,
                        BoolAttr:$nchwToNhwc);
-  let assemblyFormat = [{$input $output attr-dict `:` type($input) type($output)}];
+  let assemblyFormat = [{$input $output prop-dict attr-dict `:` type($input) type($output)}];
 }
 
 def TileMegaYieldOp : Tile_Op<"mega_yield", [Terminator]> {
   let summary = "Terminate a Tile MegaKernel region";
-  let assemblyFormat = "attr-dict";
+  let assemblyFormat = "prop-dict attr-dict";
 }
 
 def TileMegaKernelOp : Tile_Op<"mega_kernel", [
@@ -120,7 +120,7 @@ def TileMegaKernelOp : Tile_Op<"mega_kernel", [
   let arguments = (ins AnyMemRef:$input,
                        AnyMemRef:$output);
   let regions = (region SizedRegion<1>:$body);
-  let assemblyFormat = [{$input $output attr-dict `:`
+  let assemblyFormat = [{$input $output prop-dict attr-dict `:`
     type($input) type($output) $body}];
 }
 
@@ -141,7 +141,7 @@ def TileTransposeOp : Tile_Op<"tile_transpose"> {
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$aMemArray,
                        MemRefRankOf<[AnyType], [2]>:$bMemArray);
-  let assemblyFormat = [{$aMemArray $bMemArray attr-dict `:`
+  let assemblyFormat = [{$aMemArray $bMemArray prop-dict attr-dict `:`
     type($aMemArray) type($bMemArray)}];
 }
 
@@ -153,7 +153,7 @@ def TileReluOp : Tile_Op<"tile_relu"> {
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input,
                        MemRefRankOf<[AnyType], [2]>:$output);
-  let assemblyFormat = [{$input $output attr-dict `:`
+  let assemblyFormat = [{$input $output prop-dict attr-dict `:`
     type($input) type($output)}];
 }
 
@@ -169,7 +169,7 @@ def TileConv2dOp : Tile_Op<"tile_conv2d"> {
                        MemRefRankOf<[AnyType], [4]>:$output,
                        DefaultValuedAttr<I64Attr, "0">:$padLow,
                        DefaultValuedAttr<I64Attr, "0">:$padHigh);
-  let assemblyFormat = [{$input $filter $output attr-dict `:`
+  let assemblyFormat = [{$input $filter $output prop-dict attr-dict `:`
     type($input) type($filter) type($output)}];
 }
 
@@ -187,7 +187,7 @@ def TileMegaConv2dOp : Tile_Op<"mega_conv2d"> {
                        I64Attr:$padHigh,
                        I64Attr:$activation,
                        F32Attr:$outputScale);
-  let assemblyFormat = [{$input $filter $bias $scale $lut $output attr-dict `:`
+  let assemblyFormat = [{$input $filter $bias $scale $lut $output prop-dict attr-dict `:`
     type($input) type($filter) type($bias) type($scale) type($lut) type($output)}];
 }
 
@@ -205,7 +205,7 @@ def TileMegaConv2dDepthwiseOp : Tile_Op<"mega_conv2d_depthwise"> {
                        I64Attr:$padHigh,
                        I64Attr:$activation,
                        F32Attr:$outputScale);
-  let assemblyFormat = [{$input $filter $bias $scale $lut $output attr-dict `:`
+  let assemblyFormat = [{$input $filter $bias $scale $lut $output prop-dict attr-dict `:`
     type($input) type($filter) type($bias) type($scale) type($lut) type($output)}];
 }
 
@@ -217,7 +217,7 @@ def TileMegaMaxPool2dOp : Tile_Op<"mega_max_pool2d"> {
                        I64Attr:$stride,
                        I64Attr:$padding,
                        BoolAttr:$finalOutput);
-  let assemblyFormat = [{$input $output attr-dict `:`
+  let assemblyFormat = [{$input $output prop-dict attr-dict `:`
     type($input) type($output)}];
 }
 
@@ -227,7 +227,7 @@ def TileMegaGlobalAvgPoolOp : Tile_Op<"mega_global_avg_pool"> {
                        MemRefRankOf<[I8], [4]>:$output,
                        F32Attr:$inputScale,
                        F32Attr:$outputScale);
-  let assemblyFormat = [{$input $output attr-dict `:`
+  let assemblyFormat = [{$input $output prop-dict attr-dict `:`
     type($input) type($output)}];
 }
 
@@ -240,7 +240,7 @@ def TileMegaInt8MulOp : Tile_Op<"mega_int8_mul"> {
                        F32Attr:$rhsScale,
                        F32Attr:$outputScale,
                        I64Attr:$activation);
-  let assemblyFormat = [{$lhs $rhs $output attr-dict `:`
+  let assemblyFormat = [{$lhs $rhs $output prop-dict attr-dict `:`
     type($lhs) type($rhs) type($output)}];
 }
 
@@ -253,7 +253,7 @@ def TileMegaInt8AddOp : Tile_Op<"mega_int8_add"> {
                        F32Attr:$rhsScale,
                        F32Attr:$outputScale,
                        I64Attr:$activation);
-  let assemblyFormat = [{$lhs $rhs $output attr-dict `:`
+  let assemblyFormat = [{$lhs $rhs $output prop-dict attr-dict `:`
     type($lhs) type($rhs) type($output)}];
 }
 
@@ -262,7 +262,7 @@ def TileMegaChannelSliceOp : Tile_Op<"mega_channel_slice"> {
   let arguments = (ins MemRefRankOf<[I8], [4]>:$input,
                        MemRefRankOf<[I8], [4]>:$output,
                        I64Attr:$offset);
-  let assemblyFormat = [{$input $output attr-dict `:` type($input) type($output)}];
+  let assemblyFormat = [{$input $output prop-dict attr-dict `:` type($input) type($output)}];
 }
 
 def TileMegaChannelConcatOp : Tile_Op<"mega_channel_concat"> {
@@ -270,7 +270,7 @@ def TileMegaChannelConcatOp : Tile_Op<"mega_channel_concat"> {
   let arguments = (ins Variadic<MemRefRankOf<[I8], [4]>>:$inputs,
                        MemRefRankOf<[I8], [4]>:$output,
                        DenseI64ArrayAttr:$segments);
-  let assemblyFormat = [{$inputs $output attr-dict `:` type($inputs) type($output)}];
+  let assemblyFormat = [{$inputs $output prop-dict attr-dict `:` type($inputs) type($output)}];
 }
 
 def TileMegaResizeNearestOp : Tile_Op<"mega_resize_nearest"> {
@@ -279,7 +279,7 @@ def TileMegaResizeNearestOp : Tile_Op<"mega_resize_nearest"> {
                        MemRefRankOf<[I8], [4]>:$output,
                        I64Attr:$scaleH,
                        I64Attr:$scaleW);
-  let assemblyFormat = [{$input $output attr-dict `:` type($input) type($output)}];
+  let assemblyFormat = [{$input $output prop-dict attr-dict `:` type($input) type($output)}];
 }
 
 def TileDepthwiseConv2dOp : Tile_Op<"tile_depthwise_conv2d"> {
@@ -293,7 +293,7 @@ def TileDepthwiseConv2dOp : Tile_Op<"tile_depthwise_conv2d"> {
                        MemRefRankOf<[AnyType], [4]>:$output,
                        DefaultValuedAttr<I64Attr, "0">:$padLow,
                        DefaultValuedAttr<I64Attr, "0">:$padHigh);
-  let assemblyFormat = [{$input $filter $output attr-dict `:`
+  let assemblyFormat = [{$input $filter $output prop-dict attr-dict `:`
     type($input) type($filter) type($output)}];
 }
 
