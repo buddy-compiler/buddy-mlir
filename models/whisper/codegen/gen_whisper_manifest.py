@@ -45,7 +45,10 @@ def _normalize_uri(raw: str) -> str:
 
 
 def gen_manifest(
-    spec: dict, runner_library: str, transcription_library: str
+    spec: dict,
+    runner_library: str,
+    transcription_library: str,
+    version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = spec["params_size"]
@@ -60,7 +63,7 @@ def gen_manifest(
     lines = []
     emit = lines.append
     emit("rhal.module @whisper attributes {")
-    emit('    version = "0.1.0",')
+    emit(f'    version = "{version}",')
     emit(f'    model_name = "{model_id}",')
     emit(f'    vocab_uri = "file:{vocab_file}",')
     emit(f'    runner_library = "{runner_library}",')
@@ -132,6 +135,11 @@ def main():
     parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
     )
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
+    )
     args = parser.parse_args()
 
     with open(args.spec, encoding="utf-8") as spec_file:
@@ -141,6 +149,7 @@ def main():
         spec,
         _normalize_uri(args.runner_library),
         _normalize_uri(args.transcription_library),
+        version=args.version,
     )
 
     if args.output == "-":
