@@ -15,6 +15,8 @@ import subprocess
 import sys
 import tempfile
 
+from Inputs.runtime_test_utils import llc_target_args
+
 SRC = os.environ["BUDDY_SRC_ROOT"]
 sys.path.insert(0, os.path.join(SRC, "tools", "buddy-codegen"))
 import compile_pipeline  # noqa: E402
@@ -145,6 +147,7 @@ with open(path("f.ll"), "w") as f:
     f.write(llvm_ir)
 subprocess.run(
     [shutil.which("llc"), "-filetype=obj", "-relocation-model=pic"]
+    + llc_target_args()
     + [path("f.ll"), "-o", path("f.o")],
     check=True,
 )
@@ -330,6 +333,7 @@ def lower(mlir, threads, name):
         f.write(ir)
     subprocess.run(
         [shutil.which("llc"), "-filetype=obj", "-relocation-model=pic"]
+        + llc_target_args()
         + [path(f"{name}.ll"), "-o", path(f"{name}.o")],
         check=True,
     )
