@@ -112,7 +112,7 @@ set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
 option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
-  "Build buddy.compiler Python package files used by model lowering scripts"
+  "Build Buddy Python packages and native bindings used by model lowering"
   ON)
 option(BUDDY_RISCV_ENABLE_ZFH_ZVFH
   "Enable RISC-V Zfh/Zvfh hardware FP16 extensions"
