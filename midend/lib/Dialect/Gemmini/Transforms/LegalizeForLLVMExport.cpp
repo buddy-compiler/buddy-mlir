@@ -747,7 +747,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
           const uint32_t cSpAddr = cSpAddrStart + (i0 * j + j0) * dim;
 
           const size_t cCols = dim - (j0 == j - 1 ? padJ : 0);
-          const size_t cRows = dim - (i0 == j - 1 ? padI : 0);
+          const size_t cRows = dim - (i0 == i - 1 ? padI : 0);
 
           gemminiMvoutOffset(c, offset, cSpAddr, cCols, cRows, addrLen,
                              rewriter);
