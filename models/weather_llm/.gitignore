@@ -1,0 +1,34 @@
+# Weather-LLM-generated artifacts and staged HF snapshot files.
+# `buddy_add_model` re-imports / re-stages these from the local HF snapshot
+# (BUDDY_WEATHER_LLM_LOCAL_MODEL) at build time, so nothing here is committed.
+# vocab.txt is a source asset (SentencePiece -> token-per-line conversion) and
+# stays tracked.
+
+# Import output
+arg0.data
+layer_partitioned/
+
+# Generated code / IR (build/ contains the real generated outputs)
+generated/
+forward_prefill.mlir
+forward_decode.mlir
+subgraph0_prefill.mlir
+subgraph0_decode.mlir
+*.mlir
+
+# Python caches
+__pycache__/
+
+# HuggingFace snapshot files (staged via BUDDY_WEATHER_LLM_LOCAL_MODEL)
+model.safetensors
+pytorch_model.bin
+tokenizer.model
+tokenizer_config.json
+special_tokens_map.json
+*.safetensors
+*.bin
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.h5

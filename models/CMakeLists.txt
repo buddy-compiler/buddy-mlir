@@ -21,3 +21,7 @@ endif()
 if(BUDDY_BUILD_PROTEINGLM_MODEL)
   add_subdirectory(proteinglm)
 endif()
+
+if(BUDDY_BUILD_WEATHER_LLM_MODEL)
+  add_subdirectory(weather_llm)
+endif()

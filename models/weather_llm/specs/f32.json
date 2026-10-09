@@ -1,0 +1,13 @@
+{
+  "hf_model_path": "AuraWorxAI/weather-llm-sft",
+  "model_family": "weather_llm",
+  "variant": "f32",
+  "max_token_len": 1024,
+  "num_threads": 48,
+  "weights_override": {
+    "total": 1263634432,
+    "linear_elements": 0,
+    "linear_output_channels": 0,
+    "other_elements": 0
+  }
+}
