@@ -91,6 +91,113 @@ ninja -C build
 ninja -C build check-buddy
 ```
 
+### Prepare RISC-V cross-compilation dependencies
+
+`make riscv` first builds the host tools (incrementally) and then prepares the
+RISC-V GNU/Linux sysroot, cross-compiled MLIR runtime libraries, and shared
+OpenMP runtime. The GNU toolchain is configured with `--disable-llvm` and
+`--disable-gdb`; the RISC-V MLIR libraries are built with the host LLVM Clang.
+
+```bash
+make riscv
+```
+
+The target sets `MAKEINFO=:` for the GNU toolchain build: skipping optional
+glibc Info manuals keeps builds working from non-ASCII source paths without
+affecting the compiler, headers, or runtime libraries.
+
+The generated files are laid out as follows:
+
+```text
+thirdparty/riscv-gnu-toolchain/          # source submodule
+thirdparty/riscv-gnu-toolchain/build/    # GNU toolchain build tree
+thirdparty/riscv/                        # installed RISC-V toolchain/sysroot
+thirdparty/riscv/bin/                    # riscv64-unknown-linux-gnu-* tools
+thirdparty/riscv/sysroot/                # glibc headers, crt files, libraries
+thirdparty/riscv/lib/                    # libomp.so and libmlir_*.so
+llvm/build-cross-mlir-rv/                # cross-compiled MLIR build tree
+llvm/build-omp-shared-rv/                # cross-compiled OpenMP build tree
+```
+
+This target prepares compiler/runtime dependencies only; it does not import or
+compile a model and does not build a RISC-V `buddy-cli`.
+
+The Makefile provides scoped cleanup shortcuts:
+
+```bash
+# Remove generated model artifacts under build/models/.
+make clean-models
+
+# Remove host LLVM and Buddy build trees.
+make clean-host
+
+# Remove RISC-V toolchain/runtime build and install trees.
+make clean-riscv
+
+# Remove both host and RISC-V build trees.
+make clean-all
+```
+
+`make clean` is an alias for `make clean-host`. The RISC-V cleanup removes only
+generated directories and keeps `thirdparty/riscv-gnu-toolchain/` itself, which
+is the source submodule. The equivalent manual command is:
+
+```bash
+rm -rf -- \
+  thirdparty/riscv-gnu-toolchain/build \
+  thirdparty/riscv \
+  llvm/build-cross-mlir-rv \
+  llvm/build-omp-shared-rv \
+  build-riscv
+```
+
+Keep `thirdparty/riscv-gnu-toolchain/` itself: it is the source submodule.
+Remove `llvm/build` and `build` as well when a full host rebuild is needed.
+
+`make install` installs the already-built host tools and libraries with CMake;
+it does not install operating-system packages or download model weights. The
+default prefix is the ignored local directory `install/`; override it with
+`PREFIX=/opt/buddy-mlir` (or another writable path). `make riscv-deps` is an
+explicit alias for `make riscv`; `make install-riscv` is a more descriptive
+spelling when the goal is to prepare the RISC-V prefix, which is controlled by
+`RISCV_INSTALL`.
+
+RISC-V model targets and their family aliases are generated from the available
+model specs, so new `models/*/specs/*.json` files become Make targets
+automatically:
+
+```bash
+make help
+make list-riscv-models
+make riscv-model-deepseek_r1-f32
+make riscv-model-whisper       # defaults to the base spec
+```
+
+`make riscv-model` selects `RISCV_MODEL_DEFAULT` (default:
+`deepseek_r1-f32`). A family alias selects `f32.json` when present, then
+`base.json`, then the first checked-in spec. Select any other variant directly
+with its generated Make target, such as `make riscv-model-deepseek_r1-w8a16`.
+
+Every model target first runs `make riscv`, then invokes `build_model.py` in a
+separate `build-riscv/<family>-<variant>/` tree. Set
+`RISCV_MODEL_LOCAL=/path/to/model` for an offline/local HuggingFace snapshot,
+`RISCV_MODEL_HF_CONFIG=/path/to/config.json` when a separate config is needed,
+`PYTHON=/path/to/python` when using a Python environment other than the
+repository's `.venv`, and `PARALLEL=8` to pass the corresponding model build
+parallelism. The selected Python interpreter is also passed to CMake, so its
+`nanobind` installation is used consistently.
+
+For RVV model builds, the cross-compilation applies to the complete runtime
+package: model kernels, runner plugin, and target runtime libraries are all
+built for RISC-V and embedded in the `.rax` payload.
+Qwen3-VL, BGE-M3, and ProteinGLM targets require their model-specific local
+snapshot, for example:
+
+```bash
+make riscv-model-qwen3_vl-instruct_2b \
+  RISCV_MODEL_LOCAL=/path/to/Qwen3-VL-2B-Instruct
+```
+
 Set the `PYTHONPATH` environment variable to include both the LLVM/MLIR Python bindings and `buddy-mlir` Python packages:
 
 ```
@@ -115,6 +222,40 @@ cd buddy-mlir
 python3 tools/buddy-codegen/build_model.py \
   --spec models/deepseek_r1/specs/f32.json \
   --build-dir build
+```
+
+To build the DeepSeek R1 model for RISC-V after `make riscv`, pass the
+toolchain and the three target runtime libraries explicitly:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/deepseek_r1/specs/f32.json \
+  --build-dir build-riscv/deepseek_r1-f32 \
+  --is-rvv-crosscompile \
+  --riscv-gnu-toolchain thirdparty/riscv \
+  --riscv-omp-shared thirdparty/riscv/lib/libomp.so \
+  --riscv-mlir-c-runner-utils thirdparty/riscv/lib/libmlir_c_runner_utils.so \
+  --buddy-mlir-build-dir build \
+  -j 8
+```
+
+The default spec downloads `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B` from
+Hugging Face. For an offline or local model, append
+`--local-model /path/to/model` (the directory must contain `config.json` and
+the weight files). The artifacts are written to
+`build-riscv/deepseek_r1-f32/models/deepseek_r1/`, including
+`deepseek_r1_model.so`,
+`deepseek_r1.rax`, `deepseek_r1_runner.so`, and `deepseek_r1_serving.so`.
+Only `deepseek_r1_model.so` is a RISC-V binary; the runner, serving plugin, and
+`buddy-cli` are still built for the host.
+
+The RAX manifest directly packages `libomp.so` and
+`libmlir_c_runner_utils.so`. The latter also needs the installed
+`libmlir_float16_utils.so` and `libmlir_apfloat_wrappers.so`; keep the RISC-V
+library directory available on the target, for example:
+
+```bash
+export LD_LIBRARY_PATH="$PWD/thirdparty/riscv/lib:${LD_LIBRARY_PATH:-}"
 ```
 
 For Whisper, use the same build entry point with the Whisper spec:

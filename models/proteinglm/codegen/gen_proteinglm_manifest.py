@@ -19,6 +19,7 @@ def gen_manifest(
     params_size: int,
     runner_library: str,
     masked_lm_library: str = "",
+    dep_shared_libs: list[str] | None = None,
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     max_seq_len = int(spec["max_seq_len"])
@@ -56,6 +57,12 @@ def gen_manifest(
     p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
+    for idx, dep in enumerate(dep_shared_libs or [], start=2):
+        p(
+            f'  rhal.codeobj @runtime_dep_{idx - 1} {{id = {idx} : i32, kind = "host_shared_lib",'
+        )
+        p('                                backend = "cpu",')
+        p(f'                                uri = "{normalize_uri(dep)}"}}')
     p("")
     p(
         f'  rhal.buffer @input_ids {{space = "host", '
@@ -92,6 +99,13 @@ def main() -> int:
     parser.add_argument("--spec", required=True)
     parser.add_argument("--runner-library", default="proteinglm_runner.so")
     parser.add_argument("--masked-lm-library", default="")
+    parser.add_argument(
+        "--dep-shared-lib",
+        action="append",
+        default=[],
+        metavar="URI_OR_NAME",
+        help="Additional shared library dependency URI/name (repeatable).",
+    )
     parser.add_argument("-o", "--output", default="-")
     args = parser.parse_args()
 
@@ -112,6 +126,7 @@ def main() -> int:
         params_bytes // 4,
         normalize_uri(args.runner_library),
         normalize_uri(args.masked_lm_library) if args.masked_lm_library else "",
+        dep_shared_libs=args.dep_shared_lib,
     )
     if args.output == "-":
         sys.stdout.write(text)

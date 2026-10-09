@@ -34,7 +34,10 @@ def normalize_uri(raw: str) -> str:
 
 
 def gen_manifest(
-    spec: dict, runner_library: str, embedding_library: str | None = None
+    spec: dict,
+    runner_library: str,
+    embedding_library: str | None = None,
+    dep_shared_libs: list[str] | None = None,
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = int(spec["params_size"])
@@ -70,6 +73,12 @@ def gen_manifest(
     p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
+    for idx, dep in enumerate(dep_shared_libs or [], start=2):
+        p(
+            f'  rhal.codeobj @runtime_dep_{idx - 1} {{id = {idx} : i32, kind = "host_shared_lib",'
+        )
+        p('                                backend = "cpu",')
+        p(f'                                uri = "{normalize_uri(dep)}"}}')
     p("")
     p(
         f'  rhal.buffer @input_ids {{space = "host", '
@@ -115,6 +124,13 @@ def main() -> int:
         help="Embedding plugin library URI/name for module attrs.",
     )
     parser.add_argument(
+        "--dep-shared-lib",
+        action="append",
+        default=[],
+        metavar="URI_OR_NAME",
+        help="Additional shared library dependency URI/name (repeatable).",
+    )
+    parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
     )
     args = parser.parse_args()
@@ -123,7 +139,10 @@ def main() -> int:
         spec = json.load(f)
 
     text = gen_manifest(
-        spec, normalize_uri(args.runner_library), args.embedding_library
+        spec,
+        normalize_uri(args.runner_library),
+        args.embedding_library,
+        dep_shared_libs=args.dep_shared_lib,
     )
 
     if args.output == "-":
