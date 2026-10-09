@@ -10,6 +10,7 @@
 
 import ctypes
 import os
+import platform
 import subprocess
 import sys
 
@@ -50,6 +51,7 @@ def jit(specs, emulate_ime=False):
             module,
             opt_level=2,
             shared_libs=[os.path.join(OMP_DIR, "libomp.so")],
+            enable_pic=platform.machine().lower() == "riscv64",
         )
 
 
