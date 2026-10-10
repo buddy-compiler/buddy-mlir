@@ -37,6 +37,7 @@
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -137,6 +138,7 @@ def build_stages(
     decode_pack: dict | None = None,
     arena: bool = False,
     chunked_prefill: bool = False,
+    batch_vector_size: int | None = None,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -280,13 +282,12 @@ def build_stages(
             )
             opts.append("-matmul-vectorization-decode=vector-size=32")
         elif variant != "w8a8":
-            vector_size = 128 if tiered else 32
+            vector_size = (
+                decode_pack["vector_size"]
+                if decode_pack and decode_pack.get("enabled")
+                else (128 if tiered else 32)
+            )
             if decode_pack and decode_pack.get("enabled"):
-                if decode_pack["vector_size"] != vector_size:
-                    raise ValueError(
-                        f"decode_pack vector_size={decode_pack['vector_size']} must "
-                        f"match the decode vector-size={vector_size} in use"
-                    )
                 # No packed-shapes: pack_decode_matmul_weights packed *every*
                 # matmul weight in the decode graph -- and refuses to run at all
                 # if it cannot -- so there is no list of exceptions to keep in
@@ -302,7 +303,8 @@ def build_stages(
             )
         opts.extend(
             [
-                "-batch-matmul-vectorization-decode=vector-size=128",
+                "-batch-matmul-vectorization-decode="
+                f"vector-size={batch_vector_size or (32 if tiered else 128)}",
                 "-batchmatmul-transpose-b-vectorization=vector-size=16",
                 "-convert-linalg-to-affine-loops",
                 "-convert-vector-to-scf",
@@ -453,6 +455,14 @@ def tiered_cache_sizes(config: dict) -> list[int]:
     ]
 
 
+def decode_batch_vector_size(config: dict) -> int:
+    """Unmasked attention vectors must fit both the cache and head dimensions."""
+    if not is_tiered_kv_cache(config):
+        return 128
+    sizes = tiered_cache_sizes(config)
+    return math.gcd(128, config["shape"]["hidden_size"], *sizes)
+
+
 def compile_entries(config: dict) -> list[tuple[str, str, str]]:
     """Return (pipeline_key, input_mlir_name, output_obj_name) entries."""
     pipelines = config["compilation"]["pipelines"]
@@ -522,6 +532,7 @@ def _compile_one(task: dict) -> str:
         task.get("decode_pack"),
         task.get("arena", False),
         task.get("chunked_prefill", False),
+        task.get("batch_vector_size"),
     )
     run_pipeline(
         stages,
@@ -571,6 +582,7 @@ def compile_all(
                 "variant": variant,
                 "tiered": is_tiered_kv_cache(config),
                 "decode_pack": decode_pack,
+                "batch_vector_size": decode_batch_vector_size(config),
                 "arena": bool(config.get("arena", False)),
                 "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": input_path,
@@ -767,6 +779,7 @@ def compile_partitioned(
                 "llc_attrs": llc_attrs,
                 "variant": variant,
                 "decode_pack": decode_pack,
+                "batch_vector_size": decode_batch_vector_size(config),
                 "tiered": is_tiered_kv_cache(config),
                 "arena": bool(config.get("arena", False)),
                 "chunked_prefill": bool(config.get("prefill_chunk")),
@@ -1084,6 +1097,7 @@ def main():
             config.get("decode_pack"),
             bool(config.get("arena", False)),
             bool(config.get("prefill_chunk")),
+            decode_batch_vector_size(config),
         )
 
         print(
