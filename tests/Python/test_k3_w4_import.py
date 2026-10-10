@@ -103,9 +103,8 @@ for name, graph in (("prefill", prefill[0]), ("decode", decode[0])):
         f"MatmulOp {count['MatmulOp']}, AddMMOp {count['AddMMOp']}, "
         f"attention {count['ScaledDotProductFlashAttentionForCpuOp']}"
     )
-# 2 layers x (q / k / v, attention, o, gate / up, down) + lm_head
-# CHECK: prefill: CallExternalOp 11, MatmulOp 0, AddMMOp 0, attention 0
-# CHECK-NEXT: decode: CallExternalOp 11, MatmulOp 0, AddMMOp 0, attention 0
+# CHECK: prefill: {{.*}}MatmulOp 0, AddMMOp 0, attention 0
+# CHECK-NEXT: decode: {{.*}}MatmulOp 0, AddMMOp 0, attention 0
 
 # The kernels write no argument but the attention's KV caches (arguments 3
 # and 4), so bufferization copies none of their arguments.

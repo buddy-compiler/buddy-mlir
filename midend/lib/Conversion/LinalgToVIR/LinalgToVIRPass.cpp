@@ -864,8 +864,54 @@ static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
   return setVl;
 }
 
+// Emit one row group. Values captured by set_vl must outlive the region:
+// VIRToVector reuses affine loop bounds and the last memory index directly.
+static void emitMatmulVIRRowGroup(OpBuilder &builder, Location loc, Value a,
+                                  Value b, Value c, Value n, Value k, Value c0,
+                                  ValueRange rows) {
+  assert(!rows.empty() && "a matmul row group must not be empty");
+  OpBuilder::InsertionGuard guard(builder);
+  Type elemTy = cast<MemRefType>(c.getType()).getElementType();
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  auto setVl = buddy::vir::SetVLOp::create(
+      builder, loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{n});
+  Block &block = setVl.getRegion().emplaceBlock();
+  builder.setInsertionPointToStart(&block);
+
+  SmallVector<Value> initialAccumulators;
+  for (Value row : rows) {
+    initialAccumulators.push_back(
+        buddy::vir::LoadOp::create(builder, loc, vecTy, c, ValueRange{row, c0})
+            .getResult());
+  }
+
+  auto loopK = affine::AffineForOp::create(
+      builder, loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{k},
+      builder.getDimIdentityMap(), /*step=*/1, initialAccumulators,
+      [&](OpBuilder &kb, Location kLoc, Value kIndex, ValueRange iterArgs) {
+        Value bVec = buddy::vir::LoadOp::create(kb, kLoc, vecTy, b,
+                                                ValueRange{kIndex, c0});
+        SmallVector<Value> nextAccumulators;
+        for (auto [row, acc] : llvm::zip(rows, iterArgs)) {
+          Value aScalar =
+              memref::LoadOp::create(kb, kLoc, a, ValueRange{row, kIndex});
+          Value aVec =
+              buddy::vir::BroadcastOp::create(kb, kLoc, vecTy, aScalar);
+          nextAccumulators.push_back(
+              buddy::vir::FMAOp::create(kb, kLoc, vecTy, aVec, bVec, acc));
+        }
+        affine::AffineYieldOp::create(kb, kLoc, nextAccumulators);
+      });
+
+  for (auto [row, acc] : llvm::zip(rows, loopK.getResults()))
+    buddy::vir::StoreOp::create(builder, loc, acc, c, ValueRange{row, c0});
+  vector::YieldOp::create(builder, loc);
+}
+
 static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
-                                      PatternRewriter &rewriter) {
+                                      PatternRewriter &rewriter,
+                                      int64_t mUnroll) {
   if (!matmulOp.hasPureBufferSemantics())
     return rewriter.notifyMatchFailure(matmulOp,
                                        "expected pure buffer semantics");
@@ -890,82 +936,60 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
     return rewriter.notifyMatchFailure(matmulOp,
                                        "only floating-point matmul supported");
 
-  // Vectorize along N (the last dimension of B/C).
-  Value n = memref::DimOp::create(rewriter, loc, c, 1);
+  int64_t staticM = cTy.getDimSize(0);
+  if (staticM == 0) {
+    rewriter.eraseOp(matmulOp);
+    return success();
+  }
 
-  // Create vir.set_vl region to host vector code.
-  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
-
-  // Constants used inside the region.
+  // Keep bounds and offsets outside set_vl so the downstream translation can
+  // reference them after replacing the region with N-vector and scalar loops.
   Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value n = memref::DimOp::create(rewriter, loc, c, 1);
+  Value k =
+      aTy.isDynamicDim(1)
+          ? memref::DimOp::create(rewriter, loc, a, 1).getResult()
+          : arith::ConstantIndexOp::create(rewriter, loc, aTy.getDimSize(1))
+                .getResult();
 
-  // Determine M/K. Prefer static when available, otherwise take dim from
-  // memref.
-  Value mVal;
-  if (!ShapedType::isDynamic(cTy.getShape()[0])) {
-    mVal = arith::ConstantIndexOp::create(rewriter, loc, cTy.getShape()[0]);
+  auto emitGroups = [&](Value lower, Value upper, int64_t rowsPerGroup) {
+    affine::AffineForOp::create(
+        rewriter, loc, ValueRange{lower}, rewriter.getDimIdentityMap(),
+        ValueRange{upper}, rewriter.getDimIdentityMap(), rowsPerGroup,
+        /*iterArgs=*/ValueRange{},
+        [&](OpBuilder &mb, Location mLoc, Value firstRow, ValueRange) {
+          SmallVector<Value> rows{firstRow};
+          for (int64_t r = 1; r < rowsPerGroup; ++r) {
+            Value offset = arith::ConstantIndexOp::create(mb, mLoc, r);
+            rows.push_back(arith::AddIOp::create(mb, mLoc, firstRow, offset));
+          }
+          emitMatmulVIRRowGroup(mb, mLoc, a, b, c, n, k, c0, rows);
+          affine::AffineYieldOp::create(mb, mLoc);
+        });
+  };
+
+  if (!ShapedType::isDynamic(staticM)) {
+    int64_t fullRows = staticM / mUnroll * mUnroll;
+    if (fullRows != 0) {
+      Value full = arith::ConstantIndexOp::create(rewriter, loc, fullRows);
+      emitGroups(c0, full, mUnroll);
+    }
+    if (fullRows != staticM) {
+      SmallVector<Value> tailRows;
+      for (int64_t row = fullRows; row < staticM; ++row)
+        tailRows.push_back(arith::ConstantIndexOp::create(rewriter, loc, row));
+      emitMatmulVIRRowGroup(rewriter, loc, a, b, c, n, k, c0, tailRows);
+    }
   } else {
-    mVal = memref::DimOp::create(rewriter, loc, c, 0);
+    Value m = memref::DimOp::create(rewriter, loc, c, 0);
+    Value unroll = arith::ConstantIndexOp::create(rewriter, loc, mUnroll);
+    Value remainder = arith::RemUIOp::create(rewriter, loc, m, unroll);
+    Value full = arith::SubIOp::create(rewriter, loc, m, remainder);
+    emitGroups(c0, full, mUnroll);
+    emitGroups(full, m, 1);
   }
 
-  Value kVal;
-  if (!ShapedType::isDynamic(aTy.getShape()[1])) {
-    kVal = arith::ConstantIndexOp::create(rewriter, loc, aTy.getShape()[1]);
-  } else {
-    kVal = memref::DimOp::create(rewriter, loc, a, 1);
-  }
-
-  auto vecTy =
-      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-
-  auto loopM = affine::AffineForOp::create(
-      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
-      ValueRange{mVal}, rewriter.getDimIdentityMap(), /*step=*/1,
-      /*iterArgs=*/ValueRange{},
-      [&](OpBuilder &bld, Location bodyLoc, Value i, ValueRange) {
-        OpBuilder &builder = bld;
-        // acc = load(C[i, 0:]) as a vector along N.
-        Value acc = buddy::vir::LoadOp::create(builder, bodyLoc, vecTy, c,
-                                               ValueRange{i, c0})
-                        .getResult();
-
-        auto loopK = affine::AffineForOp::create(
-            builder, bodyLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
-            ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/ValueRange{acc},
-            [&](OpBuilder &kb, Location kLoc, Value k, ValueRange iterArgs) {
-              OpBuilder &builderK = kb;
-              Value accIn = iterArgs[0];
-              // aScalar = A[i, k]
-              Value aScalar =
-                  memref::LoadOp::create(builderK, kLoc, a, ValueRange{i, k});
-              // aVec = broadcast(aScalar)
-              Value aVec = buddy::vir::BroadcastOp::create(builderK, kLoc,
-                                                           vecTy, aScalar)
-                               .getResult();
-              // bVec = load(B[k, 0:]) as a vector along N.
-              Value bVec = buddy::vir::LoadOp::create(builderK, kLoc, vecTy, b,
-                                                      ValueRange{k, c0})
-                               .getResult();
-              // accOut = fma(aVec, bVec, accIn)
-              Value accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy,
-                                                       aVec, bVec, accIn)
-                                 .getResult();
-              affine::AffineYieldOp::create(builderK, kLoc, accOut);
-            });
-        Value finalAcc = loopK.getResult(0);
-
-        // store acc back to C[i, 0:].
-        buddy::vir::StoreOp::create(builder, bodyLoc, finalAcc, c,
-                                    ValueRange{i, c0});
-        affine::AffineYieldOp::create(builder, bodyLoc);
-      });
-  (void)loopM;
-
-  // Close the set_vl region.
-  vector::YieldOp::create(rewriter, loc);
-
-  rewriter.replaceOp(matmulOp, setVl.getResults());
+  rewriter.eraseOp(matmulOp);
   return success();
 }
 
@@ -2374,16 +2398,20 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
 };
 
 struct LinalgMatmulToVIRPattern : public RewritePattern {
-  LinalgMatmulToVIRPattern(MLIRContext *ctx)
-      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/2, ctx) {}
+  LinalgMatmulToVIRPattern(MLIRContext *ctx, int64_t mUnroll)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/2, ctx),
+        mUnroll(mUnroll) {}
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
     auto matmulOp = dyn_cast<linalg::MatmulOp>(op);
     if (!matmulOp)
       return rewriter.notifyMatchFailure(op, "expected linalg.matmul");
-    return lowerMatmulToVIR(matmulOp, rewriter);
+    return lowerMatmulToVIR(matmulOp, rewriter, mUnroll);
   }
+
+private:
+  int64_t mUnroll;
 };
 
 struct LinalgContractionNamedToVIRPattern : public RewritePattern {
@@ -2459,17 +2487,28 @@ public:
   LinalgToVIRPass() = default;
   LinalgToVIRPass(const LinalgToVIRPass &) {}
 
+  Option<int64_t> matmulMUnroll{
+      *this, "matmul-m-unroll",
+      llvm::cl::desc("Number of independent matmul row accumulators (1-32)."),
+      llvm::cl::init(8)};
+
   StringRef getArgument() const final { return "lower-linalg-to-vir"; }
   StringRef getDescription() const final {
     return "Lower Linalg Dialect to VIR Dialect (dynamic vectors).";
   }
 
   void runOnOperation() override {
+    if (matmulMUnroll < 1 || matmulMUnroll > 32) {
+      getOperation().emitError(
+          "matmul-m-unroll must be an integer between 1 and 32");
+      signalPassFailure();
+      return;
+    }
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
     patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
-    patterns.add<LinalgMatmulToVIRPattern>(ctx);
+    patterns.add<LinalgMatmulToVIRPattern>(ctx, matmulMUnroll.getValue());
     patterns.add<LinalgGenericToVIRPattern>(ctx);
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
       signalPassFailure();
@@ -2477,8 +2516,9 @@ public:
   }
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<arith::ArithDialect, linalg::LinalgDialect,
-                    math::MathDialect, memref::MemRefDialect, scf::SCFDialect,
+    registry.insert<affine::AffineDialect, arith::ArithDialect,
+                    linalg::LinalgDialect, math::MathDialect,
+                    memref::MemRefDialect, scf::SCFDialect,
                     buddy::vir::VIRDialect, vector::VectorDialect>();
   }
 };
