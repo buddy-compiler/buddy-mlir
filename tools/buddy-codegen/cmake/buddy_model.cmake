@@ -1413,7 +1413,8 @@ function(buddy_add_model)
     # The pool implements the OpenMP entry points the model calls.
     list(REMOVE_ITEM MDL_STAGE3_LIBS
       -lomp "${BUDDY_OPENMP_RUNTIME_LIBRARY}" "${RISCV_OMP_SHARED}")
-    list(APPEND MDL_STAGE3_LIBS -lpthread)
+    # dladdr (the names in its profile) is in libdl before glibc 2.34
+    list(APPEND MDL_STAGE3_LIBS -lpthread -ldl)
   endif()
   set(MDL_STAGE3_EXTRA_OBJS)
   foreach(_src ${_mdl_runtime_srcs})
