@@ -392,7 +392,7 @@ function(buddy_add_model)
   #   SpacemiT TCM they read their activations from.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
-            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime') + ';' + str(s.get('kernels', 'k3')))"
+            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime') + ';' + str(s.get('kernels') or 'k3'))"
             "${MDL_SPEC}"
     OUTPUT_VARIABLE _mdl_spec_fields
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -405,6 +405,23 @@ function(buddy_add_model)
   list(GET _mdl_spec_fields 2 MDL_THREAD_POOL)
   list(GET _mdl_spec_fields 3 MDL_PREFILL_IME)
   list(GET _mdl_spec_fields 4 MDL_W4_KERNELS)
+  # The A210 kernels target RVV cores with VLEN 128 and Zvfh
+  # (docs/A210DeepSeekR1.md): a RISC-V build for another exact VLEN assumes
+  # vector lengths the A210 does not have, and without Zvfh the f16 weight
+  # scales are not vectors. Host builds (tests on x86) are not affected.
+  if(MDL_VARIANT STREQUAL "w4g32" AND MDL_W4_KERNELS STREQUAL "a210" AND
+     (IS_RVV_CROSSCOMPILE OR HAVE_LOCAL_RVV))
+    if(BUDDY_RISCV_VLEN AND NOT BUDDY_RISCV_VLEN EQUAL 128)
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): \"kernels\": \"a210\" targets VLEN "
+        "128; BUDDY_RISCV_VLEN is ${BUDDY_RISCV_VLEN}.")
+    endif()
+    if(NOT BUDDY_RISCV_ENABLE_ZFH_ZVFH)
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): \"kernels\": \"a210\" needs "
+        "BUDDY_RISCV_ENABLE_ZFH_ZVFH=ON (the A210 cores have Zvfh).")
+    endif()
+  endif()
   if(MDL_PREFILL_IME AND NOT IS_RVV_CROSSCOMPILE AND NOT HAVE_LOCAL_RVV)
     message(FATAL_ERROR
       "buddy_add_model (${MDL_NAME}): \"prefill_ime\" targets the SpacemiT "

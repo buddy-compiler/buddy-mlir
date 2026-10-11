@@ -76,9 +76,11 @@ from .k3_w4 import (
     _vec,
 )
 
-# Bumped whenever the bytes of the packed weights change, so that a build
-# does not reuse weights packed differently (import_model.w4g32_layout).
-W4G32_LAYOUT_VERSION = 1
+# The version of the packed weight layout (import_model.w4g32_layout). Bump
+# the first part whenever pack_tiles changes the bytes; the second is the
+# K3 version, as the values come from k3_w4.quantize_q4: a change of the
+# quantization bumps the K3 version, which re-exports the A210 weights too.
+W4G32_LAYOUT_VERSION = f"1.k3-{k3_w4.W4G32_LAYOUT_VERSION}"
 TW = 16  # columns per weight tile: one e8 register at VLEN 128
 # Prefill tiles by core: the block shape (rows of a block, which share each
 # unpacked weight vector; int16 accumulators per row) and the LLVM

@@ -52,19 +52,26 @@ The spec (`models/deepseek_r1/specs/a210_w4g32.json`):
   into the model library. `"prefill_ime"` needs `"k3"`.
 - `"thread_weights"` (A210 kernels only, optional): one positive weight per
   thread for the kernels of the prefill chunk and one for decode; thread i
-  gets about weights[i] / sum(weights) of each kernel's work. The thread pool
-  (`thread_pool`) pins thread i to the i-th CPU the process may run on, so
-  the lists above are in CPU order: run `buddy-cli` with all 8 CPUs allowed.
-  Without a list, equal shares.
-- `"thread_cores"` (A210 kernels only, optional): the core of each thread,
-  `"c908"` or `"c920"`, in the same order. It selects the tile function a
+  gets about weights[i] / sum(weights) of each kernel's work. It needs
+  `"thread_pool": true`: the pool pins thread i to the i-th CPU the process
+  may run on, so the lists above are in CPU order and assume all 8 CPUs.
+  Run `buddy-cli` with all 8 CPUs allowed: with fewer (`taskset`, a
+  container's CPU set), the pool has fewer threads, a thread runs the shares
+  of several, and the lists no longer match the cores (the results are the
+  same, only slower). Without a list, equal shares.
+- `"thread_cores"` (A210 kernels only, optional, needs `"thread_pool":
+  true` likewise): the core of each thread, `"c908"` or `"c920"`, in the same
+  order. It selects the tile function a
   thread runs in the prefill kernels (`a210_w4.TILE_CONFIGS`: the block
   shape and the LLVM scheduling model, `tune-cpu`); without it, all threads
   run the C920 one.
 - The weight files have the same size as with the K3 kernels but other
   bytes; `import_model.py` records the layout (`kernels` and the module's
-  `W4G32_LAYOUT_VERSION`) in the weights manifest, so that a build never reuses
-  weights packed for another layout.
+  `W4G32_LAYOUT_VERSION`, which for the A210 includes the K3 version as the
+  values come from `k3_w4.quantize_q4`) in the weights manifest, so that a
+  build never reuses weights packed for another layout.
+- For a RISC-V target, `buddy_model.cmake` stops when `BUDDY_RISCV_VLEN` is
+  set to another value than 128 or `BUDDY_RISCV_ENABLE_ZFH_ZVFH` is off.
 
 ## Run
 

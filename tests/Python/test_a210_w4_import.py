@@ -53,6 +53,7 @@ spec = {
     "max_token_len": 64,
     "prefill_chunk": 32,
     "num_threads": 4,
+    "thread_pool": True,
 }
 config = gen_config.gen_config(spec, hf_path)
 for w in config["weights"]:
@@ -68,7 +69,8 @@ print("layout:", import_model.w4g32_layout(config))
 # CHECK-NEXT: pipelines: {{.*}}subgraph_decode=subgraph_decode, a210_kernels=kernels{{$}}
 # CHECK-NEXT: kernels: a210 {'prefill': [1, 1, 3, 3], 'decode': [1, 1, 0.5, 0.5]}
 # CHECK-NEXT: cores: ['c908', 'c908', 'c920', 'c920']
-# CHECK-NEXT: layout: a210:{{[0-9]+}}
+# the A210 version includes the K3 one (k3_w4.quantize_q4 makes the values)
+# CHECK-NEXT: layout: a210:1.k3-1
 
 
 def error(**extra):
@@ -97,6 +99,15 @@ print("no weights:", error(thread_weights=None))
 print("cores k3:", error(kernels="k3", thread_weights=None))
 # CHECK-NEXT: cores x: ValueError: thread_cores must be 4 of ('c908', 'c920') (num_threads), got ['c908', 'c920']
 print("cores x:", error(thread_cores=["c908", "c920"]))
+# Per-thread fields need the pinned threads of the thread pool.
+# CHECK-NEXT: weights no pool: ValueError: thread_weights needs thread_pool true
+print("weights no pool:", error(thread_pool=False))
+# CHECK-NEXT: cores no pool: ValueError: thread_cores needs thread_pool true
+print("cores no pool:", error(thread_pool=False, thread_weights=None))
+# CHECK-NEXT: kernels null: kernels k3
+print(
+    "kernels null:", error(kernels=None, thread_weights=None, thread_cores=None)
+)
 
 prefill, decode, _ = import_model.compile_chunk_graphs(model, config)
 import_model.apply_pre_transforms(prefill[0], decode[0])

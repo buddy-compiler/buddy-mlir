@@ -310,6 +310,14 @@ def derive_kernels(spec: dict, variant: str) -> str | None:
     return raw
 
 
+def require_pinned_threads(spec: dict, field: str) -> None:
+    """Per-thread fields mean something only when thread i stays on one
+    known CPU: the thread pool pins it to the i-th CPU the process may run
+    on, libomp threads may migrate."""
+    if spec.get("thread_pool") is not True:
+        raise ValueError(f"{field} needs thread_pool true")
+
+
 def derive_thread_weights(spec: dict, kernels: str | None) -> dict | None:
     """Opt-in "thread_weights" of the A210 kernels: {"prefill": [...],
     "decode": [...]}, one positive weight per thread (num_threads), the share
@@ -319,6 +327,7 @@ def derive_thread_weights(spec: dict, kernels: str | None) -> dict | None:
         return None
     if kernels != "a210":
         raise ValueError("thread_weights needs the kernels a210")
+    require_pinned_threads(spec, "thread_weights")
     threads = spec.get("num_threads", 48)
     if not isinstance(raw, dict) or set(raw) - {"prefill", "decode"}:
         raise ValueError(
@@ -350,6 +359,7 @@ def derive_thread_cores(spec: dict, kernels: str | None) -> list | None:
         return None
     if kernels != "a210":
         raise ValueError("thread_cores needs the kernels a210")
+    require_pinned_threads(spec, "thread_cores")
     threads = spec.get("num_threads", 48)
     if (
         not isinstance(raw, list)
