@@ -289,6 +289,80 @@ def derive_prefill_ime(spec: dict, variant: str, prefill_chunk: int) -> bool:
     return raw
 
 
+# "kernels": which collection of w4g32 kernels the model uses: "k3"
+# (graph/transform/k3_w4.py, docs/K3DeepSeekR1.md) or "a210"
+# (graph/transform/a210_w4.py, docs/A210DeepSeekR1.md).
+W4G32_KERNELS = ("k3", "a210")
+
+
+def derive_kernels(spec: dict, variant: str) -> str | None:
+    """The w4g32 kernel collection (default "k3"); None for other variants."""
+    raw = spec.get("kernels")
+    if variant != "w4g32":
+        if raw is not None:
+            raise ValueError("kernels needs the variant w4g32")
+        return None
+    raw = "k3" if raw is None else raw
+    if raw not in W4G32_KERNELS:
+        raise ValueError(f"kernels must be one of {W4G32_KERNELS}, got {raw!r}")
+    if raw == "a210" and spec.get("prefill_ime"):
+        raise ValueError("prefill_ime needs the kernels k3")
+    return raw
+
+
+def derive_thread_weights(spec: dict, kernels: str | None) -> dict | None:
+    """Opt-in "thread_weights" of the A210 kernels: {"prefill": [...],
+    "decode": [...]}, one positive weight per thread (num_threads), the share
+    of each kernel's work thread i gets; a missing list means equal shares."""
+    raw = spec.get("thread_weights")
+    if raw is None:
+        return None
+    if kernels != "a210":
+        raise ValueError("thread_weights needs the kernels a210")
+    threads = spec.get("num_threads", 48)
+    if not isinstance(raw, dict) or set(raw) - {"prefill", "decode"}:
+        raise ValueError(
+            'thread_weights must be {"prefill": [...], "decode": [...]}'
+        )
+    for key, ws in raw.items():
+        if (
+            not isinstance(ws, list)
+            or len(ws) != threads
+            or not all(isinstance(w, (int, float)) and w > 0 for w in ws)
+        ):
+            raise ValueError(
+                f"thread_weights {key} must be {threads} positive numbers "
+                f"(num_threads), got {ws!r}"
+            )
+    return {key: raw.get(key) for key in ("prefill", "decode")}
+
+
+# "thread_cores": the cores the A210 kernels know (a210_w4.TILE_SHAPES).
+A210_CORES = ("c908", "c920")
+
+
+def derive_thread_cores(spec: dict, kernels: str | None) -> list | None:
+    """Opt-in "thread_cores" of the A210 kernels: the core of each thread
+    (num_threads entries, "c908" or "c920"), which picks the shape of its
+    prefill tiles; none: the C920 shape for all."""
+    raw = spec.get("thread_cores")
+    if raw is None:
+        return None
+    if kernels != "a210":
+        raise ValueError("thread_cores needs the kernels a210")
+    threads = spec.get("num_threads", 48)
+    if (
+        not isinstance(raw, list)
+        or len(raw) != threads
+        or not all(c in A210_CORES for c in raw)
+    ):
+        raise ValueError(
+            f"thread_cores must be {threads} of {A210_CORES} (num_threads), "
+            f"got {raw!r}"
+        )
+    return list(raw)
+
+
 def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
     """w4g32 (graph/transform/k3_w4.py) buffer sizes, from the HF config of a
     Qwen2 model: every Linear weight [K, N] becomes K * N * 9 / 16 bytes of
@@ -332,6 +406,7 @@ def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
         (inter, h),  # down
     ]
     for k, n in linears + [(h, vocab)]:
+        # N % 128: the K3 tiles (the A210 ones need N % 16)
         if k % 32 or n % 128:
             raise ValueError(
                 f"w4g32 needs Linear weights [K, N] with K % 32 == 0 and "
@@ -615,6 +690,13 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "hugepages": memory_options["hugepages"],
         "thread_pool": derive_thread_pool(spec),
         "prefill_ime": derive_prefill_ime(spec, variant, prefill_chunk),
+        "kernels": derive_kernels(spec, variant),
+        "thread_weights": derive_thread_weights(
+            spec, derive_kernels(spec, variant)
+        ),
+        "thread_cores": derive_thread_cores(
+            spec, derive_kernels(spec, variant)
+        ),
         # >0: forward_prefill takes this many prompt tokens per call
         "prefill_chunk": prefill_chunk,
         "cpp_types": {
@@ -645,7 +727,12 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
                             else "kernels"
                         )
                     }
-                    if variant == "w4g32"
+                    if derive_kernels(spec, variant) == "k3"
+                    else {}
+                ),
+                **(
+                    {"a210_kernels": "kernels"}
+                    if derive_kernels(spec, variant) == "a210"
                     else {}
                 ),
                 **(

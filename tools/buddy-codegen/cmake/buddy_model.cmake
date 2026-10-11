@@ -382,7 +382,8 @@ function(buddy_add_model)
   #   runtime/arena/BuddyArena.c (Stage 3), which the session generated for
   #   llm_prefill_decode resets before each forward call;
   # - "variant": "w4g32" (docs/K3DeepSeekR1.md): the model library gets the
-  #   generated kernels, k3_kernels.o;
+  #   generated kernels, k3_kernels.o, or with "kernels": "a210"
+  #   (docs/A210DeepSeekR1.md) a210_kernels.o;
   # - "thread_pool": true (docs/ModelThreadPool.md): the model library gets
   #   runtime/threadpool/BuddyThreadPool.c instead of libomp;
   # - "prefill_ime": true (docs/K3DeepSeekR1.md): the model library gets the
@@ -391,7 +392,7 @@ function(buddy_add_model)
   #   SpacemiT TCM they read their activations from.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
-            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime'))"
+            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime') + ';' + str(s.get('kernels', 'k3')))"
             "${MDL_SPEC}"
     OUTPUT_VARIABLE _mdl_spec_fields
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -403,6 +404,7 @@ function(buddy_add_model)
   list(GET _mdl_spec_fields 1 MDL_VARIANT)
   list(GET _mdl_spec_fields 2 MDL_THREAD_POOL)
   list(GET _mdl_spec_fields 3 MDL_PREFILL_IME)
+  list(GET _mdl_spec_fields 4 MDL_W4_KERNELS)
   if(MDL_PREFILL_IME AND NOT IS_RVV_CROSSCOMPILE AND NOT HAVE_LOCAL_RVV)
     message(FATAL_ERROR
       "buddy_add_model (${MDL_NAME}): \"prefill_ime\" targets the SpacemiT "
@@ -1008,7 +1010,7 @@ function(buddy_add_model)
       "${BIN}/forward_decode.o"
       "${BIN}/subgraph_decode.o")
     if(MDL_VARIANT STREQUAL "w4g32")
-      list(APPEND OBJ_FILES "${BIN}/k3_kernels.o")
+      list(APPEND OBJ_FILES "${BIN}/${MDL_W4_KERNELS}_kernels.o")
     endif()
     if(MDL_PREFILL_IME)
       list(APPEND OBJ_FILES "${BIN}/k3_kernels_ime.o")

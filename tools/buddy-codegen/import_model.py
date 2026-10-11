@@ -903,6 +903,8 @@ def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
     from buddy.compiler.graph.transform.k3_w4 import gen_kernels, k3_w4_rewrite
 
     threads = config["compilation"]["num_threads"]
+    if config.get("kernels") == "a210":
+        return apply_a210_w4(graph_prefill, graph_decode, config, output_dir)
     use_ime = bool(config.get("prefill_ime"))
     ime_weights = set()
     specs = {}
@@ -931,6 +933,45 @@ def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
         with open(path, "w") as f:
             f.write(gen_kernels(specs.values(), part))
         print(f"[import] Written: {os.path.basename(path)}", file=sys.stderr)
+
+
+def apply_a210_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
+    """w4g32 with "kernels": "a210": the rewrite of apply_k3_w4 with the
+    kernels of graph/transform/a210_w4.py (RVV, VLEN 128, the work of each
+    kernel split by "thread_weights", the prefill tiles of each thread
+    those of its core in "thread_cores"), written to
+    a210_kernels-w4g32.mlir (compile_pipeline.py pipeline "kernels")."""
+    from buddy.compiler.graph.transform.a210_w4 import (
+        a210_w4_rewrite,
+        gen_kernels,
+    )
+
+    threads = config["compilation"]["num_threads"]
+    weights = config.get("thread_weights")
+    cores = config.get("thread_cores")
+    specs = {}
+    for graph, rows in (
+        (graph_prefill, config["prefill_chunk"]),
+        (graph_decode, 1),
+    ):
+        # inputs: the token ids, then the start position
+        for spec in a210_w4_rewrite(
+            graph, rows, graph.inputs[1].name, threads, weights, cores
+        ):
+            specs[spec["name"]] = spec
+
+    def shapes(graph):
+        return [
+            (tuple(p.tensor_meta["shape"]), p.tensor_meta["dtype"])
+            for p in graph.params
+        ]
+
+    if shapes(graph_prefill) != shapes(graph_decode):
+        raise RuntimeError("w4g32: prefill and decode parameters differ")
+    path = os.path.join(output_dir, "a210_kernels-w4g32.mlir")
+    with open(path, "w") as f:
+        f.write(gen_kernels(specs.values()))
+    print(f"[import] Written: {os.path.basename(path)}", file=sys.stderr)
 
 
 def extract_k3_weights(graph, config: dict) -> dict[str, numpy.ndarray]:
