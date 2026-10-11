@@ -36,7 +36,7 @@ def normalize_uri(raw: str) -> str:
 def gen_manifest(
     spec: dict,
     runner_library: str,
-    embedding_library: str | None = None,
+    model_library: str | None = None,
     version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
@@ -59,10 +59,10 @@ def gen_manifest(
     p(f'    hidden_size = "{hidden_size}",')
     p(
         f'    runner_library = "{runner_library}"'
-        + ("," if embedding_library else "")
+        + ("," if model_library else "")
     )
-    if embedding_library:
-        p(f'    embedding_library = "{normalize_uri(embedding_library)}"}} {{')
+    if model_library:
+        p(f'    model_library = "{normalize_uri(model_library)}"}} {{')
     else:
         lines[-1] += "} {"
     p("")
@@ -113,9 +113,9 @@ def main() -> int:
         help="Runner plugin library URI/name for module attrs.",
     )
     parser.add_argument(
-        "--embedding-library",
+        "--model-library",
         default=None,
-        help="Embedding plugin library URI/name for module attrs.",
+        help="Server model plugin library URI/name for module attrs.",
     )
     parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
@@ -133,7 +133,7 @@ def main() -> int:
     text = gen_manifest(
         spec,
         normalize_uri(args.runner_library),
-        args.embedding_library,
+        args.model_library,
         version=args.version,
     )
 

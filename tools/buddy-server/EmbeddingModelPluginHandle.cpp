@@ -46,7 +46,7 @@ EmbeddingModelPluginHandle::EmbeddingModelPluginHandle(
     const std::string &pluginPath)
     : pluginPath(pluginPath) {
   if (pluginPath.empty())
-    throw std::runtime_error("buddy-server: --embedding-so path is empty");
+    throw std::runtime_error("buddy-server: model plugin path is empty");
   handle = dlopen(pluginPath.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!handle)
     throw std::runtime_error("buddy-server: dlopen embedding plugin failed: " +

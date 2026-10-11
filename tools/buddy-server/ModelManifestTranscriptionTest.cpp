@@ -25,25 +25,21 @@ int main(int argc, char **argv) {
   assert(argc == 3);
   const auto fileManifest = buddy::runtime::ModelManifest::loadFromRax(argv[1]);
   assert(fileManifest.modelName == "fake_transcription");
-  assert(
-      std::filesystem::is_regular_file(fileManifest.transcriptionLibraryPath));
-  assert(
-      std::filesystem::path(fileManifest.transcriptionLibraryPath).filename() ==
-      "transcription.so");
+  assert(std::filesystem::is_regular_file(fileManifest.modelLibraryPath));
+  assert(std::filesystem::path(fileManifest.modelLibraryPath).filename() ==
+         "transcription.so");
   assert(std::filesystem::is_regular_file(fileManifest.runnerLibraryPath));
 
   const auto payloadManifest =
       buddy::runtime::ModelManifest::loadFromRax(argv[2]);
-  assert(std::filesystem::is_regular_file(
-      payloadManifest.transcriptionLibraryPath));
-  assert(std::filesystem::path(payloadManifest.transcriptionLibraryPath)
-             .filename() == "transcription.so");
-  assert(payloadManifest.transcriptionLibraryPath !=
-         fileManifest.transcriptionLibraryPath);
-  assert(payloadManifest.moduleAttrs.at("transcription_library") ==
+  assert(std::filesystem::is_regular_file(payloadManifest.modelLibraryPath));
+  assert(std::filesystem::path(payloadManifest.modelLibraryPath).filename() ==
+         "transcription.so");
+  assert(payloadManifest.modelLibraryPath != fileManifest.modelLibraryPath);
+  assert(payloadManifest.moduleAttrs.at("model_library") ==
          "payload:transcription.so");
-  assert(payloadManifest.resolvedModuleAttrs.at("transcription_library") ==
-         payloadManifest.transcriptionLibraryPath);
+  assert(payloadManifest.resolvedModuleAttrs.at("model_library") ==
+         payloadManifest.modelLibraryPath);
   std::cout << "ModelManifest transcription tests passed\n";
   return 0;
 }

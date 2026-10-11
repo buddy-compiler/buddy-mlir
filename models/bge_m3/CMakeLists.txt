@@ -19,7 +19,7 @@ buddy_add_model(
   RUNNER_SRC BgeM3Runner.cpp
   RUNNER_PLUGIN_SRC BgeM3RunnerPlugin.cpp
   EXTRA_SRCS BgeM3Runtime.cpp BgeM3EmbeddingModel.cpp
-  EMBEDDING_PLUGIN_SRC BgeM3EmbeddingModelPlugin.cpp
+  MODEL_PLUGIN_SRC BgeM3EmbeddingModelPlugin.cpp
   LOCAL_MODEL "${BUDDY_BGE_M3_MODEL_PATH}"
   LOCAL_MODEL_ENV BUDDY_LOCAL_MODEL_PATH
   IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-bge-m3.py"

@@ -94,9 +94,9 @@ The output is a JSON-like dense embedding vector with dimension `1024`.
 ## buddy-server embeddings API
 
 BGE-M3 is an embedding API, not a chat-completion model. The build now emits an
-independent `bge_m3_embedding.so` plugin in addition to the CLI
+independent `bge_m3_server.so` plugin in addition to the CLI
 `bge_m3_runner.so`; the generated manifest carries
-`embedding_library = "file:bge_m3_embedding.so"`. Start `buddy-server` directly
+`model_library = "file:bge_m3_server.so"`. Start `buddy-server` directly
 from the package (the plugin is discovered from the `.rax`):
 
 ```bash

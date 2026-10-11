@@ -188,14 +188,8 @@ endfunction()
 #   RUNNER_SRC    <file.cpp>                model-specific runner source
 #   [RUNNER_PLUGIN_SRC <file.cpp>]          C ABI plugin wrapper source
 #   [RUNNER_HDR   <file.h>]                 model-specific runner header
-#   [SERVING_PLUGIN_SRC <file.cpp>]         resident model plugin wrapper source
-#   [SERVING_LIBRARY <URI_OR_NAME>]         optional resident serving plugin URI
-#   [EMBEDDING_PLUGIN_SRC <file.cpp>]       embedding model plugin wrapper source
-#   [EMBEDDING_LIBRARY <URI_OR_NAME>]       optional embedding plugin URI
-#   [MASKED_LM_PLUGIN_SRC <file.cpp>]       masked-LM plugin wrapper source
-#   [MASKED_LM_LIBRARY <URI_OR_NAME>]       optional masked-LM plugin URI
-#   [TRANSCRIPTION_PLUGIN_SRC <file.cpp>] audio transcription plugin source
-#   [TRANSCRIPTION_LIBRARY <URI_OR_NAME>] audio transcription plugin URI
+#   [MODEL_PLUGIN_SRC <file.cpp>]           server model plugin wrapper source
+#   [MODEL_PLUGIN_LIBRARY <URI_OR_NAME>]    optional server plugin URI
 #   [EXTRA_SRCS <file.cpp>...]              optional model runtime sources
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
 #   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
@@ -275,7 +269,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;SERVING_PLUGIN_SRC;SERVING_LIBRARY;EMBEDDING_PLUGIN_SRC;EMBEDDING_LIBRARY;MASKED_LM_PLUGIN_SRC;MASKED_LM_LIBRARY;TRANSCRIPTION_PLUGIN_SRC;TRANSCRIPTION_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -453,33 +447,12 @@ function(buddy_add_model)
     list(APPEND MDL_GEN_MANIFEST_ARGS --version "${BUDDY_PACKAGE_VERSION}")
   endif()
   set(MDL_EXTRA_STAGE4_DEPS)
-  if(MDL_SERVING_PLUGIN_SRC AND NOT MDL_SERVING_LIBRARY)
-    set(MDL_SERVING_LIBRARY "${MDL_NAME}_serving.so")
+  if(MDL_MODEL_PLUGIN_SRC AND NOT MDL_MODEL_PLUGIN_LIBRARY)
+    set(MDL_MODEL_PLUGIN_LIBRARY "${MDL_NAME}_server.so")
   endif()
-  if(MDL_SERVING_LIBRARY)
+  if(MDL_MODEL_PLUGIN_LIBRARY)
     list(APPEND MDL_GEN_MANIFEST_ARGS
-      --serving-library "${MDL_SERVING_LIBRARY}")
-  endif()
-  if(MDL_EMBEDDING_PLUGIN_SRC AND NOT MDL_EMBEDDING_LIBRARY)
-    set(MDL_EMBEDDING_LIBRARY "${MDL_NAME}_embedding.so")
-  endif()
-  if(MDL_EMBEDDING_LIBRARY)
-    list(APPEND MDL_GEN_MANIFEST_ARGS
-      --embedding-library "${MDL_EMBEDDING_LIBRARY}")
-  endif()
-  if(MDL_MASKED_LM_PLUGIN_SRC AND NOT MDL_MASKED_LM_LIBRARY)
-    set(MDL_MASKED_LM_LIBRARY "${MDL_NAME}_masked_lm.so")
-  endif()
-  if(MDL_MASKED_LM_LIBRARY)
-    list(APPEND MDL_GEN_MANIFEST_ARGS
-      --masked-lm-library "${MDL_MASKED_LM_LIBRARY}")
-  endif()
-  if(MDL_TRANSCRIPTION_PLUGIN_SRC AND NOT MDL_TRANSCRIPTION_LIBRARY)
-    set(MDL_TRANSCRIPTION_LIBRARY "${MDL_NAME}_transcription.so")
-  endif()
-  if(MDL_TRANSCRIPTION_LIBRARY)
-    list(APPEND MDL_GEN_MANIFEST_ARGS
-      --transcription-library "${MDL_TRANSCRIPTION_LIBRARY}")
+      --model-library "${MDL_MODEL_PLUGIN_LIBRARY}")
   endif()
 
   if(IS_RVV_CROSSCOMPILE)
@@ -600,10 +573,7 @@ function(buddy_add_model)
   set(GEN_RHAL    "${GEN_DIR}/${MDL_NAME}.mlir")
   set(RUNNER_PLUGIN_NAME "${MDL_NAME}_runner.so")
   set(IMPORT_STAMP "${BIN}/.buddy_import_done")
-  set(SERVING_PLUGIN_TARGET "")
-  set(EMBEDDING_PLUGIN_TARGET "")
-  set(MASKED_LM_PLUGIN_TARGET "")
-  set(TRANSCRIPTION_PLUGIN_TARGET "")
+  set(MODEL_PLUGIN_TARGET "")
 
   # ── gen_config.py ─────────────────────────────────────────────────────────
   if(MDL_MODEL_KIND STREQUAL "single_forward")
@@ -722,22 +692,22 @@ function(buddy_add_model)
   target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
   target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
 
-  # Qwen3-VL has a custom packaging path, so create the resident plugin before
+  # Qwen3-VL has a custom packaging path, so create the model plugin before
+  # that path returns instead of relying on the generic branch below.
   if(MDL_CUSTOM_QWEN3_VL)
-    # that path returns instead of relying on the generic branch below.
-    set(SERVING_PLUGIN_TARGET "")
-    if(MDL_SERVING_PLUGIN_SRC)
-      set(SERVING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_serving")
-      add_library(${SERVING_PLUGIN_TARGET} SHARED
-        "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}")
-      set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
+    set(MODEL_PLUGIN_TARGET "")
+    if(MDL_MODEL_PLUGIN_SRC)
+      set(MODEL_PLUGIN_TARGET "buddy_models_${MDL_NAME}_server")
+      add_library(${MODEL_PLUGIN_TARGET} SHARED
+        "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_MODEL_PLUGIN_SRC}")
+      set_target_properties(${MODEL_PLUGIN_TARGET} PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${BIN}"
         RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-        OUTPUT_NAME "${MDL_NAME}_serving"
+        OUTPUT_NAME "${MDL_NAME}_server"
         PREFIX "")
-      target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-      target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
-      install(TARGETS ${SERVING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+      target_link_libraries(${MODEL_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+      target_compile_features(${MODEL_PLUGIN_TARGET} PRIVATE cxx_std_17)
+      install(TARGETS ${MODEL_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
     endif()
 
   endif()
@@ -771,8 +741,8 @@ function(buddy_add_model)
       BUDDY_RAX_EMBED_PAYLOAD=${_Q_RAX_EMBED_PAYLOAD}
       QWEN3_VL_MODEL_PATH=${MDL_LOCAL_MODEL})
 
-    if(SERVING_PLUGIN_TARGET)
-      list(APPEND _Q_ENV QWEN3_VL_SERVING_SO=$<TARGET_FILE:${SERVING_PLUGIN_TARGET}>)
+    if(MODEL_PLUGIN_TARGET)
+      list(APPEND _Q_ENV QWEN3_VL_MODEL_SO=$<TARGET_FILE:${MODEL_PLUGIN_TARGET}>)
     endif()
 
     set(_Q_IMPORT_ARGS)
@@ -904,7 +874,7 @@ function(buddy_add_model)
               ${_Q_VIS}/vision_shim.so ${_Q_DEC}/decoder_shim.so
               ${_Q_VIS}/vision_arg0.data ${_Q_DEC}/decoder_arg0.data
               ${_Q_DEC}/embed_table.bin ${RUNNER_PLUGIN_TARGET} rax-pack
-              ${SERVING_PLUGIN_TARGET}
+              ${MODEL_PLUGIN_TARGET}
       COMMENT "[${MDL_NAME}] Stage 4: packing ${MDL_NAME}.rax"
       VERBATIM)
 
@@ -914,75 +884,25 @@ function(buddy_add_model)
     return()
   endif()
 
-  if(MDL_SERVING_PLUGIN_SRC)
-    set(SERVING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_serving")
-    add_library(${SERVING_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}"
-    )
-    set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
+  if(MDL_MODEL_PLUGIN_SRC)
+    set(MODEL_PLUGIN_TARGET "buddy_models_${MDL_NAME}_server")
+    add_library(${MODEL_PLUGIN_TARGET} SHARED
+      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_MODEL_PLUGIN_SRC}")
+    set_target_properties(${MODEL_PLUGIN_TARGET} PROPERTIES
       LIBRARY_OUTPUT_DIRECTORY "${BIN}"
       RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_serving"
-      PREFIX ""
-    )
-    target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
-  endif()
-
-  if(MDL_EMBEDDING_PLUGIN_SRC)
-    set(EMBEDDING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_embedding")
-    add_library(${EMBEDDING_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_EMBEDDING_PLUGIN_SRC}"
-    )
-    set_target_properties(${EMBEDDING_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_embedding"
-      PREFIX ""
-    )
-    target_link_libraries(${EMBEDDING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${EMBEDDING_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${EMBEDDING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
-  endif()
-
-  if(MDL_MASKED_LM_PLUGIN_SRC)
-    set(MASKED_LM_PLUGIN_TARGET "buddy_models_${MDL_NAME}_masked_lm")
-    add_library(${MASKED_LM_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_MASKED_LM_PLUGIN_SRC}")
-    set_target_properties(${MASKED_LM_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_masked_lm"
+      OUTPUT_NAME "${MDL_NAME}_server"
       PREFIX "")
-    target_link_libraries(${MASKED_LM_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${MASKED_LM_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${MASKED_LM_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
-  endif()
-
-  # ════════════════════════════════════════════════════════════════════════════
-  if(MDL_TRANSCRIPTION_PLUGIN_SRC)
-    set(TRANSCRIPTION_PLUGIN_TARGET
-      "buddy_models_${MDL_NAME}_transcription")
-    add_library(${TRANSCRIPTION_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_TRANSCRIPTION_PLUGIN_SRC}")
-    set_target_properties(${TRANSCRIPTION_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_transcription"
-      PREFIX "")
-    target_link_libraries(${TRANSCRIPTION_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${TRANSCRIPTION_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${TRANSCRIPTION_PLUGIN_TARGET}
+    target_link_libraries(${MODEL_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+    target_compile_features(${MODEL_PLUGIN_TARGET} PRIVATE cxx_std_17)
+    install(TARGETS ${MODEL_PLUGIN_TARGET}
       EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
   endif()
 
   if(IS_RVV_CROSSCOMPILE)
     _buddy_rvv_cross_plugins(
       ${RUNNER_PLUGIN_TARGET}
-      ${SERVING_PLUGIN_TARGET}
-      ${EMBEDDING_PLUGIN_TARGET}
-      ${MASKED_LM_PLUGIN_TARGET}
-      ${TRANSCRIPTION_PLUGIN_TARGET})
+      ${MODEL_PLUGIN_TARGET})
     list(APPEND MDL_EXTRA_STAGE4_DEPS ${_BUDDY_RVV_PLUGIN_FILES})
   endif()
 
@@ -1525,15 +1445,10 @@ function(buddy_add_model)
     "${GEN_RHAL}"
     "${MODEL_SO}"
     ${RUNNER_PLUGIN_TARGET}
-    ${EMBEDDING_PLUGIN_TARGET}
-    ${MASKED_LM_PLUGIN_TARGET}
-    ${TRANSCRIPTION_PLUGIN_TARGET}
+    ${MODEL_PLUGIN_TARGET}
     ${MDL_ASSET_DSTS})
   if(MDL_MODEL_KIND STREQUAL "single_forward")
     list(APPEND MDL_STAGE4_DEPS "${BIN}/arg0.data")
-  endif()
-  if(SERVING_PLUGIN_TARGET)
-    list(APPEND MDL_STAGE4_DEPS ${SERVING_PLUGIN_TARGET})
   endif()
   list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
 

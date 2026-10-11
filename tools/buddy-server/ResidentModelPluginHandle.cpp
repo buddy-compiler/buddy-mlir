@@ -53,7 +53,7 @@ ResidentModelPluginHandle::ResidentModelPluginHandle(
     const std::string &pluginPath)
     : pluginPath(pluginPath) {
   if (pluginPath.empty())
-    throw std::runtime_error("buddy-server: --serving-so path is empty");
+    throw std::runtime_error("buddy-server: model plugin path is empty");
 
   handle = dlopen(pluginPath.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!handle) {

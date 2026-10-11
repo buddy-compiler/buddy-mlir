@@ -70,8 +70,8 @@ Qwen-3-VL 0.0
 2026
 ```
 
-Qwen3-VL packages also contain `qwen3_vl_serving.so`, referenced by the
-manifest `serving_library` attribute. Start the resident HTTP model with:
+Qwen3-VL packages also contain `qwen3_vl_server.so`, referenced by the
+manifest `model_library` attribute. Start the resident HTTP model with:
 
 ```bash
 ./build/bin/buddy-server \

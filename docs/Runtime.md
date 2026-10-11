@@ -75,7 +75,7 @@ To add a model, implement an `InferenceRunner` subclass under
 ```
 buddy-cli --model deepseek_r1.rax
   │
-  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → runner / model .so / weights
+  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → runner / model plugin / weights
   ├─ dlopen(deepseek_r1_runner.so)
   ├─ dlsym("buddy_create_inference_runner_v1")
   └─ runner->run(cfg)
@@ -119,6 +119,11 @@ Total KV cache memory: `56 × 2 × 1024 × 128 × 4 bytes = 56 MB`.
 ---
 
 ## RAX tools
+
+For the complete format and loading reference, including embedded payload
+layout, URI rewriting, extraction caching, and the `buddy-cli` and
+`buddy-server` loading paths, see
+[RAX Packaging and Runtime Loading](RAXPackagingAndLoadingAnalysis.md).
 
 ### rax-pack
 
@@ -208,6 +213,12 @@ ninja deepseek_r1_rax
 ```
 
 Paths live in the `.rax` FlatBuffer; C++ reads them at runtime via `ModelManifest`.
+
+Server packages use one optional `model_library` module attribute for the model
+HTTP adapter. `buddy-server --model <file.rax>` resolves that URI, validates the
+adapter's `buddy_model_plugin_descriptor_v1` descriptor, and then selects the
+existing typed model factory for the declared service. `runner_library` remains
+the independent `buddy-cli` runner ABI.
 
 **Q: Do I need to prepare `vocab.txt` manually?**
 
