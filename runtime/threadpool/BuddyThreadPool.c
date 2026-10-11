@@ -44,6 +44,7 @@
 //===----------------------------------------------------------------------===//
 
 #define _GNU_SOURCE
+#include <dlfcn.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdarg.h>
@@ -52,6 +53,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #define API __attribute__((visibility("hidden")))
@@ -86,6 +88,73 @@ static _Atomic int quitting;
 static _Atomic int finished;
 static _Atomic int barrierCount;
 static _Atomic unsigned barrierGeneration;
+
+// BUDDY_THREAD_POOL_PROFILE=1: time every parallel region, the barrier waits
+// inside it and the serial time before and after it (its caller alone), per
+// region function, and print the totals when the library is unloaded.
+#define PROF_SLOTS 1024
+typedef struct {
+  void *fn;
+  uint64_t calls, wallNs, gapNs, gapAfterNs;
+  _Atomic uint64_t barrierNs, barriers; // all threads
+  uint64_t barrier0Ns;                  // thread 0's share of barrierNs
+} ProfSlot;
+static int profOn;
+static ProfSlot profSlots[PROF_SLOTS];
+static ProfSlot *profCur; // the slot of the running (or the last) region
+static uint64_t profLastEnd, profFirst;
+
+static uint64_t nowNs(void) {
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec;
+}
+
+static ProfSlot *profSlot(void *fn) {
+  size_t h = ((uintptr_t)fn >> 4) % PROF_SLOTS;
+  for (size_t i = 0; i < PROF_SLOTS; i++) {
+    ProfSlot *s = &profSlots[(h + i) % PROF_SLOTS];
+    if (s->fn == fn || !s->fn) {
+      s->fn = fn;
+      return s;
+    }
+  }
+  return &profSlots[h];
+}
+
+static void profReport(void) {
+  if (!profOn || !profLastEnd)
+    return;
+  uint64_t span = profLastEnd - profFirst, wall = 0, gap = 0, bar = 0;
+  for (int i = 0; i < PROF_SLOTS; i++)
+    wall += profSlots[i].wallNs, gap += profSlots[i].gapNs,
+        bar += profSlots[i].barrierNs;
+  fprintf(stderr,
+          "[BuddyThreadPool] profile: %.3f s from the first region to the "
+          "last, %.3f s in regions, %.3f s serial between them, %.3f "
+          "thread-s barrier waits\n"
+          "[BuddyThreadPool] region  calls  wall_ms  serial_before_ms  "
+          "serial_after_ms  barrier_thread_ms  thread0_barrier_ms  "
+          "barriers\n",
+          span * 1e-9, wall * 1e-9, gap * 1e-9, bar * 1e-9);
+  for (int i = 0; i < PROF_SLOTS; i++) {
+    ProfSlot *s = &profSlots[i];
+    if (!s->fn)
+      continue;
+    Dl_info info;
+    uintptr_t off = (uintptr_t)s->fn;
+    const char *file = "?";
+    if (dladdr(s->fn, &info) && info.dli_fname) {
+      off -= (uintptr_t)info.dli_fbase;
+      file = info.dli_fname;
+    }
+    fprintf(stderr,
+            "[BuddyThreadPool] %s+0x%lx %lu %.3f %.3f %.3f %.3f %.3f %lu\n",
+            file, (unsigned long)off, (unsigned long)s->calls, s->wallNs * 1e-6,
+            s->gapNs * 1e-6, s->gapAfterNs * 1e-6, s->barrierNs * 1e-6,
+            s->barrier0Ns * 1e-6, (unsigned long)s->barriers);
+  }
+}
 
 static void invoke(microtask_t fn, int argc, void **a) {
   int32_t gtid = threadNum, btid = threadNum;
@@ -188,6 +257,8 @@ static void initPool(void) {
                   : (*end == 'B' || *end == 'b') ? 0
                                                  : 20;
   }
+  env = getenv("BUDDY_THREAD_POOL_PROFILE");
+  profOn = env && atoi(env) > 0;
 }
 
 // Threads up to n (at most poolLimit). With forkLock held and no region
@@ -216,6 +287,7 @@ static void growPool(int n) {
 // The model library may be unloaded (dlclose): stop the workers before their
 // code is unmapped.
 __attribute__((destructor)) static void stopPool(void) {
+  profReport();
   if (poolSize < 2)
     return;
   atomic_store_explicit(&quitting, 1, memory_order_relaxed);
@@ -264,6 +336,18 @@ API void __kmpc_fork_call(ident_t *loc, int32_t argc, microtask_t fn, ...) {
   growPool(n);
   if (n > poolSize)
     n = poolSize;
+  uint64_t start = 0;
+  if (profOn) {
+    start = nowNs();
+    ProfSlot *prev = profCur;
+    profCur = profSlot((void *)fn);
+    if (!profFirst) {
+      profFirst = start;
+    } else {
+      profCur->gapNs += start - profLastEnd;
+      prev->gapAfterNs += start - profLastEnd;
+    }
+  }
   job.fn = fn, job.argc = argc, job.threads = n;
   memcpy(job.args, args, sizeof(void *) * argc);
   atomic_store_explicit(&finished, 0, memory_order_relaxed);
@@ -273,6 +357,11 @@ API void __kmpc_fork_call(ident_t *loc, int32_t argc, microtask_t fn, ...) {
   inRegion = 0, teamSize = 1;
   while (atomic_load_explicit(&finished, memory_order_acquire) != poolSize - 1)
     ;
+  if (profOn) {
+    profLastEnd = nowNs();
+    profCur->calls++;
+    profCur->wallNs += profLastEnd - start;
+  }
   pthread_mutex_unlock(&forkLock);
 }
 
@@ -280,6 +369,7 @@ API void __kmpc_barrier(ident_t *loc, int32_t gtid) {
   (void)loc, (void)gtid;
   if (teamSize <= 1)
     return;
+  uint64_t start = profOn ? nowNs() : 0;
   unsigned generation =
       atomic_load_explicit(&barrierGeneration, memory_order_relaxed);
   if (atomic_fetch_add_explicit(&barrierCount, 1, memory_order_acq_rel) ==
@@ -290,6 +380,15 @@ API void __kmpc_barrier(ident_t *loc, int32_t gtid) {
     while (atomic_load_explicit(&barrierGeneration, memory_order_acquire) ==
            generation)
       ;
+  }
+  if (profOn) {
+    uint64_t waited = nowNs() - start;
+    atomic_fetch_add_explicit(&profCur->barrierNs, waited,
+                              memory_order_relaxed);
+    if (threadNum == 0) {
+      profCur->barrier0Ns += waited;
+      atomic_fetch_add_explicit(&profCur->barriers, 1, memory_order_relaxed);
+    }
   }
 }
 

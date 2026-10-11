@@ -65,6 +65,24 @@ The K3 rows are the mean of 4 alternating runs. The x86 rows are the mean of
 4 alternating runs on a shared Xeon Platinum 8575C, where single runs vary by
 30%.
 
+## Profiling
+
+With `BUDDY_THREAD_POOL_PROFILE=1`, the pool times every parallel region and
+prints the totals to stderr when the model library is unloaded:
+
+- the time from the first region to the last, the time in regions, and the
+  serial time between regions (the caller working alone while the other
+  threads wait);
+- per region function (`<library>+<offset>`; `nm -n` on the library names
+  it): the calls, the wall time, the serial time before the region, the
+  barrier waits of all threads and of thread 0, and the barriers.
+
+Barrier waits measure load imbalance: the threads that finish their share
+first wait for the last. Per token figures come from the difference between
+two runs that generate different numbers of tokens. Timing adds two clock
+reads per region and per barrier (under 1% of a Qwen3-VL-30B-A3B decode step
+on the K3); without the variable, it costs one branch.
+
 ## Tests
 
 `tests/Python/test_buddy_thread_pool.py` lowers parallel loops as
@@ -75,6 +93,8 @@ runs them and checks that:
 - every iteration runs once, on the expected number of threads;
 - `BUDDY_THREAD_POOL_THREADS` lowers that number;
 - a nested parallel loop computes the right result;
+- `BUDDY_THREAD_POOL_PROFILE=1` prints the profile, with the call count of
+  each region function;
 - two application threads that ask for 2 and 3 threads get their own count,
   with the interleaving push A, push B, fork A, fork B forced, and over 2000
   concurrent calls each.

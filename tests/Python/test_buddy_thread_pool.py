@@ -6,8 +6,9 @@
 # linked with the pool and without libomp, which only links if the pool has
 # every entry point they call, and run: each iteration runs once, on several
 # threads; BUDDY_THREAD_POOL_THREADS limits them; a nested parallel loop runs
-# serially inside the outer one; two application threads that run parallel
-# loops of different thread counts at the same time each get their own count.
+# serially inside the outer one; BUDDY_THREAD_POOL_PROFILE=1 prints a profile
+# of the regions; two application threads that run parallel loops of
+# different thread counts at the same time each get their own count.
 
 import os
 import shutil
@@ -185,6 +186,26 @@ for limit in (None, 2, 1):
 # CHECK: limit None: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
 # CHECK: limit 2: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
 # CHECK: limit 1: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
+
+# BUDDY_THREAD_POOL_PROFILE=1: the same results, and a profile on stderr with
+# one line per region function: @squares' region ran 3 times, @table's once
+# (its nested region runs serially inside it, not as a region of the pool).
+env = dict(os.environ)
+env.pop("BUDDY_THREAD_POOL_THREADS", None)
+env["BUDDY_THREAD_POOL_PROFILE"] = "1"
+run = subprocess.run([path("run")], capture_output=True, text=True, env=env)
+lines = run.stderr.splitlines()
+regions = [ln.split() for ln in lines if "+0x" in ln]
+print(
+    "profile:",
+    run.stdout.count("right 1"),
+    "right,",
+    sum("profile:" in ln for ln in lines),
+    "summary,",
+    "region calls",
+    sorted(int(r[2]) for r in regions),
+)
+# CHECK: profile: 2 right, 1 summary, region calls [1, 3]
 
 
 # Two application threads at once, with loops lowered for 2 and for 3
