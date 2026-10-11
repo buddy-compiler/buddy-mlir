@@ -188,3 +188,31 @@ for name in ("k3_kernels-w4g32.mlir", "k3_kernels_ime-w4g32.mlir"):
 buckets = import_model.extract_k3_weights(prefill[0], ime_config)
 print("ime weights:", {k: len(v) for k, v in buckets.items()})
 # CHECK: ime weights: {'f32_params': 100640, 'i8_params': 1382400}
+
+
+# Weights are reused across builds only if they were packed the same way:
+# the manifest records the w4g32 layout (the kernel collection and its
+# W4G32_LAYOUT_VERSION), which a change of packing does not leave unchanged
+# the way it leaves the file sizes.
+from buddy.compiler.graph.transform import k3_w4  # noqa: E402
+
+reuse_work = tempfile.mkdtemp()
+for entry in import_model.expected_weight_entries(config, reuse_work):
+    with open(entry["path"], "wb") as f:
+        f.truncate(entry["bytes_per_element"] * entry["num_elements"])
+import_model.write_weights_manifest(config, reuse_work)
+print("layout:", import_model.w4g32_layout(config))
+print("reuse:", import_model.can_reuse_existing_weights(config, reuse_work))
+saved = getattr(k3_w4, "W4G32_LAYOUT_VERSION", None)
+k3_w4.W4G32_LAYOUT_VERSION = 1000
+print(
+    "reuse after a layout change:",
+    import_model.can_reuse_existing_weights(config, reuse_work),
+)
+if saved is None:
+    del k3_w4.W4G32_LAYOUT_VERSION
+else:
+    k3_w4.W4G32_LAYOUT_VERSION = saved
+# CHECK: layout: k3:{{[0-9]+}}
+# CHECK-NEXT: reuse: True
+# CHECK-NEXT: reuse after a layout change: False

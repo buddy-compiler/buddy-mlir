@@ -1279,6 +1279,19 @@ def expected_weight_entries(config: dict, output_dir: str) -> list[dict]:
     return entries
 
 
+def w4g32_layout(config: dict) -> str | None:
+    """The kernel collection of a w4g32 model and the version of its weight
+    layout: the W4G32_LAYOUT_VERSION of graph/transform/<kernels>_w4.py, 1 if
+    the module has none. None for other variants."""
+    if config.get("variant") != "w4g32":
+        return None
+    kernels = config.get("kernels") or "k3"
+    module = importlib.import_module(
+        f"buddy.compiler.graph.transform.{kernels}_w4"
+    )
+    return f"{kernels}:{getattr(module, 'W4G32_LAYOUT_VERSION', 1)}"
+
+
 def weights_manifest_payload(config: dict, output_dir: str) -> dict:
     model_path = (
         os.environ.get("DEEPSEEKR1_MODEL_PATH") or config["hf_model_path"]
@@ -1294,6 +1307,9 @@ def weights_manifest_payload(config: dict, output_dir: str) -> dict:
         # changing it invalidates the reuse check instead of silently leaving
         # decode reading weights packed for a different kernel.
         "decode_pack": config.get("decode_pack", {"enabled": False}),
+        # Likewise the int4 tiles of w4g32: a change of their layout (or of
+        # the kernels that read them) keeps the file sizes.
+        "w4g32_layout": w4g32_layout(config),
         "weights": [
             {
                 "tag": entry["tag"],
