@@ -81,7 +81,9 @@ from ..type import TensorDType
 # The version of the packed weight layout below (pack_tiles, pack_ime). Bump
 # it whenever the bytes of the packed weights change: import_model.py records
 # it in the weights manifest, so that a build does not reuse weights packed
-# for another layout (the file sizes do not change).
+# for another layout (the file sizes do not change). a210_w4.py includes it
+# in its own version, as it packs the values of quantize_q4: bump it also
+# when quantize_q4 changes.
 W4G32_LAYOUT_VERSION = 1
 G = 32  # rows per quantization group
 NB = 128  # columns per weight tile
@@ -236,6 +238,12 @@ def kernel_spec(
 
 
 class _Rewriter:
+    """The graph rewrite. The weight packing and the kernel names are those
+    of the K3 kernels; another kernel collection (graph/transform/a210_w4.py)
+    subclasses it with its own (PREFIX, pack_q4, pack_glu, kernel_spec)."""
+
+    PREFIX = "k3"
+
     def __init__(self, graph, m, threads, use_ime=False, ime_weights=None):
         self.g = graph
         self.m = m
@@ -248,6 +256,17 @@ class _Rewriter:
         # ime_weights get the same second, IME-layout copy, unused.
         self.use_ime = use_ime
         self.ime_weights = set() if ime_weights is None else ime_weights
+
+    def pack_q4(self, w):
+        """(tile layout, IME layout) of a [K, N] weight."""
+        return pack_q4_both(w)
+
+    def pack_glu(self, wg, wu):
+        """(tile layout, IME layout) of the gate and up weights."""
+        return pack_glu_both(wg, wu)
+
+    def kernel_spec(self, kind, m, k, ns, bias, ime=False):
+        return kernel_spec(kind, m, k, ns, bias, self.threads, ime)
 
     def add_param(self, name, array: numpy.ndarray, dtype: TensorDType):
         """A new parameter, after the existing ones (the importer binds
@@ -423,16 +442,14 @@ class _Rewriter:
             ns = [mm.shape[1] for mm in mats]
             # one quantization of [Wq | Wk | Wv]; tiles never straddle two
             # parts, as each N is a multiple of NB
-            packed = pack_q4_both(numpy.concatenate(mats, axis=1))
+            packed = self.pack_q4(numpy.concatenate(mats, axis=1))
             bias = numpy.concatenate([self.weight(b) for b in bs])
             lhs = str(nodes[0].args[1])
             for n in nodes:
                 self.unlink(n)
                 n._parents = []
             w, ime = self.set_weights(ws[0], packed, self.m)
-            spec = kernel_spec(
-                "multi", self.m, kdim, ns, True, self.threads, ime
-            )
+            spec = self.kernel_spec("multi", self.m, kdim, ns, True, ime)
             call = self.call(
                 spec, [lhs, w, bs[0]], [(self.m, n) for n in ns], nodes[0]
             )
@@ -517,10 +534,8 @@ class _Rewriter:
             for d in (mg, mu):
                 self.unlink(d)
                 d._parents = []
-            w, ime = self.set_weights(wg, pack_glu_both(Wg, Wu), self.m)
-            spec = kernel_spec(
-                "glu", self.m, kdim, [n], False, self.threads, ime
-            )
+            w, ime = self.set_weights(wg, self.pack_glu(Wg, Wu), self.m)
+            spec = self.kernel_spec("glu", self.m, kdim, [n], False, ime)
             call = self.call(spec, [str(mg.args[0]), w], [(self.m, n)], node)
             view = ViewOp()
             view._name = node.name
@@ -553,10 +568,8 @@ class _Rewriter:
             lhs = str(node.args[0])
             self.unlink(node)
             node._parents = []
-            w, ime = self.set_weights(w, pack_q4_both(W), rows)
-            spec = kernel_spec(
-                "plain", rows, kdim, [n], False, self.threads, ime
-            )
+            w, ime = self.set_weights(w, self.pack_q4(W), rows)
+            spec = self.kernel_spec("plain", rows, kdim, [n], False, ime)
             if rows == 1 and self.m > 1:
                 # the lm_head of a prefill chunk: computed only when the
                 # session needs the logits (buddy_set_prefill_logits)
@@ -659,7 +672,8 @@ class _Rewriter:
             out = self._matrix_below(node, heads * dim)
             scale = float(node.kwargs.get("scale", dim**-0.5))
             spec = {
-                "name": f"k3_attn_m{m}_h{heads}_kv{kv_heads}_d{dim}_c{ctx}",
+                "name": f"{self.PREFIX}_attn_m{m}_h{heads}_kv{kv_heads}"
+                f"_d{dim}_c{ctx}",
                 "kind": "attn",
                 "m": m,
                 "heads": heads,
@@ -801,6 +815,7 @@ def k3_w4_rewrite(
     threads: int,
     use_ime: bool = False,
     ime_weights: set = None,
+    rewriter=_Rewriter,
 ) -> list:
     """Rewrite the Linear layers and attention of `graph` (m rows per call,
     start position in the graph input `pos_input`) to kernel calls; the
@@ -811,11 +826,13 @@ def k3_w4_rewrite(
     and their weights are added to `ime_weights`. The other graph is then
     rewritten with that set, so that its weights get the same copies.
 
+    `rewriter`: the _Rewriter subclass of another kernel collection.
+
     Returns the kernel specs used. Must run after eliminate_transpose (the
     weights are [K, N]) and identically on graphs that share one weight
     layout (prefill and decode).
     """
-    rw = _Rewriter(graph, m, threads, use_ime, ime_weights)
+    rw = rewriter(graph, m, threads, use_ime, ime_weights)
     rw.rewrite_qkv()
     rw.rewrite_glu()
     rw.rewrite_plain()

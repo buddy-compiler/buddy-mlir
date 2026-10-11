@@ -155,7 +155,7 @@ def build_stages(
         llc_base_args.append("-code-model=large")
 
     if pipeline_type in ("kernels", "kernels_a100", "kernels_ime"):
-        # Generated kernels (graph/transform/k3_w4.py): scf / vector /
+        # Generated kernels (graph/transform/k3_w4.py, a210_w4.py): scf / vector /
         # memref, scf.parallel for the threads. "kernels_ime": the prefill
         # tiles on the matrix engine of the SpacemiT K3 A100 cores (IME
         # dialect), for the A100 only (a100_llc_args). "kernels_a100": the
@@ -439,6 +439,7 @@ MLIR_FILE_MAP = {
     "forward_decode": ("forward_decode.mlir", "forward_decode.o"),
     "k3_kernels": ("k3_kernels.mlir", "k3_kernels.o"),
     "k3_kernels_ime": ("k3_kernels_ime.mlir", "k3_kernels_ime.o"),
+    "a210_kernels": ("a210_kernels.mlir", "a210_kernels.o"),
     "subgraph_decode": ("subgraph0_decode.mlir", "subgraph_decode.o"),
 }
 

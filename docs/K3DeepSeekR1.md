@@ -5,7 +5,9 @@ of a SpacemiT K3 (riscv64, RVV 1.0 with VLEN 1024). Every Linear layer is an
 int4 matrix with one f16 scale per 32 rows, and the layers and the attention
 are calls to kernels that `import_model.py` generates per shape as MLIR; the
 prefill tiles run on the matrix engine (IME) of the A100 cores. It is
-cross-compiled on an x86 host into one `.rax` file for `buddy-cli`.
+cross-compiled on an x86 host into one `.rax` file for `buddy-cli`. The same
+variant with kernels for VLEN 128 runs on the Zhihe A210
+([A210DeepSeekR1.md](A210DeepSeekR1.md)).
 
 ## Build
 

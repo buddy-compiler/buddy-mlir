@@ -1,6 +1,6 @@
 ---
 name: hardware-targets
-description: Measured facts about the hardware Buddy-MLIR targets (SpacemiT K3 A100/X100 cores with RVV, IME matrix engine, TCM and AI DMA; Tenstorrent) - core layout, bandwidths, instruction costs, how to run on the boards. Use before optimizing or estimating performance for a specific chip, or when characterizing a new one.
+description: Measured facts about the hardware Buddy-MLIR targets (SpacemiT K3 A100/X100 cores with RVV, IME matrix engine, TCM and AI DMA; Zhihe A210 C908/C920 cores; Tenstorrent) - core layout, bandwidths, instruction costs, how to run on the boards. Use before optimizing or estimating performance for a specific chip, or when characterizing a new one.
 ---
 
 # Hardware targets
@@ -16,6 +16,7 @@ Files are named `<vendor>-<chip>-<topic>.md`.
 | Target | Read |
 | --- | --- |
 | SpacemiT K3 (A100 AI cores, X100 cores) | `references/spacemit-k3-architecture.md` (cores, memory, IME, TCM, DMA); `references/spacemit-k3-instruction-costs.md` (RVV and IME costs); `references/spacemit-k3-board-setup.md` (running and profiling on a board) |
+| Zhihe A210 (4 C908 + 4 C920, VLEN 128) | `references/zhihe-a210-architecture.md` (cores, bandwidth per cluster, vector throughput, running) |
 | Tenstorrent | No measurements yet. Environment: `docs/TenstorrentEnvironment.md`. |
 
 Optimization history per platform (what was done, what was rejected) lives
