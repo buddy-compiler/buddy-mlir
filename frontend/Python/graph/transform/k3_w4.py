@@ -78,6 +78,11 @@ from ..operation import (
 from ..operation import AddOp as _AddOp
 from ..type import TensorDType
 
+# The version of the packed weight layout below (pack_tiles, pack_ime). Bump
+# it whenever the bytes of the packed weights change: import_model.py records
+# it in the weights manifest, so that a build does not reuse weights packed
+# for another layout (the file sizes do not change).
+W4G32_LAYOUT_VERSION = 1
 G = 32  # rows per quantization group
 NB = 128  # columns per weight tile
 # Rows of a prefill chunk that share each unpacked weight vector.

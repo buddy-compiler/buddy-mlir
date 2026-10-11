@@ -203,16 +203,28 @@ for entry in import_model.expected_weight_entries(config, reuse_work):
 import_model.write_weights_manifest(config, reuse_work)
 print("layout:", import_model.w4g32_layout(config))
 print("reuse:", import_model.can_reuse_existing_weights(config, reuse_work))
-saved = getattr(k3_w4, "W4G32_LAYOUT_VERSION", None)
-k3_w4.W4G32_LAYOUT_VERSION = 1000
+saved = k3_w4.W4G32_LAYOUT_VERSION
+try:
+    k3_w4.W4G32_LAYOUT_VERSION = saved + 1
+    changed = import_model.can_reuse_existing_weights(config, reuse_work)
+finally:
+    k3_w4.W4G32_LAYOUT_VERSION = saved
+print("reuse after a layout change:", changed)
 print(
-    "reuse after a layout change:",
+    "reuse with the layout back:",
     import_model.can_reuse_existing_weights(config, reuse_work),
 )
-if saved is None:
-    del k3_w4.W4G32_LAYOUT_VERSION
-else:
-    k3_w4.W4G32_LAYOUT_VERSION = saved
 # CHECK: layout: k3:{{[0-9]+}}
 # CHECK-NEXT: reuse: True
 # CHECK-NEXT: reuse after a layout change: False
+# CHECK-NEXT: reuse with the layout back: True
+
+# Other variants record no layout: their manifests are those written before
+# the field existed, and their weights are still reused.
+f32_config = gen_config.gen_config(
+    {**spec, "variant": "f32", "weights_override": {"total": 1}}, hf_path
+)
+f32_work = tempfile.mkdtemp()
+manifest = import_model.weights_manifest_payload(f32_config, f32_work)
+print("f32 manifest has a layout:", "w4g32_layout" in manifest)
+# CHECK: f32 manifest has a layout: False
