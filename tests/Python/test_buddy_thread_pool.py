@@ -11,6 +11,7 @@
 # different thread counts at the same time each get their own count.
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -164,6 +165,7 @@ subprocess.run(
         path("f.o"),
         os.path.join(SRC, "runtime", "threadpool", "BuddyThreadPool.c"),
         "-lpthread",
+        "-ldl",
         "-o",
         path("run"),
     ],
@@ -187,25 +189,36 @@ for limit in (None, 2, 1):
 # CHECK: limit 2: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
 # CHECK: limit 1: squares: right 1, each iteration once per call 1, threads as expected | nested: right 1
 
+
 # BUDDY_THREAD_POOL_PROFILE=1: the same results, and a profile on stderr with
 # one line per region function: @squares' region ran 3 times, @table's once
 # (its nested region runs serially inside it, not as a region of the pool).
-env = dict(os.environ)
-env.pop("BUDDY_THREAD_POOL_THREADS", None)
-env["BUDDY_THREAD_POOL_PROFILE"] = "1"
-run = subprocess.run([path("run")], capture_output=True, text=True, env=env)
-lines = run.stderr.splitlines()
-regions = [ln.split() for ln in lines if "+0x" in ln]
-print(
-    "profile:",
-    run.stdout.count("right 1"),
-    "right,",
-    sum("profile:" in ln for ln in lines),
-    "summary,",
-    "region calls",
-    sorted(int(r[2]) for r in regions),
-)
-# CHECK: profile: 2 right, 1 summary, region calls [1, 3]
+# The time from the first region to the last is the time in the regions plus
+# the gaps between them.
+def profile(args):
+    env = dict(os.environ)
+    env.pop("BUDDY_THREAD_POOL_THREADS", None)
+    env["BUDDY_THREAD_POOL_PROFILE"] = "1"
+    run = subprocess.run(
+        args, capture_output=True, text=True, env=env, check=True
+    )
+    lines = run.stderr.splitlines()
+    summary = [ln for ln in lines if " profile: " in ln]
+    # the first three numbers: span, time in regions, gaps
+    span, wall, gap = map(float, re.findall(r"\d+\.\d+", summary[0])[:3])
+    regions = [ln.split() for ln in lines if re.search(r"\+0x\S* \d", ln)]
+    calls = sorted(int(r[2]) for r in regions)
+    return (
+        run.stdout.strip().replace("\n", " | "),
+        f"{len(summary)} summary, region calls {calls}, "
+        f"span = regions + gaps {abs(span - wall - gap) < 1e-5}, "
+        f"other {sum(' other+0x0 ' in ln for ln in lines)}, "
+        f"warning {sum('warning:' in ln for ln in lines)}",
+    )
+
+
+print("profile:", *profile([path("run")]))
+# CHECK: profile: squares: right 1, each iteration once per call 1, threads {{[0-9]+}} | nested: right 1 1 summary, region calls [1, 3], span = regions + gaps True, other 0, warning 0
 
 
 # Two application threads at once, with loops lowered for 2 and for 3
@@ -380,6 +393,7 @@ subprocess.run(
         *objs,
         pool,
         "-lpthread",
+        "-ldl",
         "-o",
         path("concurrent"),
     ],
@@ -393,3 +407,27 @@ run = subprocess.run(
 print(run.stdout.strip(), run.stderr)
 # CHECK: interleaved: A pushed 2, team as expected 1; B pushed 3, team as expected 1
 # CHECK-NEXT: concurrent: 2-thread calls with a wrong team 0, 3-thread calls with a wrong team 0
+
+# Profiled, the same: the interleaved regions (one function, twice) and the
+# 2000 calls of each team. With 2 slots for the 3 functions, the regions of
+# the third are counted as "other", with a warning.
+print("concurrent profile:", *profile([path("concurrent"), str(cpus)]))
+# CHECK: concurrent profile: interleaved: A pushed 2, team as expected 1; B pushed 3, team as expected 1 | concurrent: 2-thread calls with a wrong team 0, 3-thread calls with a wrong team 0 1 summary, region calls [2, 2000, 2000], span = regions + gaps True, other 0, warning 0
+subprocess.run(
+    [
+        cc,
+        "-O2",
+        "-DBUDDY_THREAD_POOL_PROFILE_SLOTS=2",
+        path("concurrent.c"),
+        *objs,
+        pool,
+        "-lpthread",
+        "-ldl",
+        "-o",
+        path("concurrent2"),
+    ],
+    check=True,
+)
+out, prof = profile([path("concurrent2"), str(cpus)])
+print("2 slots:", prof)
+# CHECK: 2 slots: 1 summary, region calls [2, 2000, 2000], span = regions + gaps True, other 1, warning 1

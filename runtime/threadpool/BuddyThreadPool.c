@@ -40,6 +40,8 @@
 //   BUDDY_THREAD_POOL_THREADS  at most this many threads
 //   OMP_STACKSIZE              stack size of the pool threads (default 256M,
 //                              virtual)
+//   BUDDY_THREAD_POOL_PROFILE  1: time the parallel regions, print a profile
+//                              when the library is unloaded
 //
 //===----------------------------------------------------------------------===//
 
@@ -90,9 +92,14 @@ static _Atomic int barrierCount;
 static _Atomic unsigned barrierGeneration;
 
 // BUDDY_THREAD_POOL_PROFILE=1: time every parallel region, the barrier waits
-// inside it and the serial time before and after it (its caller alone), per
-// region function, and print the totals when the library is unloaded.
-#define PROF_SLOTS 1024
+// inside it and the gaps before and after it (the time from the end of the
+// previous region to its start: the caller working alone, or the process
+// idle between two calls), per region function, and print the totals when
+// the library is unloaded. All of it under forkLock, but the barrier waits.
+#ifndef BUDDY_THREAD_POOL_PROFILE_SLOTS
+#define BUDDY_THREAD_POOL_PROFILE_SLOTS 1024
+#endif
+#define PROF_SLOTS BUDDY_THREAD_POOL_PROFILE_SLOTS
 typedef struct {
   void *fn;
   uint64_t calls, wallNs, gapNs, gapAfterNs;
@@ -101,6 +108,8 @@ typedef struct {
 } ProfSlot;
 static int profOn;
 static ProfSlot profSlots[PROF_SLOTS];
+// The regions of the functions that find no free slot, reported together.
+static ProfSlot profOther;
 static ProfSlot *profCur; // the slot of the running (or the last) region
 static uint64_t profLastEnd, profFirst;
 
@@ -119,23 +128,32 @@ static ProfSlot *profSlot(void *fn) {
       return s;
     }
   }
-  return &profSlots[h];
+  return &profOther;
+}
+
+static void profLine(const ProfSlot *s, const char *file, uintptr_t off) {
+  fprintf(stderr,
+          "[BuddyThreadPool] %s+0x%lx %lu %.3f %.3f %.3f %.3f %.3f %lu\n", file,
+          (unsigned long)off, (unsigned long)s->calls, s->wallNs * 1e-6,
+          s->gapNs * 1e-6, s->gapAfterNs * 1e-6, s->barrierNs * 1e-6,
+          s->barrier0Ns * 1e-6, (unsigned long)s->barriers);
 }
 
 static void profReport(void) {
   if (!profOn || !profLastEnd)
     return;
-  uint64_t span = profLastEnd - profFirst, wall = 0, gap = 0, bar = 0;
+  uint64_t span = profLastEnd - profFirst;
+  uint64_t wall = profOther.wallNs, gap = profOther.gapNs;
+  uint64_t bar = profOther.barrierNs;
   for (int i = 0; i < PROF_SLOTS; i++)
     wall += profSlots[i].wallNs, gap += profSlots[i].gapNs,
         bar += profSlots[i].barrierNs;
   fprintf(stderr,
-          "[BuddyThreadPool] profile: %.3f s from the first region to the "
-          "last, %.3f s in regions, %.3f s serial between them, %.3f "
+          "[BuddyThreadPool] profile: %.6f s from the first region to the "
+          "last, %.6f s in regions, %.6f s in the gaps between them, %.6f "
           "thread-s barrier waits\n"
-          "[BuddyThreadPool] region  calls  wall_ms  serial_before_ms  "
-          "serial_after_ms  barrier_thread_ms  thread0_barrier_ms  "
-          "barriers\n",
+          "[BuddyThreadPool] region  calls  wall_ms  gap_before_ms  "
+          "gap_after_ms  barrier_thread_ms  thread0_barrier_ms  barriers\n",
           span * 1e-9, wall * 1e-9, gap * 1e-9, bar * 1e-9);
   for (int i = 0; i < PROF_SLOTS; i++) {
     ProfSlot *s = &profSlots[i];
@@ -148,11 +166,14 @@ static void profReport(void) {
       off -= (uintptr_t)info.dli_fbase;
       file = info.dli_fname;
     }
+    profLine(s, file, off);
+  }
+  if (profOther.calls) {
+    profLine(&profOther, "other", 0);
     fprintf(stderr,
-            "[BuddyThreadPool] %s+0x%lx %lu %.3f %.3f %.3f %.3f %.3f %lu\n",
-            file, (unsigned long)off, (unsigned long)s->calls, s->wallNs * 1e-6,
-            s->gapNs * 1e-6, s->gapAfterNs * 1e-6, s->barrierNs * 1e-6,
-            s->barrier0Ns * 1e-6, (unsigned long)s->barriers);
+            "[BuddyThreadPool] warning: more than %d region functions; the "
+            "regions of the others are counted together as other+0x0\n",
+            PROF_SLOTS);
   }
 }
 

@@ -70,18 +70,33 @@ The K3 rows are the mean of 4 alternating runs. The x86 rows are the mean of
 With `BUDDY_THREAD_POOL_PROFILE=1`, the pool times every parallel region and
 prints the totals to stderr when the model library is unloaded:
 
-- the time from the first region to the last, the time in regions, and the
-  serial time between regions (the caller working alone while the other
-  threads wait);
+- the time from the first region to the last, the time in regions, the gaps
+  between regions (it is their sum), and the barrier waits of all threads;
 - per region function (`<library>+<offset>`; `nm -n` on the library names
-  it): the calls, the wall time, the serial time before the region, the
+  it): the calls, the wall time, the gaps before and after the region, the
   barrier waits of all threads and of thread 0, and the barriers.
+
+A gap is all the wall time from the end of one region to the start of the
+next: the caller working alone (serial code between parallel loops) while
+the other threads wait, but also any time the process spends outside the
+model between two calls (sampling, I/O, a server waiting for requests). It
+measures serial work only in a run that calls the model back to back, such
+as `buddy-cli` generating text. The columns before and after attribute the
+same gaps to the region that follows and to the one that precedes them: do
+not add them up.
 
 Barrier waits measure load imbalance: the threads that finish their share
 first wait for the last. Per token figures come from the difference between
-two runs that generate different numbers of tokens. Timing adds two clock
-reads per region and per barrier (under 1% of a Qwen3-VL-30B-A3B decode step
-on the K3); without the variable, it costs one branch.
+two runs that generate different numbers of tokens.
+
+The table has 1024 slots for region functions; the regions of any further
+function are counted together as `other+0x0`, with a warning.
+
+Timing adds two clock reads per region and per barrier, and an atomic
+addition to a counter that all threads share per barrier. On the K3 with 8
+threads, this is under 1% of a Qwen3-VL-30B-A3B decode step (337 regions per
+token); with more threads or shorter regions it can be more. Without the
+variable, the pool costs one branch per region and per barrier.
 
 ## Tests
 
@@ -93,8 +108,11 @@ runs them and checks that:
 - every iteration runs once, on the expected number of threads;
 - `BUDDY_THREAD_POOL_THREADS` lowers that number;
 - a nested parallel loop computes the right result;
-- `BUDDY_THREAD_POOL_PROFILE=1` prints the profile, with the call count of
-  each region function;
+- `BUDDY_THREAD_POOL_PROFILE=1` gives the same results and a profile with the
+  call count of each region function, whose time from the first region to
+  the last is the time in regions plus the gaps, also with two application
+  threads; with fewer slots than region functions, the extra ones are
+  reported as `other`, with a warning;
 - two application threads that ask for 2 and 3 threads get their own count,
   with the interleaving push A, push B, fork A, fork B forced, and over 2000
   concurrent calls each.
