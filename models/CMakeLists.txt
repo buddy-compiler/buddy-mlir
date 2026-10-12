@@ -14,6 +14,10 @@ if(BUDDY_BUILD_QWEN3_VL_MODEL)
   add_subdirectory(qwen3_vl)
 endif()
 
+if(BUDDY_BUILD_QWEN3_VL_MOE_MODEL)
+  add_subdirectory(qwen3_vl_moe)
+endif()
+
 if(BUDDY_BUILD_BGE_M3_MODEL)
   add_subdirectory(bge_m3)
 endif()

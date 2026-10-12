@@ -177,6 +177,19 @@ for m in (1, 8):
 # CHECK-NEXT: multi v m8: (8, 128) error ok
 # CHECK-NEXT: glu m8: (8, 256) error ok
 
+# With the residual add fused (fuse_residual): h + the result, the same
+# floats as the graph's add of the two.
+plain = k3_w4.kernel_spec("plain", 1, 128, [256], False, THREADS)
+res = dict(plain, name=plain["name"] + "_res", residual=True)
+ee = jit([plain, res])
+x = rng.standard_normal((1, 128)).astype(numpy.float32)
+h = rng.standard_normal((1, 256)).astype(numpy.float32)
+w = k3_w4.pack_q4((rng.standard_normal((128, 256)) * 0.1).astype(numpy.float32))
+(y,) = call(ee, plain["name"], 1, [2], x, w)
+(yr,) = call(ee, res["name"], 1, [2], x, w, h)
+print("plain residual: bit-identical", numpy.array_equal(yr, h + y))
+# CHECK: plain residual: bit-identical True
+
 # The lm_head of a prefill chunk ("prefill_logits") computes nothing after
 # buddy_set_prefill_logits(0), and its logits again after (1).
 lm = k3_w4.kernel_spec("plain", 1, 64, [256], False, THREADS)

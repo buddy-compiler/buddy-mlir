@@ -7,7 +7,9 @@ are calls to kernels that `import_model.py` generates per shape as MLIR; the
 prefill tiles run on the matrix engine (IME) of the A100 cores. It is
 cross-compiled on an x86 host into one `.rax` file for `buddy-cli`. The same
 variant with kernels for VLEN 128 runs on the Zhihe A210
-([A210DeepSeekR1.md](A210DeepSeekR1.md)).
+([A210DeepSeekR1.md](A210DeepSeekR1.md)), and on the K3 the variant also
+runs a mixture-of-experts model, Qwen3-VL-30B-A3B
+([K3Qwen3VLMoE.md](K3Qwen3VLMoE.md)).
 
 ## Build
 
@@ -244,6 +246,12 @@ their order are the same, and so are the results: at position 900 the
 attention takes 146 instead of 253 us per layer, 19 instead of 26 us at
 position 63. Decode after a short prompt 27.0 -> 27.6 tok/s, after 458
 tokens 25.2 -> 26.5, after 900 tokens 23.3 -> 25.1, with the same text.
+
+In decode, the residual adds after the o and down projections are computed
+by those kernels (`fuse_residual`, [K3Qwen3VLMoE.md](K3Qwen3VLMoE.md)) instead
+of a serial loop between them; the sums are the same, and so is the text.
+3 alternating runs: decode after a short prompt 27.05 -> 27.18 tok/s, after
+458 tokens 25.61 -> 25.77, after 900 tokens 24.30 -> 24.40.
 
 ## Tests
 

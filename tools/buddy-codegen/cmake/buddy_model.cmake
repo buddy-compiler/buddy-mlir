@@ -417,7 +417,7 @@ function(buddy_add_model)
   #   SpacemiT TCM they read their activations from.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
-            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime') + ';' + str(s.get('kernels') or 'k3'))"
+            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime') + ';' + str(s.get('kernels') or 'k3') + ';' + str(int(s.get('arena_prefault_mb', 0))))"
             "${MDL_SPEC}"
     OUTPUT_VARIABLE _mdl_spec_fields
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -430,6 +430,7 @@ function(buddy_add_model)
   list(GET _mdl_spec_fields 2 MDL_THREAD_POOL)
   list(GET _mdl_spec_fields 3 MDL_PREFILL_IME)
   list(GET _mdl_spec_fields 4 MDL_W4_KERNELS)
+  list(GET _mdl_spec_fields 5 MDL_ARENA_PREFAULT_MB)
   # The A210 kernels target RVV cores with VLEN 128 and Zvfh
   # (docs/A210DeepSeekR1.md): a RISC-V build for another exact VLEN assumes
   # vector lengths the A210 does not have, and without Zvfh the f16 weight
@@ -1356,10 +1357,15 @@ function(buddy_add_model)
     if(IS_RVV_CROSSCOMPILE)
       set(_opts ${RISCV_LINK_OPTS})
     endif()
+    # "arena_prefault_mb": the arena's pages faulted in at load
+    if(_name STREQUAL "BuddyArena" AND MDL_ARENA_PREFAULT_MB GREATER 0)
+      list(APPEND _opts
+        "-DBUDDY_ARENA_DEFAULT_PREFAULT_MB=${MDL_ARENA_PREFAULT_MB}")
+    endif()
     add_custom_command(
       OUTPUT "${_obj}"
       COMMAND "${CMAKE_C_COMPILER}" ${_opts} -O2 -fPIC -c "${_src}" -o "${_obj}"
-      DEPENDS "${_src}"
+      DEPENDS "${_src}" "${MDL_SPEC}"
       COMMENT "[${MDL_NAME}] Compiling ${_name}.c into the model library"
       VERBATIM
     )

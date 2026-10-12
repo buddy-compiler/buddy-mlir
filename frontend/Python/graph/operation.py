@@ -1270,6 +1270,18 @@ class TopkOp(Op):
         self._op_type = OpType.ReduceType
 
 
+class MoEExpertsOp(Op):
+    """
+    The experts of a mixture-of-experts block, buddy::moe_experts
+    (frontend/Python/moe.py): args (x, idx, w, gate_up, down), result
+    [T, H]. A backend replaces it with a kernel (graph/transform/k3_w4.py).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
 class CumSumOp(Op):
     """
     Cumulative sum operation.

@@ -100,8 +100,41 @@ def _find_cached_hf_config(model_path: str) -> str | None:
     return matches[-1] if matches else None
 
 
+def text_decoder_config(hf: dict) -> dict:
+    """The HF config of the model buddy-codegen builds: for a Qwen3-VL-MoE
+    model (Qwen3VLMoeForConditionalGeneration), its text decoder as a
+    Qwen3MoeForCausalLM, which it is for text-only input (the interleaved
+    MRoPE of three equal positions is the RoPE of that position); any other
+    config unchanged."""
+    if (hf.get("architectures") or [None])[0] != (
+        "Qwen3VLMoeForConditionalGeneration"
+    ):
+        return hf
+    text = dict(hf["text_config"])
+    text.pop("rope_scaling", None)
+    rope = {
+        k: v
+        for k, v in text.get("rope_parameters", {}).items()
+        if not k.startswith("mrope")
+    }
+    if rope:
+        text["rope_parameters"] = rope
+        text.setdefault("rope_theta", rope.get("rope_theta"))
+    text.update(
+        architectures=["Qwen3MoeForCausalLM"],
+        model_type="qwen3_moe",
+        tie_word_embeddings=hf.get("tie_word_embeddings", False),
+    )
+    return text
+
+
 def load_hf_config(spec: dict, cli_hf_config: str | None) -> dict:
-    """Load HuggingFace config.json with cascading fallbacks."""
+    """Load HuggingFace config.json with cascading fallbacks; a
+    vision-language model gives its text decoder (text_decoder_config)."""
+    return text_decoder_config(_load_hf_config(spec, cli_hf_config))
+
+
+def _load_hf_config(spec: dict, cli_hf_config: str | None) -> dict:
     # 1. Explicit CLI path
     if cli_hf_config:
         with open(cli_hf_config) as f:
@@ -383,8 +416,12 @@ def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
     models and the prefill_chunk (derive_prefill_chunk) the kernels do not
     support."""
     arch = (hf.get("architectures") or ["?"])[0]
-    if arch != "Qwen2ForCausalLM":
-        raise ValueError(f"w4g32 supports Qwen2ForCausalLM models, not {arch}")
+    if arch not in ("Qwen2ForCausalLM", "Qwen3MoeForCausalLM"):
+        raise ValueError(
+            f"w4g32 supports Qwen2ForCausalLM and Qwen3MoeForCausalLM "
+            f"models, not {arch}"
+        )
+    moe = arch == "Qwen3MoeForCausalLM"
     if hf.get("tie_word_embeddings"):
         raise ValueError("w4g32 does not support tie_word_embeddings")
     if not prefill_chunk:
@@ -403,7 +440,6 @@ def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
             f"{W4G32_HEAD_DIM_MULTIPLE}, got {d}"
         )
     kv = hf.get("num_key_value_heads", heads) * d
-    inter = hf["intermediate_size"]
     vocab = hf["vocab_size"]
     layers = hf["num_hidden_layers"]
     linears = [
@@ -411,20 +447,44 @@ def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
         (h, kv),
         (h, kv),
         (heads * d, h),  # o
-        (h, inter),  # gate
-        (h, inter),  # up
-        (inter, h),  # down
     ]
-    for k, n in linears + [(h, vocab)]:
+    if moe:
+        # Qwen3-MoE: every layer a MoE block (k3_w4.pack_moe); the router
+        # [h, experts] stays f32
+        if hf.get("mlp_only_layers") or hf.get("decoder_sparse_step", 1) != 1:
+            raise ValueError("w4g32 needs a MoE block in every layer")
+        if not hf.get("norm_topk_prob", False):
+            # the kernel computes the routing: the top-k weights normalized
+            raise ValueError("w4g32 needs norm_topk_prob")
+        inter = hf["moe_intermediate_size"]
+        # transformers 5 writes num_experts as num_local_experts
+        experts = hf.get("num_experts", hf.get("num_local_experts"))
+        expert_linears = [(h, inter), (h, inter), (inter, h)]
+        if h % 128:
+            raise ValueError(f"w4g32 needs hidden_size % 128 == 0, got {h}")
+    else:
+        inter = hf["intermediate_size"]
+        experts = 0
+        linears += [(h, inter), (h, inter), (inter, h)]  # gate, up, down
+        expert_linears = []
+    for k, n in linears + expert_linears + [(h, vocab)]:
         # N % 128: the K3 tiles (the A210 ones need N % 16)
         if k % 32 or n % 128:
             raise ValueError(
                 f"w4g32 needs Linear weights [K, N] with K % 32 == 0 and "
                 f"N % 128 == 0, got [{k}, {n}]"
             )
-    per_layer = sum(k * n for k, n in linears)
-    i8 = (layers * per_layer * (2 if ime else 1) + h * vocab) * 9 // 16
-    f32 = vocab * h + layers * (2 * h + heads * d + 2 * kv) + h + d // 2
+    # with ime, the dense layers get a second, IME-layout copy (not the
+    # experts: the MoE kernel has no matrix-engine tiles)
+    per_layer = sum(k * n for k, n in linears) * (2 if ime else 1)
+    per_layer += experts * sum(k * n for k, n in expert_linears)
+    i8 = (layers * per_layer + h * vocab) * 9 // 16
+    f32_layer = 2 * h
+    if moe:
+        f32_layer += 2 * d + h * experts  # q_norm, k_norm, router
+    else:
+        f32_layer += heads * d + 2 * kv  # the q / k / v biases
+    f32 = vocab * h + layers * f32_layer + h + d // 2
     return {"f32_elements": f32, "i8_elements": i8}
 
 

@@ -427,6 +427,7 @@ class DynamoCompiler:
             "bernoulli.default": BernoulliOp,
             "bernoulli.p": BernoulliOp,
             "topk.default": TopkOp,
+            "moe_experts.default": MoEExpertsOp,
             "unbind.int": UnbindOp,
             # Batched matrix operations
             "baddbmm.default": BaddbmmOp,

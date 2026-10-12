@@ -29,7 +29,9 @@
 // Environment:
 //   BUDDY_ARENA_RESERVE_MB   address range reserved (default 16384)
 //   BUDDY_ARENA_PREFAULT_MB  pages faulted in when the library is loaded
-//                            instead of during the first call (default 512)
+//                            instead of during the first call (default
+//                            BUDDY_ARENA_DEFAULT_PREFAULT_MB: the spec's
+//                            "arena_prefault_mb", else 512)
 //   BUDDY_ARENA_STATS=1      print the largest call's usage at exit
 //
 //===----------------------------------------------------------------------===//
@@ -43,6 +45,10 @@
 #include <sys/mman.h>
 
 #define HIDDEN __attribute__((visibility("hidden")))
+
+#ifndef BUDDY_ARENA_DEFAULT_PREFAULT_MB
+#define BUDDY_ARENA_DEFAULT_PREFAULT_MB 512
+#endif
 
 static char *arenaBase;
 static size_t arenaSize;
@@ -78,8 +84,12 @@ __attribute__((constructor)) static void arenaInit(void) {
   // Otherwise the first call faults its pages in, and the page faults of
   // its threads serialize in the kernel (SpacemiT K3, int4 DeepSeek R1: the
   // first 64-token prefill call takes 0.12 s longer, of 0.57 s). 512 MiB
-  // covers the calls of the int4 models; more is faulted in when needed.
-  size_t prefault = envMiB("BUDDY_ARENA_PREFAULT_MB", 512);
+  // covers the calls of the int4 DeepSeek R1; a model whose calls take more
+  // sets "arena_prefault_mb" in its spec (Qwen3-VL-30B-A3B, 1.3 GiB per
+  // 64-token prefill call: the first one took 2.2 instead of 1.4 s). More
+  // is faulted in when needed.
+  size_t prefault =
+      envMiB("BUDDY_ARENA_PREFAULT_MB", BUDDY_ARENA_DEFAULT_PREFAULT_MB);
   if (prefault > arenaSize)
     prefault = arenaSize;
 #ifdef MADV_POPULATE_WRITE

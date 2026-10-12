@@ -23,7 +23,20 @@ DeepSeek-R1-1.5B `w4g32`, October 2026.
 - **Removing the decode "fixed overhead"** (barriers and pool spinning are
   ~20% of samples): most of it is threads waiting while others saturate
   DRAM; at most ~2.4 ms per token (8%) is above the floor in total,
-  realistically 1-3%.
+  realistically 1-3%. For Qwen3-VL-30B-A3B the pool profile
+  (`BUDDY_THREAD_POOL_PROFILE`) separated the two: serial gaps were 9% of
+  the step and were real (`spacemit-k3-moe-decode.md`).
+- **Two-pass activation quantization** (all group maxima, then both
+  divisions as one vector op, instead of two scalar divisions per group):
+  perf put ~44% of the serial quantization on the `fdiv.s`, but the
+  serial time before the Qwen3-VL-30B-A3B q/k/v and o kernels grew
+  (1.90 -> 2.07, 0.79 -> 0.87 ms per token): the samples on `fdiv.s` were
+  skid from the reduction before it. Bit-identical, slower.
+- **MoE decode gate / up work items spread over the experts** (thread t
+  takes tiles of 6 experts instead of one expert's 6 tiles): 0.90 ->
+  0.91 ms per layer (microbenchmark), no gain.
+- **Gate and up accumulated in one loop** (two weight streams per group):
+  0.90 -> 1.01 ms per MoE layer (microbenchmark), more register pressure.
 - **Computing parts of the next token early** (decode leaves compute idle):
   every layer of token t+1 depends on token t, chosen from token t's
   logits; only speculative decoding gets around this.
