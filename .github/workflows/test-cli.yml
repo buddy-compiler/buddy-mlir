@@ -1,0 +1,185 @@
+name: test cli
+
+# Builds bge_m3 and runs it with buddy-cli on both architectures.  bge_m3 is
+# the smallest model that both cross-compiles (Whisper and Qwen3-VL are
+# rejected by IS_RVV_CROSSCOMPILE) and can be run with buddy-cli.
+#
+#   x86      host build + run, then the riscv64 cross build; its .rax is
+#            uploaded after checking every staged library is RISC-V
+#   riscv64  native build + run, then runs that cross-compiled .rax (this
+#            job's buddy-cli is native, so it loads the riscv64 plugins)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-cli-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Read-only mirror for the snapshot download below.
+  HF_DOWNLOAD_ENDPOINT: https://hf-mirror.com
+  # bge_m3 needs a local snapshot: build_model.py refuses to configure without
+  # one, and the tokenizer is staged from it.
+  HF_MODEL: BAAI/bge-m3
+  SPEC: models/bge_m3/specs/base.json
+  # Build trees below the Makefile's CACHE_ROOT: the host one from `make host`
+  # and the cross one from `make riscv-model-bge_m3-base`.
+  BUDDY_DIR: build
+  CROSS_DIR: build-riscv/bge_m3-base/models/bge_m3
+  # buddy-cli prints "[v0, ..., v1023]" on stdout and the runner L2-normalizes
+  # the vector, so check the shape and the norm: the exit status alone also
+  # passes when nothing was loaded.
+  CHECK_EMBEDDING: |
+    import json, math, sys
+    v = json.loads(sys.stdin.read())
+    assert len(v) == 1024 and abs(math.sqrt(sum(x * x for x in v)) - 1) < 1e-3, v[:4]
+    print("ok: 1024 floats, L2-normalized")
+
+jobs:
+  x86:
+    name: x86 host + riscv64 cross
+    runs-on: [ self-hosted, x64 ]
+    timeout-minutes: 720
+    steps:
+      - name: Prepare the build cache
+        # CACHE_ROOT keeps every Makefile build tree out of the workspace, so
+        # actions/checkout's clean cannot wipe it.  Set up here because
+        # checkout_llvm clones into LLVM_SRC's parent, while the `llvm` symlink
+        # that `make host` reads must be created after the checkout.
+        run: |
+          set -euo pipefail
+          src="$HOME/actions-runner/workspace/llvm-project"
+          mkdir -p "$HOME/buddy-cli-cache" "$(dirname "$src")"
+          echo "CACHE_ROOT=$HOME/buddy-cli-cache" >> "$GITHUB_ENV"
+          echo "LLVM_SRC=$src" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: 'false'
+          fetch-depth: 300
+
+      - uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: ${{ env.LLVM_SRC }}
+
+      - name: Link the cached LLVM source
+        # The symlink reuses the cached source and keeps its mtimes stable, so
+        # the persistent build trees stay incremental.
+        run: |
+          set -euo pipefail
+          rm -rf llvm
+          ln -s "$LLVM_SRC" llvm
+
+      - uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
+        with:
+          python-version: "3.12"
+          activate-environment: "true"
+          no-project: "true"
+          enable-cache: "true"
+          cache-dependency-glob: requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          uv pip install --torch-backend cpu -r requirements.txt huggingface_hub
+          echo "PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+          echo "PARALLEL=$(nproc)" >> "$GITHUB_ENV"
+
+      - name: Build the host LLVM/Buddy and the RISC-V toolchain
+        run: make riscv
+
+      - name: Fetch the model snapshot
+        run: |
+          set -euo pipefail
+          snap="$CACHE_ROOT/snapshots/bge-m3"
+          mkdir -p "$(dirname "$snap")"
+          [ -n "$(ls -A "$snap" 2>/dev/null)" ] || python -c "import os, sys, huggingface_hub; huggingface_hub.snapshot_download(sys.argv[1], local_dir=sys.argv[2], endpoint=os.environ.get('HF_DOWNLOAD_ENDPOINT') or None)" "$HF_MODEL" "$snap"
+          echo "MODEL_SNAPSHOT=$snap" >> "$GITHUB_ENV"
+
+      - name: Build and run the model (host)
+        run: |
+          set -euo pipefail
+          buddy="$CACHE_ROOT/$BUDDY_DIR"
+          python tools/buddy-codegen/build_model.py --spec "$SPEC" --build-dir "$buddy" --local-model "$MODEL_SNAPSHOT"
+          "$buddy/bin/buddy-cli" --model "$buddy/models/bge_m3/bge_m3.rax" --prompt "hello world" --no-stats | python -c "$CHECK_EMBEDDING"
+
+      - name: Cross-compile the model for riscv64
+        # `-o riscv` reuses the toolchain `make riscv` already built.
+        run: |
+          set -euo pipefail
+          make -o riscv riscv-model-bge_m3-base RISCV_MODEL_LOCAL="$MODEL_SNAPSHOT"
+          for so in "$CACHE_ROOT/$CROSS_DIR"/*.so*; do
+            readelf -h "$so" | grep -q RISC-V || { echo "::error::$so is not a RISC-V ELF"; exit 1; }
+          done
+          "$CACHE_ROOT/$BUDDY_DIR/bin/rax-inspect" "$CACHE_ROOT/$CROSS_DIR/bge_m3.rax" | sed -n '1,12p'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-riscv64-rax
+          path: ${{ env.CACHE_ROOT }}/${{ env.CROSS_DIR }}/bge_m3.rax
+          if-no-files-found: error
+          retention-days: 3
+
+  riscv64:
+    name: riscv64 native
+    runs-on: [ self-hosted, riscv64 ]
+    needs: x86
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: 'false'
+          fetch-depth: 300
+
+      - uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: $HOME/src/llvm-project
+
+      - uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
+        with:
+          python-version: "3.12"
+          activate-environment: "true"
+          no-project: "true"
+          enable-cache: "true"
+          cache-dependency-glob: requirements.txt
+
+      - name: Build LLVM/MLIR and buddy-mlir
+        # ci-common, not `make host`: it carries the riscv64 OpenMP flags
+        # (--gcc-install-dir) and the LLVM build cache.
+        uses: ./.github/actions/ci-common
+        with:
+          arch: riscv64
+          llvm-src: $HOME/src/llvm-project
+          llvm-build-root: $HOME/llvm-cache
+
+      - name: Fetch the model snapshot
+        run: |
+          set -euo pipefail
+          echo "CACHE_ROOT=$HOME/buddy-cli-cache" >> "$GITHUB_ENV"
+          snap="$HOME/buddy-cli-cache/snapshots/bge-m3"
+          mkdir -p "$(dirname "$snap")"
+          [ -n "$(ls -A "$snap" 2>/dev/null)" ] || python -c "import os, sys, huggingface_hub; huggingface_hub.snapshot_download(sys.argv[1], local_dir=sys.argv[2], endpoint=os.environ.get('HF_DOWNLOAD_ENDPOINT') or None)" "$HF_MODEL" "$snap"
+          echo "MODEL_SNAPSHOT=$snap" >> "$GITHUB_ENV"
+
+      - name: Build and run the model (native)
+        run: |
+          set -euo pipefail
+          python tools/buddy-codegen/build_model.py --spec "$SPEC" --build-dir "$BUDDY_DIR" --local-model "$MODEL_SNAPSHOT"
+          "$BUDDY_DIR/bin/buddy-cli" --model "$BUDDY_DIR/models/bge_m3/bge_m3.rax" --prompt "hello world" --no-stats | python -c "$CHECK_EMBEDDING"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cross-riscv64-rax
+          path: ${{ env.CACHE_ROOT }}/cross-rax
+
+      - name: Run the cross-compiled package
+        run: |
+          set -euo pipefail
+          "$BUDDY_DIR/bin/buddy-cli" --model "$CACHE_ROOT/cross-rax/bge_m3.rax" --prompt "hello world" --no-stats | python -c "$CHECK_EMBEDDING"
