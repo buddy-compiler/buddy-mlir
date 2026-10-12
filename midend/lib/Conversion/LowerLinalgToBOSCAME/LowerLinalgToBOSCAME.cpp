@@ -14,7 +14,27 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines Linalg dialect lowering pass to BOSCAME dialect.
+// Lowers bufferized linalg matmul / generic ops to BOSCAME matrix instructions.
+//
+// Two contracts, selected by --lower-linalg-to-boscame=target=:
+//
+//   upstream (default, also used by GEM5)
+//     Match a small set of linalg.matmul and linalg.generic bodies, tile them
+//     into 4x4 matrix registers, and emit msettypei / msettile* / mla* / mma /
+//     msce. Elementwise add and mul become bosc_ame.madd / mmul, not scalar
+//     loops. The msettype immediate is the raw element width (8/16/32/64).
+//
+//   nr-fpga
+//     Stamp bosc_ame.target = "nr-fpga" and leave every linalg op in place.
+//     The NR FPGA has no validated f32 elementwise AME path: madd.f.mm would
+//     pick the wrong register bank and fail verifyFpgaAmeCapabilities. The
+//     following convert-linalg-to-loops pass turns add_1x1024 and the other
+//     generic kernels into scalar RA code. This pass does not emit the FPGA
+//     mqma.b.mm matmul either; that lowering is not in this pattern set.
+//
+//   qwen3-fpga
+//     Legacy name. This pass still runs the upstream patterns; FPGAAMETarget
+//     only records the attribute and checks capabilities.
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,12 +54,15 @@
 
 #include "Dialect/BOSCAME/BOSCAMEDialect.h"
 #include "Dialect/BOSCAME/BOSCAMEOps.h"
+#include "Dialect/BOSCAME/Transforms/FPGAAMETarget.h"
 
 using namespace mlir;
 using namespace buddy::boscame;
 
 namespace {
 
+// Bodies this pass can turn into one BOSCAME elementwise instruction.
+// Sub and FSub are order-sensitive; the other ops accept swapped operands.
 enum class ElementwiseKind {
   Add,
   Sub,
@@ -54,12 +77,18 @@ enum class ElementwiseKind {
   FMax,
 };
 
+// How a 0-d or 1-d input is expanded onto a 2-d output tile.
+//   Row:     input[n] is copied across every row of the M x N tile.
+//   Column:  input[m] is copied down every column.
+//   Element: a scalar is copied into every element.
 enum class BroadcastKind {
   Row,
   Column,
   Element,
 };
 
+// Which matrix-register bank the broadcast / transpose mnemonic addresses.
+// TileA / TileB are the MMA inputs; Accumulation is the C tile (mbcc*, mtce*).
 enum class BroadcastRegisterKind {
   TileA,
   TileB,
@@ -79,6 +108,9 @@ static unsigned getElementByteWidth(Type type) {
   return bitWidth == 0 ? 0 : (bitWidth + 7) / 8;
 }
 
+// Upstream msettypei immediate: the element width in bits, not the FPGA
+// mtype bit-field (mma / mint* / msew). f16 and bf16 share the 16-bit
+// encoding; f32 shares 32 with i32. NR never emits this instruction.
 static LogicalResult getMsetTypeImm(Type elementType, int64_t &imm) {
   if (elementType.isInteger(4)) {
     imm = 4;
@@ -116,6 +148,8 @@ static bool hasPureBufferOperands(linalg::GenericOp op) {
   return op.hasPureBufferSemantics() && op.getNumDpsInits() == 1;
 }
 
+// True when map is exactly (d0, ..., dN) -> (d_pos0, d_pos1, ...).
+// Used to recognize matmul (m,k)/(k,n)/(m,n) and transpose (n,m) -> (m,n).
 static bool isAffineMap(AffineMap map, unsigned numDims,
                         ArrayRef<unsigned> dimPositions) {
   if (map.getNumDims() != numDims || map.getNumSymbols() != 0 ||
@@ -141,6 +175,11 @@ static bool isIdentityND(AffineMap map, unsigned rank) {
   return isAffineMap(map, rank, dims);
 }
 
+// linalg.generic that is a matmul in all but the op name:
+//   iterators (parallel, parallel, reduction)
+//   maps (m,k), (k,n), (m,n)
+//   yield = acc + (lhs * rhs), integer or float, either multiply order.
+// The accumulator must be the third block argument (the DPS init).
 static bool isGenericMatmulLike(linalg::GenericOp op) {
   if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 2)
     return false;
@@ -193,6 +232,9 @@ static bool isGenericMatmulLike(linalg::GenericOp op) {
           mulOp->getOperand(1) == body.getArgument(0));
 }
 
+// Rank-2 generic with identity maps on both inputs and the output, one binary
+// arith op, and a single yield. Subtraction only matches when the body keeps
+// lhs - rhs; a swapped sub is a different operation and is rejected.
 static bool matchElementwiseKind(linalg::GenericOp op, ElementwiseKind &kind) {
   if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 2)
     return false;
@@ -253,6 +295,9 @@ static bool matchElementwiseKind(linalg::GenericOp op, ElementwiseKind &kind) {
   return true;
 }
 
+// math.fpowi(x, 2) on a parallel generic of rank >= 2. The exponent must be
+// a constant 2 so the lowering can emit an elementwise multiply of a tile
+// by itself. Higher ranks are batch dimensions, iterated one index at a time.
 static bool matchUnarySquare(linalg::GenericOp op) {
   if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
     return false;
@@ -287,6 +332,8 @@ static bool matchUnarySquare(linalg::GenericOp op) {
   return exponent.getSExtValue() == 2;
 }
 
+// 2-d transpose: input map (d0, d1) -> (d1, d0), output map identity, body
+// just yields the loaded value. No arithmetic.
 static bool matchTranspose(linalg::GenericOp op) {
   if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
     return false;
@@ -306,6 +353,11 @@ static bool matchTranspose(linalg::GenericOp op) {
          yieldOp.getValues()[0] == body.getArgument(0);
 }
 
+// 2-d output, input map selects the broadcast axis:
+//   no results        -> scalar (element)
+//   (d0, d1) -> (d1)  -> row vector along N
+//   (d0, d1) -> (d0)  -> column vector along M
+// The body must yield the input unchanged.
 static bool matchBroadcast(linalg::GenericOp op, BroadcastKind &kind) {
   if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
     return false;
@@ -338,6 +390,8 @@ static bool matchBroadcast(linalg::GenericOp op, BroadcastKind &kind) {
          yieldOp.getValues()[0] == body.getArgument(0);
 }
 
+// Dynamic legality: a generic is illegal (must be rewritten) only when one
+// of the matchers above accepts it. Anything else stays linalg.generic.
 static bool isLowerableGeneric(linalg::GenericOp op) {
   ElementwiseKind elementwiseKind;
   BroadcastKind broadcastKind;
@@ -351,6 +405,8 @@ static Value createDim(PatternRewriter &rewriter, Location loc, Value memref,
   return memref::DimOp::create(rewriter, loc, memref, dim);
 }
 
+// Tile extent at this iteration: min(step, bound - iv). The last tile along
+// a dimension may be shorter than 4; msettile* receives that remainder.
 static Value createIndexMin(PatternRewriter &rewriter, Location loc,
                             Value bound, Value iv, int64_t step) {
   Value remain = arith::SubIOp::create(rewriter, loc, bound, iv);
@@ -366,6 +422,10 @@ static Value castIndexToI64(PatternRewriter &rewriter, Location loc,
                                     value);
 }
 
+// Row stride in bytes for an AME load/store. `dim` selects which dimension's
+// element stride is scaled (0 for a normal 2-d tile, rank-2 for the M axis of
+// a batched square). Rank-0 memrefs have no stride metadata; the byte width
+// itself is returned so a scalar broadcast still has a defined operand.
 static Value createByteStride(PatternRewriter &rewriter, Location loc,
                               Value memref, unsigned dim = 0) {
   auto memrefType = cast<MemRefType>(memref.getType());
@@ -399,6 +459,9 @@ static Value createSubView(PatternRewriter &rewriter, Location loc,
                                    sizeResults, strides);
 }
 
+// Configure the upstream AME tile before the loads. msettypei takes the bit
+// width. msettilem/n always run; msettilek is emitted only for matmul, where
+// the K remainder can differ from M and N. currK is null for elementwise.
 static LogicalResult createMSetTypeAndTiles(PatternRewriter &rewriter,
                                             Operation *anchor, Location loc,
                                             Type elementType, Value currM,
@@ -419,6 +482,8 @@ static LogicalResult createMSetTypeAndTiles(PatternRewriter &rewriter,
   return success();
 }
 
+// Load a 4x4 tile into the A bank (mlae*.m). The SSA type is vector<4x4xT>
+// even when the hardware tile is smaller; msettile* carries the real size.
 static FailureOr<Value> createLoadA(PatternRewriter &rewriter,
                                     Operation *anchor, Location loc,
                                     Type elementType, Value source,
@@ -438,6 +503,9 @@ static FailureOr<Value> createLoadA(PatternRewriter &rewriter,
                                        "unsupported BOSCAME A load type");
 }
 
+// Load a 4x4 tile into the B bank (mlbe*.m). This is the non-transposed B
+// load. NR rejects the transposed form (mlbte); this upstream path does not
+// emit it either.
 static FailureOr<Value> createLoadB(PatternRewriter &rewriter,
                                     Operation *anchor, Location loc,
                                     Type elementType, Value source,
@@ -457,6 +525,9 @@ static FailureOr<Value> createLoadB(PatternRewriter &rewriter,
                                        "unsupported BOSCAME B load type");
 }
 
+// Load a 4x4 tile into the accumulator bank (mlce*.m). Elementwise, square,
+// transpose, and broadcast all stage their data here, because the matching
+// madd/msub/mt/mbc instructions read and write C, not the A/B MMA banks.
 static FailureOr<Value> createLoadC(PatternRewriter &rewriter,
                                     Operation *anchor, Location loc,
                                     Type elementType, Value source,
@@ -476,6 +547,8 @@ static FailureOr<Value> createLoadC(PatternRewriter &rewriter,
                                        "unsupported BOSCAME C load type");
 }
 
+// Store the accumulator tile (msce*.m). The destination subview is the DPS
+// output, so the write updates the caller's memref in place.
 static LogicalResult createStoreC(PatternRewriter &rewriter, Operation *anchor,
                                   Location loc, Type elementType, Value src,
                                   Value dest, Value stride) {
@@ -494,6 +567,13 @@ static LogicalResult createStoreC(PatternRewriter &rewriter, Operation *anchor,
   return success();
 }
 
+// Pick the MMA mnemonic from the (lhs, accumulator) pair. Examples:
+//   i8 x i8 -> i32   mqma.b.mm
+//   i16 x i16 -> i32 mwma.h.mm
+//   f16/bf16 -> f32  mfwma.hf.mm
+//   f32 x f32 -> f32 mfma.f.mm
+// The accumulator value is the third operand and is updated, not replaced
+// by a pure product. This is the GEM5 encoding, not the NR FPGA mqma tile.
 static FailureOr<Value> createMatmul(PatternRewriter &rewriter,
                                      Operation *anchor, Location loc,
                                      Type lhsType, Type resultType, Value acc,
@@ -522,6 +602,9 @@ static FailureOr<Value> createMatmul(PatternRewriter &rewriter,
         anchor, "unsupported BOSCAME matmul instruction type");
 }
 
+// Build a BOSCAME op by mnemonic string. Elementwise, broadcast, and
+// transpose each have a family of names (width x register bank) that are not
+// worth one C++ class per spelling; the dialect still has to know the name.
 static Value createMatrixOp(PatternRewriter &rewriter, Location loc,
                             StringRef name, Type resultType,
                             ValueRange operands) {
@@ -531,6 +614,10 @@ static Value createMatrixOp(PatternRewriter &rewriter, Location loc,
   return rewriter.create(state)->getResult(0);
 }
 
+// bosc_ame.<madd|msub|mmul|...><.b|.h|.w|.dw|.hf|.f|.d>.mm on two C tiles.
+// Integer min/max keep the signedness of the original arith op. fmax covers
+// both arith.maximumf and arith.maxnumf; this pass does not distinguish NaN
+// behavior.
 static FailureOr<Value> createElementwise(PatternRewriter &rewriter,
                                           Operation *anchor, Location loc,
                                           ElementwiseKind kind,
@@ -595,6 +682,9 @@ static FailureOr<Value> createElementwise(PatternRewriter &rewriter,
   return createMatrixOp(rewriter, loc, name, lhs.getType(), {lhs, rhs});
 }
 
+// Row broadcast is mbc{a,b,c}r.m (no width in the name). Column and scalar
+// broadcasts encode the width: mbccce8.m is "C bank, column, 8-bit";
+// mbccee8.m is the scalar ("element") form. regKind selects a/b/c.
 static FailureOr<Value> createBroadcast(PatternRewriter &rewriter,
                                         Operation *anchor, Location loc,
                                         BroadcastKind kind,
@@ -628,6 +718,9 @@ static FailureOr<Value> createBroadcast(PatternRewriter &rewriter,
   return createMatrixOp(rewriter, loc, name, src.getType(), {src});
 }
 
+// In-register transpose, mt{a,b,c}e<width>.m. The tile must already sit in
+// the selected bank; the caller loads it with createLoadC when regKind is
+// Accumulation.
 static FailureOr<Value> createTranspose(PatternRewriter &rewriter,
                                         Operation *anchor, Location loc,
                                         BroadcastRegisterKind regKind,
@@ -653,6 +746,17 @@ static FailureOr<Value> createTranspose(PatternRewriter &rewriter,
   return createMatrixOp(rewriter, loc, name, src.getType(), {src});
 }
 
+// Shared body for linalg.matmul and a matmul-shaped generic.
+//
+// Loop nest is M, then N, then K, each stepped by the hardware tile. M and N
+// tiles are always 4. K depends on how many products fit in the accumulator:
+//   i8 -> i32     K = 16
+//   i16/f16/bf16 -> i32 or f32   K = 8
+//   i32/f32       K = 4
+//   i64/f64       K = 2
+// Each K step loads A[m,k], B[k,n], and the C accumulator, multiplies, and
+// stores C back, so a partial tile accumulates through memory rather than
+// keeping the accumulator live across the K loop.
 static LogicalResult lowerMatmulLike(Operation *anchor,
                                      PatternRewriter &rewriter, Location loc,
                                      Value A, Value B, Value C) {
@@ -741,6 +845,8 @@ static LogicalResult lowerMatmulLike(Operation *anchor,
   return success();
 }
 
+// Bufferized linalg.matmul only. Tensor semantics are left alone; a later
+// bufferization pass has to run first.
 class MatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
   using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
@@ -762,6 +868,8 @@ public:
   }
 };
 
+// Same tiling as MatmulToBOSCAMELowering, for a generic whose body is
+// acc + lhs * rhs. See isGenericMatmulLike.
 class GenericMatmulToBOSCAMELowering
     : public OpRewritePattern<linalg::GenericOp> {
 public:
@@ -784,6 +892,10 @@ public:
   }
 };
 
+// 4x4 elementwise over M and N. Both inputs are loaded with mlce (C bank),
+// not mlae/mlbe: madd/mmul and the other elementwise ops operate on C tiles.
+// There is no K loop. On nr-fpga this pattern is not registered; f32 add
+// stays linalg.generic for convert-linalg-to-loops.
 class GenericElementwiseToBOSCAMELowering
     : public OpRewritePattern<linalg::GenericOp> {
 public:
@@ -865,6 +977,10 @@ public:
   }
 };
 
+// x^2 as an elementwise multiply of a tile by itself. Dimensions before the
+// last two are batch axes and are walked with step 1; only the trailing
+// MxN plane is tiled 4x4. The stride passed to the load is the M-axis stride
+// of that plane (matrixDimM), not dimension 0 of the full memref.
 class GenericUnarySquareToBOSCAMELowering
     : public OpRewritePattern<linalg::GenericOp> {
 public:
@@ -967,6 +1083,11 @@ public:
   }
 };
 
+// 4x4 transpose. Both dimensions of the output must be static multiples of 4:
+// the mt*e instruction has no remainder form here, so a short edge tile is
+// rejected instead of being padded. The input subview is indexed (n, m) with
+// sizes (currN, currM) so that after the in-register transpose it lines up
+// with output tile (m, n).
 class GenericTransposeToBOSCAMELowering
     : public OpRewritePattern<linalg::GenericOp> {
 public:
@@ -1044,6 +1165,11 @@ public:
   }
 };
 
+// Broadcast into each 4x4 output tile.
+//   Row:    subview input[n : n+currN], then mbccr.
+//   Column: subview input[m : m+currM], then mbcce.
+//   Element: the rank-0 memref is loaded as-is and expanded with mbcee.
+// The result is written to output[m, n].
 class GenericBroadcastToBOSCAMELowering
     : public OpRewritePattern<linalg::GenericOp> {
 public:
@@ -1149,6 +1275,12 @@ public:
   LowerLinalgToBOSCAMEPass() = default;
   LowerLinalgToBOSCAMEPass(const LowerLinalgToBOSCAMEPass &) {}
 
+  Option<std::string> ameTarget{
+      *this, "target",
+      llvm::cl::desc("AME hardware contract: 'upstream' (default), "
+                     "'nr-fpga' (NH/RA), or 'qwen3-fpga' (legacy)."),
+      llvm::cl::init("")};
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<BOSCAMEDialect>();
     registry.insert<linalg::LinalgDialect>();
@@ -1161,27 +1293,57 @@ public:
 };
 } // namespace
 
+// Resolve target= against any bosc_ame.target already on the module. A
+// conflict fails the pass. A non-upstream profile is written back onto the
+// module so later FPGA legalization can see it.
+//
+// nr-fpga registers no rewrite patterns and marks matmul and generic legal.
+// applyPartialConversion then succeeds without changing those ops. Every
+// other profile marks matmul illegal and marks a generic illegal when
+// isLowerableGeneric is true, so the patterns above must erase them.
 void LowerLinalgToBOSCAMEPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
-  RewritePatternSet patterns(context);
-  patterns.add<
-      MatmulToBOSCAMELowering, GenericMatmulToBOSCAMELowering,
-      GenericElementwiseToBOSCAMELowering, GenericUnarySquareToBOSCAMELowering,
-      GenericTransposeToBOSCAMELowering, GenericBroadcastToBOSCAMELowering>(
-      context);
+  FailureOr<AmeTargetProfile> profile =
+      resolveAmeTarget(module, ameTarget.getValue());
+  if (failed(profile)) {
+    signalPassFailure();
+    return;
+  }
 
+  if (*profile != AmeTargetProfile::Upstream)
+    module->setAttr(
+        kAmeTargetAttrName,
+        StringAttr::get(context, stringifyAmeTargetProfile(*profile)));
+
+  if (isFpgaTarget(*profile) && failed(verifyFpgaAmeCapabilities(module))) {
+    signalPassFailure();
+    return;
+  }
+
+  RewritePatternSet patterns(context);
   ConversionTarget target(*context);
   target.addLegalDialect<BOSCAMEDialect, arith::ArithDialect,
                          memref::MemRefDialect, scf::SCFDialect>();
-  target.addIllegalOp<linalg::MatmulOp>();
-  target.addDynamicallyLegalOp<linalg::GenericOp>(
-      [](linalg::GenericOp op) { return !isLowerableGeneric(op); });
 
-  if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
-    signalPassFailure();
+  if (*profile == AmeTargetProfile::NrFpga) {
+    // NR: do not lower elementwise add/mul to BOSCAME. Leave linalg.generic
+    // for convert-linalg-to-loops (board-validated add_1x1024 path).
+    target.addLegalOp<linalg::MatmulOp, linalg::GenericOp>();
+  } else {
+    patterns.add<MatmulToBOSCAMELowering, GenericMatmulToBOSCAMELowering,
+                 GenericElementwiseToBOSCAMELowering,
+                 GenericUnarySquareToBOSCAMELowering,
+                 GenericTransposeToBOSCAMELowering,
+                 GenericBroadcastToBOSCAMELowering>(context);
+    target.addIllegalOp<linalg::MatmulOp>();
+    target.addDynamicallyLegalOp<linalg::GenericOp>(
+        [](linalg::GenericOp op) { return !isLowerableGeneric(op); });
   }
+
+  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    signalPassFailure();
 }
 
 //===----------------------------------------------------------------------===//

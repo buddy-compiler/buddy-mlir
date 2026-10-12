@@ -1,24 +1,44 @@
 //===- LegalizeForLLVMExport.cpp - Prepare BOSCAME for LLVM translation -===//
 //
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
 // Lower the SSA-based BOSC AME dialect to bosc_ame.intr.* operations.
 //
 // This file deliberately uses LLVM::getVectorType instead of concrete
 // LLVMVectorType / LLVMScalableVectorType classes. getVectorType is the
 // stable LLVM-dialect API in the Buddy/MLIR branches where concrete class
 // names differ.
+//
 //===----------------------------------------------------------------------===//
 
 #include "Dialect/BOSCAME/BOSCAMEDialect.h"
 #include "Dialect/BOSCAME/BOSCAMEOps.h"
 #include "Dialect/BOSCAME/Transform.h"
+#include "Dialect/BOSCAME/Transforms/FPGAAMETarget.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Pass/Pass.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
@@ -222,10 +242,51 @@ struct LegalizeBOSCAMEForLLVMExport
     registry.insert<LLVM::LLVMDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<memref::MemRefDialect>();
+    registry.insert<scf::SCFDialect>();
   }
 
   void runOnOperation() override {
     ModuleOp module = getOperation();
+    FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, "");
+    if (failed(profile)) {
+      signalPassFailure();
+      return;
+    }
+    if (isFpgaTarget(*profile) && failed(verifyFpgaAmeCapabilities(module))) {
+      signalPassFailure();
+      return;
+    }
+    if (isFpgaTarget(*profile)) {
+      llvm::SmallVector<llvm::StringRef, 4> features = {kFPGATargetFeature};
+      WalkResult walk = module.walk([&](FunctionOpInterface function) {
+        llvm::SmallVector<llvm::StringRef, 4> merged(features);
+        std::string featureAttrName =
+            isa<LLVM::LLVMFuncOp>(function.getOperation())
+                ? LLVM::TargetFeaturesAttr::getAttributeName().str()
+                : ("llvm." + LLVM::TargetFeaturesAttr::getAttributeName())
+                      .str();
+        if (auto existing = function->getAttrOfType<LLVM::TargetFeaturesAttr>(
+                featureAttrName)) {
+          for (llvm::StringRef feature : existing.getFeatures()) {
+            if (feature == "-xboscame-fpga" || feature == "-xboscame") {
+              function->emitError()
+                  << "target features disable the module's "
+                  << stringifyAmeTargetProfile(*profile) << " AME contract";
+              return WalkResult::interrupt();
+            }
+            if (!llvm::is_contained(merged, feature))
+              merged.push_back(feature);
+          }
+        }
+        function->setAttr(featureAttrName,
+                          LLVM::TargetFeaturesAttr::get(&getContext(), merged));
+        return WalkResult::advance();
+      });
+      if (walk.wasInterrupted()) {
+        signalPassFailure();
+        return;
+      }
+    }
     MLIRContext &context = getContext();
     LLVMConversionTarget target(context);
     target.addLegalDialect<arith::ArithDialect>();
@@ -238,6 +299,8 @@ struct LegalizeBOSCAMEForLLVMExport
     addBOSCAMETypeConversions(converter);
     RewritePatternSet patterns(&context);
     patterns.add<BOSCAMEToIntrinsicLowering>(converter, &context);
+    scf::populateSCFStructuralTypeConversionsAndLegality(converter, patterns,
+                                                         target);
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
   }
