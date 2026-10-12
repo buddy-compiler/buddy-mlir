@@ -418,7 +418,17 @@ def main() -> int:
         return r.returncode
 
     if not args.no_configure:
-        cmd = ["cmake", "-S", str(root), "-B", str(build_dir)] + cmake_args
+        # Prefer Ninja: the Makefiles generator mishandles the arg0.data
+        # byproduct. A tree that already exists keeps the generator it was
+        # configured with, so only new trees get the flag.
+        generator = []
+        if not (build_dir / "CMakeCache.txt").is_file():
+            generator = ["-G", "Ninja"]
+        cmd = (
+            ["cmake", "-S", str(root), "-B", str(build_dir)]
+            + generator
+            + cmake_args
+        )
         rc = run(cmd)
         if rc != 0:
             return rc
