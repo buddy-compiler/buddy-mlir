@@ -25,6 +25,9 @@ RISCV_INSTALL ?= $(CURDIR)/thirdparty/riscv
 RISCV_ARCH ?= rv64gcv
 RISCV_ABI ?= lp64d
 RISCV_MLIR_BUILD ?= $(CURDIR)/llvm/build-cross-mlir-rv
+# riscv64 LLVM the cross-compiled runtime plugins link (libLLVMSupport.a);
+# `make riscv` builds it together with the cross MLIR runtimes.
+RISCV_LLVM_BUILD ?= $(RISCV_MLIR_BUILD)
 RISCV_OMP_BUILD ?= $(CURDIR)/llvm/build-omp-shared-rv
 RISCV_TARGET := riscv64-unknown-linux-gnu
 RISCV_TARGET_FLAGS := --target=$(RISCV_TARGET) --sysroot=$(RISCV_INSTALL)/sysroot --gcc-toolchain=$(RISCV_INSTALL)
@@ -235,6 +238,7 @@ $(call riscv_model_target,$(1)): riscv
 		--riscv-gnu-toolchain "$(RISCV_INSTALL)" \
 		--riscv-omp-shared "$(RISCV_INSTALL)/lib/libomp.so" \
 		--riscv-mlir-c-runner-utils "$(RISCV_INSTALL)/lib/libmlir_c_runner_utils.so" \
+		--riscv-llvm-build-dir "$(RISCV_LLVM_BUILD)" \
 		--buddy-mlir-build-dir "$(BUDDY_BUILD)" \
 		$(RISCV_MODEL_OPTIONAL_ARGS) \
 		$(RISCV_MODEL_CMAKE_ARGS) \
