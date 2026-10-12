@@ -48,7 +48,7 @@ def gen_manifest(
     spec: dict,
     runner_library: str,
     transcription_library: str,
-    version: str = "0.1.0",
+    dep_shared_libs: list[str] | None = None,
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = spec["params_size"]
@@ -63,7 +63,7 @@ def gen_manifest(
     lines = []
     emit = lines.append
     emit("rhal.module @whisper attributes {")
-    emit(f'    version = "{version}",')
+    emit('    version = "0.1.0",')
     emit(f'    model_name = "{model_id}",')
     emit(f'    vocab_uri = "file:{vocab_file}",')
     emit(f'    runner_library = "{runner_library}",')
@@ -90,6 +90,12 @@ def gen_manifest(
     )
     emit('                                backend = "cpu",')
     emit(f'                                uri = "file:{so_name}"}}')
+    for idx, dep in enumerate(dep_shared_libs or [], start=2):
+        emit(
+            f'  rhal.codeobj @runtime_dep_{idx - 1} {{id = {idx} : i32, kind = "host_shared_lib",'
+        )
+        emit('                                backend = "cpu",')
+        emit(f'                                uri = "{_normalize_uri(dep)}"}}')
     emit("")
 
     emit(
@@ -133,12 +139,14 @@ def main():
         help="Audio transcription plugin URI/name for module attrs.",
     )
     parser.add_argument(
-        "-o", "--output", default="-", help="Output path (- for stdout)"
+        "--dep-shared-lib",
+        action="append",
+        default=[],
+        metavar="URI_OR_NAME",
+        help="Additional shared library dependency URI/name (repeatable).",
     )
     parser.add_argument(
-        "--version",
-        default="0.1.0",
-        help="RAX module version string (usually the CLI release version).",
+        "-o", "--output", default="-", help="Output path (- for stdout)"
     )
     args = parser.parse_args()
 
@@ -149,7 +157,7 @@ def main():
         spec,
         _normalize_uri(args.runner_library),
         _normalize_uri(args.transcription_library),
-        version=args.version,
+        dep_shared_libs=args.dep_shared_lib,
     )
 
     if args.output == "-":
