@@ -732,9 +732,9 @@ def cmd_stage(args):
         "QWEN3_VL_RUNNER_SO", os.path.join(PKG_DIR, "qwen3_vl_runner.so")
     )
     vocab = os.path.join(REPO, "examples", "BuddyQwen3", "vocab.txt")
-    serving_so = os.environ.get("QWEN3_VL_SERVING_SO", "")
-    if serving_so:
-        stage_file(serving_so, os.path.join(PKG_DIR, "qwen3_vl_serving.so"))
+    model_so = os.environ.get("QWEN3_VL_MODEL_SO", "")
+    if model_so:
+        stage_file(model_so, os.path.join(PKG_DIR, "qwen3_vl_server.so"))
 
     stage_file(
         os.path.join(VISION_DIR, "vision_shim.so"),
@@ -810,10 +810,8 @@ def cmd_stage(args):
         ("cmask", "cmask.bin"),
         ("meta", "meta.txt"),
     ]
-    serving_attr = (
-        ',\n    serving_library = "file:qwen3_vl_serving.so"'
-        if serving_so
-        else ""
+    model_attr = (
+        ',\n    model_library = "file:qwen3_vl_server.so"' if model_so else ""
     )
     constants = "".join(
         rhal_file_constant(idx, name, os.path.join(PKG_DIR, filename))
@@ -824,7 +822,7 @@ def cmd_stage(args):
     version = "{rax_version}",
     model_name = "qwen3_vl",
     vocab_uri = "file:vocab.txt",
-    runner_library = "file:qwen3_vl_runner.so"{serving_attr}}} {{
+    runner_library = "file:qwen3_vl_runner.so"{model_attr}}} {{
 {constants}  rhal.codeobj @vision_kernels {{id = 1 : i32, kind = "host_shared_lib",
                                 backend = "cpu", uri = "file:vision_shim.so"}}
   rhal.codeobj @decoder_kernels {{id = 2 : i32, kind = "host_shared_lib",

@@ -44,7 +44,7 @@ Everything the rax file carries is built for riscv64: the model library
 together with the MLIR runtime libraries `mlir_c_runner_utils` needs
 (`mlir_float16_utils`, `mlir_apfloat_wrappers`, taken from its directory), and
 the runtime plugins named in its manifest
-(`deepseek_r1_runner.so`, `deepseek_r1_serving.so`). The plugins are compiled
+(`deepseek_r1_runner.so`, `deepseek_r1_server.so`). The plugins are compiled
 by `${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++` with the sysroot of the
 GNU toolchain and linked with `lib/libLLVMSupport.a` and `lib/libLLVMDemangle.a`
 of the cross-compiled LLVM (`--riscv-llvm-build-dir`), whose `include/` also

@@ -21,8 +21,7 @@ buddy_add_model(
   SPEC "${BUDDY_WHISPER_SPEC}"
   RUNNER_SRC WhisperRunner.cpp
   RUNNER_PLUGIN_SRC WhisperRunnerPlugin.cpp
-  TRANSCRIPTION_PLUGIN_SRC WhisperAudioTranscriptionModelPlugin.cpp
-  TRANSCRIPTION_LIBRARY whisper_transcription.so
+  MODEL_PLUGIN_SRC WhisperAudioTranscriptionModelPlugin.cpp
   EXTRA_SRCS
     WhisperRuntime.cpp
     WhisperAudioTranscriptionModel.cpp

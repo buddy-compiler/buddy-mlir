@@ -23,7 +23,7 @@
 # does not interpret the rhal.func/buffer bodies at runtime; it only reads the
 # external constant (weights), the host_shared_lib code object (model .so), and
 # the module attrs (model_name, vocab_uri, runner_library,
-# transcription_library).  The func/buffer entries exist only so rax-pack can
+# model_library).  The func/buffer entries exist only so rax-pack can
 # parse a well-formed module.
 #
 # Usage:
@@ -47,7 +47,7 @@ def _normalize_uri(raw: str) -> str:
 def gen_manifest(
     spec: dict,
     runner_library: str,
-    transcription_library: str,
+    model_library: str,
     version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
@@ -67,7 +67,7 @@ def gen_manifest(
     emit(f'    model_name = "{model_id}",')
     emit(f'    vocab_uri = "file:{vocab_file}",')
     emit(f'    runner_library = "{runner_library}",')
-    emit(f'    transcription_library = "{transcription_library}",')
+    emit(f'    model_library = "{model_library}",')
     emit(f'    params_size = "{params_size}",')
     emit(f'    vocab_size = "{vocab_size}",')
     emit(f'    max_token_len = "{max_token_len}",')
@@ -128,9 +128,9 @@ def main():
         help="Runner plugin library URI/name for module attrs.",
     )
     parser.add_argument(
-        "--transcription-library",
-        default="whisper_transcription.so",
-        help="Audio transcription plugin URI/name for module attrs.",
+        "--model-library",
+        default="whisper_server.so",
+        help="Server model plugin URI/name for module attrs.",
     )
     parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
@@ -148,7 +148,7 @@ def main():
     text = gen_manifest(
         spec,
         _normalize_uri(args.runner_library),
-        _normalize_uri(args.transcription_library),
+        _normalize_uri(args.model_library),
         version=args.version,
     )
 

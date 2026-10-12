@@ -117,28 +117,28 @@ target_link_options(buddy_models_llama31_tt INTERFACE
 # The resident runtime is intentionally separate from the CLI runner.  The
 # plugin links only this context library, so buddy-server never links the
 # runner's private TTNN orchestration code.
-add_library(buddy_models_llama31_tt_serving_runtime STATIC
+add_library(buddy_models_llama31_tt_server_runtime STATIC
   Llama31TTExecution.cpp
   Llama31TTNNBackend.cpp
   Llama31TTResidentModel.cpp
 )
-target_compile_features(buddy_models_llama31_tt_serving_runtime PUBLIC cxx_std_20)
-set_target_properties(buddy_models_llama31_tt_serving_runtime PROPERTIES
+target_compile_features(buddy_models_llama31_tt_server_runtime PUBLIC cxx_std_20)
+set_target_properties(buddy_models_llama31_tt_server_runtime PROPERTIES
   POSITION_INDEPENDENT_CODE ON)
-target_include_directories(buddy_models_llama31_tt_serving_runtime PUBLIC
+target_include_directories(buddy_models_llama31_tt_server_runtime PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(buddy_models_llama31_tt_serving_runtime SYSTEM PRIVATE
+target_include_directories(buddy_models_llama31_tt_server_runtime SYSTEM PRIVATE
   "${BUDDY_TT_MLIR_SOURCE_DIR}/runtime/include"
   "${BUDDY_TT_MLIR_SOURCE_DIR}/include"
   "${BUDDY_TT_MLIR_BUILD_DIR}/runtime/include"
   "${BUDDY_TT_MLIR_BUILD_DIR}/include")
-target_link_libraries(buddy_models_llama31_tt_serving_runtime PUBLIC
+target_link_libraries(buddy_models_llama31_tt_server_runtime PUBLIC
   buddy_runtime_core buddy_runtime_llm LLVMSupport)
-target_link_libraries(buddy_models_llama31_tt_serving_runtime PRIVATE
+target_link_libraries(buddy_models_llama31_tt_server_runtime PRIVATE
   "${BUDDY_TTMLIR_RUNTIME_LIB}" "${BUDDY_LLAMA31_PYTHON_LIB}")
-target_compile_definitions(buddy_models_llama31_tt_serving_runtime PRIVATE
+target_compile_definitions(buddy_models_llama31_tt_server_runtime PRIVATE
   BUDDY_LLAMA31_TT_HAS_TTNN=1)
-set_property(TARGET buddy_models_llama31_tt_serving_runtime APPEND PROPERTY
+set_property(TARGET buddy_models_llama31_tt_server_runtime APPEND PROPERTY
   BUILD_RPATH
     "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
     "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
@@ -150,33 +150,33 @@ install(FILES
   include/buddy/runtime/models/Llama31TTResidentModel.h
   DESTINATION include/buddy-mlir/buddy/runtime/models/
   COMPONENT buddy_runtime)
-install(TARGETS buddy_models_llama31_tt_serving_runtime
+install(TARGETS buddy_models_llama31_tt_server_runtime
   EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
 
-add_library(buddy_models_llama31_tt_serving SHARED
+add_library(buddy_models_llama31_tt_server SHARED
   Llama31TTResidentModelPlugin.cpp
 )
-set_target_properties(buddy_models_llama31_tt_serving PROPERTIES
+set_target_properties(buddy_models_llama31_tt_server PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  OUTPUT_NAME "llama31_tt_serving"
+  OUTPUT_NAME "llama31_tt_server"
   PREFIX ""
 )
-target_link_libraries(buddy_models_llama31_tt_serving
-  PRIVATE buddy_models_llama31_tt_serving_runtime)
-target_compile_features(buddy_models_llama31_tt_serving PRIVATE cxx_std_20)
-set_property(TARGET buddy_models_llama31_tt_serving APPEND PROPERTY BUILD_RPATH
+target_link_libraries(buddy_models_llama31_tt_server
+  PRIVATE buddy_models_llama31_tt_server_runtime)
+target_compile_features(buddy_models_llama31_tt_server PRIVATE cxx_std_20)
+set_property(TARGET buddy_models_llama31_tt_server APPEND PROPERTY BUILD_RPATH
   "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
   "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
   "${_BUDDY_LLAMA31_PYTHON_LIB_DIR}"
   "${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime")
-set_property(TARGET buddy_models_llama31_tt_serving APPEND PROPERTY INSTALL_RPATH
+set_property(TARGET buddy_models_llama31_tt_server APPEND PROPERTY INSTALL_RPATH
   "$ORIGIN" "$ORIGIN/../lib"
   "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
   "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
   "${_BUDDY_LLAMA31_PYTHON_LIB_DIR}"
   "${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime")
-install(TARGETS buddy_models_llama31_tt_serving
+install(TARGETS buddy_models_llama31_tt_server
   EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
 
 if(BUDDY_ENABLE_TESTS)
@@ -223,7 +223,7 @@ if(BUDDY_ENABLE_TESTS)
             "${_BUDDY_LLAMA31_TESTDATA}/prefill.ttnn"
             "${_BUDDY_LLAMA31_TESTDATA}/decode.ttnn"
     VERBATIM)
-  add_custom_target(llama31_tt_serving_test_fixtures
+  add_custom_target(llama31_tt_server_test_fixtures
     DEPENDS "${_BUDDY_LLAMA31_TEST_RAX}"
             "${_BUDDY_LLAMA31_BATCH_TEST_RAX}")
 
@@ -236,7 +236,7 @@ if(BUDDY_ENABLE_TESTS)
     buddy_runtime_core buddy_runtime_llm LLVMSupport)
   target_compile_definitions(llama31-tt-execution-test PRIVATE
     BUDDY_LLAMA31_TT_TEST_RAX="${_BUDDY_LLAMA31_TEST_RAX}")
-  add_dependencies(llama31-tt-execution-test llama31_tt_serving_test_fixtures)
+  add_dependencies(llama31-tt-execution-test llama31_tt_server_test_fixtures)
   add_test(NAME llama31-tt-execution COMMAND llama31-tt-execution-test)
   set_tests_properties(llama31-tt-execution PROPERTIES
     PASS_REGULAR_EXPRESSION "Llama31TTExecution tests passed")
@@ -251,7 +251,7 @@ if(BUDDY_ENABLE_TESTS)
   target_compile_definitions(llama31-tt-batch-manifest-test PRIVATE
     BUDDY_LLAMA31_TT_BATCH_TEST_RAX="${_BUDDY_LLAMA31_BATCH_TEST_RAX}")
   add_dependencies(llama31-tt-batch-manifest-test
-    llama31_tt_serving_test_fixtures)
+    llama31_tt_server_test_fixtures)
   add_test(NAME llama31-tt-batch-manifest COMMAND llama31-tt-batch-manifest-test)
   set_tests_properties(llama31-tt-batch-manifest PROPERTIES
     PASS_REGULAR_EXPRESSION "batch manifest rejection passed")
@@ -347,7 +347,7 @@ set(_BUDDY_LLAMA31_PACKAGE_ENV
   "MAX_CACHE_LEN=${BUDDY_LLAMA31_MAX_CACHE_LEN}"
   "PACKAGE_ONLY=1"
   "RUN_WITH_BUDDY_CLI=0"
-  "SERVING_LIBRARY=file:llama31_tt_serving.so"
+  "MODEL_LIBRARY=file:llama31_tt_server.so"
   "MAX_NEW_TOKENS=0"
   "SKIP_LOWER=0"
   "SKIP_PREPARE=0"
@@ -376,7 +376,7 @@ add_custom_command(
     "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_prepare.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
     "${CMAKE_SOURCE_DIR}/tools/buddy-codegen/gen_tenstorrent_manifest.py"
-    buddy_models_llama31_tt_serving
+    buddy_models_llama31_tt_server
     buddy_models_llama31_tt
   COMMENT "Generating self-contained llama31_tt.rax"
   USES_TERMINAL
@@ -475,7 +475,7 @@ function(_buddy_llama31_add_fixed_batch_package batch_size)
     "BUDDY_TT_DECODE_KEEP_STATIC_WEIGHT_INPUTS=${_BUDDY_LLAMA31_DECODE_KEEP_STATIC_WEIGHT_INPUTS}"
     "PACKAGE_ONLY=1"
     "RUN_WITH_BUDDY_CLI=0"
-    "SERVING_LIBRARY=file:llama31_tt_serving.so"
+    "MODEL_LIBRARY=file:llama31_tt_server.so"
     "MAX_NEW_TOKENS=0"
     "DEVICE_ARGMAX=${_BUDDY_LLAMA31_BATCH_DEVICE_ARGMAX}"
     "DEVICE_ARGMAX_PREFILL=${_BUDDY_LLAMA31_BATCH_DEVICE_ARGMAX_PREFILL}"
@@ -512,8 +512,8 @@ function(_buddy_llama31_add_fixed_batch_package batch_size)
       "${CMAKE_CURRENT_SOURCE_DIR}/pack_decode_qkv_ttnn.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
       "${CMAKE_SOURCE_DIR}/tools/buddy-codegen/gen_tenstorrent_manifest.py"
-      buddy_models_llama31_tt_serving
-      buddy_models_llama31_tt_serving_runtime
+      buddy_models_llama31_tt_server
+      buddy_models_llama31_tt_server_runtime
     COMMENT "Generating self-contained ${_BUDDY_LLAMA31_BATCH_STEM}.rax"
     USES_TERMINAL
     VERBATIM

@@ -18,7 +18,7 @@ def gen_manifest(
     spec: dict,
     params_size: int,
     runner_library: str,
-    masked_lm_library: str = "",
+    model_library: str = "",
     version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
@@ -38,9 +38,9 @@ def gen_manifest(
     p(f'    max_seq_len = "{max_seq_len}",')
     p(f'    vocab_size = "{vocab_size}",')
     p(f'    top_k = "{top_k}",')
-    if masked_lm_library:
+    if model_library:
         p(f'    runner_library = "{runner_library}",')
-        p(f'    masked_lm_library = "{masked_lm_library}"}} {{')
+        p(f'    model_library = "{model_library}"}} {{')
     else:
         p(f'    runner_library = "{runner_library}"}} {{')
     p("")
@@ -92,7 +92,7 @@ def main() -> int:
     )
     parser.add_argument("--spec", required=True)
     parser.add_argument("--runner-library", default="proteinglm_runner.so")
-    parser.add_argument("--masked-lm-library", default="")
+    parser.add_argument("--model-library", default="")
     parser.add_argument("-o", "--output", default="-")
     parser.add_argument(
         "--version",
@@ -117,7 +117,7 @@ def main() -> int:
         spec,
         params_bytes // 4,
         normalize_uri(args.runner_library),
-        normalize_uri(args.masked_lm_library) if args.masked_lm_library else "",
+        normalize_uri(args.model_library) if args.model_library else "",
         version=args.version,
     )
     if args.output == "-":

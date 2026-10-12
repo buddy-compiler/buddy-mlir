@@ -83,7 +83,7 @@ position 1:
 
 The package also exposes a non-streaming masked-LM endpoint. Build
 `buddy-server` with the model target, then start it with the `.rax` manifest;
-the `masked_lm_library` attribute is discovered automatically.
+the `model_library` attribute is discovered automatically.
 
 ```bash
 conda run -n buddy-mlir cmake --build build --target proteinglm_rax buddy-server
@@ -102,7 +102,7 @@ Input arrays and SSE streaming are not supported.
 
 The same package exposes a non-streaming masked-LM endpoint. Build
 `buddy-server` together with the model target, then start it with the `.rax`
-manifest (the `masked_lm_library` attr is discovered automatically):
+manifest (the `model_library` attr is discovered automatically):
 
 ```bash
 conda run -n buddy-mlir cmake --build build --target proteinglm_rax buddy-server

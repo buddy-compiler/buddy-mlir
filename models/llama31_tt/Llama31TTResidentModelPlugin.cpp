@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "buddy/runtime/core/ModelPlugin.h"
 #include "buddy/runtime/core/ResidentModelPlugin.h"
 #include "buddy/runtime/models/Llama31TTNNBackend.h"
 #include "buddy/runtime/models/Llama31TTResidentModel.h"
@@ -58,3 +59,11 @@ buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *model) {
 }
 
 extern "C" const char *buddy_resident_model_type_v1() { return "llama31_tt"; }
+
+extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
+buddy_model_plugin_descriptor_v1() {
+  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
+      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
+      buddy::runtime::ModelServiceKind::Resident, 0};
+  return &descriptor;
+}

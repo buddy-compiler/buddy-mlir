@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/core/AudioTranscriptionModelPlugin.h"
+#include "buddy/runtime/core/ModelPlugin.h"
 
 #include <chrono>
 #include <cstdio>
@@ -88,4 +89,12 @@ extern "C" void buddy_destroy_audio_transcription_model_v1(
 
 extern "C" const char *buddy_audio_transcription_model_type_v1() {
   return "fake_transcription";
+}
+
+extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
+buddy_model_plugin_descriptor_v1() {
+  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
+      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
+      buddy::runtime::ModelServiceKind::Transcription, 0};
+  return &descriptor;
 }

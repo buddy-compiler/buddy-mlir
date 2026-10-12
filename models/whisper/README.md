@@ -36,8 +36,8 @@ the importer may fetch the model configured by the spec (by default,
 `openai/whisper-base`).
 
 The package contains `whisper.rax`, `whisper_model.so`,
-`whisper_runner.so`, `whisper_transcription.so`, `vocab.txt`, and the sample
-`audio.wav`. The manifest keeps both runner and transcription plugin entries;
+`whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample
+`audio.wav`. The manifest keeps the runner and model plugin entries;
 the default payload mode embeds all of them in the `.rax`.
 
 ## buddy-cli
@@ -55,8 +55,7 @@ the `.rax` package. `--no-stats` preserves the concise `[Output]` form.
 ## buddy-server
 
 Start the server with a Whisper package. The server discovers
-`transcription_library` from the manifest; `--transcription-so` is an explicit
-override for legacy or development layouts.
+`model_library` from the manifest.
 
 ```bash
 ./build/bin/buddy-server --model ./build/models/whisper/whisper.rax \

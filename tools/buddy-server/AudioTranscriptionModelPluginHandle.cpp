@@ -49,7 +49,7 @@ AudioTranscriptionModelPluginHandle::AudioTranscriptionModelPluginHandle(
     const std::string &path)
     : pluginPath(path) {
   if (path.empty())
-    throw std::runtime_error("buddy-server: --transcription-so path is empty");
+    throw std::runtime_error("buddy-server: model plugin path is empty");
 
   void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!handle)

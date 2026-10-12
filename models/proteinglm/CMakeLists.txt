@@ -23,7 +23,7 @@ buddy_add_model(
   SPEC "${BUDDY_PROTEINGLM_SPEC}"
   RUNNER_SRC ProteinGLMRunner.cpp
   RUNNER_PLUGIN_SRC ProteinGLMRunnerPlugin.cpp
-  MASKED_LM_PLUGIN_SRC ProteinGLMMaskedLMModelPlugin.cpp
+  MODEL_PLUGIN_SRC ProteinGLMMaskedLMModelPlugin.cpp
   EXTRA_SRCS ProteinGLMMaskedLMModel.cpp
   RUNNER_HDR include/buddy/runtime/models/ProteinGLMRunner.h
   LOCAL_MODEL "${BUDDY_PROTEINGLM_MODEL_PATH}"

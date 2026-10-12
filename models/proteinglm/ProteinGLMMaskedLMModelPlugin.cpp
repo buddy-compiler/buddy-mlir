@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "buddy/runtime/core/ModelPlugin.h"
 #include "buddy/runtime/models/ProteinGLMMaskedLMModel.h"
 
 extern "C" buddy::runtime::MaskedLMModel *buddy_create_masked_lm_model_v1() {
@@ -26,3 +27,11 @@ buddy_destroy_masked_lm_model_v1(buddy::runtime::MaskedLMModel *model) {
 }
 
 extern "C" const char *buddy_masked_lm_model_type_v1() { return "proteinglm"; }
+
+extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
+buddy_model_plugin_descriptor_v1() {
+  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
+      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
+      buddy::runtime::ModelServiceKind::MaskedLM, 0};
+  return &descriptor;
+}
