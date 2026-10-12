@@ -14,28 +14,33 @@ CXX ?= c++
 LINKER_NAME := $(if $(filter ld ld.bfd,$(LINKER)),bfd,$(LINKER))
 LINKER_FLAG := $(if $(strip $(LINKER_NAME)),-fuse-ld=$(LINKER_NAME),)
 
-LLVM_BUILD ?= $(CURDIR)/llvm/build
-BUDDY_BUILD ?= $(CURDIR)/build
-PREFIX ?= $(CURDIR)/install
+# Root of every build tree. Point it at a persistent directory (for example a
+# CI cache) to keep the trees out of the source tree and out of the way of a
+# checkout's clean.
+CACHE_ROOT ?= $(CURDIR)
+
+LLVM_BUILD ?= $(CACHE_ROOT)/llvm/build
+BUDDY_BUILD ?= $(CACHE_ROOT)/build
+PREFIX ?= $(CACHE_ROOT)/install
 
 # RISC-V GNU/Linux sysroot and toolchain (built from the repository submodule).
 RISCV_SOURCE ?= $(CURDIR)/thirdparty/riscv-gnu-toolchain
-RISCV_BUILD ?= $(RISCV_SOURCE)/build
-RISCV_INSTALL ?= $(CURDIR)/thirdparty/riscv
+RISCV_BUILD ?= $(CACHE_ROOT)/thirdparty/riscv-gnu-toolchain/build
+RISCV_INSTALL ?= $(CACHE_ROOT)/thirdparty/riscv
 RISCV_ARCH ?= rv64gcv
 RISCV_ABI ?= lp64d
-RISCV_MLIR_BUILD ?= $(CURDIR)/llvm/build-cross-mlir-rv
+RISCV_MLIR_BUILD ?= $(CACHE_ROOT)/llvm/build-cross-mlir-rv
 # riscv64 LLVM the cross-compiled runtime plugins link (libLLVMSupport.a);
 # `make riscv` builds it together with the cross MLIR runtimes.
 RISCV_LLVM_BUILD ?= $(RISCV_MLIR_BUILD)
-RISCV_OMP_BUILD ?= $(CURDIR)/llvm/build-omp-shared-rv
+RISCV_OMP_BUILD ?= $(CACHE_ROOT)/llvm/build-omp-shared-rv
 RISCV_TARGET := riscv64-unknown-linux-gnu
 RISCV_TARGET_FLAGS := --target=$(RISCV_TARGET) --sysroot=$(RISCV_INSTALL)/sysroot --gcc-toolchain=$(RISCV_INSTALL)
 
 # Model targets are generated from the checked-in spec files. Keep their
 # CMake cache separate from the host build so a cross-model build cannot alter
 # the compiler settings used by `make host`.
-RISCV_MODEL_BUILD ?= $(CURDIR)/build-riscv
+RISCV_MODEL_BUILD ?= $(CACHE_ROOT)/build-riscv
 RISCV_MODEL_LOCAL ?=
 RISCV_MODEL_HF_CONFIG ?=
 RISCV_MODEL_DEFAULT ?= deepseek_r1-f32
