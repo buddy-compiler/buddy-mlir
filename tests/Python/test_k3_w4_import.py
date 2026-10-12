@@ -229,3 +229,48 @@ f32_work = tempfile.mkdtemp()
 manifest = import_model.weights_manifest_payload(f32_config, f32_work)
 print("f32 manifest has a layout:", "w4g32_layout" in manifest)
 # CHECK: f32 manifest has a layout: False
+
+# fuse_residual makes the residual h of add(h, call(x)) an argument of the
+# call: only when h is computed before the call. h computed after it (here
+# from x, in a graph that is no transformer) is left to the add.
+from buddy.compiler.graph.transform import (  # noqa: E402
+    eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+)
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import decompositions  # noqa: E402
+
+
+class Residual(torch.nn.Module):
+    def __init__(self, late):
+        super().__init__()
+        self.w = torch.nn.Parameter(torch.randn(256, 256))  # [K, N]
+        self.late = late
+
+    def forward(self, x):
+        if not self.late:
+            h = x * 2
+        y = x @ self.w
+        if self.late:
+            h = x * 2
+        return h + y
+
+
+for late in (False, True):
+    compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=decompositions,
+    )
+    with torch.no_grad():
+        (graph,) = compiler.importer(
+            Residual(late).eval(), torch.randn(1, 1, 256)
+        )
+    graph.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+    names = [s["name"] for s in k3_w4.k3_w4_rewrite(graph, 1, "", 4)]
+    seen, ordered = set(), True
+    for node in graph.body:
+        ordered &= all(p in seen for p in node._parents)
+        seen.add(node.name)
+    print(f"h {'after' if late else 'before'} the call:", names, ordered)
+# CHECK: h before the call: ['k3_q4_plain_m1_k256_n256_res'] True
+# CHECK-NEXT: h after the call: ['k3_q4_plain_m1_k256_n256'] True

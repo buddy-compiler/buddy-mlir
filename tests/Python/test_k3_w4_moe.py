@@ -154,6 +154,19 @@ for m in (1, 8, 32):
 # CHECK-NEXT: moe m8: (8, 256) error ok
 # CHECK-NEXT: moe m32: (32, 256) error ok
 
+# equal probabilities (a zero router): the lowest expert indices, as the
+# reference's stable sort (torch.topk does not specify which)
+for m in (1, 8):
+    spec = k3_w4.moe_spec(m, HID, INTER, EXPERTS, TOPK, THREADS)
+    ee = jit([spec])
+    x = rng.standard_normal((m, HID)).astype(numpy.float32)
+    zero = numpy.zeros_like(wr)
+    (y,) = call(ee, spec["name"], 1, [2], x, zero, gu_tiles, dn_tiles)
+    idx, w = route(x, zero, TOPK)
+    report(f"moe ties m{m}", y, ref_moe(x, idx, w, gate_up, down), 1e-5)
+# CHECK-NEXT: moe ties m1: (1, 256) error ok
+# CHECK-NEXT: moe ties m8: (8, 256) error ok
+
 
 def rmsnorm(x, nw, eps):
     x = x.astype(numpy.float64)

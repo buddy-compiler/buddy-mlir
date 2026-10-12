@@ -453,8 +453,12 @@ def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
         # [h, experts] stays f32
         if hf.get("mlp_only_layers") or hf.get("decoder_sparse_step", 1) != 1:
             raise ValueError("w4g32 needs a MoE block in every layer")
+        if not hf.get("norm_topk_prob", False):
+            # the kernel computes the routing: the top-k weights normalized
+            raise ValueError("w4g32 needs norm_topk_prob")
         inter = hf["moe_intermediate_size"]
-        experts = hf["num_experts"]
+        # transformers 5 writes num_experts as num_local_experts
+        experts = hf.get("num_experts", hf.get("num_local_experts"))
         expert_linears = [(h, inter), (h, inter), (inter, h)]
         if h % 128:
             raise ValueError(f"w4g32 needs hidden_size % 128 == 0, got {h}")

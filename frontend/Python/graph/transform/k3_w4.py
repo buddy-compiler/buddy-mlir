@@ -56,6 +56,7 @@ from buddy_mlir.dialects import arith, func, llvm, math, memref, scf, vector
 from .. import Graph
 from ..operation import (
     AddMMOp,
+    AmaxOp,
     CallExternalOp,
     DivOp,
     ExpOp,
@@ -74,6 +75,9 @@ from ..operation import (
     RsqrtOp,
     ScaledDotProductFlashAttentionForCpuOp,
     SigmoidOp,
+    SubOp,
+    SumDimOp,
+    TopkOp,
     ViewOp,
 )
 from ..operation import AddOp as _AddOp
@@ -575,20 +579,64 @@ class _Rewriter:
                 self.delete(lhs_u)
             self.drop_param(wu)
 
-    def _router_of(self, idx_name):
-        """The Linear whose logits rank the experts that `idx_name` (the
-        indices of a top-k) selects: up from the top-k, not past a matmul."""
-        todo = [idx_name]
-        while todo:
-            node = self.g.node_table.get(todo.pop())
-            if node is None or isinstance(node, PlaceholderOp):
-                continue
-            if isinstance(node, MatmulOp):
-                if self.is_linear(node):
-                    return node
-                continue
-            todo.extend(node._parents)
-        return None
+    def _unview(self, name):
+        """The node that `name` is a view / reshape of (itself if none)."""
+        node = self.g.node_table[name]
+        while isinstance(node, (ViewOp, ReshapeOp)):
+            node = self.g.node_table[str(node.args[0])]
+        return node.name
+
+    def _router_of(self, x, idx, wts, experts):
+        """The router (the Linear x Wr, Wr [hidden, experts]) of the MoE
+        block whose experts get x and the routing idx, wts, if those are
+        the routing the "moe" kernel computes (HF Qwen3-MoE's): the top-k of
+        the softmax of x Wr, its values normalized to sum 1
+        (norm_topk_prob). None otherwise."""
+        nt = self.g.node_table
+        gi, norm = nt[idx], nt[wts]
+        if not (isinstance(gi, GetItemOp) and gi.args[1] == 1):
+            return None
+        topk = nt[str(gi.args[0])]
+        if not isinstance(topk, TopkOp) or not isinstance(norm, DivOp):
+            return None
+        # the largest, over the experts
+        targs = list(topk.args) + [-1, True][len(topk.args) - 2 :]
+        if targs[2] not in (-1, 1) or not targs[3]:
+            return None
+        vals, total = (nt.get(str(a)) for a in norm.args)
+        if not (
+            isinstance(vals, GetItemOp)
+            and str(vals.args[0]) == topk.name
+            and vals.args[1] == 0
+            and isinstance(total, SumDimOp)
+            and str(total.args[0]) == vals.name
+        ):
+            return None
+        # the softmax: exp(l - amax(l)) / sum
+        sm = nt.get(str(topk.args[0]))
+        if not isinstance(sm, DivOp):
+            return None
+        e, total = (nt.get(str(a)) for a in sm.args)
+        if not (
+            isinstance(e, ExpOp)
+            and isinstance(total, SumDimOp)
+            and str(total.args[0]) == e.name
+        ):
+            return None
+        sub = nt.get(str(e.args[0]))
+        if not isinstance(sub, SubOp):
+            return None
+        router, mx = (nt.get(str(a)) for a in sub.args)
+        if not (isinstance(mx, AmaxOp) and str(mx.args[0]) == str(sub.args[0])):
+            return None
+        if (
+            not isinstance(router, MatmulOp)
+            or not self.is_linear(router)
+            or self._unview(str(router.args[0])) != self._unview(x)
+            or self._shape(str(router.args[1])) != [self._shape(x)[-1], experts]
+        ):
+            return None
+        return router
 
     def rewrite_moe(self):
         """Each MoE block -> one "moe" kernel that also routes: from the
@@ -604,17 +652,19 @@ class _Rewriter:
             if self.PREFIX != "k3":
                 raise RuntimeError(f"{self.PREFIX}_w4: no MoE kernels")
             x, idx, wts, gu, dn = (str(a) for a in node.args[:5])
-            router = self._router_of(idx)
-            norm = self.g.node_table.get(wts)
-            if router is None or not isinstance(norm, DivOp):
-                raise RuntimeError("k3_w4: unexpected MoE routing pattern")
+            experts, hidden, inter = self._shape(dn)
+            rows, topk = self._shape(idx)
+            router = self._router_of(x, idx, wts, experts)
+            if router is None:
+                raise RuntimeError(
+                    f"k3_w4: {node.name}: not the routing of the moe kernel "
+                    "(softmax, top-k, the top-k weights normalized)"
+                )
             self.keep_f32.add(router.name)
             rw = str(router.args[1])
             key = tuple(
                 self.refs[self.param_index(p)].data_ptr() for p in (gu, dn)
             )
-            experts, hidden, inter = self._shape(dn)
-            rows, topk = self._shape(idx)
             if key not in self.cache:
                 self.cache[key] = pack_moe(self.weight(gu), self.weight(dn))
             gu_tiles, dn_tiles = self.cache[key]
@@ -921,6 +971,10 @@ class _Rewriter:
         the graph. The K3 kernels only (the residual argument)."""
         if self.PREFIX != "k3":
             return
+        # the order of the graph: the residual becomes an argument of the
+        # call, so it must be computed before it (the views inserted below
+        # and the adds they replace keep the order of the others)
+        pos = {n.name: i for i, n in enumerate(self.g.body)}
         for node in list(self.g.body):
             if not isinstance(node, _AddOp) or len(node.args) != 2:
                 continue
@@ -946,6 +1000,7 @@ class _Rewriter:
                     or spec.get("residual")
                     or list(self.g.node_table[res].tensor_meta["shape"])
                     != out_shape
+                    or pos.get(res, -1) >= pos[call.name]
                 ):
                     continue
                 cols = list(call.tensor_meta["shape"])
@@ -1736,11 +1791,12 @@ def _moe_norm(fn, ty, spec):
 def _moe_route(fn, ty, spec, x, wr, idx, wts):
     """The routing of each row r, in f32 as HF Qwen3-MoE computes it:
     logits = x[r] Wr ([k, experts]), p = softmax(logits), the topk largest
-    p (the lowest expert index first among equal ones, as torch.topk) in
-    idx[r], their p / sum of the topk in wts[r]. Several rows: one row per
-    work item. One row (decode): the logits in slices of k over the threads
-    (reading the f32 router, 1 MiB for Qwen3-VL-30B-A3B, on one core took a
-    quarter of the decode MoE block), summed serially."""
+    p in idx[r] (among equal ones the lowest expert index first; torch.topk
+    does not specify which), their p / sum of the topk in wts[r]. Several
+    rows: one row per work item. One row (decode): the logits in slices of
+    k over the threads (reading the f32 router, 1 MiB for
+    Qwen3-VL-30B-A3B, on one core took a quarter of the decode MoE block),
+    summed serially."""
     m, k, ne, kk = spec["m"], spec["k"], spec["experts"], spec["topk"]
     threads = spec["threads"]
     ve = _vec(ne, ty.f32)

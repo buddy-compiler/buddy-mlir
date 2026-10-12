@@ -27,7 +27,9 @@ python3 tools/buddy-codegen/build_model.py \
 # -> build/models/qwen3_vl_moe/qwen3_vl_moe.rax
 ```
 
-The import loads the model in f32 (about 120 GB of host memory) and
+The MoE kernel computes HF Qwen3-MoE's routing with the top-k weights
+normalized (`norm_topk_prob`, true for Qwen3-VL-30B-A3B); a model without
+it is refused. The import loads the model in f32 (about 120 GB of host memory) and
 quantizes all its weights (about 5 minutes on a 64-core host). The weight
 files take 18 GB: the board needs 32 GB of memory.
 
@@ -111,4 +113,10 @@ second half of each scored, `buddy-cli --perplexity`): 7.98.
   `prefill_ime` one with its matrix loops emulated.
 - `tests/Python/test_k3_w4_kernels.py`: the matmul kernel with the fused
   residual add, bit-identical to the add after it.
-- `tests/Python/test_k3_w4_import.py`: the residual adds of decode fused.
+- `tests/Python/test_k3_w4_moe_import.py`: a tiny random Qwen3-MoE through
+  `import_model.py`: `buddy::moe_experts` gives HF's logits; both graphs get
+  the MoE kernels with the RMSNorm (and in decode the residual add) fused and
+  the same packed experts, on which the kernels give HF's MoE blocks; a
+  routing other than the kernel's (`norm_topk_prob` false) is refused.
+- `tests/Python/test_k3_w4_import.py`: the residual adds of decode fused,
+  and not a residual computed after the kernel's call.
