@@ -37,7 +37,7 @@ why), so that they are not proposed again without new evidence.
 
 | Platform | Files |
 | --- | --- |
-| SpacemiT K3 (`w4g32`, `docs/K3DeepSeekR1.md`) | `references/spacemit-k3-decode.md`, `references/spacemit-k3-prefill.md`, `references/spacemit-k3-rejected-ideas.md` |
+| SpacemiT K3 (`w4g32`, `docs/K3DeepSeekR1.md`) | `references/spacemit-k3-decode.md`, `references/spacemit-k3-moe-decode.md` (Qwen3-VL-30B-A3B), `references/spacemit-k3-prefill.md`, `references/spacemit-k3-rejected-ideas.md` |
 | Tenstorrent | none yet |
 
 Add a file per platform and topic (`<vendor>-<chip>-<topic>.md`) when a new

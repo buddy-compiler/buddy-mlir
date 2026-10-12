@@ -63,6 +63,7 @@ from ..operation import (
     IndexPutOp,
     MatmulOp,
     MeanOp,
+    MoEExpertsOp,
     MulOp,
     NegOp,
     OutputOp,
@@ -244,7 +245,15 @@ class _Rewriter:
 
     PREFIX = "k3"
 
-    def __init__(self, graph, m, threads, use_ime=False, ime_weights=None):
+    def __init__(
+        self,
+        graph,
+        m,
+        threads,
+        use_ime=False,
+        ime_weights=None,
+        cache=None,
+    ):
         self.g = graph
         self.m = m
         self.threads = threads
@@ -256,6 +265,11 @@ class _Rewriter:
         # ime_weights get the same second, IME-layout copy, unused.
         self.use_ime = use_ime
         self.ime_weights = set() if ime_weights is None else ime_weights
+        # Linears that stay f32 MatmulOps: the routers of MoE blocks
+        self.keep_f32 = set()
+        # packed MoE weights by the storage of their parameters, shared by
+        # the rewrites of graphs traced from one model
+        self.cache = {} if cache is None else cache
 
     def pack_q4(self, w):
         """(tile layout, IME layout) of a [K, N] weight."""
@@ -425,39 +439,45 @@ class _Rewriter:
     # -- rewrites -----------------------------------------------------------
 
     def rewrite_qkv(self):
-        """Three biased projections of one input -> one "multi" kernel."""
+        """Three projections of one input, all biased (Qwen2) or all
+        without bias (Qwen3) -> one "multi" kernel."""
         groups = {}
         for node in list(self.g.body):
-            if isinstance(node, AddMMOp) and self.is_linear(node):
-                lhs = self.g.node_table[str(node.args[1])]
+            if isinstance(node, (AddMMOp, MatmulOp)) and self.is_linear(node):
+                lhs_pos = self._weight_arg(node)[0]
+                lhs = self.g.node_table[str(node.args[lhs_pos])]
                 src = str(lhs.args[0]) if isinstance(lhs, ViewOp) else lhs.name
-                groups.setdefault(src, []).append(node)
+                groups.setdefault((src, type(node)), []).append(node)
         for nodes in groups.values():
             if len(nodes) != 3:
                 continue
-            ws = [str(n.args[2]) for n in nodes]
-            bs = [str(n.args[0]) for n in nodes]
+            lhs_pos, w_pos, b_pos = self._weight_arg(nodes[0])
+            ws = [str(n.args[w_pos]) for n in nodes]
+            bs = (
+                [str(n.args[b_pos]) for n in nodes] if b_pos is not None else []
+            )
             mats = [self.weight(w) for w in ws]
             kdim = mats[0].shape[0]
             ns = [mm.shape[1] for mm in mats]
             # one quantization of [Wq | Wk | Wv]; tiles never straddle two
             # parts, as each N is a multiple of NB
             packed = self.pack_q4(numpy.concatenate(mats, axis=1))
-            bias = numpy.concatenate([self.weight(b) for b in bs])
-            lhs = str(nodes[0].args[1])
+            lhs = str(nodes[0].args[lhs_pos])
             for n in nodes:
                 self.unlink(n)
                 n._parents = []
             w, ime = self.set_weights(ws[0], packed, self.m)
-            spec = self.kernel_spec("multi", self.m, kdim, ns, True, ime)
+            spec = self.kernel_spec("multi", self.m, kdim, ns, bool(bs), ime)
             call = self.call(
-                spec, [lhs, w, bs[0]], [(self.m, n) for n in ns], nodes[0]
+                spec, [lhs, w] + bs[:1], [(self.m, n) for n in ns], nodes[0]
             )
             for i, n in enumerate(nodes):
                 self.getitem(n, call, i, [self.m, ns[i]])
-            self.set_param(
-                bs[0], bias.astype(numpy.float32), TensorDType.Float32
-            )
+            if bs:
+                bias = numpy.concatenate([self.weight(b) for b in bs])
+                self.set_param(
+                    bs[0], bias.astype(numpy.float32), TensorDType.Float32
+                )
             for w in ws[1:] + bs[1:]:
                 self.drop_param(w)
 
@@ -555,11 +575,75 @@ class _Rewriter:
                 self.delete(lhs_u)
             self.drop_param(wu)
 
+    def _router_of(self, idx_name):
+        """The Linear whose logits rank the experts that `idx_name` (the
+        indices of a top-k) selects: up from the top-k, not past a matmul."""
+        todo = [idx_name]
+        while todo:
+            node = self.g.node_table.get(todo.pop())
+            if node is None or isinstance(node, PlaceholderOp):
+                continue
+            if isinstance(node, MatmulOp):
+                if self.is_linear(node):
+                    return node
+                continue
+            todo.extend(node._parents)
+        return None
+
+    def rewrite_moe(self):
+        """Each MoE block -> one "moe" kernel that also routes: from the
+        experts' input x and the f32 router weight, it computes the logits,
+        their softmax, the top-k experts and their weights (normalized to
+        sum 1, Qwen3-MoE's norm_topk_prob), then the experts on all the
+        experts' int4 tiles (pack_moe). The router stays f32: an int4 router
+        can select other experts (llama.cpp does not quantize it either).
+        The routing nodes (matmul, softmax, top-k) become dead."""
+        for node in list(self.g.body):
+            if not isinstance(node, MoEExpertsOp):
+                continue
+            if self.PREFIX != "k3":
+                raise RuntimeError(f"{self.PREFIX}_w4: no MoE kernels")
+            x, idx, wts, gu, dn = (str(a) for a in node.args[:5])
+            router = self._router_of(idx)
+            norm = self.g.node_table.get(wts)
+            if router is None or not isinstance(norm, DivOp):
+                raise RuntimeError("k3_w4: unexpected MoE routing pattern")
+            self.keep_f32.add(router.name)
+            rw = str(router.args[1])
+            key = tuple(
+                self.refs[self.param_index(p)].data_ptr() for p in (gu, dn)
+            )
+            experts, hidden, inter = self._shape(dn)
+            rows, topk = self._shape(idx)
+            if key not in self.cache:
+                self.cache[key] = pack_moe(self.weight(gu), self.weight(dn))
+            gu_tiles, dn_tiles = self.cache[key]
+            self.set_param(gu, gu_tiles, TensorDType.Int8)
+            self.set_param(dn, dn_tiles, TensorDType.Int8)
+            spec = moe_spec(rows, hidden, inter, experts, topk, self.threads)
+            self.kernels[spec["name"]] = spec
+            args = [x, rw, gu, dn]
+            call = CallExternalOp(
+                call_func_name=spec["name"],
+                args=args,
+                args_index=[0] * len(args),
+                tensor_meta={
+                    "shape": [rows, hidden],
+                    "dtype": TensorDType.Float32,
+                },
+                name=node.name,
+                written_args=[],
+            )
+            self.replace(node, call)
+            self.link(call, args)
+
     def rewrite_plain(self):
         """Every other Linear -> one "plain" kernel, with the rows of its
         input (the lm_head of a prefill chunk sees its last row only)."""
         for node in list(self.g.body):
             if not isinstance(node, MatmulOp) or not self.is_linear(node):
+                continue
+            if node.name in self.keep_f32:
                 continue
             w = str(node.args[1])
             W = self.weight(w)
@@ -613,12 +697,23 @@ class _Rewriter:
 
     def _matrix_above(self, name, cols):
         """The [m, cols] matrix that the head view `name` ([1, heads, m, d])
-        is a view of: up through view / reshape / permute nodes."""
+        is a view of: up through view / reshape / permute nodes and at most
+        one RMSNorm over each head (Qwen3's q_norm / k_norm). Returns (the
+        matrix, (norm weight, eps) or None)."""
         node = self.g.node_table[name]
-        while isinstance(node, self._HEAD_VIEWS):
+        norm = None
+        while True:
+            if not isinstance(node, self._HEAD_VIEWS):
+                found = None if norm else self._rmsnorm_of(node.name)
+                if found is None:
+                    break
+                x, w, eps = found
+                norm = (w, eps)
+                node = self.g.node_table[x]
+                continue
             node = self.g.node_table[str(node.args[0])]
             if self._shape(node.name) == [self.m, cols]:
-                return node.name
+                return node.name, norm
         raise RuntimeError(f"k3_w4: no [{self.m}, {cols}] matrix above {name}")
 
     def _matrix_below(self, node, cols):
@@ -666,9 +761,11 @@ class _Rewriter:
             inv_freq = self._inv_freq(dim)
             if inv_freq is None:
                 raise RuntimeError("k3_w4: RoPE inv_freq parameter not found")
-            q2 = self._matrix_above(q_pre, heads * dim)
-            k2 = self._matrix_above(k_pre, kv_heads * dim)
-            v2 = self._matrix_above(str(vput.args[2]), kv_heads * dim)
+            q2, q_norm = self._matrix_above(q_pre, heads * dim)
+            k2, k_norm = self._matrix_above(k_pre, kv_heads * dim)
+            v2, v_norm = self._matrix_above(str(vput.args[2]), kv_heads * dim)
+            if v_norm is not None or (q_norm is None) != (k_norm is None):
+                raise RuntimeError("k3_w4: unexpected q / k / v norms")
             out = self._matrix_below(node, heads * dim)
             scale = float(node.kwargs.get("scale", dim**-0.5))
             spec = {
@@ -683,6 +780,10 @@ class _Rewriter:
                 "ctx": ctx,
                 "threads": self.threads,
             }
+            if q_norm is not None:
+                # Qwen3: RMSNorm over each head of q and k before RoPE
+                spec["name"] += "_qkn"
+                spec["qk_norm_eps"] = q_norm[1]
             if (
                 self.use_ime
                 and m == IME_ROWS
@@ -701,6 +802,8 @@ class _Rewriter:
                 pos_input,
                 inv_freq,
             ]
+            if q_norm is not None:
+                args += [q_norm[0], k_norm[0]]
             self.uid += 1
             call = CallExternalOp(
                 call_func_name=spec["name"],
@@ -751,11 +854,12 @@ class _Rewriter:
         return x.name, w.name, float(ad.args[1])
 
     def fuse_rmsnorm(self):
-        """call(view(rmsnorm(x)), W, ...) -> call(view(x), W, ..., norm_w)."""
+        """call(view(rmsnorm(x)), W, ...) -> call(view(x), W, ..., norm_w),
+        for the matmul and the MoE kernels."""
         for node in list(self.g.body):
-            if (
-                not isinstance(node, CallExternalOp)
-                or "_q4_" not in node.call_func_name
+            if not isinstance(node, CallExternalOp) or not (
+                "_q4_" in node.call_func_name
+                or node.call_func_name.startswith("k3_moe_")
             ):
                 continue
             found = self._rmsnorm_of(str(node.args[0]))
@@ -795,6 +899,85 @@ class _Rewriter:
         }
         self.kernels = {k: v for k, v in self.kernels.items() if k in used}
 
+    def _view(self, x, shape, anchor):
+        """A new view of node `x` as `shape`, inserted before `anchor`."""
+        self.uid += 1
+        view = ViewOp()
+        view._name = f"k3view_{self.uid}"
+        view._arguments = [x, list(shape)]
+        view._tensor_meta = {
+            "shape": torch.Size(shape),
+            "dtype": TensorDType.Float32,
+        }
+        self.insert_before(anchor, view)
+        self.link(view, [x])
+        return view
+
+    def fuse_residual(self):
+        """add(h, view(call(...))) -> view(call(..., view(h))) for the
+        one-row "plain" and "moe" kernels (decode: the o projection and the
+        MoE block before the residual adds): the kernel writes h + its
+        result, the same sum, on all threads instead of a serial loop of
+        the graph. The K3 kernels only (the residual argument)."""
+        if self.PREFIX != "k3":
+            return
+        for node in list(self.g.body):
+            if not isinstance(node, _AddOp) or len(node.args) != 2:
+                continue
+            out_shape = list(node.tensor_meta["shape"])
+            for res, other in (node.args, node.args[::-1]):
+                res, other = str(res), str(other)
+                v = self.g.node_table.get(other)
+                if not isinstance(v, ViewOp) or v._children != [node.name]:
+                    continue
+                call = self.g.node_table.get(str(v.args[0]))
+                if (
+                    not isinstance(call, CallExternalOp)
+                    or call._children != [v.name]
+                    or call.call_func_name not in self.kernels
+                ):
+                    continue
+                spec = self.kernels[call.call_func_name]
+                if (
+                    spec["kind"] not in ("plain", "moe")
+                    or spec["m"] != 1
+                    or spec.get("ime")
+                    or spec.get("prefill_logits")
+                    or spec.get("residual")
+                    or list(self.g.node_table[res].tensor_meta["shape"])
+                    != out_shape
+                ):
+                    continue
+                cols = list(call.tensor_meta["shape"])
+                spec = dict(spec, name=spec["name"] + "_res", residual=True)
+                self.kernels[spec["name"]] = spec
+                rv = self._view(res, cols, call)
+                call._arguments = list(call.args) + [rv.name]
+                call._args_index = [0] * len(call._arguments)
+                call._parents = list(call._parents) + [rv.name]
+                rv._children.append(call.name)
+                call.call_func_name = spec["name"]
+                # the add -> a view of the call's result
+                self.unlink(node)
+                node._parents = []
+                out = ViewOp()
+                out._name = node.name
+                out._arguments = [call.name, out_shape]
+                out._tensor_meta = {
+                    "shape": torch.Size(out_shape),
+                    "dtype": TensorDType.Float32,
+                }
+                self.replace(node, out)
+                out._parents = [call.name]
+                call._children.append(out.name)
+                break
+        used = {
+            n.call_func_name
+            for n in self.g.body
+            if isinstance(n, CallExternalOp)
+        }
+        self.kernels = {k: v for k, v in self.kernels.items() if k in used}
+
     def remove_dead(self):
         """Delete computed nodes nothing uses (outputs are children)."""
         changed = True
@@ -815,6 +998,7 @@ def k3_w4_rewrite(
     threads: int,
     use_ime: bool = False,
     ime_weights: set = None,
+    cache: dict = None,
     rewriter=_Rewriter,
 ) -> list:
     """Rewrite the Linear layers and attention of `graph` (m rows per call,
@@ -826,18 +1010,23 @@ def k3_w4_rewrite(
     and their weights are added to `ime_weights`. The other graph is then
     rewritten with that set, so that its weights get the same copies.
 
+    `cache` (a dict, optional) keeps the packed MoE weights for the rewrite
+    of another graph traced from the same model.
+
     `rewriter`: the _Rewriter subclass of another kernel collection.
 
     Returns the kernel specs used. Must run after eliminate_transpose (the
     weights are [K, N]) and identically on graphs that share one weight
     layout (prefill and decode).
     """
-    rw = rewriter(graph, m, threads, use_ime, ime_weights)
+    rw = rewriter(graph, m, threads, use_ime, ime_weights, cache=cache)
     rw.rewrite_qkv()
     rw.rewrite_glu()
+    rw.rewrite_moe()
     rw.rewrite_plain()
     rw.rewrite_attention(pos_input)
     rw.fuse_rmsnorm()
+    rw.fuse_residual()
     rw.remove_dead()
     graph._enable_external_calls = True
     return list(rw.kernels.values())
@@ -883,6 +1072,7 @@ class _Types:
         # memref<?x?xf32, strided<[?, 1], offset: ?>> and friends: the
         # layouts the graph passes its tensors with
         self.mat = _memref([d, d], self.f32, [None, 1])
+        self.imat = _memref([d, d], self.i64, [None, 1])
         self.bytes = _memref([d], self.i8, [1])
         self.row = _memref([d], self.f32, [1])
         self.cache = _memref([d, d, d, d], self.f32, [None, None, None, 1])
@@ -1062,6 +1252,8 @@ def _tile_types(ty, spec):
         t.append(ty.mat)
     if spec["bias"]:
         t += [ty.row, ty.index]
+    if spec.get("residual"):
+        t.append(ty.mat)  # added to the outputs (fuse_residual)
     if spec.get("ime"):
         t.append(ty.index)  # the first group of the pass (_ime_pass_groups)
     return t
@@ -1134,6 +1326,8 @@ def _tile_fn(ty, spec):
         names.append("out2")
     if spec["bias"]:
         names += ["bias", "bcol"]
+    if spec.get("residual"):
+        names.append("res")
     fn = _Fn(f"{spec['name']}__tile", _tile_types(ty, spec), [], public=False)
     a = dict(zip(names, fn.args))
     vf = _vec(NB, ty.f32)
@@ -1156,9 +1350,27 @@ def _tile_fn(ty, spec):
                     )
                     vals = [_addf(v, bias) for v in vals]
             for row, v in zip(rows, vals):
+                if spec.get("residual"):
+                    f0 = fn.const(ty.f32, 0.0)
+                    v = _addf(_read(vf, a["res"], [row, a["ocol"]], f0), v)
                 vector.StoreOp(v, a["out"], [row, a["ocol"]])
             scf.YieldOp([])
         func.ReturnOp([])
+
+
+def _q8_group(fn, ty, xv):
+    """A group of G activations to int8 (absmax / 127): (values, scale)."""
+    vg = _vec(G, ty.f32)
+    f0 = fn.const(ty.f32, 0.0)
+    mx = _reduce(ty.f32, "maximumf", math.AbsFOp(xv).result)
+    c127 = fn.const(ty.f32, 127.0)
+    nonzero = arith.CmpFOp(arith.CmpFPredicate.OGT, mx, f0).result
+    inv = arith.SelectOp(nonzero, _divf(c127, mx), f0).result
+    xr = math.RoundEvenOp(_mulf(xv, _bcast(vg, inv))).result
+    xr = arith.MinimumFOp(xr, fn.const(vg, 127.0)).result
+    xr = arith.MaximumFOp(xr, fn.const(vg, -127.0)).result
+    xi = arith.FPToSIOp(_vec(G, ty.i8), xr).result
+    return xi, _divf(mx, c127)
 
 
 def _matmul_fn(ty, spec):
@@ -1172,8 +1384,15 @@ def _matmul_fn(ty, spec):
         ["x", "w"]
         + (["bias"] if spec["bias"] else [])
         + (["nw"] if norm else [])
+        + (["res"] if spec.get("residual") else [])
     )
-    types = {"x": ty.mat, "w": ty.bytes, "bias": ty.row, "nw": ty.row}
+    types = {
+        "x": ty.mat,
+        "w": ty.bytes,
+        "bias": ty.row,
+        "nw": ty.row,
+        "res": ty.mat,
+    }
     outs = [_memref([m, n], ty.f32) for n in ns]
     fn = _Fn(spec["name"], [types[n] for n in names], outs)
     a = dict(zip(names, fn.args))
@@ -1227,15 +1446,7 @@ def _matmul_fn(ty, spec):
                 xv = _read(vg, a["x"], [r, kk], f0)
                 if norm:
                     xv = _mulf(_mulf(xv, rinv), _read(vg, a["nw"], [kk], f0))
-                mx = _reduce(ty.f32, "maximumf", math.AbsFOp(xv).result)
-                c127 = fn.const(ty.f32, 127.0)
-                nonzero = arith.CmpFOp(arith.CmpFPredicate.OGT, mx, f0).result
-                inv = arith.SelectOp(nonzero, _divf(c127, mx), f0).result
-                xr = math.RoundEvenOp(_mulf(xv, _bcast(vg, inv))).result
-                xr = arith.MinimumFOp(xr, fn.const(vg, 127.0)).result
-                xr = arith.MaximumFOp(xr, fn.const(vg, -127.0)).result
-                xi = arith.FPToSIOp(_vec(G, ty.i8), xr).result
-                scale = _divf(mx, c127)
+                xi, scale = _q8_group(fn, ty, xv)
                 if spec.get("ime"):
                     rb = _divui(r, fn.idx(8))
                     at = _muli(arith.RemUIOp(r, fn.idx(8)).result, fn.idx(16))
@@ -1345,6 +1556,8 @@ def _tiles(fn, ty, spec, a, xq, xs, ys, tw, tiles, threads, g0):
                 args.append(dst)
             if spec["bias"]:
                 args += [a["bias"], col]
+            if spec.get("residual"):
+                args.append(a["res"])
             if g0 is not None:
                 args.append(fn.idx(g0))
             func.CallOp([], f"{spec['name']}__tile", args)
@@ -1352,12 +1565,470 @@ def _tiles(fn, ty, spec, a, xq, xs, ys, tw, tiles, threads, g0):
         scf.ReduceOp([], 0)
 
 
-def _attn_fn(ty, spec):
+def moe_spec(m, k, inter, experts, topk, threads) -> dict:
+    """A MoE block (buddy::moe_experts, frontend moe.py, with its routing):
+    m rows of k, `topk` of `experts` experts each, of intermediate size
+    `inter`."""
+    return {
+        "name": f"k3_moe_m{m}_k{k}_i{inter}_e{experts}_t{topk}",
+        "kind": "moe",
+        "m": m,
+        "k": k,
+        "inter": inter,
+        "experts": experts,
+        "topk": topk,
+        "threads": threads,
+        "bias": False,
+    }
+
+
+def pack_moe(gate_up: numpy.ndarray, down: numpy.ndarray):
+    """The int4 weights of all the experts of a MoE block, from the HF
+    parameters gate_up [E, 2I, H] and down [E, H, I], the experts one after
+    the other: expert e's gate / up (its [H, I] gate and up: pack_glu tiles)
+    and its down ([I, H]: pack_q4 tiles)."""
+    inter = down.shape[2]
+    gu = [pack_glu(g[:inter].T, g[inter:].T) for g in gate_up]
+    dn = [pack_q4(d.T) for d in down]
+    return numpy.concatenate(gu), numpy.concatenate(dn)
+
+
+def _moe_fn(ty, spec):
+    """A MoE block for m rows, routing included (_moe_route):
+      y[r] = sum_j w[r, j] down_e(silu(gate_e x[r]) * up_e x[r]),
+             e = idx[r, j]
+    x is quantized to int8 per group (as for the matmuls). One row
+    (decode): the gate / up tiles of every (slot j, tile) are spread over
+    the threads into h [topk, inter]; h is quantized; then every output
+    tile sums its topk down tiles, scaled by their weights.
+
+    Several rows (prefill): the (row, slot) pairs are grouped by expert
+    (_moe_groups), and the work items are (expert, tile): an expert's
+    weight tile is unpacked once for MOE_MB of its rows at a time (as the
+    matmul tiles share theirs between PREFILL_MB rows), which reads each
+    selected expert's weights once per call instead of once per row. The
+    down tiles write z [m * topk, k] per (row, slot); the last loop sums
+    the topk rows of z of each row, scaled by their weights."""
+    m, k, inter, kk = spec["m"], spec["k"], spec["inter"], spec["topk"]
+    assert k % G == 0 and k % NB == 0 and inter % NB == 0, spec
+    threads = spec["threads"]
+    ti, th = inter // NB, k // NB  # tiles of gate (and up) / of down
+    out = _memref([m, k], ty.f32)
+    fn = _Fn(spec["name"], _moe_arg_types(ty, spec), [out])
+    x, wr, wgu, wd = fn.args[:4]
+    vg, vf = _vec(G, ty.f32), _vec(NB, ty.f32)
+    f0 = fn.const(ty.f32, 0.0)
+    hrows = m * kk
+
+    def quantize(src, rows, cols, q, s):
+        if rows == 1:
+            rl = scf.ForOp(fn.idx(0), fn.idx(1), fn.idx(1))
+            body, r = rl.body, rl.induction_variable
+        else:
+            body, (r,) = _parallel(fn, [fn.idx(rows)])
+        with ir.InsertionPoint(body):
+            gl = scf.ForOp(fn.idx(0), fn.idx(cols // G), fn.idx(1))
+            with ir.InsertionPoint(gl.body):
+                g = gl.induction_variable
+                kc = _muli(g, fn.idx(G))
+                xi, scale = _q8_group(fn, ty, _read(vg, src, [r, kc], f0))
+                vector.StoreOp(xi, q, [r, kc])
+                memref.StoreOp(scale, s, [r, g])
+                scf.YieldOp([])
+            if rows == 1:
+                scf.YieldOp([])
+            else:
+                scf.ReduceOp([], 0)
+
+    def items(n, body_fn):
+        """body_fn(item) for items [0, n) (an int or an index value) spread
+        over the threads in equal contiguous ranges."""
+        body, (slot,) = _parallel(fn, [fn.idx(threads)])
+        with ir.InsertionPoint(body):
+            total = fn.idx(n) if isinstance(n, int) else n
+            nthreads = fn.idx(threads)
+            lo = _divui(_muli(slot, total), nthreads)
+            hi = _divui(_muli(_addi(slot, fn.idx(1)), total), nthreads)
+            il = scf.ForOp(lo, hi, fn.idx(1))
+            with ir.InsertionPoint(il.body):
+                body_fn(il.induction_variable)
+                scf.YieldOp([])
+            scf.ReduceOp([], 0)
+
+    def expert(r, j):
+        return memref.LoadOp(idx, [r, j]).result
+
+    with ir.InsertionPoint(fn.entry):
+        y = _alloc(out)
+        xn = _moe_norm(fn, ty, spec)
+        x = xn if xn is not None else x
+        idx = _alloc(_memref([m, kk], ty.index))
+        wts = _alloc(_memref([m, kk], ty.f32))
+        _moe_route(fn, ty, spec, x, wr, idx, wts)
+        xq = _alloc(_memref([m, k], ty.i8))
+        xs = _alloc(_memref([m, k // G], ty.f32))
+        h = _alloc(_memref([hrows, inter], ty.f32))
+        hq = _alloc(_memref([hrows, inter], ty.i8))
+        hs = _alloc(_memref([hrows, inter // G], ty.f32))
+        quantize(x, m, k, xq, xs)
+        bufs = [idx, wts, xq, xs, h, hq, hs]
+        if m == 1:
+            _moe_decode(fn, ty, spec, items, quantize, expert, wgu, wd, bufs, y)
+        else:
+            _moe_prefill(fn, ty, spec, items, quantize, wgu, wd, bufs, y)
+        for buf in bufs + ([xn] if xn is not None else []):
+            memref.DeallocOp(buf)
+        func.ReturnOp([y])
+
+
+def _moe_arg_types(ty, spec):
+    """x, the f32 router, the gate / up and the down weights; with
+    spec["norm_eps"] (k3_w4_rewrite fuse_rmsnorm), the RMSNorm weight of x
+    too; with spec["residual"] (fuse_residual), the rows added to y."""
+    norm = [ty.row] if spec.get("norm_eps") is not None else []
+    res = [ty.mat] if spec.get("residual") else []
+    return [ty.mat, ty.mat, ty.bytes, ty.bytes] + norm + res
+
+
+def _moe_norm(fn, ty, spec):
+    """With spec["norm_eps"]: x (argument 0) normalized by the RMSNorm of
+    weight argument 4 into a new [m, k] buffer, computed as the matmul
+    kernels' fused RMSNorm (_matmul_rows); one row serially, several rows
+    one per work item. Else None."""
+    eps = spec.get("norm_eps")
+    if eps is None:
+        return None
+    m, k = spec["m"], spec["k"]
+    x, nw = fn.args[0], fn.args[4]
+    vg = _vec(G, ty.f32)
+    f0 = fn.const(ty.f32, 0.0)
+    xn = _alloc(_memref([m, k], ty.f32))
+    if m == 1:
+        rl = scf.ForOp(fn.idx(0), fn.idx(1), fn.idx(1))
+        body, r = rl.body, rl.induction_variable
+    else:
+        body, (r,) = _parallel(fn, [fn.idx(m)])
+    with ir.InsertionPoint(body):
+        ss = scf.ForOp(
+            fn.idx(0), fn.idx(k // G), fn.idx(1), [fn.const(vg, 0.0)]
+        )
+        with ir.InsertionPoint(ss.body):
+            xv = _read(vg, x, [r, _muli(ss.induction_variable, fn.idx(G))], f0)
+            scf.YieldOp([_fma(xv, xv, ss.inner_iter_args[0])])
+        total = _reduce(ty.f32, "add", ss.results[0], reassoc=True)
+        mean = _divf(total, fn.const(ty.f32, float(k)))
+        rinv = math.RsqrtOp(_addf(mean, fn.const(ty.f32, eps))).result
+        rinv = _bcast(vg, rinv)
+        gl = scf.ForOp(fn.idx(0), fn.idx(k // G), fn.idx(1))
+        with ir.InsertionPoint(gl.body):
+            kc = _muli(gl.induction_variable, fn.idx(G))
+            xv = _read(vg, x, [r, kc], f0)
+            xv = _mulf(_mulf(xv, rinv), _read(vg, nw, [kc], f0))
+            vector.StoreOp(xv, xn, [r, kc])
+            scf.YieldOp([])
+        if m == 1:
+            scf.YieldOp([])
+        else:
+            scf.ReduceOp([], 0)
+    return xn
+
+
+def _moe_route(fn, ty, spec, x, wr, idx, wts):
+    """The routing of each row r, in f32 as HF Qwen3-MoE computes it:
+    logits = x[r] Wr ([k, experts]), p = softmax(logits), the topk largest
+    p (the lowest expert index first among equal ones, as torch.topk) in
+    idx[r], their p / sum of the topk in wts[r]. Several rows: one row per
+    work item. One row (decode): the logits in slices of k over the threads
+    (reading the f32 router, 1 MiB for Qwen3-VL-30B-A3B, on one core took a
+    quarter of the decode MoE block), summed serially."""
+    m, k, ne, kk = spec["m"], spec["k"], spec["experts"], spec["topk"]
+    threads = spec["threads"]
+    ve = _vec(ne, ty.f32)
+    f0 = fn.const(ty.f32, 0.0)
+
+    def dot(r, k0, k1):
+        dl = scf.ForOp(k0, k1, fn.idx(1), [fn.const(ve, 0.0)])
+        with ir.InsertionPoint(dl.body):
+            c = dl.induction_variable
+            xv = _bcast(ve, memref.LoadOp(x, [r, c]).result)
+            wv = _read(ve, wr, [c, fn.idx(0)], f0)
+            scf.YieldOp([_fma(xv, wv, dl.inner_iter_args[0])])
+        return dl.results[0]
+
+    def select(r, logits):
+        iota = _const_vec(ve, [float(i) for i in range(ne)])
+        mx = _reduce(ty.f32, "maximumf", logits)
+        e = _exp(fn, ty, _subf(logits, _bcast(ve, mx)), ne)
+        p = _divf(e, _bcast(ve, _reduce(ty.f32, "add", e, reassoc=True)))
+        vals = []
+        for j in range(kk):
+            v = _reduce(ty.f32, "maximumf", p)
+            hit = arith.CmpFOp(arith.CmpFPredicate.OEQ, p, _bcast(ve, v)).result
+            cand = arith.SelectOp(hit, iota, fn.const(ve, float(ne))).result
+            i = _reduce(ty.f32, "minimumf", cand)
+            memref.StoreOp(
+                arith.IndexCastOp(
+                    ty.index, arith.FPToSIOp(ty.i32, i).result
+                ).result,
+                idx,
+                [r, fn.idx(j)],
+            )
+            vals.append(v)
+            taken = arith.CmpFOp(
+                arith.CmpFPredicate.OEQ, iota, _bcast(ve, i)
+            ).result
+            p = arith.SelectOp(taken, fn.const(ve, float("-inf")), p).result
+        total = vals[0]
+        for v in vals[1:]:
+            total = _addf(total, v)
+        for j, v in enumerate(vals):
+            memref.StoreOp(_divf(v, total), wts, [r, fn.idx(j)])
+
+    if m > 1:
+        body, (r,) = _parallel(fn, [fn.idx(m)])
+        with ir.InsertionPoint(body):
+            select(r, dot(r, fn.idx(0), fn.idx(k)))
+            scf.ReduceOp([], 0)
+        return
+    r0 = fn.idx(0)
+    part = _alloc(_memref([threads, ne], ty.f32))
+    body, (t,) = _parallel(fn, [fn.idx(threads)])
+    with ir.InsertionPoint(body):
+        nt = fn.idx(threads)
+        k0 = _divui(_muli(t, fn.idx(k)), nt)
+        k1 = _divui(_muli(_addi(t, fn.idx(1)), fn.idx(k)), nt)
+        vector.StoreOp(dot(r0, k0, k1), part, [t, fn.idx(0)])
+        scf.ReduceOp([], 0)
+    logits = fn.const(ve, 0.0)
+    for i in range(threads):
+        logits = _addf(
+            logits, vector.LoadOp(ve, part, [fn.idx(i), fn.idx(0)]).result
+        )
+    select(r0, logits)
+    memref.DeallocOp(part)
+
+
+def _moe_decode(fn, ty, spec, items, quantize, expert, wgu, wd, bufs, y):
+    """_moe_fn for one row."""
+    k, inter, kk = spec["k"], spec["inter"], spec["topk"]
+    ti, th = inter // NB, k // NB
+    vf = _vec(NB, ty.f32)
+    _, wts, xq, xs, h, hq, hs = bufs
+    r = fn.idx(0)
+
+    def gate_up(it):
+        j = _divui(it, fn.idx(ti))
+        t = arith.RemUIOp(it, fn.idx(ti)).result
+        tg = _addi(_muli(expert(r, j), fn.idx(2 * ti)), _muli(t, fn.idx(2)))
+        a = {"w": wgu, "xq": xq, "xs": xs}
+        (g,) = _accumulate(fn, ty, {"k": k}, a, tg, [r])
+        (u,) = _accumulate(fn, ty, {"k": k}, a, _addi(tg, fn.idx(1)), [r])
+        vector.StoreOp(
+            _silu_mul(fn, ty, g, u, NB), h, [j, _muli(t, fn.idx(NB))]
+        )
+
+    items(kk * ti, gate_up)
+    quantize(h, kk, inter, hq, hs)
+
+    def down(t):
+        a = {"w": wd, "xq": hq, "xs": hs}
+        jl = scf.ForOp(fn.idx(0), fn.idx(kk), fn.idx(1), [fn.const(vf, 0.0)])
+        with ir.InsertionPoint(jl.body):
+            j = jl.induction_variable
+            wt = _addi(_muli(expert(r, j), fn.idx(th)), t)
+            (v,) = _accumulate(fn, ty, {"k": inter}, a, wt, [j])
+            wj = _bcast(vf, memref.LoadOp(wts, [r, j]).result)
+            scf.YieldOp([_fma(v, wj, jl.inner_iter_args[0])])
+        col = _muli(t, fn.idx(NB))
+        val = jl.results[0]
+        if spec.get("residual"):
+            res = fn.args[-1]
+            val = _addf(_read(vf, res, [r, col], fn.const(ty.f32, 0.0)), val)
+        vector.StoreOp(val, y, [r, col])
+
+    items(th, down)
+
+
+# Prefill MoE: rows of one expert that share each unpacked weight vector.
+MOE_MB = 4
+
+
+def _moe_groups(fn, ty, spec, idx, mb=MOE_MB):
+    """The (row, slot) pairs of the rows grouped by expert, serially: per
+    expert e, cnt[e] pairs at lst[off[e] ...], each as row * topk + slot;
+    and the blocks of mb pairs: nb[e] blocks from block fb[e] on, the
+    expert of each block in be[], nblk blocks in all."""
+    m, kk, ne = spec["m"], spec["topk"], spec["experts"]
+    cnt, off, nb, fb = (_alloc(_memref([ne], ty.index)) for _ in range(4))
+    lst = _alloc(_memref([m * kk], ty.index))
+    be = _alloc(_memref([_moe_max_blocks(spec, mb)], ty.index))
+    c0, c1 = fn.idx(0), fn.idx(1)
+    zl = scf.ForOp(c0, fn.idx(ne), c1)
+    with ir.InsertionPoint(zl.body):
+        memref.StoreOp(c0, cnt, [zl.induction_variable])
+        scf.YieldOp([])
+
+    def each_pair(body):
+        pl = scf.ForOp(c0, fn.idx(m * kk), c1)
+        with ir.InsertionPoint(pl.body):
+            a = pl.induction_variable
+            r = _divui(a, fn.idx(kk))
+            j = arith.RemUIOp(a, fn.idx(kk)).result
+            e = memref.LoadOp(idx, [r, j]).result
+            body(a, e)
+            scf.YieldOp([])
+
+    def count(a, e):
+        memref.StoreOp(_addi(memref.LoadOp(cnt, [e]).result, c1), cnt, [e])
+
+    each_pair(count)
+    # off / fb: exclusive prefix sums of the pairs / blocks; cnt is reset
+    # and counts again while the pairs are placed
+    sl = scf.ForOp(c0, fn.idx(ne), c1, [c0, c0])
+    with ir.InsertionPoint(sl.body):
+        e = sl.induction_variable
+        po, bo = sl.inner_iter_args
+        n = memref.LoadOp(cnt, [e]).result
+        nbe = _divui(_addi(n, fn.idx(mb - 1)), fn.idx(mb))
+        memref.StoreOp(po, off, [e])
+        memref.StoreOp(bo, fb, [e])
+        memref.StoreOp(nbe, nb, [e])
+        memref.StoreOp(c0, cnt, [e])
+        bl = scf.ForOp(c0, nbe, c1)
+        with ir.InsertionPoint(bl.body):
+            memref.StoreOp(e, be, [_addi(bo, bl.induction_variable)])
+            scf.YieldOp([])
+        scf.YieldOp([_addi(po, n), _addi(bo, nbe)])
+    nblk = sl.results[1]
+
+    def place(a, e):
+        n = memref.LoadOp(cnt, [e]).result
+        memref.StoreOp(a, lst, [_addi(memref.LoadOp(off, [e]).result, n)])
+        memref.StoreOp(_addi(n, c1), cnt, [e])
+
+    each_pair(place)
+    return {
+        "cnt": cnt,
+        "off": off,
+        "lst": lst,
+        "nb": nb,
+        "fb": fb,
+        "be": be,
+        "nblk": nblk,
+        "bufs": [cnt, off, nb, fb, lst, be],
+    }
+
+
+def _moe_max_blocks(spec, mb):
+    """The most blocks of mb pairs the pairs of a call can make: every
+    expert but the full blocks' one partial block."""
+    pairs = spec["m"] * spec["topk"]
+    return min(pairs, pairs // mb + spec["experts"])
+
+
+def _moe_unit(fn, ty, grp, tiles, u, body):
+    """Work unit u of `tiles` weight tiles per expert: one tile of one
+    expert for one block of MOE_MB of its pairs. The units of an expert
+    are contiguous, its tiles one after the other with all its blocks per
+    tile (the tile stays in cache), and all units cost about the same, so
+    that equal ranges of units balance the threads. Calls body(expert,
+    tile, pairs) with the pairs of the block: the last block of an expert
+    can have fewer, and gets code of its own for each count (a 64-row
+    prefill gives an expert 4 rows on average: repeating a pair to fill the
+    block computed a quarter more)."""
+    nt = fn.idx(tiles)
+    e = memref.LoadOp(grp["be"], [_divui(u, nt)]).result
+    nbe = memref.LoadOp(grp["nb"], [e]).result
+    local = _subi(u, _muli(memref.LoadOp(grp["fb"], [e]).result, nt))
+    t = _divui(local, nbe)
+    b0 = _muli(arith.RemUIOp(local, nbe).result, fn.idx(MOE_MB))
+    base = _addi(memref.LoadOp(grp["off"], [e]).result, b0)
+    left = _subi(memref.LoadOp(grp["cnt"], [e]).result, b0)
+
+    def block(n):
+        pairs = [
+            memref.LoadOp(grp["lst"], [_addi(base, fn.idx(i))]).result
+            for i in range(n)
+        ]
+        body(e, t, pairs)
+
+    def dispatch(n):
+        """block(n) if `left` >= n, else the smaller blocks."""
+        if n == 1:
+            block(1)
+            return
+        full = arith.CmpIOp(arith.CmpIPredicate.uge, left, fn.idx(n)).result
+        branch = scf.IfOp(full, has_else=True)
+        with ir.InsertionPoint(branch.then_block):
+            block(n)
+            scf.YieldOp([])
+        with ir.InsertionPoint(branch.else_block):
+            dispatch(n - 1)
+            scf.YieldOp([])
+
+    dispatch(MOE_MB)
+
+
+def _moe_prefill(fn, ty, spec, items, quantize, wgu, wd, bufs, y):
+    """_moe_fn for several rows, grouped by expert."""
+    m, k, inter, kk = spec["m"], spec["k"], spec["inter"], spec["topk"]
+    ti, th = inter // NB, k // NB
+    vf = _vec(NB, ty.f32)
+    idx, wts, xq, xs, h, hq, hs = bufs
+    grp = _moe_groups(fn, ty, spec, idx)
+
+    def gate_up(e, t, pairs):
+        tg = _addi(_muli(e, fn.idx(2 * ti)), _muli(t, fn.idx(2)))
+        rows = [_divui(p, fn.idx(kk)) for p in pairs]
+        a = {"w": wgu, "xq": xq, "xs": xs}
+        gs = _accumulate(fn, ty, {"k": k}, a, tg, rows)
+        us = _accumulate(fn, ty, {"k": k}, a, _addi(tg, fn.idx(1)), rows)
+        for p, g, u in zip(pairs, gs, us):
+            vector.StoreOp(
+                _silu_mul(fn, ty, g, u, NB), h, [p, _muli(t, fn.idx(NB))]
+            )
+
+    items(
+        _muli(grp["nblk"], fn.idx(ti)),
+        lambda u: _moe_unit(fn, ty, grp, ti, u, gate_up),
+    )
+    quantize(h, m * kk, inter, hq, hs)
+    z = _alloc(_memref([m * kk, k], ty.f32))
+
+    def down(e, t, pairs):
+        wt = _addi(_muli(e, fn.idx(th)), t)
+        a = {"w": wd, "xq": hq, "xs": hs}
+        vs = _accumulate(fn, ty, {"k": inter}, a, wt, pairs)
+        for p, v in zip(pairs, vs):
+            vector.StoreOp(v, z, [p, _muli(t, fn.idx(NB))])
+
+    items(
+        _muli(grp["nblk"], fn.idx(th)),
+        lambda u: _moe_unit(fn, ty, grp, th, u, down),
+    )
+
+    def combine(it):
+        r = _divui(it, fn.idx(th))
+        col = _muli(arith.RemUIOp(it, fn.idx(th)).result, fn.idx(NB))
+        acc = fn.const(vf, 0.0)
+        for j in range(kk):
+            p = _addi(_muli(r, fn.idx(kk)), fn.idx(j))
+            wj = _bcast(vf, memref.LoadOp(wts, [r, fn.idx(j)]).result)
+            acc = _fma(vector.LoadOp(vf, z, [p, col]).result, wj, acc)
+        vector.StoreOp(acc, y, [r, col])
+
+    items(m * th, combine)
+    for buf in grp["bufs"] + [z]:
+        memref.DeallocOp(buf)
+
+
+def _attn_fn(ty, spec, q_norm=True):
     """The attention kernel's function, its arguments, and the prologue
     shared by decode and prefill: the outputs, the start position, cos / sin
     of (start + i) * inv_freq in %cs / %sn [m][d/2], and the rotated k and
     the v of the m new rows (kp / vp [m, kv_heads * d]) written into the KV
-    caches kc / vc at positions start + i (in place)."""
+    caches kc / vc at positions start + i (in place). With q / k norms and
+    not `q_norm`, the caller normalizes q itself (per work item)."""
     m, h, kvh, d = spec["m"], spec["heads"], spec["kv_heads"], spec["dim"]
     hd = d // 2
     cache = _memref([1, kvh, spec["ctx"], d], ty.f32)
@@ -1369,12 +2040,21 @@ def _attn_fn(ty, spec):
     ]
     names = ["q", "kp", "vp", "kc", "vc", "pos", "if"]
     types = [ty.mat, ty.mat, ty.mat, ty.cache, ty.cache, ty.pos, ty.row]
+    qk_norm = spec.get("qk_norm_eps") is not None
+    if qk_norm:
+        names += ["qn", "kn"]
+        types += [ty.row, ty.row]
     fn = _Fn(spec["name"], types, outs)
     a = dict(zip(names, fn.args))
     vh = _vec(hd, ty.f32)
     f0 = fn.const(ty.f32, 0.0)
+    q_norm = qk_norm and q_norm
     with ir.InsertionPoint(fn.entry):
         a["o"] = _alloc(outs[0])
+        if q_norm:
+            # q normalized per head (Qwen3 q_norm), which the attention
+            # reads instead of the projection's output
+            a["qbuf"] = _alloc(_memref([m, h * d], ty.f32))
         a["lse"] = _alloc(outs[1])
         a["start"] = arith.IndexCastOp(
             ty.index, memref.LoadOp(a["pos"], [fn.idx(0)]).result
@@ -1402,6 +2082,8 @@ def _attn_fn(ty, spec):
                 c_hi = _addi(c_lo, fn.idx(hd))
                 klo = _read(vh, a["kp"], [ri, c_lo], f0)
                 khi = _read(vh, a["kp"], [ri, c_hi], f0)
+                if qk_norm:
+                    klo, khi = _head_rmsnorm(fn, ty, spec, a["kn"], klo, khi)
                 rlo = _fma(klo, cv, arith.NegFOp(_mulf(khi, sv)).result)
                 rhi = _fma(khi, cv, _mulf(klo, sv))
                 at = [fn.idx(0), hl.induction_variable, pp]
@@ -1418,16 +2100,53 @@ def _attn_fn(ty, spec):
                     at + [fn.idx(hd)],
                 )
                 scf.YieldOp([])
+            if q_norm:
+                ql = scf.ForOp(fn.idx(0), fn.idx(h), fn.idx(1))
+                with ir.InsertionPoint(ql.body):
+                    c_lo = _muli(ql.induction_variable, fn.idx(d))
+                    c_hi = _addi(c_lo, fn.idx(hd))
+                    qlo, qhi = _head_rmsnorm(
+                        fn,
+                        ty,
+                        spec,
+                        a["qn"],
+                        _read(vh, a["q"], [ri, c_lo], f0),
+                        _read(vh, a["q"], [ri, c_hi], f0),
+                    )
+                    vector.StoreOp(qlo, a["qbuf"], [ri, c_lo])
+                    vector.StoreOp(qhi, a["qbuf"], [ri, c_hi])
+                    scf.YieldOp([])
             if m == 1:
                 scf.YieldOp([])
             else:
                 scf.ReduceOp([], 0)
+        if q_norm:
+            a["q"] = a["qbuf"]
     return fn, a, outs
+
+
+def _head_rmsnorm(fn, ty, spec, nw, lo, hi):
+    """RMSNorm of one head given as its two halves (vector<d/2 x f32>),
+    with the weight nw [d]."""
+    hd = spec["dim"] // 2
+    vh = _vec(hd, ty.f32)
+    f0 = fn.const(ty.f32, 0.0)
+    ss = _reduce(ty.f32, "add", _fma(lo, lo, _mulf(hi, hi)), reassoc=True)
+    mean = _divf(ss, fn.const(ty.f32, float(spec["dim"])))
+    rinv = _bcast(
+        vh,
+        math.RsqrtOp(_addf(mean, fn.const(ty.f32, spec["qk_norm_eps"]))).result,
+    )
+    wlo = _read(vh, nw, [fn.idx(0)], f0)
+    whi = _read(vh, nw, [fn.idx(hd)], f0)
+    return _mulf(_mulf(lo, rinv), wlo), _mulf(_mulf(hi, rinv), whi)
 
 
 def _attn_epilogue(fn, a, outs):
     memref.DeallocOp(a["cs"])
     memref.DeallocOp(a["sn"])
+    if "qbuf" in a:
+        memref.DeallocOp(a["qbuf"])
     kco = memref.CastOp(outs[2], a["kc"]).result
     vco = memref.CastOp(outs[3], a["vc"]).result
     func.ReturnOp([a["o"], a["lse"], kco, vco])
@@ -1468,7 +2187,9 @@ def _attn_decode_fn(ty, spec, block=16):
     m, h, kvh, d = spec["m"], spec["heads"], spec["kv_heads"], spec["dim"]
     hd, B = d // 2, block
     G = _decode_heads_per_item(spec)
-    fn, a, outs = _attn_fn(ty, spec)
+    # q normalized per work item (Qwen3 q_norm), not serially beforehand
+    fn, a, outs = _attn_fn(ty, spec, q_norm=False)
+    qk_norm = spec.get("qk_norm_eps") is not None
     vd, vb, vh = _vec(d, ty.f32), _vec(B, ty.f32), _vec(hd, ty.f32)
     f0 = fn.const(ty.f32, 0.0)
     c0 = fn.idx(0)
@@ -1485,6 +2206,8 @@ def _attn_decode_fn(ty, spec, block=16):
                 q_lo = _muli(hh, fn.idx(d))
                 qa = _read(vh, a["q"], [i, q_lo], f0)
                 qb = _read(vh, a["q"], [i, _addi(q_lo, fn.idx(hd))], f0)
+                if qk_norm:
+                    qa, qb = _head_rmsnorm(fn, ty, spec, a["qn"], qa, qb)
                 rl = _fma(qa, ca, arith.NegFOp(_mulf(qb, sa)).result)
                 rh = _fma(qb, ca, _mulf(qa, sa))
                 qv = vector.InsertStridedSliceOp(
@@ -2570,7 +3293,9 @@ def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
     ty = _Types()
     module = ir.Module.create()
     ime_attn = any(s["kind"] == "attn" and s.get("ime") for s in specs)
-    ime_mm = any(s["kind"] != "attn" and s.get("ime") for s in specs)
+    ime_mm = any(
+        s["kind"] in ("plain", "multi", "glu") and s.get("ime") for s in specs
+    )
     with ir.InsertionPoint(module.body):
         if ime_mm:
             # runtime/spacemit/BuddySpacemitTcm.c
@@ -2581,10 +3306,11 @@ def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
         if part == "main" and any(s.get("prefill_logits") for s in specs):
             _prefill_logits_flag(ty)
         if part == "ime":
-            _ime_step_fn(ty)
+            if ime_mm:
+                _ime_step_fn(ty)
             if ime_attn:
                 _attn_mma_fns(ty)
-        elif ime_attn:
+        if part != "ime" and ime_attn:
             if emulate_ime:
                 _attn_mma_fns(ty, emulate=True)
             else:
@@ -2593,8 +3319,10 @@ def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
         for s in specs:
             ime = bool(s.get("ime"))
             if part == "ime":
-                if ime and s["kind"] != "attn":
+                if ime and s["kind"] in ("plain", "multi", "glu"):
                     _ime_tile_fn(ty, s)
+            elif s["kind"] == "moe":
+                _moe_fn(ty, s)
             elif s["kind"] == "attn":
                 if s["m"] == 1:
                     _attn_decode_fn(ty, s)

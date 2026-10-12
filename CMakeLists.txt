@@ -207,6 +207,11 @@ option(BUDDY_BUILD_QWEN3_VL_MODEL
   "Build models/qwen3_vl (runner and buddy-server serving plugin)"
   OFF)
 
+# Qwen3-VL-MoE text decoder (buddy-codegen, like DeepSeek R1). Off by default.
+option(BUDDY_BUILD_QWEN3_VL_MOE_MODEL
+  "Build models/qwen3_vl_moe (qwen3_vl_moe_model.so, .rax, runner)"
+  OFF)
+
 set(_buddy_require_jpeg OFF)
 set(_buddy_require_png OFF)
 

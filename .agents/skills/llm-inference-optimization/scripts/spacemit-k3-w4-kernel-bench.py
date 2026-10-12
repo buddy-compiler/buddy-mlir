@@ -27,6 +27,8 @@
 #   sh -c 'echo 0 > /proc/set_ai_thread && exec OUT/run'           # matmul
 #   sh -c 'echo 0 > /proc/set_ai_thread && exec OUT/run 900'       # attention
 #
+# moe: the MoE kernel of a Qwen3-VL-30B-A3B layer, routing included, on all
+# 128 experts of a layer.
 # matmul: the q/k/v, o, gate/up and down kernels of one layer for each row
 # count, each call streaming its weights from DRAM (several copies, 32 MB or
 # more), best of 60 calls, and the weight bandwidth reached.
@@ -127,6 +129,38 @@ def matmul_sources(rows):
     return specs, COMMON + "\n".join(decls) + "\n" + "\n".join(body) + "\n"
 
 
+# Qwen3-VL-30B-A3B MoE block: hidden, intermediate, experts, top-k
+MOE = (2048, 768, 128, 8)
+
+
+def moe_sources(rows):
+    """The MoE kernels (routing included) for each row count, on all the
+    experts of one layer (random weights and router), best of 20 calls."""
+    k, inter, ne, kk = MOE
+    specs, decls, body = [], [], ["int main(void) {"]
+    gu = ne * 2 * k * inter * 9 // 16
+    dn = ne * inter * k * 9 // 16
+    body += [
+        f"  void *gu = buf({gu}), *dn = buf({dn});",
+        f"  M1 GU = {{gu, gu, 0, {gu}, 1}}, DN = {{dn, dn, 0, {dn}, 1}};",
+        f"  float *wr = rnd({k} * {ne}); M2 WR = {{wr, wr, 0, {{{k}, {ne}}}, {{{ne}, 1}}}};",
+    ]
+    for m in rows:
+        s = k3_w4.moe_spec(m, k, inter, ne, kk, THREADS)
+        specs.append(s)
+        decls.append(
+            f"void _mlir_ciface_{s['name']}(M2 *, M2 *, M2 *, M1 *, M1 *);"
+        )
+        body += [
+            f"  {{ float *x = rnd({m} * {k}); M2 X = {{x, x, 0, {{{m}, {k}}}, {{{k}, 1}}}};",
+            "    M2 r; double best = 1e9;",
+            f"    for (int i = 0; i < {20 if m > 1 else 400}; i++) {{ double t0 = now(); _mlir_ciface_{s['name']}(&r, &X, &WR, &GU, &DN); double t = now() - t0; if (t < best) best = t; free(r.a); }}",
+            f'    printf("moe m%-4d %9.1f us %7.1f us/row\\n", {m}, best * 1e6, best * 1e6 / {m}); }}',
+        ]
+    body.append("  return 0;\n}")
+    return specs, COMMON + "\n".join(decls) + "\n" + "\n".join(body) + "\n"
+
+
 def attention_sources(heads_per_item_threads):
     spec = {
         "kind": "attn",
@@ -148,7 +182,7 @@ def attention_sources(heads_per_item_threads):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("kind", choices=["matmul", "attention"])
+    p.add_argument("kind", choices=["matmul", "attention", "moe"])
     p.add_argument("out")
     p.add_argument(
         "--rows",
@@ -169,8 +203,11 @@ def main():
     args = p.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
+    rows = [int(r) for r in args.rows.split(",")]
     if args.kind == "matmul":
-        specs, driver = matmul_sources([int(r) for r in args.rows.split(",")])
+        specs, driver = matmul_sources(rows)
+    elif args.kind == "moe":
+        specs, driver = moe_sources(rows)
     else:
         specs, driver = attention_sources(args.threads)
     with open(f"{args.out}/driver.c", "w") as f:

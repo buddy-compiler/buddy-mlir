@@ -195,13 +195,14 @@ def main() -> int:
         "deepseek_r1",
         "whisper",
         "qwen3_vl",
+        "qwen3_vl_moe",
         "bge_m3",
         "proteinglm",
     }:
         print(
             "error: unsupported model_family in spec: "
             f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
-            "bge_m3, proteinglm)",
+            "qwen3_vl_moe, bge_m3, proteinglm)",
             file=sys.stderr,
         )
         return 1
@@ -349,6 +350,22 @@ def main() -> int:
                 "importer uses --spec and optional --local-model.",
                 file=sys.stderr,
             )
+    elif model_family == "qwen3_vl_moe":
+        cmake_args.extend(
+            [
+                f"-DBUDDY_QWEN3_VL_MOE_SPEC={spec}",
+                "-DBUDDY_BUILD_QWEN3_VL_MOE_MODEL=ON",
+            ]
+        )
+        if local_model is not None:
+            cmake_args.append(f"-DBUDDY_QWEN3_VL_MOE_LOCAL_MODEL={local_model}")
+        if args.hf_config is not None:
+            hf = resolve_from_cwd(args.hf_config)
+            cmake_args.append(f"-DBUDDY_QWEN3_VL_MOE_HF_CONFIG={hf}")
+        elif local_model is not None:
+            auto_cfg = local_model / "config.json"
+            if auto_cfg.is_file():
+                cmake_args.append(f"-DBUDDY_QWEN3_VL_MOE_HF_CONFIG={auto_cfg}")
     elif model_family == "bge_m3":
         if local_model is None:
             print(

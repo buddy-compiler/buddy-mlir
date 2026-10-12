@@ -125,7 +125,9 @@ def load_model(config: dict):
     )
     activation = config["precision"]["activation_type"]
 
-    if activation == "f16":
+    if config.get("architecture") == "Qwen3MoeForCausalLM":
+        model = load_qwen3_moe(model_path, activation)
+    elif activation == "f16":
         model = AutoModelForCausalLM.from_pretrained(model_path).eval().half()
     elif activation == "bf16":
         model = (
@@ -140,6 +142,53 @@ def load_model(config: dict):
     print(
         f"[import] Model loaded: {model_path} ({activation})", file=sys.stderr
     )
+    return model
+
+
+def load_qwen3_moe(model_path: str, activation: str):
+    """A Qwen3-MoE causal LM whose experts are traced as one node each
+    (buddy.compiler.moe). From a Qwen3-VL-MoE checkpoint, its text decoder
+    (gen_config.text_decoder_config): the checkpoint is loaded as the
+    vision-language model, which converts its expert layout, and the text
+    decoder's parameters are moved, not copied, into a Qwen3MoeForCausalLM
+    (model.language_model.* -> model.*)."""
+    from buddy.compiler.moe import use_buddy_moe_experts
+    from gen_config import text_decoder_config
+    from transformers import (
+        AutoConfig,
+        Qwen3MoeConfig,
+        Qwen3MoeForCausalLM,
+        Qwen3VLMoeForConditionalGeneration,
+    )
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import (
+        Qwen3MoeRotaryEmbedding,
+    )
+
+    dtype = {"f16": torch.float16, "bf16": torch.bfloat16}.get(
+        activation, torch.float32
+    )
+    hf = AutoConfig.from_pretrained(model_path).to_dict()
+    text = text_decoder_config(hf)
+    if text is hf:
+        model = Qwen3MoeForCausalLM.from_pretrained(model_path, dtype=dtype)
+    else:
+        vl = Qwen3VLMoeForConditionalGeneration.from_pretrained(
+            model_path, dtype=dtype
+        )
+        config = Qwen3MoeConfig(**text)
+        with torch.device("meta"):
+            model = Qwen3MoeForCausalLM(config)
+        state = {
+            "model." + k: v
+            for k, v in vl.model.language_model.state_dict().items()
+        }
+        state["lm_head.weight"] = vl.lm_head.weight
+        model.load_state_dict(state, strict=True, assign=True)
+        # the non-persistent RoPE buffers, still on the meta device
+        model.model.rotary_emb = Qwen3MoeRotaryEmbedding(config=config)
+        del vl
+    model = model.to(dtype).eval()
+    use_buddy_moe_experts(model)
     return model
 
 
@@ -907,6 +956,8 @@ def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
         return apply_a210_w4(graph_prefill, graph_decode, config, output_dir)
     use_ime = bool(config.get("prefill_ime"))
     ime_weights = set()
+    # the MoE weights, packed once for both graphs
+    packed = {}
     specs = {}
     for graph, rows, ime in (
         (graph_prefill, config["prefill_chunk"], use_ime),
@@ -914,7 +965,7 @@ def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
     ):
         # inputs: the token ids, then the start position
         for spec in k3_w4_rewrite(
-            graph, rows, graph.inputs[1].name, threads, ime, ime_weights
+            graph, rows, graph.inputs[1].name, threads, ime, ime_weights, packed
         ):
             specs[spec["name"]] = spec
 
