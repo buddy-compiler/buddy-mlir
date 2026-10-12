@@ -48,6 +48,7 @@ def gen_manifest(
     spec: dict,
     runner_library: str,
     model_library: str,
+    dep_shared_libs: list[str] | None = None,
     version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
@@ -90,6 +91,12 @@ def gen_manifest(
     )
     emit('                                backend = "cpu",')
     emit(f'                                uri = "file:{so_name}"}}')
+    for idx, dep in enumerate(dep_shared_libs or [], start=2):
+        emit(
+            f'  rhal.codeobj @runtime_dep_{idx - 1} {{id = {idx} : i32, kind = "host_shared_lib",'
+        )
+        emit('                                backend = "cpu",')
+        emit(f'                                uri = "{_normalize_uri(dep)}"}}')
     emit("")
 
     emit(
@@ -140,6 +147,13 @@ def main():
         default="0.1.0",
         help="RAX module version string (usually the CLI release version).",
     )
+    parser.add_argument(
+        "--dep-shared-lib",
+        action="append",
+        default=[],
+        metavar="URI_OR_NAME",
+        help="Additional shared library dependency URI/name (repeatable).",
+    )
     args = parser.parse_args()
 
     with open(args.spec, encoding="utf-8") as spec_file:
@@ -149,6 +163,7 @@ def main():
         spec,
         _normalize_uri(args.runner_library),
         _normalize_uri(args.model_library),
+        dep_shared_libs=args.dep_shared_lib,
         version=args.version,
     )
 
