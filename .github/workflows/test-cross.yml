@@ -1,0 +1,165 @@
+name: test cross
+
+# Cross-compiles every model below for riscv64 on x86 and runs the resulting
+# .rax on the riscv64 runner.  Add a model by adding one block to each job.
+#
+# deepseek_r1 (w4a16, the smallest quantized variant) is the Makefile's default
+# cross model and its decode runs OpenMP-parallel, so the run covers
+# libmlir_c_runner_utils, its own dependencies and libomp.  Whisper and
+# Qwen3-VL are rejected by IS_RVV_CROSSCOMPILE.
+#
+# The plain host model runs, and bge_m3 on both architectures, live in
+# test-cli.yml.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-cross-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Read-only mirror for the snapshot downloads.
+  HF_ENDPOINT: https://hf-mirror.com
+  # `make riscv-model-*` configures a fresh tree, and the Makefiles generator
+  # mishandles the arg0.data byproduct.
+  CMAKE_GENERATOR: Ninja
+
+jobs:
+  cross:
+    name: Cross-compile for riscv64
+    runs-on: [ self-hosted, x64 ]
+    timeout-minutes: 720
+    steps:
+      - name: Prepare the build cache
+        # CACHE_ROOT keeps the Makefile's build trees out of the workspace, so
+        # actions/checkout's clean cannot wipe them.  Set up before the
+        # checkout because checkout_llvm clones into LLVM_SRC's parent, while
+        # the `llvm` symlink `make host` reads must be created after it.
+        run: |
+          set -euo pipefail
+          src="$HOME/actions-runner/workspace/llvm-project"
+          mkdir -p "$HOME/buddy-cross-cache" "$(dirname "$src")"
+          echo "CACHE_ROOT=$HOME/buddy-cross-cache" >> "$GITHUB_ENV"
+          echo "LLVM_SRC=$src" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: 'false'
+          fetch-depth: 300
+
+      - uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: ${{ env.LLVM_SRC }}
+
+      - name: Link the cached LLVM source
+        run: |
+          set -euo pipefail
+          rm -rf llvm
+          ln -s "$LLVM_SRC" llvm
+
+      - uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
+        with:
+          python-version: "3.12"
+          activate-environment: "true"
+          no-project: "true"
+          enable-cache: "true"
+          cache-dependency-glob: requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          uv pip install --torch-backend cpu -r requirements.txt huggingface_hub
+          echo "PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+          echo "PARALLEL=$(nproc)" >> "$GITHUB_ENV"
+
+      - name: Build the host LLVM/Buddy and the RISC-V toolchain
+        run: make riscv
+
+      - name: check deepseek_r1
+        run: |
+          set -euo pipefail
+
+          # Prepare
+          snap="$CACHE_ROOT/snapshots/deepseek-r1-1.5b"
+          mkdir -p "$(dirname "$snap")"
+          [ -f "$snap/config.json" ] ||
+            hf download deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --local-dir "$snap"
+
+          # Compile
+          # The w4 dequant kernels are f16 math: without vector f16 (a plain
+          # +m,+d,+v target) LLVM scalarizes them, two orders of magnitude
+          # slower.  RISCV_VLEN must equal the host's VLEN -- a smaller value
+          # crashes -- and the CI hosts are 256 bits.
+          make -o riscv riscv-model-deepseek_r1-w4a16 \
+            RISCV_VLEN=256 RISCV_ZFH_ZVFH=ON RISCV_MODEL_LOCAL="$snap"
+
+          # Verify
+          model_dir="$CACHE_ROOT/build-riscv/deepseek_r1-w4a16/models/deepseek_r1"
+          for so in "$model_dir"/*.so*; do
+            readelf -h "$so" | grep -q RISC-V || { echo "::error::$so is not a RISC-V ELF"; exit 1; }
+          done
+          "$CACHE_ROOT/build/bin/rax-inspect" "$model_dir/deepseek_r1.rax" | sed -n '1,12p'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-riscv64-rax
+          path: ${{ env.CACHE_ROOT }}/build-riscv/deepseek_r1-w4a16/models/deepseek_r1/deepseek_r1.rax
+          if-no-files-found: error
+          retention-days: 3
+
+  run:
+    name: Run the cross-compiled packages
+    needs: cross
+    runs-on: [ self-hosted, riscv64 ]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: 'false'
+          fetch-depth: 300
+
+      - uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: $HOME/src/llvm-project
+
+      - uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
+        with:
+          python-version: "3.12"
+          activate-environment: "true"
+          no-project: "true"
+          enable-cache: "true"
+          cache-dependency-glob: requirements.txt
+
+      - name: Build LLVM/MLIR and buddy-mlir
+        # ci-common, not `make host`: it carries the riscv64 OpenMP flags.
+        uses: ./.github/actions/ci-common
+        with:
+          arch: riscv64
+          llvm-src: $HOME/src/llvm-project
+          llvm-build-root: $HOME/llvm-cache
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cross-riscv64-rax
+          path: cross-rax
+
+      - name: check deepseek_r1
+        run: |
+          set -euo pipefail
+
+          ls -l cross-rax
+          rax=cross-rax/deepseek_r1.rax
+          [ -f "$rax" ] || { echo "::error::$rax is missing"; exit 1; }
+
+          # Run.  The whole output goes to the log, a human reads it: one
+          # decode step is enough to show the prefill and decode paths ran,
+          # which means libmlir_c_runner_utils, its own dependencies and libomp
+          # loaded.
+          build/bin/buddy-cli --model "$rax" --prompt "hello" --max-tokens 1
