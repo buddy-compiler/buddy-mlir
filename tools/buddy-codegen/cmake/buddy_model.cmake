@@ -265,6 +265,37 @@ function(_buddy_compile_generated_subgraphs)
   )
 endfunction()
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Runtime libraries a model package carries, as the release bundles do: every
+# libmlir*.so* the LLVM build ships, plus libomp.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Copy <libs> next to the model, declare them as manifest runtime dependencies
+# and add the copies to MDL_EXTRA_STAGE4_DEPS.
+macro(_buddy_pack_runtime_deps)
+  set(_packed)
+  set(_seen)
+  foreach(_lib ${ARGN})
+    get_filename_component(_lib_real "${_lib}" REALPATH)
+    list(FIND _seen "${_lib_real}" _dup)
+    if(NOT _dup EQUAL -1)
+      continue()
+    endif()
+    list(APPEND _seen "${_lib_real}")
+    get_filename_component(_lib_name "${_lib_real}" NAME)
+    add_custom_command(
+      OUTPUT "${BIN}/${_lib_name}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "${_lib_real}" "${BIN}/${_lib_name}"
+      DEPENDS "${_lib_real}"
+      COMMENT "[${MDL_NAME}] Copying runtime dep ${_lib_name}"
+      VERBATIM)
+    list(APPEND _packed "${BIN}/${_lib_name}")
+    list(APPEND MDL_GEN_MANIFEST_ARGS --dep-shared-lib "file:${_lib_name}")
+  endforeach()
+  list(APPEND MDL_EXTRA_STAGE4_DEPS ${_packed})
+endmacro()
+
 function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
@@ -481,71 +512,31 @@ function(buddy_add_model)
         "qwen3_vl_multimodal or RUNTIME_LINK_LIBS).")
     endif()
 
-    get_filename_component(RISCV_OMP_BASENAME "${RISCV_OMP_SHARED}" NAME)
-    get_filename_component(RISCV_MLIR_RUNNER_BASENAME "${RISCV_MLIR_C_RUNNER_UTILS}" NAME)
-    if(RISCV_OMP_BASENAME STREQUAL "" AND NOT MDL_THREAD_POOL)
-      message(FATAL_ERROR "RISCV_OMP_SHARED has no basename: ${RISCV_OMP_SHARED}")
-    endif()
-    if(RISCV_MLIR_RUNNER_BASENAME STREQUAL "")
-      message(FATAL_ERROR
-        "RISCV_MLIR_C_RUNNER_UTILS has no basename: ${RISCV_MLIR_C_RUNNER_UTILS}")
-    endif()
-
-    # mlir_c_runner_utils needs other MLIR runtime libraries of its build
-    # (mlir_float16_utils; mlir_apfloat_wrappers since LLVM 22). They are packed
-    # as well, ahead of it: the runtime dlopens the dependencies in manifest
-    # order with RTLD_GLOBAL, which provides its DT_NEEDED entries.
-    get_filename_component(_riscv_mlir_lib_dir
-      "${RISCV_MLIR_C_RUNNER_UTILS}" DIRECTORY)
-    if(NOT CMAKE_READELF)
-      message(FATAL_ERROR
-        "IS_RVV_CROSSCOMPILE=ON needs readelf (CMAKE_READELF) to find the "
-        "libraries ${RISCV_MLIR_RUNNER_BASENAME} depends on.")
-    endif()
-    execute_process(
-      COMMAND "${CMAKE_READELF}" -d "${RISCV_MLIR_C_RUNNER_UTILS}"
-      OUTPUT_VARIABLE _riscv_mlir_dynamic
-      RESULT_VARIABLE _riscv_readelf_result)
-    if(NOT _riscv_readelf_result EQUAL 0)
-      message(FATAL_ERROR
-        "readelf -d failed on RISCV_MLIR_C_RUNNER_UTILS: ${RISCV_MLIR_C_RUNNER_UTILS}")
-    endif()
-    string(REGEX MATCHALL "Shared library: \\[libmlir_[A-Za-z0-9_.+-]+\\]"
-      _riscv_mlir_needed "${_riscv_mlir_dynamic}")
-    set(RISCV_DEP_LIBS)
-    foreach(_needed ${_riscv_mlir_needed})
-      string(REGEX REPLACE "^.*\\[(.*)\\]$" "\\1" _needed "${_needed}")
-      if(NOT EXISTS "${_riscv_mlir_lib_dir}/${_needed}")
-        message(FATAL_ERROR
-          "${RISCV_MLIR_RUNNER_BASENAME} needs ${_needed}, which is not in "
-          "${_riscv_mlir_lib_dir}")
-      endif()
-      list(APPEND RISCV_DEP_LIBS "${_riscv_mlir_lib_dir}/${_needed}")
-    endforeach()
+    # See "Runtime libraries a model package carries" above.
+    get_filename_component(_mlir_runtime_dir "${RISCV_MLIR_C_RUNNER_UTILS}" DIRECTORY)
+    file(GLOB _runtime_deps
+      "${_mlir_runtime_dir}/libmlir*${CMAKE_SHARED_LIBRARY_SUFFIX}*")
     if(NOT MDL_THREAD_POOL)
-      list(APPEND RISCV_DEP_LIBS "${RISCV_OMP_SHARED}")
+      list(APPEND _runtime_deps "${RISCV_OMP_SHARED}")
     endif()
-    list(APPEND RISCV_DEP_LIBS "${RISCV_MLIR_C_RUNNER_UTILS}")
+  elseif(NOT APPLE)
+    file(GLOB _runtime_deps
+      "${LLVM_LIBRARY_DIR}/libmlir*${CMAKE_SHARED_LIBRARY_SUFFIX}*")
+    if(NOT MDL_THREAD_POOL)
+      set(_host_omp "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+      if(NOT _host_omp OR NOT EXISTS "${_host_omp}")
+        get_filename_component(_host_llvm "${LLVM_LIBRARY_DIR}" DIRECTORY)
+        set(_host_omp
+          "${_host_llvm}/runtimes/runtimes-bins/openmp/runtime/src/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      endif()
+      if(EXISTS "${_host_omp}")
+        list(APPEND _runtime_deps "${_host_omp}")
+      endif()
+    endif()
+  endif()
 
-    set(RISCV_DEP_LOCALS)
-    set(RISCV_DEP_COPIES)
-    foreach(_dep ${RISCV_DEP_LIBS})
-      get_filename_component(_dep_name "${_dep}" NAME)
-      list(APPEND RISCV_DEP_LOCALS "${BIN}/${_dep_name}")
-      list(APPEND RISCV_DEP_COPIES
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dep}" "${BIN}/${_dep_name}")
-      list(APPEND MDL_GEN_MANIFEST_ARGS --dep-shared-lib "file:${_dep_name}")
-    endforeach()
-
-    add_custom_command(
-      OUTPUT ${RISCV_DEP_LOCALS}
-      ${RISCV_DEP_COPIES}
-      DEPENDS ${RISCV_DEP_LIBS}
-      COMMENT "[${MDL_NAME}] Copying RVV runtime deps (omp/mlir_c_runner_utils)"
-      VERBATIM
-    )
-
-    list(APPEND MDL_EXTRA_STAGE4_DEPS ${RISCV_DEP_LOCALS})
+  if(_runtime_deps)
+    _buddy_pack_runtime_deps(${_runtime_deps})
   endif()
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -1333,6 +1324,9 @@ function(buddy_add_model)
       "${RISCV_OMP_SHARED}"
       "${RISCV_MLIR_C_RUNNER_UTILS}"
       -lm)
+  elseif(NOT APPLE)
+    # Native builds resolve the embedded runtime deps relative to the model.
+    list(APPEND MDL_STAGE3_LINK_OPTS "-Wl,-rpath,\$ORIGIN")
   endif()
 
   # Runtime support compiled into the model library (spec fields above).
