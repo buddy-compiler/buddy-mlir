@@ -25,3 +25,7 @@ endif()
 if(BUDDY_BUILD_PROTEINGLM_MODEL)
   add_subdirectory(proteinglm)
 endif()
+
+if(BUDDY_BUILD_QWEN3_MODEL)
+  add_subdirectory(qwen3)
+endif()
