@@ -188,7 +188,10 @@ This builds `buddy-cli` for riscv64, the program that runs `.rax` files on a
 RISC-V board. `make riscv-cli` builds it the same way, with the toolchain and
 the cross MLIR of `make riscv`, into `build-cross-rv/bin/buddy-cli`. A cross
 build does not build the Python packages
-(`BUDDY_MLIR_ENABLE_PYTHON_PACKAGES` defaults to `OFF` there).
+(`BUDDY_MLIR_ENABLE_PYTHON_PACKAGES` defaults to `OFF` there) and builds
+`buddy-cli` without libnuma (`BUDDY_CLI_ENABLE_NUMA` defaults to `OFF` there;
+`ON` takes libnuma from the target's sysroot, given as `CMAKE_SYSROOT` or
+`CMAKE_FIND_ROOT_PATH`).
 
 ```
 $ cd buddy-mlir
