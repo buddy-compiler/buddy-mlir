@@ -270,18 +270,93 @@ endfunction()
 # libmlir*.so* the LLVM build ships, plus libomp.
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Copy <libs> next to the model, declare them as manifest runtime dependencies
-# and add the copies to MDL_EXTRA_STAGE4_DEPS.
-macro(_buddy_pack_runtime_deps)
-  set(_packed)
-  set(_seen)
+# _buddy_order_runtime_deps(<out_var> <libs>...)
+#
+# The real paths of <libs>, without duplicates, each after the libraries of
+# <libs> in its DT_NEEDED (mlir_c_runner_utils needs mlir_float16_utils and,
+# since LLVM 22, mlir_apfloat_wrappers), otherwise in the order given.
+function(_buddy_order_runtime_deps out_var)
+  if(NOT CMAKE_READELF)
+    find_program(CMAKE_READELF NAMES readelf llvm-readelf)
+  endif()
+  if(NOT CMAKE_READELF)
+    message(FATAL_ERROR
+      "Packing the runtime libraries of a model needs readelf "
+      "(CMAKE_READELF) to order them by their DT_NEEDED entries.")
+  endif()
+  set(_libs)
+  set(_names)
   foreach(_lib ${ARGN})
     get_filename_component(_lib_real "${_lib}" REALPATH)
-    list(FIND _seen "${_lib_real}" _dup)
-    if(NOT _dup EQUAL -1)
-      continue()
+    if(NOT _lib_real IN_LIST _libs)
+      get_filename_component(_lib_name "${_lib_real}" NAME)
+      list(APPEND _libs "${_lib_real}")
+      list(APPEND _names "${_lib_name}")
     endif()
-    list(APPEND _seen "${_lib_real}")
+  endforeach()
+  # _needs_<i>: the libraries of <libs> library <i> needs.
+  set(_todo)
+  set(_i 0)
+  foreach(_lib ${_libs})
+    execute_process(
+      COMMAND "${CMAKE_READELF}" -d "${_lib}"
+      OUTPUT_VARIABLE _dynamic
+      RESULT_VARIABLE _result)
+    if(NOT _result EQUAL 0)
+      message(FATAL_ERROR "readelf -d failed on ${_lib}")
+    endif()
+    string(REGEX MATCHALL "Shared library: \\[[A-Za-z0-9_.+-]+\\]"
+      _needed "${_dynamic}")
+    set(_needs_${_i})
+    foreach(_need ${_needed})
+      string(REGEX REPLACE "^.*\\[(.*)\\]$" "\\1" _need "${_need}")
+      if(_need IN_LIST _names)
+        list(APPEND _needs_${_i} "${_need}")
+      endif()
+    endforeach()
+    list(APPEND _todo ${_i})
+    math(EXPR _i "${_i} + 1")
+  endforeach()
+  set(_ordered)
+  set(_ordered_names)
+  list(LENGTH _todo _left)
+  while(_left GREATER 0)
+    set(_next)
+    foreach(_i ${_todo})
+      set(_ready ON)
+      foreach(_need ${_needs_${_i}})
+        if(NOT _need IN_LIST _ordered_names)
+          set(_ready OFF)
+        endif()
+      endforeach()
+      if(_ready)
+        list(GET _libs ${_i} _lib)
+        list(GET _names ${_i} _lib_name)
+        list(APPEND _ordered "${_lib}")
+        list(APPEND _ordered_names "${_lib_name}")
+      else()
+        list(APPEND _next ${_i})
+      endif()
+    endforeach()
+    list(LENGTH _next _next_left)
+    if(_next_left EQUAL _left)
+      message(FATAL_ERROR "Runtime libraries that need each other: ${_libs}")
+    endif()
+    set(_todo ${_next})
+    set(_left ${_next_left})
+  endwhile()
+  set(${out_var} ${_ordered} PARENT_SCOPE)
+endfunction()
+
+# Copy <libs> next to the model, declare them as manifest runtime dependencies
+# and add the copies to MDL_EXTRA_STAGE4_DEPS. The runtimes dlopen the
+# dependencies in manifest order with RTLD_GLOBAL, which provides the
+# DT_NEEDED entries of the later ones: the copies are not where the RPATH of
+# a library points, so each is declared after the libraries it needs.
+macro(_buddy_pack_runtime_deps)
+  set(_packed)
+  _buddy_order_runtime_deps(_ordered_deps ${ARGN})
+  foreach(_lib_real ${_ordered_deps})
     get_filename_component(_lib_name "${_lib_real}" NAME)
     add_custom_command(
       OUTPUT "${BIN}/${_lib_name}"
