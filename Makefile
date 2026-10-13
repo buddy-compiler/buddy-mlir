@@ -57,16 +57,19 @@ riscv_model_default_spec = $(firstword $(wildcard $(CURDIR)/models/$(1)/specs/f3
 riscv_model_default_target = $(call riscv_model_target,$(call riscv_model_default_spec,$(1)))
 # The board the k3_* and a210_* specs are built for: the exact VLEN (SpacemiT
 # K3 A100 cores 1024, Zhihe A210 128) and Zfh/Zvfh, which both have; see
-# docs/K3DeepSeekR1.md and docs/A210DeepSeekR1.md. RISCV_VLEN and
-# RISCV_ZFH_ZVFH (ON / OFF) override them, for every spec.
+# docs/K3DeepSeekR1.md and docs/A210DeepSeekR1.md. Other specs: any VLEN, no
+# Zfh/Zvfh. RISCV_VLEN (bits) and RISCV_ZFH_ZVFH (ON / OFF) override them,
+# for every spec; a spec's kernels may refuse other values (the a210 kernels
+# need VLEN 128 and Zfh/Zvfh). Both are always passed: a value left out
+# would keep the one of an earlier build in the CMake cache.
 RISCV_VLEN ?=
 RISCV_ZFH_ZVFH ?=
 riscv_model_board_vlen = $(if $(filter k3_%,$(call riscv_model_variant,$(1))),1024,$(if $(filter a210_%,$(call riscv_model_variant,$(1))),128,))
 riscv_model_vlen = $(or $(RISCV_VLEN),$(call riscv_model_board_vlen,$(1)))
-riscv_model_zfh_zvfh = $(or $(RISCV_ZFH_ZVFH),$(if $(call riscv_model_board_vlen,$(1)),ON,))
+riscv_model_zfh_zvfh = $(or $(RISCV_ZFH_ZVFH),$(if $(call riscv_model_board_vlen,$(1)),ON,OFF))
 riscv_model_board_args = \
-	$(if $(call riscv_model_vlen,$(1)),--cmake-args=-DBUDDY_RISCV_VLEN=$(call riscv_model_vlen,$(1)),) \
-	$(if $(call riscv_model_zfh_zvfh,$(1)),--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=$(call riscv_model_zfh_zvfh,$(1)),)
+	--cmake-args=-DBUDDY_RISCV_VLEN=$(call riscv_model_vlen,$(1)) \
+	--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=$(call riscv_model_zfh_zvfh,$(1))
 RISCV_MODEL_CMAKE_ARGS := \
 	--cmake-args=-DLLVM_DIR=$(LLVM_BUILD)/lib/cmake/llvm \
 	--cmake-args=-DMLIR_DIR=$(LLVM_BUILD)/lib/cmake/mlir \
@@ -119,8 +122,10 @@ help:
 		'  make install-riscv        Build/install RISC-V dependencies' \
 		'  make riscv-model          Build RISCV_MODEL_DEFAULT=$(RISCV_MODEL_DEFAULT)' \
 		'  make riscv-model-<name>   Build a family default or one spec variant' \
-		'                            (k3_* / a210_*: VLEN 1024 / 128 and Zfh/Zvfh;' \
-		'                            RISCV_VLEN=, RISCV_ZFH_ZVFH=ON|OFF override)' \
+		'                            (k3_* / a210_*: VLEN 1024 / 128 and Zfh/Zvfh,' \
+		'                            others: any VLEN, no Zfh/Zvfh; override with' \
+		'                            RISCV_VLEN=<bits> RISCV_ZFH_ZVFH=ON|OFF, which' \
+		'                            a spec'"'"'s kernels may refuse, e.g. a210_*)' \
 		'' \
 		'Cleanup:' \
 		'  make clean-models         Remove generated model artifacts' \
