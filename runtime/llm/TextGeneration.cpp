@@ -38,6 +38,72 @@ void printLog(const std::string &msg, bool suppress) {
     std::cerr << "\033[34;1m[Log]\033[0m " << msg << "\n";
 }
 
+std::string Utf8StreamDecoder::append(std::string_view bytes) {
+  static constexpr char replacement[] = "\xEF\xBF\xBD";
+
+  if (!bytes.empty())
+    pending_.append(bytes.data(), bytes.size());
+  std::string output;
+  size_t offset = 0;
+
+  while (offset < pending_.size()) {
+    const auto lead = static_cast<unsigned char>(pending_[offset]);
+    if (lead <= 0x7F) {
+      output.push_back(pending_[offset++]);
+      continue;
+    }
+
+    size_t length = 0;
+    if (lead >= 0xC2 && lead <= 0xDF)
+      length = 2;
+    else if (lead >= 0xE0 && lead <= 0xEF)
+      length = 3;
+    else if (lead >= 0xF0 && lead <= 0xF4)
+      length = 4;
+    else {
+      output.append(replacement);
+      ++offset;
+      continue;
+    }
+
+    const size_t available = pending_.size() - offset;
+    bool validPrefix = true;
+    for (size_t index = 1; index < std::min(length, available); ++index) {
+      const auto byte = static_cast<unsigned char>(pending_[offset + index]);
+      if ((byte & 0xC0) != 0x80 ||
+          (index == 1 &&
+           ((lead == 0xE0 && byte < 0xA0) || (lead == 0xED && byte > 0x9F) ||
+            (lead == 0xF0 && byte < 0x90) || (lead == 0xF4 && byte > 0x8F)))) {
+        validPrefix = false;
+        break;
+      }
+    }
+
+    if (!validPrefix) {
+      output.append(replacement);
+      ++offset;
+      continue;
+    }
+    if (available < length)
+      break;
+
+    output.append(pending_, offset, length);
+    offset += length;
+  }
+
+  pending_.erase(0, offset);
+  return output;
+}
+
+std::string Utf8StreamDecoder::finish() {
+  std::string output = append({});
+  if (!pending_.empty()) {
+    output.append("\xEF\xBF\xBD");
+    pending_.clear();
+  }
+  return output;
+}
+
 //===----------------------------------------------------------------------===//
 // Signal handling
 //===----------------------------------------------------------------------===//
@@ -51,6 +117,39 @@ void interruptHandler(int) { g_interrupted = true; }
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+class IncrementalTextDecoder {
+public:
+  explicit IncrementalTextDecoder(const TextCodec &codec) : codec_(codec) {}
+
+  std::string take(Text<size_t, 2> &outputContainer) {
+    std::string current = codec_.detokenize(outputContainer);
+    std::string bytes;
+    if (current.size() > lastDecoded_.size()) {
+      bytes.assign(current.data() + lastDecoded_.size(),
+                   current.size() - lastDecoded_.size());
+    }
+    lastDecoded_ = std::move(current);
+
+    std::string delta = utf8_.append(bytes);
+    text_ += delta;
+    return delta;
+  }
+
+  std::string finish() {
+    std::string delta = utf8_.finish();
+    text_ += delta;
+    return delta;
+  }
+
+  const std::string &text() const { return text_; }
+
+private:
+  const TextCodec &codec_;
+  Utf8StreamDecoder utf8_;
+  std::string lastDecoded_;
+  std::string text_;
+};
 
 /// Write a string literal with JSON escaping.
 void writeJsonString(std::ostream &os, std::string_view text) {
@@ -107,18 +206,6 @@ void writeStreamJsonDoneEvent(std::string_view text) {
   writeJsonString(std::cout, text);
   std::cout << "}\n";
   std::cout.flush();
-}
-
-std::string takeNewText(Text<size_t, 2> &outputContainer,
-                        std::string &lastPrinted, const TextCodec &codec) {
-  std::string current = codec.detokenize(outputContainer);
-  std::string delta;
-  if (current.size() > lastPrinted.size()) {
-    delta.assign(current.data() + lastPrinted.size(),
-                 current.size() - lastPrinted.size());
-  }
-  lastPrinted = std::move(current);
-  return delta;
 }
 
 void writeStdoutDelta(std::string_view delta) {
@@ -207,8 +294,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   }
 
   outputTokens.appendTokenIdx(firstToken);
-  std::string lastPrinted;
-  std::string delta = takeNewText(outputTokens, lastPrinted, codec);
+  IncrementalTextDecoder textDecoder(codec);
+  std::string delta = textDecoder.take(outputTokens);
   if (streamJsonl)
     writeStreamJsonTokenEvent("prefill", 0, firstToken, delta, false);
   else
@@ -224,11 +311,16 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   if (maxSteps <= 0) {
     result.hitTokenLimit = true;
-    result.text = codec.detokenize(outputTokens);
-    if (streamJsonl)
+    const std::string finalDelta = textDecoder.finish();
+    result.text = textDecoder.text();
+    if (streamJsonl) {
+      if (!finalDelta.empty())
+        writeStreamJsonTokenEvent("prefill", 0, -1, finalDelta, false);
       writeStreamJsonDoneEvent(result.text);
-    else
+    } else {
+      writeStdoutDelta(finalDelta);
       std::cout << std::endl;
+    }
     return result;
   }
 
@@ -272,7 +364,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
     }
 
     outputTokens.appendTokenIdx(nextToken);
-    delta = takeNewText(outputTokens, lastPrinted, codec);
+    delta = textDecoder.take(outputTokens);
     if (streamJsonl)
       writeStreamJsonTokenEvent("decode", step, nextToken, delta, false);
     else
@@ -282,12 +374,17 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
       result.hitTokenLimit = true;
   }
 
-  if (!streamJsonl)
+  const std::string finalDelta = textDecoder.finish();
+  if (!streamJsonl) {
+    writeStdoutDelta(finalDelta);
     std::cout << std::endl;
+  } else if (!finalDelta.empty()) {
+    writeStreamJsonTokenEvent("decode", decodeCount, -1, finalDelta, false);
+  }
 
   result.generatedTokens = decodeCount;
   result.decodeSecs = decodeAccumMs / 1000.0;
-  result.text = codec.detokenize(outputTokens);
+  result.text = textDecoder.text();
   if (streamJsonl)
     writeStreamJsonDoneEvent(result.text);
   return result;
@@ -338,14 +435,16 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
     return result;
 
   outputTokens.appendTokenIdx(firstToken);
-  std::string lastPrinted;
+  IncrementalTextDecoder textDecoder(codec);
+  std::string delta = textDecoder.take(outputTokens);
   if (callback) {
     GenerationChunk chunk;
-    chunk.delta = takeNewText(outputTokens, lastPrinted, codec);
+    chunk.delta = delta;
     chunk.tokenId = firstToken;
     if (!callback(chunk)) {
       result.cancelled = true;
-      result.text = codec.detokenize(outputTokens);
+      textDecoder.finish();
+      result.text = textDecoder.text();
       return result;
     }
   }
@@ -360,7 +459,14 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   if (maxSteps <= 0) {
     result.hitTokenLimit = true;
-    result.text = codec.detokenize(outputTokens);
+    const std::string finalDelta = textDecoder.finish();
+    if (callback && !finalDelta.empty()) {
+      GenerationChunk chunk;
+      chunk.delta = finalDelta;
+      if (!callback(chunk))
+        result.cancelled = true;
+    }
+    result.text = textDecoder.text();
     return result;
   }
 
@@ -401,9 +507,10 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
       break;
 
     outputTokens.appendTokenIdx(nextToken);
+    delta = textDecoder.take(outputTokens);
     if (callback) {
       GenerationChunk chunk;
-      chunk.delta = takeNewText(outputTokens, lastPrinted, codec);
+      chunk.delta = delta;
       chunk.tokenId = nextToken;
       if (!callback(chunk)) {
         result.cancelled = true;
@@ -415,9 +522,16 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
       result.hitTokenLimit = true;
   }
 
+  const std::string finalDelta = textDecoder.finish();
+  if (callback && !result.cancelled && !finalDelta.empty()) {
+    GenerationChunk chunk;
+    chunk.delta = finalDelta;
+    if (!callback(chunk))
+      result.cancelled = true;
+  }
   result.generatedTokens = decodeCount;
   result.decodeSecs = decodeAccumMs / 1000.0;
-  result.text = codec.detokenize(outputTokens);
+  result.text = textDecoder.text();
   return result;
 }
 
