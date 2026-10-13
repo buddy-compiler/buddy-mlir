@@ -34,6 +34,8 @@ RISCV_MLIR_BUILD ?= $(CACHE_ROOT)/llvm/build-cross-mlir-rv
 # `make riscv` builds it together with the cross MLIR runtimes.
 RISCV_LLVM_BUILD ?= $(RISCV_MLIR_BUILD)
 RISCV_OMP_BUILD ?= $(CACHE_ROOT)/llvm/build-omp-shared-rv
+# riscv64 buddy-cli, the runner of .rax files on the boards.
+RISCV_CLI_BUILD ?= $(CACHE_ROOT)/build-cross-rv
 RISCV_TARGET := riscv64-unknown-linux-gnu
 RISCV_TARGET_FLAGS := --target=$(RISCV_TARGET) --sysroot=$(RISCV_INSTALL)/sysroot --gcc-toolchain=$(RISCV_INSTALL)
 
@@ -120,6 +122,7 @@ help:
 		'  make riscv                Build the RISC-V toolchain and runtimes' \
 		'  make riscv-deps           Alias for make riscv' \
 		'  make install-riscv        Build/install RISC-V dependencies' \
+		'  make riscv-cli            Build the riscv64 buddy-cli (RISCV_CLI_BUILD/bin)' \
 		'  make riscv-model          Build RISCV_MODEL_DEFAULT=$(RISCV_MODEL_DEFAULT)' \
 		'  make riscv-model-<name>   Build a family default or one spec variant' \
 		'                            (k3_* / a210_*: VLEN 1024 / 128 and Zfh/Zvfh,' \
@@ -167,6 +170,7 @@ clean-riscv:
 		"$(RISCV_INSTALL)" \
 		"$(RISCV_MLIR_BUILD)" \
 		"$(RISCV_OMP_BUILD)" \
+		"$(RISCV_CLI_BUILD)" \
 		"$(RISCV_MODEL_BUILD)"
 
 clean-all: clean-host clean-riscv
@@ -246,6 +250,21 @@ riscv: host
 
 .PHONY: riscv-deps
 riscv-deps: riscv
+
+# buddy-cli for the boards, built against the cross MLIR of `make riscv`.
+.PHONY: riscv-cli
+riscv-cli: riscv
+	cmake -G Ninja -S . -B "$(RISCV_CLI_BUILD)" \
+		-DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=riscv64 \
+		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+		-DMLIR_DIR="$(RISCV_MLIR_BUILD)/lib/cmake/mlir" \
+		-DLLVM_DIR="$(RISCV_MLIR_BUILD)/lib/cmake/llvm" \
+		-DCMAKE_C_COMPILER="$(LLVM_BUILD)/bin/clang" \
+		-DCMAKE_CXX_COMPILER="$(LLVM_BUILD)/bin/clang++" \
+		-DCMAKE_C_FLAGS="$(RISCV_TARGET_FLAGS)" \
+		-DCMAKE_CXX_FLAGS="$(RISCV_TARGET_FLAGS)"
+	cmake --build "$(RISCV_CLI_BUILD)" --target buddy-cli --parallel $(PARALLEL)
 
 .PHONY: riscv-model
 riscv-model: riscv-model-$(RISCV_MODEL_DEFAULT)
