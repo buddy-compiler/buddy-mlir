@@ -65,7 +65,12 @@ runs:
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
 
         uv pip install -U pip setuptools wheel packaging
-        uv pip install --index-strategy unsafe-best-match -r requirements.txt
+        # PyPI has no riscv64 wheels of torch, tokenizers and others; the Ruyi
+        # index has them. Only this job uses it: x64 and arm64 install from
+        # PyPI and the PyTorch index alone.
+        uv pip install --index-strategy unsafe-best-match \
+          --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
+          -r requirements.txt
 
     - name: Configure and Build LLVM
       if: ${{ env.LLVM_CACHE_HIT != 'true' }}
