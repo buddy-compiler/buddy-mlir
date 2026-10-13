@@ -55,13 +55,28 @@ RISCV_MODEL_FAMILIES := $(sort $(foreach _spec,$(RISCV_MODEL_SPECS),$(call riscv
 riscv_model_specs_for = $(filter $(CURDIR)/models/$(1)/specs/%.json,$(RISCV_MODEL_SPECS))
 riscv_model_default_spec = $(firstword $(wildcard $(CURDIR)/models/$(1)/specs/f32.json) $(wildcard $(CURDIR)/models/$(1)/specs/base.json) $(call riscv_model_specs_for,$(1)))
 riscv_model_default_target = $(call riscv_model_target,$(call riscv_model_default_spec,$(1)))
+# The board the k3_* and a210_* specs are built for: the exact VLEN (SpacemiT
+# K3 A100 cores 1024, Zhihe A210 128) and Zfh/Zvfh, which both have; see
+# docs/K3DeepSeekR1.md and docs/A210DeepSeekR1.md. Other specs: any VLEN, no
+# Zfh/Zvfh. RISCV_VLEN (bits) and RISCV_ZFH_ZVFH (ON / OFF) override them,
+# for every spec; a spec's kernels may refuse other values (the a210 kernels
+# need VLEN 128 and Zfh/Zvfh). Both are always passed: a value left out
+# would keep the one of an earlier build in the CMake cache.
+RISCV_VLEN ?=
+RISCV_ZFH_ZVFH ?=
+riscv_model_board_vlen = $(if $(filter k3_%,$(call riscv_model_variant,$(1))),1024,$(if $(filter a210_%,$(call riscv_model_variant,$(1))),128,))
+riscv_model_vlen = $(or $(RISCV_VLEN),$(call riscv_model_board_vlen,$(1)))
+riscv_model_zfh_zvfh = $(or $(RISCV_ZFH_ZVFH),$(if $(call riscv_model_board_vlen,$(1)),ON,OFF))
+riscv_model_board_args = \
+	--cmake-args=-DBUDDY_RISCV_VLEN=$(call riscv_model_vlen,$(1)) \
+	--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=$(call riscv_model_zfh_zvfh,$(1))
 RISCV_MODEL_CMAKE_ARGS := \
 	--cmake-args=-DLLVM_DIR=$(LLVM_BUILD)/lib/cmake/llvm \
 	--cmake-args=-DMLIR_DIR=$(LLVM_BUILD)/lib/cmake/mlir \
 	--cmake-args=-DPython3_EXECUTABLE=$(PYTHON) \
 	--cmake-args=-DPython_EXECUTABLE=$(PYTHON) \
 	--cmake-args=-DBUDDY_ENABLE_TESTS=OFF \
-	--cmake-args=-DBUDDY_PACKAGE_VERSION=$(BUDDY_PACKAGE_VERSION)
+	$(if $(strip $(BUDDY_PACKAGE_VERSION)),--cmake-args=-DBUDDY_PACKAGE_VERSION=$(BUDDY_PACKAGE_VERSION),)
 RISCV_MODEL_OPTIONAL_ARGS := \
 	$(if $(strip $(RISCV_MODEL_LOCAL)),--local-model "$(RISCV_MODEL_LOCAL)",) \
 	$(if $(strip $(RISCV_MODEL_HF_CONFIG)),--hf-config "$(RISCV_MODEL_HF_CONFIG)",)
@@ -107,6 +122,10 @@ help:
 		'  make install-riscv        Build/install RISC-V dependencies' \
 		'  make riscv-model          Build RISCV_MODEL_DEFAULT=$(RISCV_MODEL_DEFAULT)' \
 		'  make riscv-model-<name>   Build a family default or one spec variant' \
+		'                            (k3_* / a210_*: VLEN 1024 / 128 and Zfh/Zvfh,' \
+		'                            others: any VLEN, no Zfh/Zvfh; override with' \
+		'                            RISCV_VLEN=<bits> RISCV_ZFH_ZVFH=ON|OFF, which' \
+		'                            a spec'"'"'s kernels may refuse, e.g. a210_*)' \
 		'' \
 		'Cleanup:' \
 		'  make clean-models         Remove generated model artifacts' \
@@ -156,7 +175,9 @@ clean: clean-host
 
 .PHONY: riscv
 riscv: host
-	git submodule update --init --recursive thirdparty/riscv-gnu-toolchain
+	# Not --recursive: the toolchain's make fetches the sources it builds
+	# (binutils, gcc, glibc; shallow), not its other submodules (llvm, qemu, ...).
+	git submodule update --init thirdparty/riscv-gnu-toolchain
 	mkdir -p "$(RISCV_BUILD)"
 	@if test ! -f "$(RISCV_BUILD)/Makefile"; then \
 		cd "$(RISCV_BUILD)" && \
@@ -199,7 +220,9 @@ riscv: host
 	cmake --install "$(RISCV_MLIR_BUILD)" --component mlir_c_runner_utils
 
 	# OpenMP is a standalone runtime build; the explicit Clang compiler below is
-	# sufficient when runtime tests are disabled.
+	# sufficient when runtime tests are disabled. Without the OMPD gdb plugin
+	# (on by default when Python is found): the openmp component installs it,
+	# but only the omp target is built.
 	cmake -G Ninja -S llvm/runtimes -B "$(RISCV_OMP_BUILD)" \
 		-DLLVM_ENABLE_RUNTIMES=openmp \
 		-DLLVM_DEFAULT_TARGET_TRIPLE=$(RISCV_TARGET) \
@@ -208,6 +231,7 @@ riscv: host
 		-DLLVM_INCLUDE_DOCS=OFF \
 		-DOPENMP_ENABLE_LIBOMPTARGET=OFF \
 		-DOPENMP_ENABLE_OMPT_TOOLS=OFF \
+		-DLIBOMP_OMPD_GDB_SUPPORT=OFF \
 		-DLIBOMP_ENABLE_SHARED=ON \
 		-DCMAKE_SYSTEM_NAME=Linux \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
@@ -247,6 +271,7 @@ $(call riscv_model_target,$(1)): riscv
 		--buddy-mlir-build-dir "$(BUDDY_BUILD)" \
 		$(RISCV_MODEL_OPTIONAL_ARGS) \
 		$(RISCV_MODEL_CMAKE_ARGS) \
+		$(call riscv_model_board_args,$(1)) \
 		$(if $(strip $(PARALLEL)),--jobs $(PARALLEL),)
 endef
 $(foreach _spec,$(RISCV_MODEL_SPECS),$(eval $(call RISCV_MODEL_template,$(_spec))))
