@@ -29,10 +29,39 @@ if(BUDDY_BUILD_BGE_M3_MODEL)
 endif()
 
 # ── libnuma (optional but strongly recommended on NUMA systems) ────────────
-find_library(NUMA_LIB numa)
-if(NUMA_LIB)
-  target_compile_definitions(buddy-cli PRIVATE BUDDY_CLI_HAVE_NUMA)
-  target_link_libraries(buddy-cli PRIVATE ${NUMA_LIB})
+# A cross build would find the host's libnuma (another architecture) in the
+# host's prefixes: there it is off unless asked for, and then taken from the
+# target's sysroot only (CMAKE_SYSROOT or CMAKE_FIND_ROOT_PATH).
+if(CMAKE_CROSSCOMPILING)
+  set(_buddy_cli_numa_default OFF)
+else()
+  set(_buddy_cli_numa_default ON)
+endif()
+option(BUDDY_CLI_ENABLE_NUMA
+  "Use libnuma in buddy-cli when it is found (--numa-* flags)"
+  ${_buddy_cli_numa_default})
+if(BUDDY_CLI_ENABLE_NUMA)
+  if(CMAKE_CROSSCOMPILING)
+    if(NOT CMAKE_SYSROOT AND NOT CMAKE_FIND_ROOT_PATH)
+      message(FATAL_ERROR
+        "BUDDY_CLI_ENABLE_NUMA in a cross build takes libnuma from the "
+        "target's sysroot: set CMAKE_SYSROOT (or CMAKE_FIND_ROOT_PATH).")
+    endif()
+    find_library(NUMA_LIB numa ONLY_CMAKE_FIND_ROOT_PATH)
+    find_path(NUMA_INCLUDE_DIR numa.h ONLY_CMAKE_FIND_ROOT_PATH)
+    if(NOT NUMA_LIB OR NOT NUMA_INCLUDE_DIR)
+      message(FATAL_ERROR
+        "BUDDY_CLI_ENABLE_NUMA: libnuma (numa.h, libnuma) is not in the "
+        "target's sysroot.")
+    endif()
+    target_include_directories(buddy-cli PRIVATE ${NUMA_INCLUDE_DIR})
+  else()
+    find_library(NUMA_LIB numa)
+  endif()
+  if(NUMA_LIB)
+    target_compile_definitions(buddy-cli PRIVATE BUDDY_CLI_HAVE_NUMA)
+    target_link_libraries(buddy-cli PRIVATE ${NUMA_LIB})
+  endif()
 endif()
 
 if(BUDDY_MLIR_USE_MIMALLOC)

@@ -56,3 +56,7 @@ with an error.
 
 6. use
 Transfer the generated rax file to the RISC-V machine and load it using buddy-cli to use it.
+A riscv64 `buddy-cli` is built by step 5 of
+[docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md)
+or by `make riscv-cli` (`build-cross-rv/bin/buddy-cli`); copy it to the
+machine as well.

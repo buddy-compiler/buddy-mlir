@@ -11,6 +11,19 @@ if(NOT FLATBUFFERS_INCLUDE_DIR)
 endif()
 message(STATUS "Found FlatBuffers headers: ${FLATBUFFERS_INCLUDE_DIR}")
 
+# A cross compiler searches its sysroot, not the host's /usr/include, and
+# CMake does not pass implicit include directories such as /usr/include with
+# -I. Header-only FlatBuffers is reached there through a directory of its own
+# (as for the RVV plugins in buddy_model.cmake), as /usr/include holds host
+# headers.
+set(BUDDY_RAX_FLATBUFFERS_INCLUDE_DIR "${FLATBUFFERS_INCLUDE_DIR}")
+if(CMAKE_CROSSCOMPILING)
+  set(BUDDY_RAX_FLATBUFFERS_INCLUDE_DIR "${CMAKE_BINARY_DIR}/flatbuffers-include")
+  file(MAKE_DIRECTORY "${BUDDY_RAX_FLATBUFFERS_INCLUDE_DIR}")
+  file(CREATE_LINK "${FLATBUFFERS_INCLUDE_DIR}/flatbuffers"
+       "${BUDDY_RAX_FLATBUFFERS_INCLUDE_DIR}/flatbuffers" SYMBOLIC)
+endif()
+
 # flatc emits rax_generated.h; CMake renames to RAX.h for #include "buddy/runtime/rax/RAX.h"
 set(RAX_INCLUDE_ROOT "${CMAKE_BINARY_DIR}/runtime/include")
 set(RAX_GEN_DIR "${RAX_INCLUDE_ROOT}/buddy/runtime/rax")
@@ -36,7 +49,7 @@ add_library(buddy_rax INTERFACE)
 add_dependencies(buddy_rax buddy-rax-gen)
 
 target_include_directories(buddy_rax INTERFACE
-  "${FLATBUFFERS_INCLUDE_DIR}"  # system flatbuffers headers (libflatbuffers-dev)
+  "${BUDDY_RAX_FLATBUFFERS_INCLUDE_DIR}"  # flatbuffers headers (libflatbuffers-dev)
   "${RAX_INCLUDE_ROOT}"         # buddy/runtime/rax/RAX.h (build tree)
 )
 

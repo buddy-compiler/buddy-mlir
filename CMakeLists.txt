@@ -111,9 +111,16 @@ set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
+# A cross build (a riscv64 buddy-cli, ...) cannot build the host's Python
+# packages: off there unless asked for.
+if(CMAKE_CROSSCOMPILING)
+  set(_BUDDY_PYTHON_PACKAGES_DEFAULT OFF)
+else()
+  set(_BUDDY_PYTHON_PACKAGES_DEFAULT ON)
+endif()
 option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
   "Build Buddy Python packages and native bindings used by model lowering"
-  ON)
+  ${_BUDDY_PYTHON_PACKAGES_DEFAULT})
 option(BUDDY_RISCV_ENABLE_ZFH_ZVFH
   "Enable RISC-V Zfh/Zvfh hardware FP16 extensions"
   OFF)
