@@ -41,13 +41,22 @@ guide are called out below.
 > `pip install -r requirements.txt`); that also provides the `torch` used by the
 > `examples/BuddyJIT/*.py` tests run under `ninja check-buddy`.
 
-> **_NOTE (RISC-V Python packages):_** use the Ruyi package index already
-> listed in `requirements.txt` for the RISC-V PyTorch wheel. If pip rejects the
-> wheel's `manylinux_2_38_riscv64` platform tag, install the requirements with
-> uv as the RISC-V CI does (`uv pip install --index-strategy
-> unsafe-best-match -r requirements.txt`). For the pinned LLVM revision used
-> by this repository, `nanobind==2.9.2` was used for the successful native RISC-V
-> build; nanobind 2.15.0 caused one MLIR Python binding test failure.
+> **_NOTE (RISC-V Python packages):_** PyPI has no riscv64 wheels of torch,
+> tokenizers and several other requirements; add the Ruyi package index on a
+> RISC-V host (`requirements.txt` does not list it, so that other hosts install
+> from PyPI alone). Install the requirements with uv as the RISC-V CI does,
+> which also accepts the wheels' `manylinux_2_38_riscv64` platform tag that pip
+> may reject:
+>
+> ```
+> uv pip install --index-strategy unsafe-best-match \
+>   --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
+>   -r requirements.txt
+> ```
+>
+> For the pinned LLVM revision used by this repository, `nanobind==2.9.2` was
+> used for the successful native RISC-V build; nanobind 2.15.0 caused one MLIR
+> Python binding test failure.
 
 ## Build Steps
 

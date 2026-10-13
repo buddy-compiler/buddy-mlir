@@ -51,6 +51,9 @@ cd buddy-mlir
 pip install -r requirements.txt
 ```
 
+On a RISC-V host, add the Ruyi package index for the riscv64 wheels, see
+[docs/RVVEnvironment.md](docs/RVVEnvironment.md).
+
 ### Build and Test LLVM/MLIR/CLANG
 
 ```

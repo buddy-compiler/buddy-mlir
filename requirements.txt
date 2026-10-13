@@ -1,5 +1,4 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
---extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/
 torch==2.10.0
 # NumPy 2.3+ requires Python >=3.11, while release wheels still include cp310.
 numpy>=2,<2.3; python_version<"3.11"
