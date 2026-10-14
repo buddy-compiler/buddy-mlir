@@ -40,13 +40,13 @@ class BuddyTrace_Op<string mnemonic, list<Trait> traits = []> :
 
 def BuddyTrace_StartOp : BuddyTrace_Op<"start"> {
   let summary = "Start a traced region";
-  let arguments = (ins I64Attr:$id, OptionalAttr<StrAttr>:$tag);
+  let arguments = (ins I64Attr:$id, BoolAttr:$cycle, BoolAttr:$tensor, OptionalAttr<StrAttr>:$tag);
   let assemblyFormat = "attr-dict";
 }
 
 def BuddyTrace_EndOp : BuddyTrace_Op<"end", [SameOperandsAndResultType]> {
   let summary = "End a traced region and forward the traced value";
-  let arguments = (ins AnyType:$input, I64Attr:$id,
+  let arguments = (ins AnyType:$input, I64Attr:$id, BoolAttr:$cycle, BoolAttr:$tensor,
                        OptionalAttr<StrAttr>:$tag);
   let results = (outs AnyType:$output);
   let assemblyFormat = "$input attr-dict `:` type($input)";

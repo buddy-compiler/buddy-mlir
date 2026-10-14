@@ -55,7 +55,7 @@ struct EndOpInterface
     DictionaryAttr attrs = op->getAttrDictionary();
     auto newOp = replaceOpWithNewBufferizedOp<EndOp>(
         rewriter, op, buffer->getType(), *buffer, endOp.getIdAttr(),
-        endOp.getTagAttr());
+        endOp.getCycleAttr(), endOp.getTensorAttr(), endOp.getTagAttr());
     newOp->setAttrs(attrs);
     return success();
   }

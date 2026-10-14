@@ -3,7 +3,7 @@
 This is a unified trace framework for workload profiling and debugging.
 
 **Execution flow Overview**
-In the frontend, a transform pass traverses the Buddy graph and inserts trace start/end operations from a manually written `trace.toml`. In the backend, adding `-convert-trace-to-llvm="tensor-trace,cycle-trace"` to the pipeline lowers all trace nodes into corresponding runtime function calls. `tensor-trace` exports the associated tensor to a log file for debugging, while `cycle-trace` reads the hardware cycle counter twice to measure performance, with the concrete implementation provided by the runtime (e.g., `rdtime` or `rdcycle` on RISC-V).
+In the frontend, a transform pass traverses the Buddy graph and inserts trace start/end operations from a manually written `trace.toml`. In the backend, adding `-convert-trace-to-llvm` to the pipeline lowers each trace node according to its `cycle` and `tensor` attributes. `tensor-trace` exports the associated tensor to a log file for debugging, while `cycle-trace` reads the hardware cycle counter twice to measure performance, with the concrete implementation provided by the runtime (e.g., `rdtime` or `rdcycle` on RISC-V).
 
 **Extensibility**
 The aim of this framework is to be designed to be sufficiently extensible, so that different traces can be added in the future.
@@ -35,6 +35,10 @@ Each trace entry contains:
 - `node`: Buddy graph node name from `buddy-graph.txt`.
 - `id`: Unique integer trace id, or a trace id path such as `[0]`.
 - `tag`: Human readable name used by the profiling/debugging script.
+- `cycle`: Required boolean selecting cycle records for this node.
+- `tensor`: Required boolean selecting tensor records for this node.
+
+Set both booleans to `false` to leave a node uninstrumented.
 
 Example:
 
@@ -43,11 +47,13 @@ Example:
 node = "convolution"
 id = 0
 tag = "conv1_out"
+cycle = true
+tensor = false
 ```
 
 ### 3. Implement backend runtime hooks
 
-Implement the runtime functions selected by `-convert-trace-to-llvm="tensor-trace,cycle-trace"`:
+Implement the runtime functions selected by `-convert-trace-to-llvm`:
 
 ```
 # Tensor trace runtime hook.
@@ -88,5 +94,3 @@ python3 perfetto.py /path/to/trace_output_dir /path/to/trace.toml
 The default output is `perfetto.json`. You can view it on this [website](https://www.ui.perfetto.dev).
 
 ![demo](./img/trace-demo.png)
-
-> Multi-level trace is an extended feature; for details on how to use it, please refer to [this](https://github.com/buddy-compiler/buddy-examples/blob/buckyball/models/models/LeNet/trace/trace-linalg-buckyball.toml)

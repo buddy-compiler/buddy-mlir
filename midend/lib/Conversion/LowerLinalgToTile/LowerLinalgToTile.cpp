@@ -580,6 +580,11 @@ public:
             rewriter, current.getLoc(), input, weight, bias, scale, lut, output,
             kernelSize, stride, padLow, padHigh, activation, outputScale);
     }
+    for (auto [source, target] :
+         llvm::zip_equal(stages, kernel.getBody().front())) {
+      if (auto trace = source->getAttr("trace_node"))
+        target.setAttr("trace_node", trace);
+    }
     tile::TileMegaYieldOp::create(rewriter, op.getLoc());
     for (int64_t index = stages.size(); index > 0; --index)
       rewriter.eraseOp(stages[index - 1]);
