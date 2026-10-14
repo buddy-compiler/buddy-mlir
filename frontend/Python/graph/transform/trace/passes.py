@@ -26,13 +26,17 @@ class TraceInsertionPass:
         for node in graph.body:
             if node.name not in self.trace.trace_config:
                 continue
-            if node.__class__.__name__ in {"GetItemOp", "PlaceholderOp"}:
-                raise TypeError(
-                    f"Trace node {node.name} does not lower to an MLIR op"
-                )
-            node.trace_meta = normalize_trace_meta(
+            meta = normalize_trace_meta(
                 node.name, self.trace.trace_config[node.name]
             )
+            if meta["cycle"] or meta["tensor"]:
+                if node.__class__.__name__ in {"GetItemOp", "PlaceholderOp"}:
+                    raise TypeError(
+                        f"Trace node {node.name} does not lower to an MLIR op"
+                    )
+                node.trace_meta = meta
+            else:
+                node.trace_meta = None
             matched_nodes.add(node.name)
 
         missing = set(self.trace.trace_config) - matched_nodes

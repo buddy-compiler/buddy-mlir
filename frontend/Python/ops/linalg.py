@@ -40,6 +40,7 @@ from buddy_mlir.dialects import (
 
 from ..graph import *
 from ..graph.graph import TensorDType
+from ..graph.transform.trace.lowering import _trace_attrs, has_trace
 from .utils import *
 
 
@@ -13743,6 +13744,10 @@ def mega_kernel_op(node, symbol_table):
         else:
             raise ValueError(
                 f"unsupported MegaKernel stage {type(stage).__name__}"
+            )
+        if has_trace(stage):
+            result.owner.attributes["trace_node"] = ir.DictAttr.get(
+                _trace_attrs(stage)
             )
         if isinstance(stage, compute_stages):
             stage_kind = "matmul" if isinstance(stage, MegaMatmulOp) else "conv"
