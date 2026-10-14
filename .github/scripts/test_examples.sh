@@ -5,18 +5,22 @@ arch="${1:?usage: .github/scripts/test_examples.sh <arch>}"
 
 export PYTHONPATH="$PWD/build/python_packages:${PYTHONPATH:-}"
 
+uv pip install ultralytics
+
 if [ "$arch" = "riscv64" ]; then
   cmake -S . -B build \
     -DBUDDY_QWEN3_EXAMPLES=ON \
     -DBUDDY_GEMMA4_EXAMPLES=ON \
     -DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
+    -DBUDDY_YOLO26_EXAMPLES=ON \
     -DBUDDY_ENABLE_PNG=ON
 
   ccache -z
   ninja -C build \
     buddy-qwen3-0.6b-run \
     buddy-gemma4-e2b-run \
-    buddy-deepseek-r1-cli
+    buddy-deepseek-r1-cli \
+    buddy-yolo26n-run
   ccache -s
 else
   cmake -S . -B build \
@@ -29,6 +33,7 @@ else
     -DBUDDY_RESNET_EXAMPLES=ON \
     -DBUDDY_STABLE_DIFFUSION_EXAMPLES=ON \
     -DBUDDY_TRANSFORMER_EXAMPLES=ON \
+    -DBUDDY_YOLO26_EXAMPLES=ON \
     -DBUDDY_ENABLE_PNG=ON
 
   ccache -z
@@ -41,7 +46,8 @@ else
     buddy-lenet-run \
     buddy-stable-diffusion-run \
     buddy-mobilenetv3-run \
-    buddy-resnet-run
+    buddy-resnet-run \
+    buddy-yolo26n-run
   ccache -s
 fi
 
