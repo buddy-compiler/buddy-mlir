@@ -9,3 +9,9 @@ _add_test_executable(buddy-perplexity-test
   LINK_LIBS
     buddy_runtime_llm
 )
+
+_add_test_executable(buddy-text-generation-test
+  TextGenerationTest.cpp
+  LINK_LIBS
+    buddy_runtime_llm
+)
