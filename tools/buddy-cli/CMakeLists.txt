@@ -10,6 +10,7 @@ target_compile_definitions(buddy-cli PRIVATE
 target_link_libraries(buddy-cli PRIVATE
   buddy_runtime_core
   buddy_runtime_llm
+  buddy_runtime_rax_dependencies
   CLI11
   ${CMAKE_DL_LIBS}
 )

@@ -16,9 +16,17 @@
 
 #include "buddy/runtime/core/ModelPlugin.h"
 
+#if defined(BUDDY_DISCOVERY_REQUIRED_GLOBAL_SYMBOL)
+#include <dlfcn.h>
+#endif
+
 #if !defined(BUDDY_DISCOVERY_MISSING_DESCRIPTOR)
 extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
 buddy_model_plugin_descriptor_v1() {
+#if defined(BUDDY_DISCOVERY_REQUIRED_GLOBAL_SYMBOL)
+  if (!dlsym(RTLD_DEFAULT, "buddyRaxDependencyTestValue"))
+    return nullptr;
+#endif
   static const buddy::runtime::ModelPluginDescriptorV1 descriptor = {
       static_cast<uint32_t>(
 #if defined(BUDDY_DISCOVERY_STRUCT_SIZE)

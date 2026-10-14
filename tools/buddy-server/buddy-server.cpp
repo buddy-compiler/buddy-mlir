@@ -29,6 +29,7 @@
 #include "buddy/runtime/core/MaskedLMModel.h"
 #include "buddy/runtime/core/MaskedLMTypes.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/core/RaxDependenciesHandle.h"
 #include "buddy/runtime/core/ResidentModel.h"
 #include "buddy/runtime/core/ServingTypes.h"
 
@@ -270,6 +271,7 @@ int main(int argc, char **argv) {
     std::cerr << "Provide --model <path.rax>.\n";
     return 2;
   }
+  std::unique_ptr<buddy::runtime::RaxDependenciesHandle> raxDependencies;
   buddy::server::ModelPluginDiscoveryResult selection;
   try {
     const auto manifest =
@@ -278,6 +280,8 @@ int main(int argc, char **argv) {
       throw std::runtime_error("model manifest is missing model_library");
     if (modelConfig.modelName.empty())
       modelConfig.modelName = manifest.modelName;
+    raxDependencies = std::make_unique<buddy::runtime::RaxDependenciesHandle>(
+        manifest.dependentSoPaths, "");
     selection = buddy::server::discoverModelPlugin(manifest.modelLibraryPath);
   } catch (const std::exception &error) {
     std::cerr << "buddy-server: " << error.what() << "\n";

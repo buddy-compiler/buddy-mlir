@@ -14,6 +14,9 @@ set(_EMBEDDING_SERVICE_RAX
   "${_MODEL_SERVICE_FIXTURE_DIR}/embedding/service.rax")
 set(_MASKED_LM_SERVICE_RAX
   "${_MODEL_SERVICE_FIXTURE_DIR}/masked-lm/service.rax")
+set(_RUNTIME_DEPENDENCY_FIXTURE_DIR
+  "${CMAKE_CURRENT_BINARY_DIR}/runtime-dependency-test")
+set(_RUNTIME_DEPENDENCY_RAX "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/service.rax")
 
 add_custom_command(
   OUTPUT
@@ -97,6 +100,31 @@ add_custom_target(buddy-server-model-service-fixtures
     "${_EMBEDDING_SERVICE_RAX}"
     "${_MASKED_LM_SERVICE_RAX}")
 
+add_custom_command(
+  OUTPUT "${_RUNTIME_DEPENDENCY_RAX}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory
+          "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E copy
+          "$<TARGET_FILE:buddy-server-runtime-dependency-fake>"
+          "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/model.so"
+  COMMAND ${CMAKE_COMMAND} -E copy
+          "$<TARGET_FILE:buddy-server-runtime-dependency-fake>"
+          "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/dependency.so"
+  COMMAND ${CMAKE_COMMAND} -E copy
+          "$<TARGET_FILE:buddy-server-discovery-dependent-plugin>"
+          "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/service.so"
+  COMMAND $<TARGET_FILE:rax-pack>
+          "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeDependencyManifestTest.mlir"
+          -o "${_RUNTIME_DEPENDENCY_RAX}"
+  DEPENDS
+    rax-pack
+    buddy-server-runtime-dependency-fake
+    buddy-server-discovery-dependent-plugin
+    "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeDependencyManifestTest.mlir"
+  VERBATIM)
+add_custom_target(buddy-server-runtime-dependency-fixture
+  DEPENDS "${_RUNTIME_DEPENDENCY_RAX}")
+
 add_executable(buddy-server-model-manifest-transcription-test
   ModelManifestTranscriptionTest.cpp)
 target_compile_features(buddy-server-model-manifest-transcription-test
@@ -164,6 +192,16 @@ set_tests_properties(buddy-server-startup-failures PROPERTIES
   TIMEOUT 20
   PASS_REGULAR_EXPRESSION "buddy-server startup failure tests passed")
 
+add_test(NAME buddy-server-runtime-dependencies
+  COMMAND "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/BuddyServerRaxDependencyTest.py"
+          "$<TARGET_FILE:buddy-server>"
+          "${_RUNTIME_DEPENDENCY_RAX}")
+set_tests_properties(buddy-server-runtime-dependencies PROPERTIES
+  TIMEOUT 20
+  PASS_REGULAR_EXPRESSION
+    "buddy-server RAX dependency test passed")
+
 add_test(NAME buddy-server-manifest-generators
   COMMAND "${Python3_EXECUTABLE}"
           "${CMAKE_CURRENT_SOURCE_DIR}/ManifestGeneratorTest.py"
@@ -181,5 +219,6 @@ set_tests_properties(buddy-server-manifest-generators PROPERTIES
 set(BUDDY_SERVER_TRANSCRIPTION_TEST_TARGETS
   buddy-server-transcription-manifest-fixtures
   buddy-server-model-service-fixtures
+  buddy-server-runtime-dependency-fixture
   buddy-server-model-manifest-transcription-test
   buddy-server-model-manifest-duplicate-attribute-test)

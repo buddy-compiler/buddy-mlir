@@ -26,6 +26,14 @@ cmake --build build --target buddy-server
 build/bin/buddy-server --model build/bin/deepseek_r1.rax
 ```
 
+For a riscv64 Linux board, cross-compile the server with the toolchain and
+runtime built by `make riscv`:
+
+```bash
+make riscv-server
+build-cross-rv/bin/buddy-server --model /path/to/model.rax
+```
+
 Use `--host`, `--port`, `--model-type`, and `--chat-template` for configuration.
 Routes are selected by the descriptor service kind:
 
