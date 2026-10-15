@@ -51,15 +51,18 @@ def weight_only_int4_f16_channel_wise(graph):
     )
 
 
-def w8a8_channel_wise(graph):
+def w8a8_channel_wise(graph, activation_granularity="per_tensor"):
     """W8A8 quantization: weight-only quantization followed by converting
     dequant+matmul pairs to native int8 matmul with dynamic activation
     quantization."""
+    if activation_granularity not in ("per_tensor", "per_token"):
+        raise ValueError("{activation_granularity} is not a valid activation granularity")
+
     quantise_graph(
         graph=graph,
         quantization=WeightOnlyQuantization(),
     )
-    _convert_to_quantized_matmul(graph)
+    _convert_to_quantized_matmul(graph, activation_granularity)
     sort_graph(graph)
 
 
@@ -68,7 +71,7 @@ def w8a8_channel_wise(graph):
 # ---------------------------------------------------------------------------
 
 
-def _convert_to_quantized_matmul(graph):
+def _convert_to_quantized_matmul(graph, activation_granularity):
     """Replace CastOp->MulOp(dequant)->AddMMOp/MatmulOp patterns with
     QuantizedAddMMOp/QuantizedMatmulOp that perform native i8 matmul."""
 
@@ -117,6 +120,10 @@ def _convert_to_quantized_matmul(graph):
             new_op._name = matmul_node.name
             act_name = matmul_node.args[0]
             new_op._arguments = [act_name, weight_name, scaler_name]
+
+            # Per-token quantization is only for MatMul now.
+            new_op._keyword_arguments["activation_granularity"] = activation_granularity
+
             new_op._parents = [act_name, weight_name, scaler_name]
 
         new_op._tensor_meta = matmul_node._tensor_meta.copy()
