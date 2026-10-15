@@ -1,0 +1,1953 @@
+{
+  "format_version": 1,
+  "status": "http-contract-specification",
+  "buddy_baseline": "5f4e6edaa07d284a34efdc4e47a2f888d042c8f2",
+  "llama_cpp_baseline": "3e4dfa8f39f904e681737d9f512a6e6338d848aa",
+  "fixture": {
+    "description": "Synthetic future HTTP fixture, not real model vocabulary or inference evidence.",
+    "model": "issue912_fixture",
+    "context_length": 16,
+    "load_state": "ok",
+    "sampled_token_ids": [
+      1,
+      2,
+      0
+    ],
+    "default_stop_token_ids": [
+      0
+    ],
+    "token_bytes_hex": {
+      "0": "3c656f733e",
+      "1": "41",
+      "2": "42",
+      "3": "e4b8",
+      "4": "e4",
+      "5": "b8",
+      "6": "ad",
+      "7": "20",
+      "8": "0a",
+      "9": "22",
+      "10": "00",
+      "11": "ff",
+      "12": "3c626f733e"
+    },
+    "raw_encodings": {
+      "A": [
+        1
+      ],
+      "AB": [
+        1,
+        2
+      ],
+      "<eos>": [
+        0
+      ],
+      "overflow": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "almost-full": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    "chat_prompt_tokens": [
+      1
+    ],
+    "bos_token_id": 12,
+    "embedding": [
+      0.25,
+      0.75
+    ],
+    "capabilities": "All specified text/codec/sampling modes unless setup overrides; embedding uses a separate service profile."
+  },
+  "examples": [
+    {
+      "id": "H01",
+      "summary": "Health in ok state",
+      "profile": "resident",
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "status": "ok",
+          "model": "issue912_fixture",
+          "model_loaded": true
+        }
+      },
+      "setup": {
+        "load_state": "ok"
+      }
+    },
+    {
+      "id": "H02",
+      "summary": "Health in loading state",
+      "profile": "resident",
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "expect": {
+        "status": 503,
+        "json_subset": {
+          "status": "loading",
+          "model": "issue912_fixture",
+          "model_loaded": false
+        }
+      },
+      "setup": {
+        "load_state": "loading"
+      }
+    },
+    {
+      "id": "H03",
+      "summary": "Health in unloaded state",
+      "profile": "resident",
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "expect": {
+        "status": 503,
+        "json_subset": {
+          "status": "unloaded",
+          "model": "issue912_fixture",
+          "model_loaded": false
+        }
+      },
+      "setup": {
+        "load_state": "unloaded"
+      }
+    },
+    {
+      "id": "H04",
+      "summary": "Health in error state",
+      "profile": "resident",
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "expect": {
+        "status": 503,
+        "json_subset": {
+          "status": "error",
+          "model": "issue912_fixture",
+          "model_loaded": false
+        }
+      },
+      "setup": {
+        "load_state": "error"
+      }
+    },
+    {
+      "id": "C01",
+      "summary": "Zero budget evaluates prompt without sampling",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 0
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 0,
+            "total_tokens": 1
+          }
+        }
+      },
+      "setup": {
+        "prefill_calls": 1,
+        "sample_calls": 0
+      }
+    },
+    {
+      "id": "C02",
+      "summary": "One newly sampled token",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "C03",
+      "summary": "Two newly sampled tokens",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 2
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "AB",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 2,
+            "total_tokens": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "C04",
+      "summary": "EOS wins over simultaneous budget exhaustion and counts in usage",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 3
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "AB",
+          "stop": true,
+          "stop_reason": "stop",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 3,
+            "total_tokens": 4
+          }
+        }
+      }
+    },
+    {
+      "id": "C05",
+      "summary": "Unlimited budget reaches EOS",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": -1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "AB",
+          "stop": true,
+          "stop_reason": "stop",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 3,
+            "total_tokens": 4
+          }
+        }
+      }
+    },
+    {
+      "id": "C06",
+      "summary": "Prompt longer than context is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "overflow"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "prompt"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "C07",
+      "summary": "First sampled token is EOS and counts in usage",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "",
+          "stop": true,
+          "stop_reason": "stop",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      },
+      "setup": {
+        "sampled_token_ids": [
+          0
+        ]
+      }
+    },
+    {
+      "id": "C08",
+      "summary": "Generation stops at remaining context boundary",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "almost-full",
+          "n_predict": -1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 15,
+            "completion_tokens": 1,
+            "total_tokens": 16
+          }
+        }
+      }
+    },
+    {
+      "id": "P01",
+      "summary": "First length alias takes priority, differing values are accepted",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 1,
+          "max_completion_tokens": 2,
+          "max_tokens": 3
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "P02",
+      "summary": "Null alias falls back to next non-null alias",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": null,
+          "max_completion_tokens": 2,
+          "max_tokens": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "AB",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 2,
+            "total_tokens": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "P03",
+      "summary": "All null aliases use default budget 512",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": null,
+          "max_completion_tokens": null,
+          "max_tokens": null
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "AB",
+          "stop": true,
+          "stop_reason": "stop",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 3,
+            "total_tokens": 4
+          }
+        }
+      }
+    },
+    {
+      "id": "P04",
+      "summary": "Wrong temperature type is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "temperature": "hot"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "temperature"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P05",
+      "summary": "Out-of-range top_k is rejected before narrowing",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "top_k": 2147483648
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "top_k"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P06",
+      "summary": "top_p must be greater than zero",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "top_p": 0
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "top_p"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P07",
+      "summary": "min_p cannot exceed one",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "min_p": 1.01
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "min_p"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P08",
+      "summary": "repeat_penalty must be positive",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "repeat_penalty": 0
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "repeat_penalty"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P09",
+      "summary": "repeat_last_n=-1 is deliberately unsupported",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "repeat_last_n": -1
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "repeat_last_n"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P10",
+      "summary": "Seed zero is an explicit fixed seed",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "seed": 0,
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      },
+      "setup": {
+        "expected_seed_policy": {
+          "kind": "fixed",
+          "value": 0
+        }
+      }
+    },
+    {
+      "id": "P11",
+      "summary": "Minus-one seed selects random policy",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "seed": -1,
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      },
+      "setup": {
+        "expected_seed_policy": {
+          "kind": "random"
+        }
+      }
+    },
+    {
+      "id": "P12",
+      "summary": "Seed outside uint32 domain is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "seed": 4294967296
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "seed"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P13",
+      "summary": "String model never switches configured model",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "model": "another-model",
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "P14",
+      "summary": "Unknown field remains invalid when null",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "unexpected": null
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "unexpected"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P15",
+      "summary": "Empty stop strings are rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "stop": [
+            ""
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "stop"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P16",
+      "summary": "Stop IDs must be inside vocabulary",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "stop_token_ids": [
+            13
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "stop_token_ids"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P17",
+      "summary": "Top-level include_usage is unknown",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "include_usage": true
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "include_usage"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P18",
+      "summary": "stream_options must be object or null",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "stream_options": []
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "stream_options"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P19",
+      "summary": "Null stream options are omitted",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "stream_options": null,
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "P20",
+      "summary": "Unsigned seed sentinel selects random policy",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "seed": 4294967295,
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      },
+      "setup": {
+        "expected_seed_policy": {
+          "kind": "random"
+        }
+      }
+    },
+    {
+      "id": "P21",
+      "summary": "Known optional null does not request unsupported capability",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "temperature": null,
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      },
+      "setup": {
+        "unsupported_parameters": [
+          "temperature"
+        ]
+      }
+    },
+    {
+      "id": "P22",
+      "summary": "Explicit unsupported sampling is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "temperature": 0.8
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "temperature"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      },
+      "setup": {
+        "unsupported_parameters": [
+          "temperature"
+        ]
+      }
+    },
+    {
+      "id": "P23",
+      "summary": "Nonpositive temperature and top_k normalize to greedy/disabled",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "temperature": -1,
+          "top_k": -1,
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "P24",
+      "summary": "Selected alias must be an integer",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 1.5,
+          "max_tokens": 1
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "n_predict"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P25",
+      "summary": "Selected alias below minus one is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": -2
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "n_predict"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "P26",
+      "summary": "Unselected invalid alias does not override the selected valid alias",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "n_predict": 1,
+          "max_tokens": "ignored"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "text_completion",
+          "model": "issue912_fixture",
+          "content": "A",
+          "stop": true,
+          "stop_reason": "length",
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "CH01",
+      "summary": "Chat response has created and actual model",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "json": {
+          "model": "another-model",
+          "messages": [
+            {
+              "role": "user",
+              "content": "A"
+            }
+          ],
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "required_json_types": {
+          "/created": "integer",
+          "/id": "string"
+        },
+        "json_subset": {
+          "object": "chat.completion",
+          "model": "issue912_fixture",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "A"
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "CH02",
+      "summary": "Messages take precedence over bare input",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "json": {
+          "input": "ignored",
+          "messages": [
+            {
+              "role": "user",
+              "content": "A"
+            }
+          ],
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "choices": [
+            {
+              "message": {
+                "content": "A"
+              }
+            }
+          ]
+        }
+      },
+      "setup": {
+        "expected_rendered_messages": [
+          {
+            "role": "user",
+            "content": "A"
+          }
+        ],
+        "template_applications": 1
+      }
+    },
+    {
+      "id": "T01",
+      "summary": "Raw tokenizer defaults add no chat wrappers",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/tokenize",
+        "json": {
+          "content": "AB"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "tokens": [
+            1,
+            2
+          ],
+          "count": 2
+        }
+      }
+    },
+    {
+      "id": "T02",
+      "summary": "count_only extension omits token array",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/tokenize",
+        "json": {
+          "text": "AB",
+          "count_only": true
+        }
+      },
+      "expect": {
+        "status": 200,
+        "absent_json_pointers": [
+          "/tokens"
+        ],
+        "json_subset": {
+          "count": 2
+        }
+      }
+    },
+    {
+      "id": "T03",
+      "summary": "Special token text is recognized by default without BOS insertion",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/tokenize",
+        "json": {
+          "content": "<eos>"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "tokens": [
+            0
+          ],
+          "count": 1
+        }
+      }
+    },
+    {
+      "id": "D01",
+      "summary": "Empty tokens return empty content",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": []
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "content": ""
+        }
+      }
+    },
+    {
+      "id": "D02",
+      "summary": "One token ends with incomplete UTF-8 prefix",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            3
+          ]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "content": "�"
+        }
+      }
+    },
+    {
+      "id": "D03",
+      "summary": "UTF-8 codepoint split across tokens is joined before repair",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            4,
+            5,
+            6
+          ]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "content": "中"
+        }
+      }
+    },
+    {
+      "id": "D04",
+      "summary": "Complete codepoint followed by incomplete prefix",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            4,
+            5,
+            6,
+            3
+          ]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "content": "中�"
+        }
+      }
+    },
+    {
+      "id": "D08",
+      "summary": "Spaces and special token text after EOS survive",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            7,
+            0,
+            2,
+            7
+          ]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "content": " <eos>B "
+        }
+      }
+    },
+    {
+      "id": "D09",
+      "summary": "Invalid byte is replaced and JSON preserves newline quote and NUL",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            11,
+            8,
+            9,
+            10
+          ]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "content": "�\n\"\u0000"
+        }
+      }
+    },
+    {
+      "id": "D05",
+      "summary": "Invalid detokenize token is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            -1
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "tokens"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "D06",
+      "summary": "Invalid detokenize token is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            13
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "tokens"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "D07",
+      "summary": "Invalid detokenize token is rejected",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/detokenize",
+        "json": {
+          "tokens": [
+            1.5
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "tokens"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "M01",
+      "summary": "Exactly one model is advertised",
+      "profile": "resident",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models"
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "list",
+          "data": [
+            {
+              "id": "issue912_fixture",
+              "object": "model"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "E01",
+      "summary": "Single-string float embedding",
+      "profile": "embedding",
+      "request": {
+        "method": "POST",
+        "path": "/v1/embeddings",
+        "json": {
+          "model": "another-model",
+          "input": "A",
+          "encoding_format": "float"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "object": "list",
+          "model": "issue912_fixture",
+          "data": [
+            {
+              "object": "embedding",
+              "index": 0,
+              "embedding": [
+                0.25,
+                0.75
+              ]
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 1,
+            "total_tokens": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "E02",
+      "summary": "Embedding batches are explicitly unsupported",
+      "profile": "embedding",
+      "request": {
+        "method": "POST",
+        "path": "/v1/embeddings",
+        "json": {
+          "input": [
+            "A",
+            "B"
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "input"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "E03",
+      "summary": "Base64 embeddings are explicitly unsupported",
+      "profile": "embedding",
+      "request": {
+        "method": "POST",
+        "path": "/v1/embeddings",
+        "json": {
+          "input": "A",
+          "encoding_format": "base64"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "strings_contain": {
+          "/error/message": "encoding_format"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "S01",
+      "summary": "Native streaming with stop split across generated tokens",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "stream": true,
+          "stop": "AB",
+          "n_predict": 2
+        }
+      },
+      "expect": {
+        "status": 200,
+        "content_type": "text/event-stream",
+        "sse_json_subsets": [
+          {
+            "content": "",
+            "stop": true,
+            "stop_reason": "stop",
+            "usage": {
+              "prompt_tokens": 1,
+              "completion_tokens": 2,
+              "total_tokens": 3
+            }
+          }
+        ],
+        "done_sentinels": 0,
+        "eof": true,
+        "concatenated_content": "",
+        "note": "Empty nonterminal chunks may be emitted; the terminal event is last and stop text never leaks."
+      }
+    },
+    {
+      "id": "S02",
+      "summary": "Chat SSE without usage",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "json": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "A"
+            }
+          ],
+          "stream": true,
+          "stream_options": {
+            "include_usage": false
+          },
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "content_type": "text/event-stream",
+        "sse_json_subsets": [
+          {
+            "object": "chat.completion.chunk",
+            "model": "issue912_fixture",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "role": "assistant"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "A"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "length"
+              }
+            ]
+          }
+        ],
+        "done_sentinels": 1,
+        "eof": true,
+        "consistent_event_fields": [
+          "id",
+          "model",
+          "created"
+        ],
+        "required_event_types": {
+          "id": "string",
+          "created": "integer"
+        },
+        "usage_events": 0
+      }
+    },
+    {
+      "id": "S03",
+      "summary": "Chat SSE with separate usage chunk",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "json": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "A"
+            }
+          ],
+          "stream": true,
+          "stream_options": {
+            "include_usage": true
+          },
+          "n_predict": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "content_type": "text/event-stream",
+        "sse_json_subsets": [
+          {
+            "object": "chat.completion.chunk",
+            "model": "issue912_fixture",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "role": "assistant"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "A"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "length"
+              }
+            ]
+          },
+          {
+            "choices": [],
+            "usage": {
+              "prompt_tokens": 1,
+              "completion_tokens": 1,
+              "total_tokens": 2
+            }
+          }
+        ],
+        "done_sentinels": 1,
+        "eof": true,
+        "consistent_event_fields": [
+          "id",
+          "model",
+          "created"
+        ],
+        "required_event_types": {
+          "id": "string",
+          "created": "integer"
+        },
+        "usage_events": 1
+      }
+    },
+    {
+      "id": "R01",
+      "summary": "Unknown endpoint uses error envelope",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/missing"
+      },
+      "expect": {
+        "status": 404,
+        "strings_contain": {
+          "/error/message": "not found"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 404
+          }
+        }
+      }
+    },
+    {
+      "id": "R02",
+      "summary": "Wrong method on known route",
+      "profile": "resident",
+      "request": {
+        "method": "GET",
+        "path": "/completion"
+      },
+      "expect": {
+        "status": 405,
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 405
+          }
+        }
+      }
+    },
+    {
+      "id": "R03",
+      "summary": "Generation rejected while model loads",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A"
+        }
+      },
+      "expect": {
+        "status": 503,
+        "strings_contain": {
+          "/error/message": "model"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 503
+          }
+        }
+      },
+      "setup": {
+        "load_state": "loading"
+      }
+    },
+    {
+      "id": "R04",
+      "summary": "Exception before streaming headers uses JSON 500",
+      "profile": "resident",
+      "request": {
+        "method": "POST",
+        "path": "/completion",
+        "json": {
+          "prompt": "A",
+          "stream": true
+        }
+      },
+      "expect": {
+        "status": 500,
+        "strings_contain": {
+          "/error/message": "fixture failure"
+        },
+        "required_json_types": {
+          "/error/message": "string",
+          "/error/type": "string"
+        },
+        "json_subset": {
+          "error": {
+            "code": 500
+          }
+        }
+      },
+      "setup": {
+        "throw_before_stream": "fixture failure"
+      }
+    }
+  ]
+}
