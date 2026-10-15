@@ -105,7 +105,12 @@ if [ -z "${IN_DOCKER:-}" ]; then
   git -C "${HOST_LLVM_SRC}" clean -fdx
   "${REPO_ROOT}/scripts/apply_llvm_patches.sh" "${HOST_LLVM_SRC}"
 
-  DOCKER_RUN_ARGS=(run --rm -i)
+  # Containers on the default bridge cannot resolve mirrors.almalinux.org
+  # (dnf fails with "Couldn't resolve host name"): on the x64 runner host,
+  # Calico NOTRACKs all UDP in the raw table, which disables conntrack and
+  # stops Docker from masquerading the container's DNS queries. Share the
+  # host network namespace so the build avoids the bridge NAT entirely.
+  DOCKER_RUN_ARGS=(run --rm -i --network host)
 
   # Prepare proxy
   DOCKER_ENV_ARGS=()
@@ -270,6 +275,13 @@ else
   # Prepare serval necessary package for buddy-mlir
   dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel perl
 
+  # soundfile ships no riscv64 wheel, so pip installs its pure-Python wheel,
+  # which loads the system libsndfile.so. Only libsndfile-devel provides the
+  # unversioned .so symlink soundfile looks for, and the import tests need it.
+  if [ "${TARGET_ARCH}" = "riscv64" ]; then
+    dnf "${DNF_INSTALL_ARGS[@]}" libsndfile-devel
+  fi
+
   # Prepare ccache.
   case "${TARGET_ARCH}" in
     x86_64)
@@ -325,11 +337,17 @@ else
   # This is necessary, old pip versions fail to resolve the torch package correctly.
   "$PYBIN" -m pip install --upgrade pip
   "$PYBIN" -m pip --version
+  # PyPI has no riscv64 wheels of torch, tokenizers and others; the Ruyi
+  # index has them. requirements.txt used to list it, but x64 and arm64 must
+  # not resolve through it (the proxy 404s files PyPI serves), and release.sh
+  # reads requirements.txt directly, so pass it here for riscv64 only.
+  PIP_INDEX_ARGS=()
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
     # build transformers need rust toolchain.
     dnf "${DNF_INSTALL_ARGS[@]}" rust cargo
+    PIP_INDEX_ARGS+=(--extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/)
   fi
-  "$PYBIN" -m pip install build auditwheel ninja -r requirements.txt
+  "$PYBIN" -m pip install build auditwheel ninja "${PIP_INDEX_ARGS[@]}" -r requirements.txt
   PYTHON_SOABI="$("$PYBIN" -c 'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")')"
 
   LLVM_STAMP_FILE="${LLVM_BUILD_DIR}/.manylinux-llvm-ready"
