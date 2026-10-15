@@ -39,8 +39,10 @@ public:
 
   void load(const ResidentModelConfig &cfg) override;
   ModelStatus status() const override;
+  ResidentModelCapabilities capabilities() const override;
   std::string renderChat(const ChatCompletionRequest &request) override;
   TokenizeResult tokenize(const TokenizeRequest &request) override;
+  DetokenizeResult detokenize(const DetokenizeRequest &request) override;
   CompletionResult complete(const CompletionRequest &request) override;
   CompletionResult
   completeStream(const CompletionRequest &request,

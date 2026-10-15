@@ -196,6 +196,11 @@ void Qwen3VLResidentModel::load(const ResidentModelConfig &config) {
 
 ModelStatus Qwen3VLResidentModel::status() const { return impl->status(); }
 
+ResidentModelCapabilities Qwen3VLResidentModel::capabilities() const {
+  // Serving capabilities remain disabled until their v2 paths are wired up.
+  return {};
+}
+
 std::string
 Qwen3VLResidentModel::renderChat(const ChatCompletionRequest &request) {
   return impl->renderChat(request);
@@ -203,6 +208,11 @@ Qwen3VLResidentModel::renderChat(const ChatCompletionRequest &request) {
 
 TokenizeResult Qwen3VLResidentModel::tokenize(const TokenizeRequest &request) {
   return impl->tokenize(request);
+}
+
+DetokenizeResult Qwen3VLResidentModel::detokenize(const DetokenizeRequest &) {
+  throw std::invalid_argument(
+      "qwen3_vl: detokenize is not supported by this resident adapter");
 }
 
 CompletionResult

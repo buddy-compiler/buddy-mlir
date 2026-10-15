@@ -83,10 +83,63 @@ struct ModelStatus {
   int contextLength = 0;
 };
 
+/// Explicitly supplied, non-null sampling fields after transport normalization.
+/// Length aliases are represented by the selected maxNewTokens field.
+struct SamplingParameterPresence {
+  bool maxNewTokens = false;
+  bool temperature = false;
+  bool topK = false;
+  bool topP = false;
+  bool minP = false;
+  bool repeatPenalty = false;
+  bool repeatLastN = false;
+  bool seed = false;
+  bool stop = false;
+  bool stopTokenIds = false;
+};
+
+/// Serving seed policy, independent of the legacy SamplerConfig seed sentinel.
+enum class SamplingSeedPolicy { Random, Fixed };
+
+/// Sampling features certified by the loaded resident artifact/configuration.
+struct ResidentSamplingCapabilities {
+  bool temperature = false;
+  bool topK = false;
+  bool topP = false;
+  bool minP = false;
+  bool repeatPenalty = false;
+  bool repeatLastN = false;
+  bool seed = false;
+};
+
+/// Capabilities of the compatible serving path, not a model-family guess.
+/// An unloaded or not-yet-migrated adapter must return these conservative
+/// defaults. Legacy methods can remain available while compatible serving
+/// features are being implemented; false does not certify their semantics.
+struct ResidentModelCapabilities {
+  bool rawTokenize = false;
+  bool rawDetokenize = false;
+  bool tokenizeAddSpecial = false;
+  bool tokenizeParseSpecial = false;
+  bool tokenizeWithPieces = false;
+  std::vector<std::string> chatRoles;
+  bool chatMultiTurn = false;
+  std::size_t maxImages = 0;
+  bool imagePaths = false;
+  bool imageBytes = false;
+  bool streaming = false;
+  bool maxNewTokens = false;
+  bool stop = false;
+  bool stopTokenIds = false;
+  ResidentSamplingCapabilities sampling;
+};
+
 /// Request-time sampling and stopping configuration.
 struct SamplingParams {
-  /// Maximum total token count, including prompt tokens. A value of 0 means no
-  /// explicit request limit; the model/session may still stop at context size.
+  /// Transitional legacy limit used by existing adapters and HTTP parsing.
+  /// DeepSeek/Qwen count total tokens; TT counts new tokens. A value of 0
+  /// retains the adapter's historical behavior. The compatible serving path
+  /// will use maxNewTokens instead; this field does not change CLI semantics.
   int maxTokens = 512;
 
   buddy::SamplerConfig samplerConfig;
@@ -97,6 +150,18 @@ struct SamplingParams {
 
   /// Optional token-id stops merged with model/template default stop ids.
   std::vector<long long> stopTokenIds;
+
+  /// Compatible serving budget: 0 is prefill only, -1 is context-limited,
+  /// positive values count sampled new tokens (including EOS/stop tokens).
+  /// Reserved until the adapter declares maxNewTokens capability. Existing
+  /// HTTP parsing and legacy adapters do not consume these new fields yet.
+  int maxNewTokens = 512;
+  SamplingParameterPresence explicitParameters;
+  SamplingSeedPolicy seedPolicy = SamplingSeedPolicy::Random;
+  /// Meaningful only with Fixed policy; zero is a valid fixed seed.
+  /// The compatible transport must reject UINT32_MAX as a fixed value;
+  /// that upstream sentinel selects Random policy instead.
+  uint32_t fixedSeed = 0;
 };
 /// One image supplied with a multimodal request.
 ///
@@ -137,14 +202,30 @@ struct ChatCompletionRequest {
 /// Tokenization request.
 struct TokenizeRequest {
   std::string content;
+  /// Preserve the legacy C++ default. The compatible raw HTTP contract
+  /// uses addSpecial=false by default.
   bool addSpecial = true;
   bool countOnly = false;
+  bool parseSpecial = true;
+  bool withPieces = false;
 };
 
 /// Tokenization result.
 struct TokenizeResult {
   std::vector<int> tokens;
   std::size_t count = 0;
+  /// Optional token pieces, populated only when requested and supported.
+  std::vector<std::string> pieces;
+};
+
+/// Raw token decoding, independent of chat templates and generation stops.
+struct DetokenizeRequest {
+  std::vector<int> tokens;
+};
+
+/// Valid UTF-8 after joining raw bytes and repairing malformed sequences.
+struct DetokenizeResult {
+  std::string content;
 };
 
 /// Token usage accounting returned to HTTP adapters.

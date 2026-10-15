@@ -167,6 +167,12 @@ void Llama31TTResidentModel::load(const ResidentModelConfig &cfg) {
   impl->load(cfg);
 }
 ModelStatus Llama31TTResidentModel::status() const { return impl->status(); }
+
+ResidentModelCapabilities Llama31TTResidentModel::capabilities() const {
+  // Serving capabilities remain disabled until their v2 paths are wired up.
+  return {};
+}
+
 std::string
 Llama31TTResidentModel::renderChat(const ChatCompletionRequest &request) {
   return impl->renderChat(request);
@@ -175,6 +181,12 @@ TokenizeResult
 Llama31TTResidentModel::tokenize(const TokenizeRequest &request) {
   return impl->tokenize(request);
 }
+
+DetokenizeResult Llama31TTResidentModel::detokenize(const DetokenizeRequest &) {
+  throw std::invalid_argument(
+      "llama31_tt: detokenize is not supported by this resident adapter");
+}
+
 CompletionResult
 Llama31TTResidentModel::complete(const CompletionRequest &request) {
   return impl->complete(request);
