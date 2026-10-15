@@ -14,9 +14,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: buddy-legacy-generation-test
-// %S/../../../examples/BuddyDeepSeekR1/vocab.txt %S/Inputs/legacy-generation
-// 2>&1 | FileCheck %s
+// RUN: buddy-legacy-generation-test \
+// RUN:   %S/../../../examples/BuddyDeepSeekR1/vocab.txt \
+// RUN:   %S/Inputs/legacy-generation 2>&1 | FileCheck %s
 
 #include <buddy/runtime/llm/TextGeneration.h>
 
