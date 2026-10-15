@@ -1,0 +1,8 @@
+{"event":"token","phase":"prefill","iteration":0,"user":0,"token_id":@ID0@,"text":"@TOKEN0@","stopped":false}
+{"event":"token","phase":"decode","iteration":1,"user":0,"token_id":@ID1@,"text":"@TOKEN1@","stopped":false}
+{"event":"token","phase":"decode","iteration":2,"user":0,"token_id":@ID2@,"text":"@TOKEN2@","stopped":false}
+{"event":"token","phase":"decode","iteration":3,"user":0,"token_id":@ID3@,"text":"@TOKEN3@","stopped":false}
+{"event":"token","phase":"decode","iteration":4,"user":0,"token_id":@ID4@,"text":"@TOKEN4@","stopped":false}
+{"event":"token","phase":"decode","iteration":5,"user":0,"token_id":@ID5@,"text":"@TOKEN5@","stopped":false}
+{"event":"token","phase":"decode","iteration":6,"user":0,"token_id":151643,"text":"","stopped":true}
+{"event":"done","user":0,"text":"@TEXT@"}
