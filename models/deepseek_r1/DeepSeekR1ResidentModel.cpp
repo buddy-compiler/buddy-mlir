@@ -324,6 +324,11 @@ void DeepSeekR1ResidentModel::load(const ResidentModelConfig &cfg) {
 
 ModelStatus DeepSeekR1ResidentModel::status() const { return impl->status(); }
 
+ResidentModelCapabilities DeepSeekR1ResidentModel::capabilities() const {
+  // Serving capabilities remain disabled until their v2 paths are wired up.
+  return {};
+}
+
 std::string
 DeepSeekR1ResidentModel::renderChat(const ChatCompletionRequest &request) {
   return impl->renderChat(request);
@@ -332,6 +337,12 @@ DeepSeekR1ResidentModel::renderChat(const ChatCompletionRequest &request) {
 TokenizeResult
 DeepSeekR1ResidentModel::tokenize(const TokenizeRequest &request) {
   return impl->tokenize(request);
+}
+
+DetokenizeResult
+DeepSeekR1ResidentModel::detokenize(const DetokenizeRequest &) {
+  throw std::invalid_argument(
+      "deepseek_r1: detokenize is not supported by this resident adapter");
 }
 
 CompletionResult

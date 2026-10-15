@@ -16,6 +16,8 @@
 
 #include "buddy/runtime/core/ModelPlugin.h"
 
+#include <stdexcept>
+
 #if BUDDY_FAKE_SERVICE_KIND == 1
 #include "buddy/runtime/core/ResidentModelPlugin.h"
 #elif BUDDY_FAKE_SERVICE_KIND == 2
@@ -47,6 +49,15 @@ public:
 
   buddy::runtime::ModelStatus status() const override { return statusValue; }
 
+  buddy::runtime::ResidentModelCapabilities capabilities() const override {
+    return {};
+  }
+
+  buddy::runtime::DetokenizeResult
+  detokenize(const buddy::runtime::DetokenizeRequest &) override {
+    throw std::invalid_argument("fake_model: raw detokenize is not supported");
+  }
+
   std::string
   renderChat(const buddy::runtime::ChatCompletionRequest &) override {
     return "fake prompt";
@@ -54,7 +65,7 @@ public:
 
   buddy::runtime::TokenizeResult
   tokenize(const buddy::runtime::TokenizeRequest &) override {
-    return {{1}, 1};
+    return {{1}, 1, {}};
   }
 
   buddy::runtime::CompletionResult
@@ -144,16 +155,16 @@ private:
 } // namespace
 
 #if BUDDY_FAKE_SERVICE_KIND == 1
-extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
+extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v2() {
   return new FakeModel();
 }
 
 extern "C" void
-buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *model) {
+buddy_destroy_resident_model_v2(buddy::runtime::ResidentModel *model) {
   delete model;
 }
 
-extern "C" const char *buddy_resident_model_type_v1() { return "fake_model"; }
+extern "C" const char *buddy_resident_model_type_v2() { return "fake_model"; }
 #elif BUDDY_FAKE_SERVICE_KIND == 2
 extern "C" buddy::runtime::EmbeddingModel *buddy_create_embedding_model_v1() {
   return new FakeModel();

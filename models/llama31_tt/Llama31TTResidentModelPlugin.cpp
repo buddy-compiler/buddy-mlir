@@ -40,7 +40,7 @@ bool fakeExecutionRequested() {
 
 } // namespace
 
-extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
+extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v2() {
   auto execution = std::make_shared<buddy::runtime::Llama31TTExecution>();
   // Fake execution is an explicit test mode. Production plugin instances
   // always construct the hardware session during ResidentModel::load().
@@ -54,11 +54,11 @@ extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
 }
 
 extern "C" void
-buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *model) {
+buddy_destroy_resident_model_v2(buddy::runtime::ResidentModel *model) {
   delete model;
 }
 
-extern "C" const char *buddy_resident_model_type_v1() { return "llama31_tt"; }
+extern "C" const char *buddy_resident_model_type_v2() { return "llama31_tt"; }
 
 extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
 buddy_model_plugin_descriptor_v1() {

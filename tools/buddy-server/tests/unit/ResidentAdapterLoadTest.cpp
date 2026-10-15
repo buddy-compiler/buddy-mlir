@@ -40,12 +40,37 @@ int main(int argc, char **argv) {
 
     // Keep each model inside the handle lifetime and exercise its real
     // factory/destructor twice. No load() call, weights, kernels, or device
-    // are needed to inspect the initial v1 runtime state.
+    // are needed to inspect the initial v2 runtime state.
     for (int instance = 0; instance < 2; ++instance) {
       auto model = plugin.createModel();
       if (model->status().state != buddy::runtime::ModelLoadState::Unloaded ||
           model->isLoaded())
         throw std::runtime_error("new resident model must be unloaded");
+
+      // No production adapter has certified the compatible serving path yet.
+      // Query every capability through the new vtable before loading weights.
+      const auto caps = model->capabilities();
+      const auto &sampling = caps.sampling;
+      if (caps.rawTokenize || caps.rawDetokenize || caps.tokenizeAddSpecial ||
+          caps.tokenizeParseSpecial || caps.tokenizeWithPieces ||
+          !caps.chatRoles.empty() || caps.chatMultiTurn ||
+          caps.maxImages != 0 || caps.imagePaths || caps.imageBytes ||
+          caps.streaming || caps.maxNewTokens || caps.stop ||
+          caps.stopTokenIds || sampling.temperature || sampling.topK ||
+          sampling.topP || sampling.minP || sampling.repeatPenalty ||
+          sampling.repeatLastN || sampling.seed)
+        throw std::runtime_error(
+            "unloaded resident capabilities must be empty");
+
+      bool rejected = false;
+      try {
+        (void)model->detokenize({{1}});
+      } catch (const std::invalid_argument &error) {
+        rejected = std::string(error.what()).find("not supported") !=
+                   std::string::npos;
+      }
+      if (!rejected)
+        throw std::runtime_error("raw detokenize must reject unsupported use");
     }
 
     std::cout << argv[2] << " resident adapter load checks passed\n";
