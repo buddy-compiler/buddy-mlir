@@ -1,0 +1,17 @@
+# SAM2-generated artifacts and staged HF snapshot files.
+# `buddy_add_model` re-imports / re-stages these from the local HF snapshot
+# (BUDDY_SAM2_MODEL_PATH) at build time, so nothing here is committed.
+
+# Import output
+arg0.data
+layer_partitioned/
+
+# Python caches
+__pycache__/
+
+# HuggingFace snapshot file (staged via ASSET_FILES / SAM2_MODEL_PATH)
+config.json
+
+# Root-level compiled IR (build/ contains the real generated outputs)
+forward.mlir
+subgraph0.mlir
