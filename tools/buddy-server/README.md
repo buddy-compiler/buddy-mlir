@@ -47,6 +47,42 @@ Routes are selected by the descriptor service kind:
 only needs a model plugin exporting the descriptor and its existing typed
 factory symbols; no new RAX library attribute is required.
 
+## Build checks
+
+With `BUDDY_ENABLE_TESTS=ON`, the resident adapter checks compile the production
+sources even when every `BUDDY_BUILD_*_MODEL` option is OFF:
+
+```bash
+ninja -C build -j1 check-buddy-resident-adapters
+ninja -C build -j1 check-buddy-server
+ninja -C build -j1 check-buddy
+```
+
+`check-buddy-server` includes the adapter loading tests and the existing HTTP
+tests, and `check-buddy` includes `check-buddy-server`. All server CTest checks
+run with one worker.
+
+| Link-check target | Production sources checked |
+| --- | --- |
+| `buddy-server-deepseek-resident-link-check` | DeepSeek resident model, plugin, and the real generated `ModelSession`. |
+| `buddy-server-qwen3-vl-resident-link-check` | Qwen3-VL runtime, resident model, and plugin. |
+| `buddy-server-llama31-tt-resident-portable-link-check` | TT execution, resident model, plugin, and NN backend with `BUDDY_LLAMA31_TT_HAS_TTNN=0`. |
+
+DeepSeek uses the production f32 spec and a
+[fixed local HF config](testdata/README.md) with `gen_config.py` and
+`gen_session.py`; generated files stay in the build directory. These checks
+do not import weights, generate model kernels, or require a model directory.
+Linux links reject undefined symbols with `-z defs`. Each loading test uses the
+production `RTLD_NOW` discovery and resident handles to validate the descriptor,
+factory, and model type, then creates and destroys unloaded model instances.
+The resident v1 interface does not expose capabilities.
+
+These checks validate source compatibility and plugin linking. Inference
+acceptance still needs real model artifacts. The portable TT check does not
+validate the TTNN SDK branch: the separate production targets
+`buddy_models_llama31_tt_server_runtime` and `buddy_models_llama31_tt_server`
+require the actual TT SDK and compile with `BUDDY_LLAMA31_TT_HAS_TTNN=1`.
+
 ## Issue #912 compatibility contract
 
 The comparison is pinned to Buddy
