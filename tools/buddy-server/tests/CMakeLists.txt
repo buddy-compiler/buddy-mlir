@@ -148,9 +148,10 @@ set_tests_properties(buddy-server-model-plugin-discovery PROPERTIES
   PASS_REGULAR_EXPRESSION "ModelPluginDiscovery tests passed")
 
 include(${CMAKE_CURRENT_LIST_DIR}/Fixtures.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/ResidentAdapterChecks.cmake)
 
 add_custom_target(check-buddy-server
-  COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R ^buddy-server
+  COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j1 -R ^buddy-server
   DEPENDS
     buddy-server
     buddy-server-json-codec-test
@@ -159,4 +160,5 @@ add_custom_target(check-buddy-server
     buddy-server-audio-transcription-plugin-handle-test
     buddy-server-model-plugin-discovery-test
     ${BUDDY_SERVER_FIXTURE_TARGETS}
+    ${BUDDY_SERVER_RESIDENT_ADAPTER_TARGETS}
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})

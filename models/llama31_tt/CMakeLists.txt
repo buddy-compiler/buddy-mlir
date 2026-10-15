@@ -228,7 +228,7 @@ if(BUDDY_ENABLE_TESTS)
             "${_BUDDY_LLAMA31_BATCH_TEST_RAX}")
 
   add_executable(llama31-tt-execution-test
-    Llama31TTExecutionTest.cpp Llama31TTExecution.cpp)
+    Llama31TTExecutionTest.cpp Llama31TTExecution.cpp Llama31TTResidentModel.cpp)
   target_compile_features(llama31-tt-execution-test PRIVATE cxx_std_20)
   target_include_directories(llama31-tt-execution-test PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include")
