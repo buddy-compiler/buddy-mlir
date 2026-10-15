@@ -1,0 +1,13 @@
+{
+  "hf_model_path": "mistralai/Mistral-7B-Instruct-v0.2",
+  "model_family": "mistral",
+  "variant": "f32",
+  "max_token_len": 1024,
+  "num_threads": 48,
+  "weights_override": {
+    "total": 7241732096,
+    "linear_elements": 0,
+    "linear_output_channels": 0,
+    "other_elements": 0
+  }
+}
