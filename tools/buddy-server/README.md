@@ -19,7 +19,9 @@ creating a model object.
 The descriptor declares one `ModelServiceKind`: `Resident`, `Embedding`,
 `MaskedLM`, or `Transcription`. After discovery, the server loads the existing
 typed factory ABI for that service. The create/destroy symbols and model
-interfaces remain service-specific.
+interfaces are service-specific. Resident plugins require the
+[v2 ABI](compatibility/resident-v2.md); the discovery descriptor, CLI runner,
+and other service factories retain their existing ABI.
 
 ```bash
 cmake --build build --target buddy-server
@@ -75,7 +77,9 @@ do not import weights, generate model kernels, or require a model directory.
 Linux links reject undefined symbols with `-z defs`. Each loading test uses the
 production `RTLD_NOW` discovery and resident handles to validate the descriptor,
 factory, and model type, then creates and destroys unloaded model instances.
-The resident v1 interface does not expose capabilities.
+The resident v2 load checks also query capabilities and verify that unsupported
+raw decoding is rejected. The production adapters do not advertise compatible serving features;
+their legacy entry points remain available.
 
 These checks validate source compatibility and plugin linking. Inference
 acceptance still needs real model artifacts. The portable TT check does not
@@ -220,12 +224,17 @@ those lifecycle paths.
 | CLI | Old bool `runGeneration` overload prints plain text or JSONL, with historical budget, repeat-penalty, and nonzero-seed behavior. | Golden tests execute that exact overload. The HTTP budget, seed, and history contracts do not apply to this overload. |
 | Other service kinds | Dedicated embedding, masked-LM, and transcription factories/routes. | Preserve those interfaces, factories, and regression tests. |
 
-Resident interfaces depend on matching C++ layouts. Rebuild server, runtime,
-and resident plugins together when changing their ABI, and repackage the
-plugins in `.rax` files. Discovery, CLI runner, embedding, masked-LM, and
-transcription factories use separate versioned interfaces.
-A contract example or no-weight adapter link check does not execute model
-kernels, device programs, or external serving integrations.
+The resident v2 loader requires
+`buddy_create_resident_model_v2`, `buddy_destroy_resident_model_v2`, and
+`buddy_resident_model_type_v2`, and checks all three before invoking a resident
+entry point. It rejects v1 plugins without constructing an object. Rebuild
+server/runtime/resident plugins together and repackage `.rax` files; there is no
+v1 fallback. Discovery descriptor v1, CLI runner, embedding, masked-LM, and
+transcription ABIs stay as they are. See the
+[migration guide](compatibility/resident-v2.md) for the DTO boundary, checks, and
+remaining backend acceptance requirements.
+No claim of backend device acceptance, real inference, or external serving
+integration follows from the contract examples or a no-weight adapter link check.
 
 [llama-readme]: https://github.com/ggml-org/llama.cpp/blob/3e4dfa8f39f904e681737d9f512a6e6338d848aa/tools/server/README.md
 [llama-schema]: https://github.com/ggml-org/llama.cpp/blob/3e4dfa8f39f904e681737d9f512a6e6338d848aa/tools/server/server-schema.cpp
