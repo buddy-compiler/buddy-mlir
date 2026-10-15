@@ -59,6 +59,54 @@ if(BUDDY_ENABLE_TESTS)
   set_tests_properties(buddy-server-json-codec PROPERTIES
     PASS_REGULAR_EXPRESSION "JsonCodec tests passed")
 
+  set(_buddy_resident_abi_plugins)
+  foreach(_variant
+      v2 v1 missing-create missing-destroy missing-type null null-type empty-type)
+    set(_plugin "buddy-server-resident-abi-${_variant}-plugin")
+    add_library(${_plugin} MODULE ResidentModelAbiFakePlugin.cpp)
+    target_compile_features(${_plugin} PRIVATE cxx_std_17)
+    target_link_libraries(${_plugin} PRIVATE buddy_runtime_core)
+    list(APPEND _buddy_resident_abi_plugins ${_plugin})
+  endforeach()
+  target_compile_definitions(buddy-server-resident-abi-v1-plugin PRIVATE
+    BUDDY_RESIDENT_ABI_LEGACY=1)
+  target_compile_definitions(buddy-server-resident-abi-missing-create-plugin
+    PRIVATE BUDDY_RESIDENT_ABI_MISSING_CREATE=1)
+  target_compile_definitions(buddy-server-resident-abi-missing-destroy-plugin
+    PRIVATE BUDDY_RESIDENT_ABI_MISSING_DESTROY=1)
+  target_compile_definitions(buddy-server-resident-abi-missing-type-plugin
+    PRIVATE BUDDY_RESIDENT_ABI_MISSING_TYPE=1)
+  target_compile_definitions(buddy-server-resident-abi-null-plugin PRIVATE
+    BUDDY_RESIDENT_ABI_NULL_FACTORY=1)
+  target_compile_definitions(buddy-server-resident-abi-null-type-plugin PRIVATE
+    BUDDY_RESIDENT_ABI_NULL_TYPE=1)
+  target_compile_definitions(buddy-server-resident-abi-empty-type-plugin PRIVATE
+    BUDDY_RESIDENT_ABI_EMPTY_TYPE=1)
+
+  add_executable(buddy-server-resident-plugin-handle-test
+    ResidentModelPluginHandleTest.cpp
+    ResidentModelPluginHandle.cpp
+    ModelPluginDiscovery.cpp)
+  target_compile_features(buddy-server-resident-plugin-handle-test
+    PRIVATE cxx_std_17)
+  target_link_libraries(buddy-server-resident-plugin-handle-test PRIVATE
+    buddy_runtime_core ${CMAKE_DL_LIBS})
+  target_compile_definitions(buddy-server-resident-plugin-handle-test PRIVATE
+    BUDDY_TEST_RESIDENT_V2_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-v2-plugin>"
+    BUDDY_TEST_RESIDENT_V1_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-v1-plugin>"
+    BUDDY_TEST_RESIDENT_MISSING_CREATE_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-missing-create-plugin>"
+    BUDDY_TEST_RESIDENT_MISSING_DESTROY_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-missing-destroy-plugin>"
+    BUDDY_TEST_RESIDENT_MISSING_TYPE_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-missing-type-plugin>"
+    BUDDY_TEST_RESIDENT_NULL_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-null-plugin>"
+    BUDDY_TEST_RESIDENT_NULL_TYPE_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-null-type-plugin>"
+    BUDDY_TEST_RESIDENT_EMPTY_TYPE_PLUGIN="$<TARGET_FILE:buddy-server-resident-abi-empty-type-plugin>")
+  add_dependencies(buddy-server-resident-plugin-handle-test
+    ${_buddy_resident_abi_plugins})
+  add_test(NAME buddy-server-resident-plugin-handle
+    COMMAND buddy-server-resident-plugin-handle-test)
+  set_tests_properties(buddy-server-resident-plugin-handle PROPERTIES
+    PASS_REGULAR_EXPRESSION "ResidentModelPluginHandle tests passed")
+
   add_executable(buddy-server-embedding-plugin-handle-test
     EmbeddingModelPluginHandleTest.cpp
     EmbeddingModelPluginHandle.cpp)
@@ -247,6 +295,7 @@ if(BUDDY_ENABLE_TESTS)
     DEPENDS
       buddy-server
       buddy-server-json-codec-test
+      buddy-server-resident-plugin-handle-test
       buddy-server-embedding-plugin-handle-test
       buddy-server-masked-lm-plugin-handle-test
       buddy-server-audio-transcription-plugin-handle-test
