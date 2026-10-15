@@ -275,6 +275,13 @@ else
   # Prepare serval necessary package for buddy-mlir
   dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel perl
 
+  # soundfile ships no riscv64 wheel, so pip installs its pure-Python wheel,
+  # which loads the system libsndfile.so. Only libsndfile-devel provides the
+  # unversioned .so symlink soundfile looks for, and the import tests need it.
+  if [ "${TARGET_ARCH}" = "riscv64" ]; then
+    dnf "${DNF_INSTALL_ARGS[@]}" libsndfile-devel
+  fi
+
   # Prepare ccache.
   case "${TARGET_ARCH}" in
     x86_64)
