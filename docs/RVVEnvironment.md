@@ -193,10 +193,12 @@ $ export BUILD_CROSS_MLIR_DIR=$PWD
 
 5. Build Cross-Compiled `buddy-mlir`
 
-This builds `buddy-cli` for riscv64, the program that runs `.rax` files on a
-RISC-V board. `make riscv-cli` builds it the same way, with the toolchain and
-the cross MLIR of `make riscv`, into `build-cross-rv/bin/buddy-cli`. A cross
-build does not build the Python packages
+This builds the Buddy tools for riscv64. `buddy-cli` runs `.rax` files on a
+RISC-V board, while `buddy-server` serves packages that contain a
+`model_library`. `make riscv-cli` and `make riscv-server` configure the
+toolchain and cross MLIR from `make riscv` in the same `build-cross-rv`
+tree, then build only the requested tool. A cross build does not build the
+Python packages
 (`BUDDY_MLIR_ENABLE_PYTHON_PACKAGES` defaults to `OFF` there) and builds
 `buddy-cli` without libnuma (`BUDDY_CLI_ENABLE_NUMA` defaults to `OFF` there;
 `ON` takes libnuma from the target's sysroot, given as `CMAKE_SYSROOT` or
@@ -221,7 +223,7 @@ $ cmake -G Ninja .. \
     -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR} --gcc-toolchain=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}" \
     -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR} --gcc-toolchain=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}" \
     -DLLVM_ENABLE_ZSTD=Off
-$ ninja buddy-cli
+$ ninja buddy-cli buddy-server
 ```
 
 ## Testing RVV Environment

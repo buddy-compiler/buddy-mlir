@@ -88,6 +88,7 @@ tools = [
     "buddy-container-test",
     "buddy-audio-container-test",
     "buddy-text-container-test",
+    "buddy-rax-dependencies-test",
     "buddy-sampler-test",
     "buddy-perplexity-test",
     "buddy-text-generation-test",

@@ -1,5 +1,7 @@
 # tools/buddy-server/CMakeLists.txt
 
+find_package(Threads REQUIRED)
+
 set(BUDDY_SERVER_COMMON_SOURCES
   JsonCodec.cpp
   AudioTranscriptionJsonCodec.cpp
@@ -23,7 +25,9 @@ target_link_libraries(buddy-server PRIVATE
   CLI11
   buddy_runtime_core
   buddy_runtime_llm
+  buddy_runtime_rax_dependencies
   LLVMSupport
+  Threads::Threads
   ${CMAKE_DL_LIBS}
 )
 target_link_directories(buddy-server PRIVATE ${LLVM_LIBRARY_DIR})
@@ -161,6 +165,10 @@ if(BUDDY_ENABLE_TESTS)
     ModelPluginDiscoveryFakePlugin.cpp)
   add_library(buddy-server-discovery-unknown-plugin MODULE
     ModelPluginDiscoveryFakePlugin.cpp)
+  add_library(buddy-server-discovery-dependent-plugin MODULE
+    ModelPluginDiscoveryFakePlugin.cpp)
+  add_library(buddy-server-runtime-dependency-fake MODULE
+    RaxDependencyFakeLibrary.cpp)
   set(_buddy_discovery_plugins
     buddy-server-discovery-resident-plugin
     buddy-server-discovery-embedding-plugin
@@ -171,11 +179,14 @@ if(BUDDY_ENABLE_TESTS)
     buddy-server-discovery-version-plugin
     buddy-server-discovery-small-plugin
     buddy-server-discovery-reserved-plugin
-    buddy-server-discovery-unknown-plugin)
+    buddy-server-discovery-unknown-plugin
+    buddy-server-discovery-dependent-plugin)
   foreach(_plugin ${_buddy_discovery_plugins})
     target_compile_features(${_plugin} PRIVATE cxx_std_17)
     target_link_libraries(${_plugin} PRIVATE buddy_runtime_core)
   endforeach()
+  target_compile_features(buddy-server-runtime-dependency-fake PRIVATE
+    cxx_std_17)
   target_compile_definitions(buddy-server-discovery-resident-plugin PRIVATE
     BUDDY_DISCOVERY_SERVICE_KIND=1)
   target_compile_definitions(buddy-server-discovery-embedding-plugin PRIVATE
@@ -196,6 +207,11 @@ if(BUDDY_ENABLE_TESTS)
     BUDDY_DISCOVERY_SERVICE_KIND=1 BUDDY_DISCOVERY_RESERVED=1)
   target_compile_definitions(buddy-server-discovery-unknown-plugin PRIVATE
     BUDDY_DISCOVERY_SERVICE_KIND=99)
+  target_compile_definitions(buddy-server-discovery-dependent-plugin PRIVATE
+    BUDDY_DISCOVERY_SERVICE_KIND=1
+    BUDDY_DISCOVERY_REQUIRED_GLOBAL_SYMBOL=1)
+  target_link_libraries(buddy-server-discovery-dependent-plugin PRIVATE
+    ${CMAKE_DL_LIBS})
 
   add_executable(buddy-server-model-plugin-discovery-test
     ModelPluginDiscoveryTest.cpp ModelPluginDiscovery.cpp)
