@@ -38,15 +38,20 @@ Capabilities describe features certified by the loaded artifact/configuration:
 raw encoding/decoding, tokenizer modes, chat roles and multiple turns, image
 count and input forms, streaming, generated-token budgets, stops, and individual
 sampling options. Every default is false, zero, or empty. DeepSeek enables its
-supported features after loading and validates capabilities before HTTP execution. TT
-and Qwen do not advertise compatible serving features. See the
-[DeepSeek serving guide](deepseek.md).
+supported features after loading and validates capabilities before HTTP execution.
+TT supports raw encoding/decoding with a tiktoken-format `tokenizer.model`
+and greedy generation when a compatible serving backend is installed. TT
+declares no sampling features, including when its outputs contain logits.
+Qwen does not advertise compatible serving features.
+See the [DeepSeek serving guide](deepseek.md) and [TT serving guide](llama31-tt.md).
 
 `DetokenizeRequest` carries token IDs and `DetokenizeResult` carries text. The
 raw implementation must validate every ID, join raw bytes including
-special tokens and bytes after EOS, then repair UTF-8 once. The `/detokenize` route
-dispatches to the DeepSeek implementation. Other adapters explicitly
-reject unsupported decoding; unloaded DeepSeek instances reject execution.
+special tokens and bytes after EOS, then repair UTF-8 once. DeepSeek and TT support
+`/detokenize`; TT requires `tokenizer.model`. TT's legacy `tokenizer.json` path retains
+its historical behavior and does not advertise compatible raw codec support.
+Other adapters explicitly reject unsupported decoding; unloaded instances
+reject execution.
 
 | DTO addition | Compatible serving meaning |
 | --- | --- |
@@ -78,11 +83,18 @@ prove no resident entry point is invoked before all exports are validated. The
 v1 fixture has no dependency on the new `ResidentModel` definition and aborts
 if an old entry point is called.
 
-The three no-weight production source checks use discovery and the real v2
+The no-weight production source checks use discovery and the real v2
 loader, query unloaded capabilities, verify decoding rejection, and repeat
 creation/destruction. Existing HTTP tests continue to exercise resident,
 embedding, masked-LM, and transcription services. The CLI golden test continues
 to execute its historical generation overload.
+
+`buddy-server-llama31-tt-execution`, `buddy-server-llama31-tt-batch-manifest`,
+and `buddy-server-llama31-tt-serving` run in the default server test suite even
+when model build options are OFF. The serving test injects selected token IDs
+into the production execution/resident classes and shared generation loop.
+It covers the compatible greedy contract and tokenizer/template behavior;
+its programs and vocabulary are synthetic and it does not exercise the TTNN SDK.
 
 DeepSeek and Qwen production plugin targets can also be built in separately
 configured model build directories without importing weights:

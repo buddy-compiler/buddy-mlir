@@ -118,15 +118,34 @@ export TT_METAL_HOME="$TT_METAL_RUNTIME_ROOT"
   --host 127.0.0.1 --port 8080
 ```
 
-`POST /completion`, `POST /v1/chat/completions`, and `POST /tokenize` use the
-same tokenizer and chat-template metadata as the package. Requests are
-serialized over one device/context and reset the KV/cache position before and
-after generation. Only `batch_size=1` is accepted; `llama31_tt_bN.rax` is
-rejected by the server rather than silently treating a batch package as a
-single request. Both external (manifest-only) and embedded payload packages
-are supported. The generated serving plugin currently requires the
-Tenstorrent runtime for real generation; no-device lifecycle and HTTP tests can
-set `BUDDY_LLAMA31_TT_FAKE_EXECUTION=1`.
+`POST /completion`, `POST /v1/chat/completions`, `POST /tokenize`, and
+`POST /detokenize` use the package's tokenizer and chat-template resources.
+Compatible serving requires a tiktoken-format `tokenizer.model`; loading
+prefers `original/tokenizer.model` before `tokenizer.model`. The legacy
+`tokenizer.json` fallback does not declare compatible raw codec or generation
+capabilities. Ordinary spans use whole-span byte BPE without canonical
+Llama/tiktoken regex pre-tokenization, so exact canonical token IDs are not
+certified. See the [TT serving guide](../../tools/buddy-server/compatibility/llama31-tt.md)
+for raw-byte decoding, supported modes, and tokenizer limits.
+
+HTTP generation is greedy only. Omit `temperature`, `top_k`, `top_p`, `min_p`,
+`repeat_penalty`, `repeat_last_n`, and `seed`; explicit non-null sampling fields
+are rejected even at their default values, including `temperature:0`. The
+TTNN backend declares compatible generation only when both prefill and decode
+output descriptors support Float32/BFloat16 logits or Int32/Int64/UInt32 device
+argmax IDs. Float16 packages can still load and generate through the legacy
+path but do not declare compatible generation. Budget aliases use
+`n_predict > max_completion_tokens > max_tokens`: 0 evaluates the prompt
+without selecting tokens, -1 runs until stop/context, and positive values
+count new tokens. Context overflow is rejected without truncation.
+
+Chat preserves supported roles and multiple turns, renders its default or
+configured JSON template once, and rejects unsupported roles/images. Request,
+package, and template stops are combined. Requests are serialized over one
+device/context; request-scoped state is reset on success, cancellation, or
+exception. Only `batch_size=1` is accepted; `llama31_tt_bN.rax` is rejected by
+the server. Both external (manifest-only) and embedded payload packages are
+supported.
 
 The production plugin creates a TTNN session while the model is loading. The
 session keeps the prefill/decode Binary objects, 1x1 MeshDevice, static weight
@@ -140,27 +159,35 @@ curl -sS http://127.0.0.1:8080/health | jq .
 
 curl -sS http://127.0.0.1:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"llama31_tt","messages":[{"role":"user","content":"Explain MLIR in one sentence."}],"max_tokens":32,"temperature":0}' | jq .
+  -d '{"model":"llama31_tt","messages":[{"role":"user","content":"Explain MLIR in one sentence."}],"max_tokens":32}' | jq .
 
 curl -N --no-buffer http://127.0.0.1:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"messages":[{"role":"user","content":"Write one sentence about Tenstorrent."}],"max_tokens":32,"temperature":0,"stream":true}'
+  -d '{"messages":[{"role":"user","content":"Write one sentence about Tenstorrent."}],"max_tokens":32,"stream":true}'
 
 curl -sS http://127.0.0.1:8080/completion \
   -H 'Content-Type: application/json' \
-  -d '{"prompt":"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\\n\\nHello<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n","max_tokens":32,"temperature":0}' | jq .
+  -d '{"prompt":"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n","max_tokens":32}' | jq .
 
 curl -sS http://127.0.0.1:8080/tokenize \
   -H 'Content-Type: application/json' \
   -d '{"content":"Hello buddy-server","add_special":true,"count_only":false}' | jq .
+
+curl -sS http://127.0.0.1:8080/detokenize \
+  -H 'Content-Type: application/json' \
+  -d '{"tokens":[128000,128001]}' | jq .
 ```
 
 `llama31_tt_server.so` resolves TTNN runtime libraries through its build/install
 RPATH. When running from a non-installed build, keep the tt-metal runtime and
 the conda `buddy-mlir` Python library on `LD_LIBRARY_PATH`; a missing Binary,
 artifact, tokenizer, or device is a load error and `/health` remains in the
-`error` state. `BUDDY_LLAMA31_TT_FAKE_EXECUTION=1` is an explicit no-hardware
-test mode and must not be used to mask a production initialization failure.
+`error` state. Default execution/resident tests inject a scripted serving token
+source; portable plugin checks compile with `BUDDY_LLAMA31_TT_HAS_TTNN=0`.
+The legacy `BUDDY_LLAMA31_TT_FAKE_EXECUTION=1` mode does not provide compatible
+HTTP generation. These checks exercise the portable serving path without the
+TTNN SDK or a device. Compile the SDK-enabled production targets and run the
+model on a device to validate those execution paths.
 
 ## Run Fixed Batch
 

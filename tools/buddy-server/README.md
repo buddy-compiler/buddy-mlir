@@ -94,7 +94,11 @@ factory, and model type, then creates and destroys unloaded model instances.
 The resident v2 load checks also query capabilities and verify that unsupported
 raw decoding is rejected on unloaded models. The DeepSeek serving test executes
 its production resident adapter and raw codec with an injected scripted
-`LLMSession`, including the repository vocabulary. The separate HTTP contract
+`LLMSession`, including the repository vocabulary. TT execution, batch-manifest,
+and serving tests also build with all model options OFF. The TT serving test
+executes the production execution/resident classes with a scripted token source
+and a synthetic byte vocabulary, including special-token metadata and templates.
+It supplies token IDs directly and requires no TTNN SDK. The separate HTTP contract
 fixture executes the shared generation controller through real sockets and
 checks the contract examples, streaming framing, errors, and cancellation.
 These tests do not load model weights.
@@ -104,6 +108,17 @@ acceptance still needs real model artifacts. The portable TT check does not
 validate the TTNN SDK branch: the separate production targets
 `buddy_models_llama31_tt_server_runtime` and `buddy_models_llama31_tt_server`
 require the actual TT SDK and compile with `BUDDY_LLAMA31_TT_HAS_TTNN=1`.
+To build and run the TT source tests alone:
+
+```bash
+ninja -C build -j1 buddy-server-llama31-tt-execution-test \
+  buddy-server-llama31-tt-batch-manifest-test buddy-server-llama31-tt-serving-test
+ctest --test-dir build --output-on-failure -j1 \
+  -R '^buddy-server-llama31-tt-(execution|batch-manifest|serving)$'
+```
+
+`check-buddy-resident-adapters` runs plugin link/load checks; the TT execution
+and serving tests run through `check-buddy-server` and `check-buddy`.
 
 ## Issue #912 compatibility contract
 
@@ -114,15 +129,16 @@ the pinned Buddy baseline from the serving contract. Supported requests
 depend on the loaded adapter and package. The examples in
 [compatibility/](compatibility/README.md) specify request and response
 semantics; synthetic fixtures do not execute model weights.
-TT and Qwen do not advertise compatible generation or raw codecs.
-Their legacy CLI entry points remain available.
+Qwen does not advertise compatible generation or raw codecs.
+Its legacy CLI entry point remains available.
 
 The upstream references are the fixed revision's
 [endpoint documentation][llama-readme], [generation schema][llama-schema],
 [schema alias handling][llama-schema-header], and
 [HTTP tokenizer handlers][llama-context]. “Baseline” below means the pinned
 Buddy source. The implemented column describes the shared serving contract
-with DeepSeek; individual capabilities still depend on the loaded artifacts. Test IDs identify
+used by DeepSeek and TT; individual capabilities still depend on the loaded
+artifacts. Test IDs identify
 request and response contract scenarios.
 
 | Interface | Fixed upstream behavior | Pinned Buddy baseline | Implemented serving behavior | Backend scope | Contract IDs and remaining differences |
@@ -180,6 +196,9 @@ Empty completion/tokenizer text is accepted by JSON parsing; generation still
 requires the loaded codec to produce an input token (DeepSeek completion adds
 BOS). An explicitly supplied unsupported sampling field is rejected even when
 its value is neutral; omitted/null fields do not request that feature.
+TT declares greedy generation only: omit `temperature`, `top_k`, `top_p`,
+`min_p`, `repeat_penalty`, `repeat_last_n`, and `seed` from TT HTTP requests.
+For example, explicitly setting `temperature:0` still returns 400 on TT.
 Upstream's seed sentinel is defined in [llama.h][llama-header] and interpreted
 in [llama-sampler.cpp][llama-sampler].
 
@@ -245,8 +264,8 @@ encoding is unsupported.
 | Path | Implementation boundary | Acceptance boundary |
 | --- | --- | --- |
 | DeepSeek R1 | Public serving generation, raw codec, declared sampling; JSON template required for chat. | Scripted production adapter and HTTP tests run without weights. Real artifact completion/chat, JSON/SSE and cancellation require separate acceptance. |
-| Llama 3.1 TT | Separate tokenizer/template/execution; TTNN path samples host logits; portable fake path is also available. | Declare sampling only for a validated logits path; portable compile is separate from a build with real TTNN SDK and from device execution. |
-| Qwen3-VL | Greedy decoder; one local image; resident chat concatenates message text and loses roles; tokenizer adds multimodal/chat scaffolding. | Keep supported greedy/single-image behavior; reject unsupported sampling or message shapes explicitly; preserve supported roles and turns. |
+| Llama 3.1 TT | Shared serving controller over device token IDs or Float32/BFloat16 logits; greedy only. Both program output descriptors must qualify before compatible generation is declared; Float16 keeps legacy generation only. Raw codec requires `tokenizer.model`; whole-span BPE omits canonical regex pre-tokenization. | Production execution/resident tests inject a token source. SDK compilation and device inference remain separate; token IDs are not certified equivalent to the canonical Llama tokenizer. |
+| Qwen3-VL | Existing greedy/single-image runtime; resident v2 capabilities remain conservative. | The adapter does not advertise compatible HTTP generation or raw codecs. |
 | CLI | Old bool `runGeneration` overload prints plain text or JSONL, with historical budget, repeat-penalty, and nonzero-seed behavior. | Golden tests execute that exact overload. HTTP budget, seed-0, and history changes do not alter it. |
 | Other service kinds | Dedicated embedding, masked-LM, and transcription factories/routes. | Preserve those interfaces, factories, and regression tests. |
 
