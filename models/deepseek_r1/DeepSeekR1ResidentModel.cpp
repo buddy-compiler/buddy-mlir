@@ -16,11 +16,10 @@
 
 #include "buddy/runtime/models/DeepSeekR1ResidentModel.h"
 
-#include "buddy/Core/Container.h"
 #include "buddy/LLM/ChatTemplate.h"
-#include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/core/ModelManifest.h"
-#include "buddy/runtime/llm/TextGeneration.h"
+#include "buddy/runtime/llm/ServingGeneration.h"
+#include "buddy/runtime/models/DeepSeekR1RawCodec.h"
 #include "buddy/runtime/models/ModelSession.h"
 
 #include <algorithm>
@@ -38,57 +37,50 @@ namespace runtime {
 
 namespace {
 
-using buddy::Text;
-
-static constexpr int kEosToken = 151643; // <|end▁of▁sentence|>
-static constexpr int kEotToken = 151647; // <|EOT|>
-
-FinishReason toFinishReason(const GenerationResult &result) {
-  if (result.cancelled)
-    return FinishReason::Cancelled;
-  if (result.hitTokenLimit)
-    return FinishReason::Length;
-  return FinishReason::Stop;
-}
-
-CompletionTimings toTimings(const GenerationResult &result) {
-  CompletionTimings timings;
-  timings.prefillMs = result.prefillSecs * 1000.0;
-  timings.decodeMs = result.decodeSecs * 1000.0;
-  timings.tokensPerSecond = result.decodeSecs > 0.0
-                                ? result.generatedTokens / result.decodeSecs
-                                : 0.0;
-  return timings;
-}
-
-CompletionUsage toUsage(int promptTokens, const GenerationResult &result) {
-  CompletionUsage usage;
-  usage.promptTokens = promptTokens;
-  usage.completionTokens = result.generatedTokens;
-  usage.totalTokens = usage.promptTokens + usage.completionTokens;
-  return usage;
-}
-
 std::string nextCompletionId() {
   static std::atomic<unsigned long long> nextId{1};
   return "cmpl-" + std::to_string(nextId.fetch_add(1));
 }
 
-std::vector<long long>
-mergeStopTokenIds(const std::vector<long long> &base,
-                  const std::vector<long long> &requestStopTokenIds) {
-  std::vector<long long> merged = base;
-  for (long long id : requestStopTokenIds) {
-    if (std::find(merged.begin(), merged.end(), id) == merged.end())
-      merged.push_back(id);
+DeepSeekR1ResidentModel::SessionResources
+createProductionSession(const ResidentModelConfig &cfg) {
+  DeepSeekR1ResidentModel::SessionResources resources;
+  std::string modelSoPath = cfg.modelSoPath;
+  if (!cfg.raxPath.empty()) {
+    ModelManifest manifest;
+    resources.session = ModelSession::createFromRax(cfg.raxPath, manifest);
+    resources.weightPaths = manifest.weightPaths;
+    resources.vocabPath = manifest.vocabPath;
+    resources.modelName = manifest.modelName;
+    modelSoPath = manifest.soPath;
+  } else {
+    if (cfg.modelSoPath.empty())
+      throw std::runtime_error("DeepSeekR1ResidentModel: modelSoPath is empty");
+    if (cfg.weightPaths.empty())
+      throw std::runtime_error("DeepSeekR1ResidentModel: no weight paths");
+    ModelSession::Config modelConfig;
+    modelConfig.modelSoPath = cfg.modelSoPath;
+    resources.session = ModelSession::create(modelConfig);
+    resources.weightPaths = cfg.weightPaths;
+    resources.vocabPath = cfg.vocabPath;
   }
-  return merged;
+  if (resources.vocabPath.empty())
+    resources.vocabPath =
+        (std::filesystem::path(modelSoPath).parent_path() / "vocab.txt")
+            .string();
+  resources.contextLength = BUDDY_DSR1_MAX_TOKEN_LEN;
+  return resources;
 }
 
 } // namespace
 
 class DeepSeekR1ResidentModel::Impl {
 public:
+  explicit Impl(SessionFactory factory) : sessionFactory(std::move(factory)) {
+    if (!sessionFactory)
+      throw std::invalid_argument("deepseek_r1: session factory is empty");
+  }
+
   void load(const ResidentModelConfig &cfg) {
     std::lock_guard<std::mutex> lock(mutex);
 
@@ -105,6 +97,7 @@ public:
     } catch (const std::exception &ex) {
       session.reset();
       chatTemplate.reset();
+      rawCodec.reset();
       loaded = false;
       statusValue.state = ModelLoadState::Error;
       statusValue.message = ex.what();
@@ -117,6 +110,33 @@ public:
     return statusValue;
   }
 
+  ResidentModelCapabilities capabilities() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    ResidentModelCapabilities result;
+    if (!loaded)
+      return result;
+    result.rawTokenize = true;
+    result.rawDetokenize = true;
+    result.tokenizeAddSpecial = rawCodec->tokenId("<|begin▁of▁sentence|>") >= 0;
+    result.tokenizeParseSpecial = true;
+    if (chatTemplate) {
+      result.chatRoles = chatTemplate->supportedRoles();
+      result.chatMultiTurn = true;
+    }
+    result.streaming = true;
+    result.maxNewTokens = true;
+    result.stop = true;
+    result.stopTokenIds = true;
+    result.sampling.temperature = true;
+    result.sampling.topK = true;
+    result.sampling.topP = true;
+    result.sampling.minP = true;
+    result.sampling.repeatPenalty = true;
+    result.sampling.repeatLastN = true;
+    result.sampling.seed = true;
+    return result;
+  }
+
   std::string renderChat(const ChatCompletionRequest &request) {
     std::lock_guard<std::mutex> lock(mutex);
     ensureLoadedUnlocked();
@@ -126,7 +146,13 @@ public:
   TokenizeResult tokenize(const TokenizeRequest &request) {
     std::lock_guard<std::mutex> lock(mutex);
     ensureLoadedUnlocked();
-    return tokenizeUnlocked(request.content, request.countOnly);
+    return rawCodec->tokenize(request);
+  }
+
+  DetokenizeResult detokenize(const DetokenizeRequest &request) {
+    std::lock_guard<std::mutex> lock(mutex);
+    ensureLoadedUnlocked();
+    return rawCodec->detokenize(request);
   }
 
   CompletionResult complete(const CompletionRequest &request) {
@@ -146,75 +172,56 @@ public:
 
   CompletionResult chatStream(const ChatCompletionRequest &request,
                               const CompletionStreamCallback &callback) {
+    std::lock_guard<std::mutex> lock(mutex);
+    ensureLoadedUnlocked();
     CompletionRequest completion;
-    {
-      std::lock_guard<std::mutex> lock(mutex);
-      ensureLoadedUnlocked();
-      completion.prompt = renderChatUnlocked(request);
-      completion.sampling = request.sampling;
-    }
-    return completeStream(completion, callback);
+    completion.prompt = renderChatUnlocked(request);
+    completion.sampling = request.sampling;
+    // The configured template decides whether chat needs a BOS. Encoding the
+    // rendered prompt must not add any second layer of model scaffolding.
+    return completeStreamUnlocked(completion, callback, false);
   }
 
 private:
   void loadUnlocked(const ResidentModelConfig &cfg) {
-    std::vector<std::string> resolvedWeightPaths;
-
-    if (!cfg.raxPath.empty()) {
-      ModelManifest manifest;
-      session = ModelSession::createFromRax(cfg.raxPath, manifest);
-      resolvedWeightPaths = manifest.weightPaths;
-      vocabPath = manifest.vocabPath.empty()
-                      ? (std::filesystem::path(manifest.soPath).parent_path() /
-                         "vocab.txt")
-                            .string()
-                      : manifest.vocabPath;
-      if (!manifest.modelName.empty())
-        statusValue.modelName = manifest.modelName;
-    } else {
-      if (cfg.modelSoPath.empty())
-        throw std::runtime_error(
-            "DeepSeekR1ResidentModel: modelSoPath is empty");
-      if (cfg.weightPaths.empty())
-        throw std::runtime_error("DeepSeekR1ResidentModel: no weight paths");
-
-      ModelSession::Config mcfg;
-      mcfg.modelSoPath = cfg.modelSoPath;
-      session = ModelSession::create(mcfg);
-      resolvedWeightPaths = cfg.weightPaths;
-      vocabPath = cfg.vocabPath.empty()
-                      ? (std::filesystem::path(cfg.modelSoPath).parent_path() /
-                         "vocab.txt")
-                            .string()
-                      : cfg.vocabPath;
-    }
-
-    if (vocabPath.empty())
+    loaded = false;
+    auto resources = sessionFactory(cfg);
+    if (!resources.session || resources.contextLength <= 0)
+      throw std::runtime_error("deepseek_r1: invalid session resources");
+    session = std::move(resources.session);
+    if (resources.vocabPath.empty())
       throw std::runtime_error("DeepSeekR1ResidentModel: vocab path is empty");
+    rawCodec = std::make_unique<DeepSeekR1RawCodec>(resources.vocabPath);
+    if (rawCodec->vocabSize() > session->vocabSize())
+      throw std::runtime_error(
+          "deepseek_r1: vocabulary exceeds session logits");
+    session->loadWeights(resources.weightPaths);
+    if (cfg.modelName.empty() && !resources.modelName.empty())
+      statusValue.modelName = resources.modelName;
 
-    session->loadWeights(resolvedWeightPaths);
-
-    stopTokenIds = {kEosToken, kEotToken};
+    stopTokenIds.clear();
+    for (const char *piece : {"<|end▁of▁sentence|>", "<|EOT|>"}) {
+      const int id = rawCodec->tokenId(piece);
+      if (id >= 0)
+        stopTokenIds.push_back(id);
+    }
+    defaultStopStrings.clear();
     if (!cfg.chatTemplatePath.empty()) {
       chatTemplate = std::make_unique<buddy::ChatTemplate>(
           buddy::ChatTemplate::fromFile(cfg.chatTemplatePath));
       for (int id : chatTemplate->stopTokenIds()) {
+        (void)rawCodec->tokenBytes(id);
         const auto value = static_cast<long long>(id);
         if (std::find(stopTokenIds.begin(), stopTokenIds.end(), value) ==
             stopTokenIds.end())
           stopTokenIds.push_back(value);
       }
+      defaultStopStrings = chatTemplate->stopTokens();
     } else {
       chatTemplate.reset();
     }
 
-    codec.tokenize = [](Text<size_t, 2> &t, const std::string &vocab) {
-      t.tokenizeDeepSeekR1(vocab, BUDDY_DSR1_MAX_TOKEN_LEN);
-    };
-    codec.detokenize = [](Text<size_t, 2> &t) { return t.revertDeepSeekR1(); };
-    codec.maxTokenLen = BUDDY_DSR1_MAX_TOKEN_LEN;
-
-    statusValue.contextLength = BUDDY_DSR1_MAX_TOKEN_LEN;
+    statusValue.contextLength = resources.contextLength;
     loaded = true;
   }
 
@@ -228,77 +235,82 @@ private:
       throw std::runtime_error(
           "DeepSeekR1ResidentModel: chat template is not configured");
 
+    if (!request.images.empty())
+      throw std::invalid_argument(
+          "image_path: DeepSeek does not support images");
+    const auto supportedRoles = chatTemplate->supportedRoles();
+
     std::vector<buddy::Message> messages;
     messages.reserve(request.messages.empty() ? 1 : request.messages.size());
 
     if (!request.messages.empty()) {
-      for (const ChatMessage &msg : request.messages)
+      for (std::size_t index = 0; index < request.messages.size(); ++index) {
+        const ChatMessage &msg = request.messages[index];
+        if (!msg.images.empty())
+          throw std::invalid_argument(
+              "messages: DeepSeek does not support images");
+        if (std::find(supportedRoles.begin(), supportedRoles.end(), msg.role) ==
+            supportedRoles.end())
+          throw std::invalid_argument("messages.role: unsupported chat role '" +
+                                      msg.role + "'");
+        if (msg.role == "system" && chatTemplate->systemInFirstUser() &&
+            (index != 0 || request.messages.size() < 2 ||
+             request.messages[1].role != "user"))
+          throw std::invalid_argument(
+              "messages: this template requires one leading system message "
+              "followed by user");
         messages.push_back({msg.role, msg.content});
+      }
     } else {
+      if (std::find(supportedRoles.begin(), supportedRoles.end(), "user") ==
+          supportedRoles.end())
+        throw std::invalid_argument(
+            "messages.role: template does not support user");
       messages.push_back({"user", request.input});
     }
 
     return chatTemplate->apply(messages);
   }
 
-  TokenizeResult tokenizeUnlocked(const std::string &content,
-                                  bool countOnly) const {
-    Text<size_t, 2> tokens(content);
-    tokens.tokenizeDeepSeekR1(vocabPath, BUDDY_DSR1_MAX_TOKEN_LEN);
-
-    TokenizeResult result;
-    result.count = tokens.getTokenCnt();
-    if (!countOnly) {
-      result.tokens.reserve(result.count);
-      for (std::size_t i = 0; i < result.count; ++i)
-        result.tokens.push_back(static_cast<int>(tokens.getData()[i]));
-    }
-    return result;
-  }
-
   CompletionResult
   completeStreamUnlocked(const CompletionRequest &request,
-                         const CompletionStreamCallback &callback) {
+                         const CompletionStreamCallback &callback,
+                         bool addSpecial = true) {
     const std::string id = nextCompletionId();
-    const int promptTokens =
-        static_cast<int>(tokenizeUnlocked(request.prompt, true).count);
-    buddy::Sampler sampler(request.sampling.samplerConfig);
-    const std::vector<long long> effectiveStopTokenIds =
-        mergeStopTokenIds(stopTokenIds, request.sampling.stopTokenIds);
-
-    GenerationResult generation = runGeneration(
-        request.prompt, *session, vocabPath, request.sampling.maxTokens,
-        effectiveStopTokenIds, sampler, codec, /*suppress=*/true,
-        [&](const GenerationChunk &chunk) {
-          if (!callback)
-            return true;
-
-          CompletionChunk out;
-          out.id = id;
-          out.model = statusValue.modelName;
-          out.delta = chunk.delta;
-          out.tokenId = chunk.tokenId;
-          return callback(out);
-        });
-
-    CompletionResult result;
+    if (!request.images.empty())
+      throw std::invalid_argument(
+          "image_path: DeepSeek does not support images");
+    SamplingParams sampling = request.sampling;
+    for (long long stop : stopTokenIds)
+      if (std::find(sampling.stopTokenIds.begin(), sampling.stopTokenIds.end(),
+                    stop) == sampling.stopTokenIds.end())
+        sampling.stopTokenIds.push_back(stop);
+    for (long long stop : sampling.stopTokenIds) {
+      if (stop < 0 || stop >= rawCodec->vocabSize())
+        throw std::invalid_argument(
+            "stop_token_ids: token ID is outside the vocabulary");
+    }
+    sampling.stop.insert(sampling.stop.end(), defaultStopStrings.begin(),
+                         defaultStopStrings.end());
+    ServingTextCodec codec;
+    codec.contextLength = statusValue.contextLength;
+    codec.vocabSize = rawCodec->vocabSize();
+    codec.encode = [&](const std::string &prompt) {
+      return rawCodec->encode(prompt, addSpecial, true);
+    };
+    codec.tokenBytes = [&](int token) { return rawCodec->tokenBytes(token); };
+    CompletionResult result =
+        runServingGeneration(request.prompt, *session, sampling, codec,
+                             [&](const CompletionChunk &chunk) {
+                               if (!callback)
+                                 return true;
+                               CompletionChunk out = chunk;
+                               out.id = id;
+                               out.model = statusValue.modelName;
+                               return callback(out);
+                             });
     result.id = id;
     result.model = statusValue.modelName;
-    result.content = std::move(generation.text);
-    result.finishReason = toFinishReason(generation);
-    result.usage = toUsage(promptTokens, generation);
-    result.timings = toTimings(generation);
-
-    if (callback) {
-      CompletionChunk done;
-      done.id = result.id;
-      done.model = result.model;
-      done.done = true;
-      done.finishReason = result.finishReason;
-      done.usage = result.usage;
-      done.timings = result.timings;
-      (void)callback(done);
-    }
 
     return result;
   }
@@ -306,15 +318,19 @@ private:
   mutable std::mutex mutex;
   bool loaded = false;
   ModelStatus statusValue;
-  std::unique_ptr<ModelSession> session;
+  SessionFactory sessionFactory;
+  std::unique_ptr<LLMSession> session;
   std::unique_ptr<buddy::ChatTemplate> chatTemplate;
-  std::string vocabPath;
-  TextCodec codec;
+  std::unique_ptr<DeepSeekR1RawCodec> rawCodec;
   std::vector<long long> stopTokenIds;
+  std::vector<std::string> defaultStopStrings;
 };
 
 DeepSeekR1ResidentModel::DeepSeekR1ResidentModel()
-    : impl(std::make_unique<Impl>()) {}
+    : DeepSeekR1ResidentModel(createProductionSession) {}
+
+DeepSeekR1ResidentModel::DeepSeekR1ResidentModel(SessionFactory sessionFactory)
+    : impl(std::make_unique<Impl>(std::move(sessionFactory))) {}
 
 DeepSeekR1ResidentModel::~DeepSeekR1ResidentModel() = default;
 
@@ -325,8 +341,7 @@ void DeepSeekR1ResidentModel::load(const ResidentModelConfig &cfg) {
 ModelStatus DeepSeekR1ResidentModel::status() const { return impl->status(); }
 
 ResidentModelCapabilities DeepSeekR1ResidentModel::capabilities() const {
-  // Serving capabilities remain disabled until their v2 paths are wired up.
-  return {};
+  return impl->capabilities();
 }
 
 std::string
@@ -340,9 +355,8 @@ DeepSeekR1ResidentModel::tokenize(const TokenizeRequest &request) {
 }
 
 DetokenizeResult
-DeepSeekR1ResidentModel::detokenize(const DetokenizeRequest &) {
-  throw std::invalid_argument(
-      "deepseek_r1: detokenize is not supported by this resident adapter");
+DeepSeekR1ResidentModel::detokenize(const DetokenizeRequest &request) {
+  return impl->detokenize(request);
 }
 
 CompletionResult

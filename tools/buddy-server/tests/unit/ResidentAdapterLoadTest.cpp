@@ -65,9 +65,10 @@ int main(int argc, char **argv) {
       bool rejected = false;
       try {
         (void)model->detokenize({{1}});
-      } catch (const std::invalid_argument &error) {
-        rejected = std::string(error.what()).find("not supported") !=
-                   std::string::npos;
+      } catch (const std::exception &error) {
+        const std::string message = error.what();
+        rejected = message.find("not supported") != std::string::npos ||
+                   message.find("not loaded") != std::string::npos;
       }
       if (!rejected)
         throw std::runtime_error("raw detokenize must reject unsupported use");

@@ -18,7 +18,9 @@
 #define BUDDY_RUNTIME_MODELS_DEEPSEEKR1RESIDENTMODEL_H
 
 #include "buddy/runtime/core/ResidentModel.h"
+#include "buddy/runtime/llm/LLMSession.h"
 
+#include <functional>
 #include <memory>
 
 namespace buddy {
@@ -31,7 +33,21 @@ namespace runtime {
 /// MVP safe for one resident session while leaving room for a future slot pool.
 class DeepSeekR1ResidentModel : public ResidentModel {
 public:
+  /// Session creation is injectable for embedded users and no-weight tests.
+  /// The default factory creates the real generated ModelSession. Every
+  /// factory follows the same weight, vocabulary, template and serving path.
+  struct SessionResources {
+    std::unique_ptr<LLMSession> session;
+    std::vector<std::string> weightPaths;
+    std::string vocabPath;
+    std::string modelName;
+    int contextLength = 0;
+  };
+  using SessionFactory =
+      std::function<SessionResources(const ResidentModelConfig &)>;
+
   DeepSeekR1ResidentModel();
+  explicit DeepSeekR1ResidentModel(SessionFactory sessionFactory);
   ~DeepSeekR1ResidentModel() override;
 
   DeepSeekR1ResidentModel(const DeepSeekR1ResidentModel &) = delete;

@@ -43,6 +43,7 @@ add_custom_target(buddy-server-deepseek-resident-generated
   DEPENDS "${_RESIDENT_DEEPSEEK_HEADER}" "${_RESIDENT_DEEPSEEK_SESSION}")
 
 add_library(buddy-server-deepseek-resident-link-check MODULE
+  "${_RESIDENT_MODELS_DIR}/deepseek_r1/DeepSeekR1RawCodec.cpp"
   "${_RESIDENT_MODELS_DIR}/deepseek_r1/DeepSeekR1ResidentModel.cpp"
   "${_RESIDENT_MODELS_DIR}/deepseek_r1/DeepSeekR1ResidentModelPlugin.cpp"
   "${_RESIDENT_DEEPSEEK_SESSION}")
@@ -120,3 +121,25 @@ add_custom_target(check-buddy-resident-adapters
           -R "^buddy-server-resident-adapter-"
   DEPENDS ${BUDDY_SERVER_RESIDENT_ADAPTER_TARGETS}
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+
+# This executes the production adapter/raw codec with an injected LLMSession;
+# the generated session is still compiled and linked, without loading weights.
+add_executable(buddy-server-deepseek-serving-test
+  "${CMAKE_CURRENT_LIST_DIR}/unit/DeepSeekR1ServingTest.cpp"
+  "${_RESIDENT_MODELS_DIR}/deepseek_r1/DeepSeekR1ResidentModel.cpp"
+  "${_RESIDENT_MODELS_DIR}/deepseek_r1/DeepSeekR1RawCodec.cpp"
+  "${_RESIDENT_DEEPSEEK_SESSION}")
+add_dependencies(buddy-server-deepseek-serving-test
+  buddy-server-deepseek-resident-generated)
+target_compile_features(buddy-server-deepseek-serving-test PRIVATE cxx_std_17)
+target_include_directories(buddy-server-deepseek-serving-test PRIVATE
+  "${_RESIDENT_MODELS_DIR}/deepseek_r1/include"
+  "${_RESIDENT_GENERATED_DIR}")
+target_link_libraries(buddy-server-deepseek-serving-test PRIVATE
+  buddy_runtime_core buddy_runtime_llm LLVMSupport ${CMAKE_DL_LIBS})
+add_test(NAME buddy-server-deepseek-serving
+  COMMAND buddy-server-deepseek-serving-test
+    "${BUDDY_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt")
+set_tests_properties(buddy-server-deepseek-serving PROPERTIES TIMEOUT 30)
+list(APPEND BUDDY_SERVER_RESIDENT_ADAPTER_TARGETS
+  buddy-server-deepseek-serving-test)
