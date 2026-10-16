@@ -71,7 +71,13 @@ text, and midstream exceptions. Separate response-writer tests use a socketpair
 with a closed peer to check SSE header and event write failures deterministically.
 Separate runtime tests cover overlapping/Chinese stops, UTF-8 tails, repetition
 history, context/budget boundaries, and fixed seeds. Production DeepSeek tests
-exercise its raw codec and template with an injected session; CLI golden tests
-execute the legacy generation overload. Real artifact inference,
+exercise its raw codec and template with an injected session. Production TT
+execution/resident tests use a scripted token source to cover greedy budgets,
+raw bytes and special tokens, single template application, string/token stops,
+cancellation, and reuse after errors. Their vocabulary and TT programs are
+fixtures; they do not establish canonical Llama token equivalence or execute
+the TTNN SDK branch. CLI golden tests execute the legacy generation
+overload. See the [TT serving guide](llama31-tt.md) for supported output types,
+explicit sampling rejection, and the whole-span BPE limitation. Real artifact inference,
 SDK, and device checks remain separate acceptance gates. A portable link check
 or synthetic HTTP result does not replace them.
