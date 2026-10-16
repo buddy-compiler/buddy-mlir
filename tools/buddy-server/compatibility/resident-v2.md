@@ -37,15 +37,16 @@ virtual DetokenizeResult detokenize(const DetokenizeRequest &) = 0;
 Capabilities describe features certified by the loaded artifact/configuration:
 raw encoding/decoding, tokenizer modes, chat roles and multiple turns, image
 count and input forms, streaming, generated-token budgets, stops, and individual
-sampling options. Every default is false, zero, or empty. The supplied
-production adapters retain these defaults after loading. Their legacy methods
-do not use capability declarations for HTTP validation.
+sampling options. Every default is false, zero, or empty. DeepSeek enables its
+supported features after loading and validates capabilities before HTTP execution. TT
+and Qwen do not advertise compatible serving features. See the
+[DeepSeek serving guide](deepseek.md).
 
-`DetokenizeRequest` carries token IDs and `DetokenizeResult` carries text. A
-compatible raw implementation must validate every ID, join raw bytes including
-special tokens and bytes after EOS, then repair UTF-8 once. All three production
-adapters reject raw decoding as unsupported. The HTTP router does not expose
-the `/detokenize` route.
+`DetokenizeRequest` carries token IDs and `DetokenizeResult` carries text. The
+raw implementation must validate every ID, join raw bytes including
+special tokens and bytes after EOS, then repair UTF-8 once. The `/detokenize` route
+dispatches to the DeepSeek implementation. Other adapters explicitly
+reject unsupported decoding; unloaded DeepSeek instances reject execution.
 
 | DTO addition | Compatible serving meaning |
 | --- | --- |
@@ -55,11 +56,12 @@ the `/detokenize` route.
 | `TokenizeRequest.parseSpecial` / `withPieces` | Special-token recognition and optional token pieces. |
 | `TokenizeResult.pieces` | Optional pieces accompanying token IDs. |
 
-`TokenizeRequest.addSpecial` defaults to true for existing C++ callers.
-Its raw HTTP contract default is false. HTTP parsing and the supplied
-legacy adapters use `maxTokens`; those paths do not consume the
-compatible serving fields in the table. Numerical algorithms, precision,
-weights, budgets, and seed behavior are unchanged by the interface layout.
+Compatible serving uses `maxNewTokens` independently of the legacy
+`maxTokens` field. Adapters that do not declare generated-token budget support
+must reject compatible generation requests. `TokenizeRequest.addSpecial`
+retains its historical C++ true default; the raw HTTP tokenizer default is false.
+The interface layout does not change numerical algorithms, precision, weights,
+budgets, or seeds.
 
 ## Validation
 
@@ -77,7 +79,7 @@ v1 fixture has no dependency on the new `ResidentModel` definition and aborts
 if an old entry point is called.
 
 The three no-weight production source checks use discovery and the real v2
-loader, query unloaded capabilities, verify unsupported decoding, and repeat
+loader, query unloaded capabilities, verify decoding rejection, and repeat
 creation/destruction. Existing HTTP tests continue to exercise resident,
 embedding, masked-LM, and transcription services. The CLI golden test continues
 to execute its historical generation overload.

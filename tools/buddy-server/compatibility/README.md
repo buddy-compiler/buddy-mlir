@@ -1,9 +1,11 @@
-# HTTP contract examples
+# Executable HTTP contract examples
 
-[target-contract.json](target-contract.json) is a declarative specification
-of requests and representative response assertions for the serving contract.
-It describes protocol requirements independently of a concrete backend or
-model-inference run.
+[target-contract.json](target-contract.json) specifies requests and representative
+response assertions for the Issue #912 serving contract.
+`buddy-server-serving-http-contract` executes all examples through HTTP sockets
+against the synthetic resident and embedding fixture plugins. It is included in
+`check-buddy-server`. It exercises the production JSON/HTTP layers and shared
+serving generation controller. It does not load real model weights.
 
 The fixture is deliberately synthetic. Token IDs, byte pieces, scripted sampled
 tokens, and embedding values belong only to these examples. They are not
@@ -17,13 +19,13 @@ scripted here to exercise byte repair (including noncanonical token pieces).
 The file has `format_version:1`, fixed comparison revisions, a shared `fixture`,
 and an `examples` array. Every example has a stable ID, request, profile, and
 expected response. Optional `setup` overrides fixture state or supplies an
-observable assertion for a fixture adapter. `prefill_calls`, `sample_calls`,
+observable fixture assertion. `prefill_calls`, `sample_calls`,
 `expected_seed_policy`, `expected_rendered_messages`, and `template_applications`
-specify expected backend observations. The
+are checked against backend observations recorded by the fixture. The
 seed examples check how explicit seeds reach the backend; real seeded sampling
 and repeat-request reproducibility require separate Sampler/runtime tests.
 
-Assertions use these matching rules:
+The executor uses these assertion rules:
 
 * `request.method`, `path`, and optional `json` define the HTTP request.
 * `expect.status` and `content_type` check HTTP metadata.
@@ -62,9 +64,14 @@ For SSE, check event framing, not only the presence of `[DONE]` in a response.
 | S01–S03 | Native EOF, chat role/content/finish sequence, optional usage, one chat `[DONE]`. |
 | R01–R04 | Structured 404/405/503/500 before streaming headers. |
 
-To validate a backend, exercise repeated requests after cancellation/errors,
-client disconnects, SSE startup/write failures and midstream exceptions,
-overlapping/Chinese stops and tail flushing, and nondefault tokenizer modes
-with capability rejection. Check CLI compatibility independently. Real adapter,
-artifact, and device execution requires the corresponding resources; a portable
-link check or fake HTTP response does not execute those paths.
+The HTTP test covers repeated requests after cancellation/errors, client
+connections reset after the first HTTP header byte or first SSE event, backend
+callback cancellation and session reset observations, terminal events carrying
+text, and midstream exceptions. Separate response-writer tests use a socketpair
+with a closed peer to check SSE header and event write failures deterministically.
+Separate runtime tests cover overlapping/Chinese stops, UTF-8 tails, repetition
+history, context/budget boundaries, and fixed seeds. Production DeepSeek tests
+exercise its raw codec and template with an injected session; CLI golden tests
+execute the legacy generation overload. Real artifact inference,
+SDK, and device checks remain separate acceptance gates. A portable link check
+or synthetic HTTP result does not replace them.

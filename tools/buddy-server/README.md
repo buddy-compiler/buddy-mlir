@@ -37,9 +37,10 @@ build-cross-rv/bin/buddy-server --model /path/to/model.rax
 ```
 
 Use `--host`, `--port`, `--model-type`, and `--chat-template` for configuration.
-Routes are selected by the descriptor service kind:
+All services expose `/health` and `/v1/models`. Other routes are selected by
+the descriptor service kind:
 
-* Resident: `/completion`, `/v1/chat/completions`, `/tokenize`
+* Resident: `/completion`, `/v1/chat/completions`, `/tokenize`, `/detokenize`
 * Embedding: `/v1/embeddings`
 * MaskedLM: `/v1/masked-lm`
 * Transcription: `/v1/audio/transcriptions`
@@ -78,8 +79,12 @@ Linux links reject undefined symbols with `-z defs`. Each loading test uses the
 production `RTLD_NOW` discovery and resident handles to validate the descriptor,
 factory, and model type, then creates and destroys unloaded model instances.
 The resident v2 load checks also query capabilities and verify that unsupported
-raw decoding is rejected. The production adapters do not advertise compatible serving features;
-their legacy entry points remain available.
+raw decoding is rejected on unloaded models. The DeepSeek serving test executes
+its production resident adapter and raw codec with an injected scripted
+`LLMSession`, including the repository vocabulary. The separate HTTP contract
+fixture executes the shared generation controller through real sockets and
+checks the contract examples, streaming framing, errors, and cancellation.
+These tests do not load model weights.
 
 These checks validate source compatibility and plugin linking. Inference
 acceptance still needs real model artifacts. The portable TT check does not
@@ -96,15 +101,18 @@ the pinned Buddy baseline from the serving contract. Supported requests
 depend on the loaded adapter and package. The examples in
 [compatibility/](compatibility/README.md) specify request and response
 semantics; synthetic fixtures do not execute model weights.
+TT and Qwen do not advertise compatible generation or raw codecs.
+Their legacy CLI entry points remain available.
 
 The upstream references are the fixed revision's
 [endpoint documentation][llama-readme], [generation schema][llama-schema],
 [schema alias handling][llama-schema-header], and
 [HTTP tokenizer handlers][llama-context]. “Baseline” below means the pinned
-Buddy source, rather than a result of running model weights. Test IDs identify
+Buddy source. The implemented column describes the shared serving contract
+with DeepSeek; individual capabilities still depend on the loaded artifacts. Test IDs identify
 request and response contract scenarios.
 
-| Interface | Fixed upstream behavior | Pinned Buddy baseline | Serving contract | Backend scope | Contract IDs and remaining differences |
+| Interface | Fixed upstream behavior | Pinned Buddy baseline | Implemented serving behavior | Backend scope | Contract IDs and remaining differences |
 | --- | --- | --- | --- | --- | --- |
 | `GET /health` | Ready: 200; loading: 503. | Always 200; body distinguishes loading, ok, and error. | Ready: 200; unloaded/loading/error: 503; retain status and diagnostic message. | All service kinds. | H01–H04. Richer Buddy status body remains an extension. |
 | `POST /completion` | Native completion supports several prompt shapes and JSON/SSE. | One nonempty string; `max_tokens` only; native stream also writes `[DONE]`. | One string; new-token budget; validated sampling/stops; JSON or terminal-event-plus-EOF SSE. | Resident only. | C01–C08, P01–P26, S01. Arrays/batches remain unsupported; native JSON is a documented subset. |
@@ -120,10 +128,10 @@ Current behavior can be checked in [buddy-server.cpp](buddy-server.cpp),
 [ServingTypes.h](../../runtime/include/buddy/runtime/core/ServingTypes.h).
 Existing executable coverage includes `buddy-server-json-codec`,
 `buddy-server-model-service-http-integration`, startup-failure, plugin discovery, and
-transcription tests. Contract IDs label request and response assertions in the
-[contract specification](compatibility/README.md).
+transcription tests. Contract IDs are exercised by `buddy-server-serving-http-contract`,
+separately from production adapter and real inference checks.
 
-### Normalization and parameter contract
+### Normalization and parameter semantics
 
 Process fields in this order: recognize names, normalize optional `null`, select
 aliases, validate types and ranges, supply defaults, then check backend
@@ -132,7 +140,7 @@ prompt/content/messages/tokens remain subject to their endpoint input checks.
 Unknown names, even with `null`, return 400. A recognized but unimplemented
 optional feature is rejected when non-null; `null` does not request that feature.
 
-| Field | Pinned Buddy parser | Contract default and accepted values | Contract IDs |
+| Field | Pinned Buddy parser | Implemented default and accepted values | Contract IDs |
 | --- | --- | --- | --- |
 | Length aliases | Only `max_tokens`; other names ignored. | First non-null of `n_predict`, `max_completion_tokens`, `max_tokens`. Validate only that value; differing aliases are not a conflict. Default 512; integer `[-1, INT32_MAX]`. | P01–P03 |
 | New-token budget | Backend-dependent: DeepSeek/Qwen use total-token limits; TT uses a new-token limit. | 0 evaluates the prompt without sampling; −1 runs until stop/context boundary; positive values count sampled new tokens. Prompt overflow is an error; no silent truncation/context movement. | C01–C08 |
@@ -149,10 +157,16 @@ optional feature is rejected when non-null; `null` does not request that feature
 | `stream_options` | Ignored. | Object or `null`; `include_usage` defaults false, accepts bool/`null`. Unknown nested names rejected. Valid options accepted on nonstreaming requests without changing response shape. Top-level `include_usage` is unknown. | S03, P17–P19 |
 | `model` | Chat handling varies: TT rejects a mismatch, DeepSeek/Qwen ignore it; embedding rejects a mismatch. | Optional string; does not switch the single loaded model; response uses actual configured ID. | P13, M01 |
 
-In the pinned Buddy parser, wrong types often fall back to defaults and unknown
-fields are generally ignored. Strict validation is a deliberate contract
+In the pinned Buddy baseline parser, wrong types often fell back to defaults
+and unknown fields were generally ignored. Tight validation is a deliberate Buddy
 difference, not a claim that upstream rejects identical inputs. In particular,
 Buddy's seed bounds and `repeat_last_n=-1` rejection are stricter policies.
+Positive sampler values must also fit the runtime's float representation;
+values that would overflow or underflow during conversion are rejected.
+Empty completion/tokenizer text is accepted by JSON parsing; generation still
+requires the loaded codec to produce an input token (DeepSeek completion adds
+BOS). An explicitly supplied unsupported sampling field is rejected even when
+its value is neutral; omitted/null fields do not request that feature.
 Upstream's seed sentinel is defined in [llama.h][llama-header] and interpreted
 in [llama-sampler.cpp][llama-sampler].
 
@@ -164,7 +178,7 @@ bare chat text. `add_special` adds model-defined special tokens only, never chat
 wrapping. Capability checks must describe the loaded artifact/configuration,
 not infer support from a model-family name.
 
-### Response and streaming contract
+### Response and streaming semantics
 
 Native final responses use `stop:true` for every completed request, including
 length termination, with the actual `stop_reason`, usage, and timings. Upstream
@@ -190,7 +204,7 @@ usage event is sent. Native SSE instead ends after its final JSON event and EOF;
 it has no `[DONE]` sentinel.
 
 ```text
-# Contract chat SSE, abbreviated JSON; blank lines delimit events.
+# Chat SSE, abbreviated JSON; blank lines delimit events.
 data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"fixture","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
 data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"fixture","choices":[{"index":0,"delta":{"content":"A"},"finish_reason":null}]}
@@ -203,25 +217,24 @@ data: [DONE]
 
 ```
 
-The error contract uses `{"error":{"message":"...","type":"...","code":400}}`,
-with the offending parameter named in validation messages. It covers invalid
-requests (400), unknown paths (404), wrong methods (405), unavailable models
-(503), and unexpected failures (500). The pinned Buddy handler uses this
-envelope; its HTTP router uses a different response and does not correctly
-distinguish wrong methods. The contract requires validation before sending
-headers. After SSE starts, report errors inside the stream and close the
-connection. Check SSE startup/write results and cancel generation on
-connection failure. A fake response or ready health probe does not exercise
-those lifecycle paths.
+Errors use `{"error":{"message":"...","type":"...","code":400}}`, with
+the offending parameter named in validation messages. Cover invalid requests
+(400), unknown paths (404), wrong methods (405), unavailable models (503), and
+unexpected failures (500). Both handler and routing errors use this envelope;
+wrong methods return 405 with `Allow`. JSON/capability validation and backend
+preflight happen before SSE headers are sent. Once SSE starts, errors are sent
+inside the stream and the connection closes. Failed SSE startup/writes cancel
+generation through the callback. HTTP bodies are limited to 16 MiB and transfer
+encoding is unsupported.
 
 ### Adapter and regression boundaries
 
-| Path | Adapter behavior | Validation requirements |
+| Path | Implementation boundary | Acceptance boundary |
 | --- | --- | --- |
-| DeepSeek R1 | Shared Sampler and legacy generation loop; JSON chat template required for chat; old DeepSeek tokenizer adds scaffolding, including on `/tokenize`. | Raw codec and one template application; public serving control and supported sampling; real artifact completion/chat, JSON/SSE, cancellation and repeat-request checks. |
+| DeepSeek R1 | Public serving generation, raw codec, declared sampling; JSON template required for chat. | Scripted production adapter and HTTP tests run without weights. Real artifact completion/chat, JSON/SSE and cancellation require separate acceptance. |
 | Llama 3.1 TT | Separate tokenizer/template/execution; TTNN path samples host logits; portable fake path is also available. | Declare sampling only for a validated logits path; portable compile is separate from a build with real TTNN SDK and from device execution. |
 | Qwen3-VL | Greedy decoder; one local image; resident chat concatenates message text and loses roles; tokenizer adds multimodal/chat scaffolding. | Keep supported greedy/single-image behavior; reject unsupported sampling or message shapes explicitly; preserve supported roles and turns. |
-| CLI | Old bool `runGeneration` overload prints plain text or JSONL, with historical budget, repeat-penalty, and nonzero-seed behavior. | Golden tests execute that exact overload. The HTTP budget, seed, and history contracts do not apply to this overload. |
+| CLI | Old bool `runGeneration` overload prints plain text or JSONL, with historical budget, repeat-penalty, and nonzero-seed behavior. | Golden tests execute that exact overload. HTTP budget, seed-0, and history changes do not alter it. |
 | Other service kinds | Dedicated embedding, masked-LM, and transcription factories/routes. | Preserve those interfaces, factories, and regression tests. |
 
 The resident v2 loader requires
