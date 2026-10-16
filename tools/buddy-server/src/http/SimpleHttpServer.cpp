@@ -15,9 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "SimpleHttpServer.h"
+#include "JsonCodec.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
+#include <cctype>
 #include <cerrno>
 #include <cstring>
 #include <iostream>
@@ -75,6 +77,8 @@ bool sendAll(int fd, const char *data, size_t size) {
   size_t sent = 0;
   while (sent < size) {
     ssize_t n = ::send(fd, data + sent, size - sent, MSG_NOSIGNAL);
+    if (n < 0 && errno == EINTR)
+      continue;
     if (n <= 0)
       return false;
     sent += static_cast<size_t>(n);
@@ -130,10 +134,25 @@ bool readHttpRequest(int fd, HttpRequest &request) {
         trim(line.substr(colon + 1));
   }
 
+  if (request.headers.count("transfer-encoding"))
+    throw std::invalid_argument("transfer-encoding is not supported");
   size_t contentLength = 0;
   auto it = request.headers.find("content-length");
-  if (it != request.headers.end())
-    contentLength = static_cast<size_t>(std::stoull(it->second));
+  if (it != request.headers.end()) {
+    const auto &value = it->second;
+    if (value.empty() ||
+        !std::all_of(value.begin(), value.end(),
+                     [](unsigned char c) { return std::isdigit(c); }))
+      throw std::invalid_argument(
+          "content-length must be a nonnegative integer");
+    try {
+      contentLength = static_cast<size_t>(std::stoull(value));
+    } catch (const std::out_of_range &) {
+      throw std::invalid_argument("content-length is too large");
+    }
+    if (contentLength > 16 * 1024 * 1024)
+      throw std::invalid_argument("request body exceeds 16 MiB");
+  }
 
   request.body = raw.substr(headerEnd + 4);
   while (request.body.size() < contentLength) {
@@ -153,6 +172,9 @@ bool readHttpRequest(int fd, HttpRequest &request) {
 ResponseWriter::ResponseWriter(int fd) : fd(fd) {}
 
 bool ResponseWriter::sendResponse(const HttpResponse &response) {
+  if (started)
+    return false;
+  started = true;
   std::ostringstream os;
   os << "HTTP/1.1 " << response.status << " " << reasonPhrase(response.status)
      << "\r\n";
@@ -167,6 +189,10 @@ bool ResponseWriter::sendResponse(const HttpResponse &response) {
 }
 
 bool ResponseWriter::startSse(int status) {
+  if (started)
+    return false;
+  started = true;
+  sse = true;
   std::ostringstream os;
   os << "HTTP/1.1 " << status << " " << reasonPhrase(status) << "\r\n";
   os << "Content-Type: text/event-stream\r\n";
@@ -178,6 +204,8 @@ bool ResponseWriter::startSse(int status) {
 }
 
 bool ResponseWriter::writeSseData(const std::string &data) {
+  if (!sse)
+    return false;
   return writeRaw("data: " + data + "\n\n");
 }
 
@@ -238,23 +266,47 @@ void SimpleHttpServer::handleClient(int clientFd) {
 
   try {
     if (!readHttpRequest(clientFd, request)) {
-      writer.sendResponse(textResponse(400, "bad request\n"));
+      writer.sendResponse(
+          jsonResponse(400, errorJson("bad request", "bad_request", 400)));
+      ::close(clientFd);
+      return;
+    }
+
+    const bool knownPath =
+        getHandlers.count(request.path) || postHandlers.count(request.path);
+    if (!knownPath) {
+      writer.sendResponse(
+          jsonResponse(404, errorJson("not found", "not_found", 404)));
       ::close(clientFd);
       return;
     }
 
     const auto &handlers = request.method == "GET" ? getHandlers : postHandlers;
     auto it = handlers.find(request.path);
-    if (it == handlers.end()) {
-      writer.sendResponse(jsonResponse(404, "{\"error\":\"not found\"}\n"));
+    if ((request.method != "GET" && request.method != "POST") ||
+        it == handlers.end()) {
+      auto response = jsonResponse(
+          405, errorJson("method not allowed", "method_not_allowed", 405));
+      response.headers["Allow"] =
+          getHandlers.count(request.path) ? "GET" : "POST";
+      writer.sendResponse(response);
       ::close(clientFd);
       return;
     }
 
     it->second(request, writer);
+  } catch (const std::invalid_argument &ex) {
+    const auto body = errorJson(ex.what(), "bad_request", 400);
+    if (writer.isSse())
+      writer.writeSseData(body);
+    else
+      writer.sendResponse(jsonResponse(400, body));
   } catch (const std::exception &ex) {
-    writer.sendResponse(
-        jsonResponse(500, std::string("{\"error\":\"") + ex.what() + "\"}\n"));
+    const auto body = errorJson(ex.what(), "internal_error", 500);
+    if (writer.isSse())
+      writer.writeSseData(body);
+    else
+      writer.sendResponse(jsonResponse(500, body));
   }
 
   ::close(clientFd);

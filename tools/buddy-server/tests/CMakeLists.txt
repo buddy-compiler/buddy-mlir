@@ -23,6 +23,11 @@ add_buddy_server_unit_test(
 set_tests_properties(buddy-server-json-codec PROPERTIES
   PASS_REGULAR_EXPRESSION "JsonCodec tests passed")
 
+add_buddy_server_unit_test(
+  buddy-server-http-writer-test
+  buddy-server-http-writer
+  unit/SimpleHttpServerTest.cpp)
+
 set(_buddy_resident_abi_plugins)
 foreach(_variant
     v2 v1 missing-create missing-destroy missing-type null null-type empty-type)
@@ -195,12 +200,15 @@ set_tests_properties(buddy-server-model-plugin-discovery PROPERTIES
 
 include(${CMAKE_CURRENT_LIST_DIR}/Fixtures.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/ResidentAdapterChecks.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/ServingContractTests.cmake)
 
 add_custom_target(check-buddy-server
   COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j1 -R ^buddy-server
   DEPENDS
     buddy-server
     buddy-server-json-codec-test
+    buddy-server-http-writer-test
+    buddy-server-serving-contract-fixtures
     buddy-server-resident-plugin-handle-test
     buddy-server-embedding-plugin-handle-test
     buddy-server-masked-lm-plugin-handle-test

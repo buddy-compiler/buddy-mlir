@@ -47,9 +47,13 @@ public:
   bool startSse(int status = 200);
   bool writeSseData(const std::string &data);
   bool writeRaw(const std::string &data);
+  bool hasStarted() const { return started; }
+  bool isSse() const { return sse; }
 
 private:
   int fd = -1;
+  bool started = false;
+  bool sse = false;
 };
 
 using HttpHandler = std::function<void(const HttpRequest &, ResponseWriter &)>;

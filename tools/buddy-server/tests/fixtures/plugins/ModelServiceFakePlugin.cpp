@@ -50,7 +50,12 @@ public:
   buddy::runtime::ModelStatus status() const override { return statusValue; }
 
   buddy::runtime::ResidentModelCapabilities capabilities() const override {
-    return {};
+    buddy::runtime::ResidentModelCapabilities caps;
+    caps.maxNewTokens = true;
+    caps.streaming = true;
+    caps.chatRoles = {"system", "user", "assistant"};
+    caps.chatMultiTurn = true;
+    return caps;
   }
 
   buddy::runtime::DetokenizeResult

@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "status": "http-contract-specification",
+  "status": "executable-synthetic-http-contract",
   "buddy_baseline": "5f4e6edaa07d284a34efdc4e47a2f888d042c8f2",
   "llama_cpp_baseline": "3e4dfa8f39f904e681737d9f512a6e6338d848aa",
   "fixture": {

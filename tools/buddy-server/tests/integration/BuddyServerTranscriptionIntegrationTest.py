@@ -57,7 +57,8 @@ def wait_for_health(
         try:
             status, payload = request(port, "/health")
             observed.append(payload.get("status"))
-            if status == 200 and payload.get("status") == expected:
+            expected_status = 200 if expected == "ok" else 503
+            if status == expected_status and payload.get("status") == expected:
                 return payload, observed
         except (OSError, urllib.error.URLError, json.JSONDecodeError):
             pass
