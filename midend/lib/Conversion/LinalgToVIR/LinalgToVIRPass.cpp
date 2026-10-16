@@ -883,12 +883,19 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   if (aTy.getRank() != 2 || bTy.getRank() != 2 || cTy.getRank() != 2)
     return rewriter.notifyMatchFailure(matmulOp, "expected rank-2 memrefs");
 
-  Type elemTy = aTy.getElementType();
-  if (elemTy != bTy.getElementType() || elemTy != cTy.getElementType())
-    return rewriter.notifyMatchFailure(matmulOp, "element types must match");
-  if (!isa<FloatType>(elemTy))
+  Type inputElemTy = aTy.getElementType();
+  Type bElemTy = bTy.getElementType();
+  Type accElemTy = cTy.getElementType();
+  if (inputElemTy != bElemTy)
+    return rewriter.notifyMatchFailure(matmulOp,
+                                       "input element types must match");
+  if (!isa<FloatType>(inputElemTy) || !isa<FloatType>(accElemTy))
     return rewriter.notifyMatchFailure(matmulOp,
                                        "only floating-point matmul supported");
+  if (inputElemTy != accElemTy &&
+      inputElemTy.getIntOrFloatBitWidth() > accElemTy.getIntOrFloatBitWidth())
+    return rewriter.notifyMatchFailure(
+        matmulOp, "narrowing input-to-accumulator matmul not supported");
 
   // Vectorize along N (the last dimension of B/C).
   Value n = memref::DimOp::create(rewriter, loc, c, 1);
@@ -915,8 +922,10 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
     kVal = memref::DimOp::create(rewriter, loc, a, 1);
   }
 
-  auto vecTy =
-      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  auto inputVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, inputElemTy);
+  auto accVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, accElemTy);
 
   auto loopM = affine::AffineForOp::create(
       rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
@@ -925,8 +934,9 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
       [&](OpBuilder &bld, Location bodyLoc, Value i, ValueRange) {
         OpBuilder &builder = bld;
         // acc = load(C[i, 0:]) as a vector along N.
-        Value acc = buddy::vir::LoadOp::create(builder, bodyLoc, vecTy, c,
-                                               ValueRange{i, c0})
+        Value acc = builder
+                        .create<buddy::vir::LoadOp>(bodyLoc, accVecTy, c,
+                                                    ValueRange{i, c0})
                         .getResult();
 
         auto loopK = affine::AffineForOp::create(
@@ -940,18 +950,29 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
               Value aScalar =
                   memref::LoadOp::create(builderK, kLoc, a, ValueRange{i, k});
               // aVec = broadcast(aScalar)
-              Value aVec = buddy::vir::BroadcastOp::create(builderK, kLoc,
-                                                           vecTy, aScalar)
-                               .getResult();
+              Value aVec =
+                  builderK
+                      .create<buddy::vir::BroadcastOp>(kLoc, inputVecTy,
+                                                       aScalar)
+                      .getResult();
               // bVec = load(B[k, 0:]) as a vector along N.
-              Value bVec = buddy::vir::LoadOp::create(builderK, kLoc, vecTy, b,
-                                                      ValueRange{k, c0})
+              Value bVec = builderK
+                               .create<buddy::vir::LoadOp>(kLoc, inputVecTy, b,
+                                                           ValueRange{k, c0})
                                .getResult();
+              if (inputElemTy != accElemTy) {
+                aVec = builderK.create<buddy::vir::ExtFOp>(kLoc, accVecTy, aVec)
+                           .getResult();
+                bVec = builderK.create<buddy::vir::ExtFOp>(kLoc, accVecTy, bVec)
+                           .getResult();
+              }
               // accOut = fma(aVec, bVec, accIn)
-              Value accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy,
-                                                       aVec, bVec, accIn)
-                                 .getResult();
-              affine::AffineYieldOp::create(builderK, kLoc, accOut);
+              Value accOut =
+                  builderK
+                      .create<buddy::vir::FMAOp>(kLoc, accVecTy, aVec, bVec,
+                                                 accIn)
+                      .getResult();
+              builderK.create<affine::AffineYieldOp>(kLoc, accOut);
             });
         Value finalAcc = loopK.getResult(0);
 
