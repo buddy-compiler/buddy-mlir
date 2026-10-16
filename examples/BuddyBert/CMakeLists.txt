@@ -5,6 +5,7 @@ add_custom_command(
          ${CMAKE_CURRENT_BINARY_DIR}/arg1.data
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-bert.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 

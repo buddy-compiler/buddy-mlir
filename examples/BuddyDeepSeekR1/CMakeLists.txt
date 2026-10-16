@@ -40,6 +40,7 @@ add_custom_command(
           "PYTHONPATH=${DEEPSEEKR1_IMPORT_PYTHONPATH}"
           ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 
@@ -54,6 +55,7 @@ add_custom_command(
           ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
           --precision f16
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 
@@ -68,6 +70,7 @@ add_custom_command(
           ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
           --precision bf16
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 
@@ -80,6 +83,7 @@ add_custom_command(
           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a32-i8.data
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a32.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating w8a32 quantized forward.mlir, subgraph0.mlir and param data..."
 )
 
@@ -92,6 +96,7 @@ add_custom_command(
           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a8-i8.data
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a8.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating w8a8 quantized forward.mlir, subgraph0.mlir and param data..."
 )
 
@@ -104,6 +109,7 @@ add_custom_command(
           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w4a16-i4packed.data
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w4a16.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating w4a16 quantized forward.mlir, subgraph0.mlir and param data..."
 )
 
@@ -116,6 +122,7 @@ add_custom_command(
           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a16-i8.data
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a16.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating w8a16 quantized forward.mlir, subgraph0.mlir and param data..."
 )
 
@@ -349,6 +356,7 @@ add_custom_command(
           ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
           --output-dir ${PACKED_DECODE_DIR}
           --pack-decode-weights --pack-vector-size ${PACKED_DECODE_VECTOR_SIZE}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating packed-decode forward.mlir, subgraph0.mlir and weight data..."
 )
 
@@ -472,6 +480,7 @@ add_custom_command(
           --output-dir ${PACKED_DECODE_F16_DIR}
           --precision f16
           --pack-decode-weights --pack-vector-size ${PACKED_DECODE_VECTOR_SIZE}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating FP16 packed-decode MLIR and weight data..."
 )
 
@@ -2090,6 +2099,7 @@ add_custom_command(
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
           --cache-sizes "32,64,128,256,512,1024"
           --max-cache-len 1024
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating tiered-kv-cache MLIR files (prefill_32/64/128/256/512/1024 + decode_32/64/128/256/512/1024)..."
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
