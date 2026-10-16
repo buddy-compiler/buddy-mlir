@@ -80,6 +80,7 @@ jobs:
           arch: ${{ matrix.arch }}
           llvm-src: ${{ matrix.llvm_src }}
           llvm-build-root: ${{ matrix.llvm_build_root }}
+          buddy-enable-png: "true"
 
       - name: Run example tests
         continue-on-error: ${{ matrix.arch == 'arm64' }}

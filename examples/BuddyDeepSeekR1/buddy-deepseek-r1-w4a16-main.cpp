@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -676,6 +677,14 @@ int main() {
 
   cachePosition.getData()[0] = tokenizedText.getTokenCnt();
   int generateLen = MaxTokenLength - tokenizedText.getTokenCnt();
+  // Bound the decode for callers that only need a smoke test (the ctest sets
+  // this); interactive use keeps generating until the model emits EOS.
+  if (const char *env = std::getenv("DEEPSEEKR1_MAX_NEW_TOKENS")) {
+    const int maxNewTokens = std::atoi(env);
+    if (maxNewTokens > 0 && generateLen > maxNewTokens) {
+      generateLen = maxNewTokens;
+    }
+  }
   double decodeTimeAccumMs = 0.0;
   size_t decodeTokens = 0;
 

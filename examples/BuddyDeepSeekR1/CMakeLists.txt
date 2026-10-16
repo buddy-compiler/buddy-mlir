@@ -2361,15 +2361,35 @@ add_custom_target(deepseekr1-tiered-kv-cache
   COMMENT "Building DeepSeekR1 tiered-kv-cache inference with cache sizes: ${KV_CACHE_SIZES}"
 )
 
-add_test(
-  NAME example.buddy-deepseek-r1-cli
-  COMMAND $<TARGET_FILE:buddy-deepseek-r1-cli> --prompt Hi --max-tokens=128
-  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-)
-set_tests_properties(
-  example.buddy-deepseek-r1-cli
-  PROPERTIES
-    LABELS "example"
-    PASS_REGULAR_EXPRESSION "Total time"
-    TIMEOUT 3600
-)
+# Which DeepSeekR1 variant ctest exercises.  The CI picks w4a16 to keep the
+# riscv64 example job short; f32 stays the local default.
+set(DEEPSEEKR1_TEST_VARIANT "f32" CACHE STRING
+  "DeepSeekR1 variant exercised by ctest (f32 or w4a16).")
+
+if(DEEPSEEKR1_TEST_VARIANT STREQUAL "w4a16")
+  add_test(
+    NAME example.buddy-deepseek-r1-w4a16-run
+    COMMAND sh -c "printf '%s\n' 'Hi' | env DEEPSEEKR1_MAX_NEW_TOKENS=16 \"$<TARGET_FILE:buddy-deepseek-r1-w4a16-run>\""
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+  )
+  set_tests_properties(
+    example.buddy-deepseek-r1-w4a16-run
+    PROPERTIES
+      LABELS "example"
+      PASS_REGULAR_EXPRESSION "Total time"
+      TIMEOUT 3600
+  )
+else()
+  add_test(
+    NAME example.buddy-deepseek-r1-cli
+    COMMAND $<TARGET_FILE:buddy-deepseek-r1-cli> --prompt Hi --max-tokens=16
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+  )
+  set_tests_properties(
+    example.buddy-deepseek-r1-cli
+    PROPERTIES
+      LABELS "example"
+      PASS_REGULAR_EXPRESSION "Total time"
+      TIMEOUT 3600
+  )
+endif()

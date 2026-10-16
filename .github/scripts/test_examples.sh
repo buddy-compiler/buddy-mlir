@@ -13,12 +13,13 @@ if [ "$arch" = "riscv64" ]; then
   cmake -S . -B build \
     -DBUDDY_QWEN3_EXAMPLES=ON \
     -DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
-    -DBUDDY_ENABLE_PNG=ON
+    -DBUDDY_ENABLE_PNG=ON \
+    -DDEEPSEEKR1_TEST_VARIANT=w4a16
 
   ccache -z
   ninja -C build \
     buddy-qwen3-0.6b-run \
-    buddy-deepseek-r1-cli
+    buddy-deepseek-r1-w4a16-run
   ccache -s
 else
   # The YOLO26 importer needs ultralytics, which depends on torchvision;
@@ -35,11 +36,12 @@ else
     -DBUDDY_STABLE_DIFFUSION_EXAMPLES=ON \
     -DBUDDY_TRANSFORMER_EXAMPLES=ON \
     -DBUDDY_YOLO26_EXAMPLES=ON \
-    -DBUDDY_ENABLE_PNG=ON
+    -DBUDDY_ENABLE_PNG=ON \
+    -DDEEPSEEKR1_TEST_VARIANT=w4a16
 
   ccache -z
   ninja -C build \
-    buddy-deepseek-r1-cli \
+    buddy-deepseek-r1-w4a16-run \
     buddy-qwen3-0.6b-run \
     transformer-runner \
     buddy-bert-run \
