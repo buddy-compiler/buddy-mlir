@@ -35,22 +35,45 @@ struct ServingTextCodec {
   std::function<std::vector<int>(const std::string &)> encode;
   std::function<std::string(int)> tokenBytes;
   int contextLength = 0;
-  /// Decodable prefix of the session vocabulary; zero uses the full session
-  /// vocabulary. A positive value excludes padding logits from sampling.
+  /// Decodable prefix of the token source vocabulary; zero uses its full
+  /// vocabulary. A positive value excludes padding logits from sampling in
+  /// the LLMSession overload.
   int vocabSize = 0;
+};
+
+/// Model execution and token selection, including backends that return a
+/// device-selected token without exposing logits. All callbacks are required.
+/// prefill receives the complete encoded prompt; decode consumes the previous
+/// selected token. selectToken sees the prompt and all previously selected
+/// tokens, and must return the next token from the latest execution result.
+/// validToken identifies decodable IDs for prompt, stop, and generated tokens.
+/// The adapter must reject sampling options its selectToken cannot implement.
+struct ServingTokenSource {
+  std::function<void()> reset;
+  std::function<void(const std::vector<int> &)> prefill;
+  std::function<void(int)> decode;
+  std::function<int(const std::vector<int> &)> selectToken;
+  std::function<bool(int)> validToken;
 };
 
 /// Generate with the serving token budget, stopping, seed, and usage contract.
 /// The adapter merges model/template stop IDs into sampling.stopTokenIds.
-/// Each request resets the session before prefill; cancellation and exceptions
+/// Each request resets the source before prefill; cancellation and exceptions
 /// also reset it before returning. No context shifting or prompt truncation is
-/// performed. Empty encoded prompts are rejected because LLMSession requires
-/// an input token to produce initial logits.
+/// performed. Empty encoded prompts are rejected because the source requires
+/// an input token to produce the first prediction.
 ///
 /// Chunks/results leave id and model empty for the adapter. A callback receives
 /// deltas followed by one done summary, including for prefill-only requests.
 /// Returning false cancels immediately without further callbacks. Exceptions
-/// propagate to the transport after session cleanup.
+/// propagate to the transport after source cleanup.
+CompletionResult runServingGeneration(
+    const std::string &prompt, const ServingTokenSource &source,
+    const SamplingParams &sampling, const ServingTextCodec &codec,
+    const CompletionStreamCallback &callback = {});
+
+/// Wrap an LLMSession with host sampling, padded prefill, and vocabulary and
+/// position checks, using the same generation contract as a token source.
 CompletionResult
 runServingGeneration(const std::string &prompt, LLMSession &session,
                      const SamplingParams &sampling,

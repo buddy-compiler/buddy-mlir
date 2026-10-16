@@ -22,6 +22,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_set>
@@ -79,12 +80,12 @@ private:
 
 class ResetOnFailure {
 public:
-  explicit ResetOnFailure(LLMSession &session) : session(session) {}
+  explicit ResetOnFailure(const std::function<void()> &reset) : reset(reset) {}
   ~ResetOnFailure() {
     if (!completed) {
       // Preserve an exception from execution/transport if reset also fails.
       try {
-        session.resetPosition();
+        reset();
       } catch (...) {
       }
     }
@@ -92,7 +93,7 @@ public:
   bool completed = false;
 
 private:
-  LLMSession &session;
+  const std::function<void()> &reset;
 };
 
 std::vector<int> repetitionHistory(const std::vector<int> &history,
@@ -131,30 +132,36 @@ void validateSampling(const SamplingParams &sampling) {
       throw std::invalid_argument("stop: empty strings are not supported");
 }
 
-} // namespace
-
-CompletionResult
-runServingGeneration(const std::string &prompt, LLMSession &session,
-                     const SamplingParams &sampling,
-                     const ServingTextCodec &codec,
-                     const CompletionStreamCallback &callback) {
-  session.resetPosition();
-  ResetOnFailure cleanup(session);
+CompletionResult runServingGenerationImpl(
+    const std::string &prompt, const ServingTokenSource &source,
+    const SamplingParams &sampling, const ServingTextCodec &codec,
+    const CompletionStreamCallback &callback,
+    const std::function<void()> &prepare = {},
+    const std::function<void(const std::vector<int> &)> &preparePrefill = {}) {
+  if (!source.reset)
+    throw std::invalid_argument("serving token source: missing reset callback");
+  source.reset();
+  ResetOnFailure cleanup(source.reset);
   validateSampling(sampling);
   if (!codec.encode || !codec.tokenBytes || codec.contextLength <= 0)
     throw std::invalid_argument(
         "serving codec: incomplete encoding configuration");
-  const int sessionVocabSize = session.vocabSize();
-  if (sessionVocabSize <= 0)
-    throw std::runtime_error(
-        "serving session: vocabulary size must be positive");
-  if (codec.vocabSize < 0 || codec.vocabSize > sessionVocabSize)
+  if (codec.vocabSize < 0)
     throw std::invalid_argument(
-        "serving codec: vocabulary size must be a decodable session prefix");
-  const int vocabSize =
-      codec.vocabSize == 0 ? sessionVocabSize : codec.vocabSize;
+        "serving codec: vocabulary size must be nonnegative");
+  if (!source.prefill || !source.decode || !source.selectToken ||
+      !source.validToken)
+    throw std::invalid_argument(
+        "serving token source: incomplete execution configuration");
+  if (prepare)
+    prepare();
+  auto validToken = [&](int token) {
+    return token >= 0 && (codec.vocabSize == 0 || token < codec.vocabSize) &&
+           source.validToken(token);
+  };
   for (long long token : sampling.stopTokenIds)
-    if (token < 0 || token >= vocabSize)
+    if (token < 0 || token > std::numeric_limits<int>::max() ||
+        !validToken(static_cast<int>(token)))
       throw std::invalid_argument("stop_token_ids: token ID is out of range");
 
   const std::vector<int> promptTokens = codec.encode(prompt);
@@ -164,7 +171,7 @@ runServingGeneration(const std::string &prompt, LLMSession &session,
     throw std::invalid_argument(
         "prompt: token count exceeds the context length");
   for (int token : promptTokens)
-    if (token < 0 || token >= vocabSize)
+    if (!validToken(token))
       throw std::invalid_argument("prompt: encoded token ID is out of range");
 
   const int promptCount = static_cast<int>(promptTokens.size());
@@ -172,36 +179,17 @@ runServingGeneration(const std::string &prompt, LLMSession &session,
   const int limit = sampling.maxNewTokens < 0
                         ? remaining
                         : std::min(remaining, sampling.maxNewTokens);
-  Text<std::size_t, 2> input;
-  // Generated sessions pass padded prefill shapes to their kernels. Reserve
-  // initialized storage for the full context while preserving the real count.
-  static_cast<MemRef<std::size_t, 2> &>(input) = MemRef<std::size_t, 2>(
-      std::vector<std::size_t>{1,
-                               static_cast<std::size_t>(codec.contextLength)},
-      std::size_t{0});
-  std::copy(promptTokens.begin(), promptTokens.end(), input.getData());
-  input.setTokenCnt(promptCount);
-
-  buddy::SamplerConfig config = sampling.samplerConfig;
-  if (config.temperature <= 0)
-    config.temperature = 0;
-  config.seed = 0;
-  buddy::Sampler sampler = sampling.seedPolicy == SamplingSeedPolicy::Fixed
-                               ? buddy::Sampler(config, sampling.fixedSeed)
-                               : buddy::Sampler(config);
+  if (preparePrefill)
+    preparePrefill(promptTokens);
   CompletionResult result;
   result.usage.promptTokens = promptCount;
   result.finishReason = FinishReason::Length;
   const auto prefillStart = std::chrono::steady_clock::now();
-  session.prefill(input);
+  source.prefill(promptTokens);
   result.timings.prefillMs =
       std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now() - prefillStart)
           .count();
-  if (session.position() != promptCount)
-    throw std::runtime_error(
-        "serving session: prefill position is inconsistent");
-
   std::vector<int> history = promptTokens;
   StopMatcher matcher(sampling.stop);
   Utf8StreamDecoder utf8;
@@ -221,25 +209,17 @@ runServingGeneration(const std::string &prompt, LLMSession &session,
   int previous = -1;
   for (int index = 0; index < limit; ++index) {
     if (index != 0) {
-      if (session.position() >= codec.contextLength)
-        throw std::runtime_error("serving session: decode exceeds the context");
       const auto decodeStart = std::chrono::steady_clock::now();
-      session.decode(previous);
+      source.decode(previous);
       result.timings.decodeMs +=
           std::chrono::duration<double, std::milli>(
               std::chrono::steady_clock::now() - decodeStart)
               .count();
-      if (session.position() != promptCount + index)
-        throw std::runtime_error(
-            "serving session: decode position is inconsistent");
     }
-    if (session.vocabSize() != sessionVocabSize)
-      throw std::runtime_error("serving session: vocabulary size changed");
-    const float *logits = session.logitsData(index == 0 ? promptCount - 1 : 0);
-    if (!logits)
-      throw std::runtime_error("serving session: logits pointer is null");
-    const auto recent = repetitionHistory(history, config.repeatLastN);
-    const int token = sampler.sample(logits, vocabSize, recent);
+    const int token = source.selectToken(history);
+    if (!validToken(token))
+      throw std::runtime_error(
+          "serving token source: selected token ID is out of range");
     ++result.usage.completionTokens;
     history.push_back(token);
     if (std::find(sampling.stopTokenIds.begin(), sampling.stopTokenIds.end(),
@@ -279,6 +259,89 @@ runServingGeneration(const std::string &prompt, LLMSession &session,
   }
   cleanup.completed = result.finishReason != FinishReason::Cancelled;
   return result;
+}
+
+} // namespace
+
+CompletionResult runServingGeneration(
+    const std::string &prompt, const ServingTokenSource &source,
+    const SamplingParams &sampling, const ServingTextCodec &codec,
+    const CompletionStreamCallback &callback) {
+  return runServingGenerationImpl(prompt, source, sampling, codec, callback);
+}
+
+CompletionResult
+runServingGeneration(const std::string &prompt, LLMSession &session,
+                     const SamplingParams &sampling,
+                     const ServingTextCodec &codec,
+                     const CompletionStreamCallback &callback) {
+  int sessionVocabSize = 0;
+  int vocabSize = 0;
+  int expectedPosition = 0;
+  int logitsOffset = 0;
+  buddy::SamplerConfig config = sampling.samplerConfig;
+  if (config.temperature <= 0)
+    config.temperature = 0;
+  config.seed = 0;
+  std::optional<buddy::Sampler> sampler;
+  Text<std::size_t, 2> input;
+  ServingTokenSource source;
+  source.reset = [&] { session.resetPosition(); };
+  auto preparePrefill = [&](const std::vector<int> &tokens) {
+    // Generated sessions pass padded prefill shapes to their kernels. Reserve
+    // initialized storage for the full context while preserving the real count.
+    static_cast<MemRef<std::size_t, 2> &>(input) = MemRef<std::size_t, 2>(
+        std::vector<std::size_t>{1,
+                                 static_cast<std::size_t>(codec.contextLength)},
+        std::size_t{0});
+    std::copy(tokens.begin(), tokens.end(), input.getData());
+    expectedPosition = static_cast<int>(tokens.size());
+    logitsOffset = expectedPosition - 1;
+    input.setTokenCnt(expectedPosition);
+    if (sampling.seedPolicy == SamplingSeedPolicy::Fixed)
+      sampler.emplace(config, sampling.fixedSeed);
+    else
+      sampler.emplace(config);
+  };
+  source.prefill = [&](const std::vector<int> &) {
+    session.prefill(input);
+    if (session.position() != expectedPosition)
+      throw std::runtime_error(
+          "serving session: prefill position is inconsistent");
+  };
+  source.decode = [&](int token) {
+    if (session.position() >= codec.contextLength)
+      throw std::runtime_error("serving session: decode exceeds the context");
+    session.decode(token);
+    if (session.position() != ++expectedPosition)
+      throw std::runtime_error(
+          "serving session: decode position is inconsistent");
+    logitsOffset = 0;
+  };
+  source.selectToken = [&](const std::vector<int> &history) {
+    if (session.vocabSize() != sessionVocabSize)
+      throw std::runtime_error("serving session: vocabulary size changed");
+    const float *logits = session.logitsData(logitsOffset);
+    if (!logits)
+      throw std::runtime_error("serving session: logits pointer is null");
+    return sampler->sample(logits, vocabSize,
+                           repetitionHistory(history, config.repeatLastN));
+  };
+  source.validToken = [&](int token) {
+    return token >= 0 && token < vocabSize;
+  };
+  auto prepare = [&] {
+    sessionVocabSize = session.vocabSize();
+    if (sessionVocabSize <= 0)
+      throw std::runtime_error(
+          "serving session: vocabulary size must be positive");
+    if (codec.vocabSize > sessionVocabSize)
+      throw std::invalid_argument(
+          "serving codec: vocabulary size must be a decodable session prefix");
+    vocabSize = codec.vocabSize == 0 ? sessionVocabSize : codec.vocabSize;
+  };
+  return runServingGenerationImpl(prompt, source, sampling, codec, callback,
+                                  prepare, preparePrefill);
 }
 
 } // namespace runtime

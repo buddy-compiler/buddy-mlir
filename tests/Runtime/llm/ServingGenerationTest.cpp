@@ -18,6 +18,7 @@
 
 #include <buddy/runtime/llm/ServingGeneration.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -130,6 +131,48 @@ private:
   Script script;
   std::size_t step = 0;
   int currentPosition = 23;
+};
+
+// A backend can select IDs on a device without exposing any host logits.
+class FakeTokenSource {
+public:
+  explicit FakeTokenSource(std::vector<int> tokens)
+      : tokens(std::move(tokens)) {}
+
+  ServingTokenSource callbacks() {
+    ServingTokenSource source;
+    source.reset = [&] {
+      ++resets;
+      step = 0;
+      histories.clear();
+      decoded.clear();
+    };
+    source.prefill = [&](const std::vector<int> &tokens) {
+      ++prefills;
+      prompt = tokens;
+    };
+    source.decode = [&](int token) {
+      require(token == tokens.at(step), "source decoded the wrong token");
+      decoded.push_back(token);
+      ++step;
+    };
+    source.selectToken = [&](const std::vector<int> &history) {
+      histories.push_back(history);
+      return tokens.at(step);
+    };
+    source.validToken = [](int token) { return token >= 0 && token < kVocab; };
+    return source;
+  }
+
+  int resets = 0;
+  int prefills = 0;
+  std::vector<int> prompt;
+  std::vector<int> decoded;
+  std::vector<std::vector<int>> histories;
+
+private:
+  std::vector<int> tokens;
+  std::size_t step = 0;
 };
 
 ServingTextCodec codecFor(std::vector<int> prompt = {kPrompt},
@@ -551,6 +594,119 @@ void checkSeeds() {
           "serving fixed seed zero is not repeatable across requests");
 }
 
+void checkTokenSource() {
+  FakeTokenSource device({0, 1, 2, 3, 4, 5});
+  auto source = device.callbacks();
+  auto codec = codecFor({kPrompt, kPrompt},
+                        {"\xE4", "\xB8", "\xAD", "ST", "OP", "leak"});
+  auto sampling = params(10);
+  sampling.stop = {"STOP"};
+  Events events;
+  auto result = runServingGeneration(
+      "", source, sampling, codec,
+      [&](const CompletionChunk &chunk) { return events(chunk); });
+  events.check(result);
+  require(result.content == "中" && result.finishReason == FinishReason::Stop &&
+              result.usage.promptTokens == 2 &&
+              result.usage.completionTokens == 5 &&
+              result.usage.totalTokens == 7 && device.resets == 1 &&
+              device.prefills == 1 &&
+              device.decoded == std::vector<int>({0, 1, 2, 3}),
+          "direct token source bypassed stop, UTF-8, usage, or decode rules");
+  require(device.prompt == std::vector<int>({kPrompt, kPrompt}) &&
+              device.histories.front() == device.prompt &&
+              device.histories.back() ==
+                  std::vector<int>({kPrompt, kPrompt, 0, 1, 2, 3}),
+          "token source did not receive the complete prompt and token history");
+
+  // A direct token source shares prefill-only and remaining-context limits.
+  FakeTokenSource bounded({0, 1, kEos});
+  auto boundedSource = bounded.callbacks();
+  auto boundedCodec = codecFor({kPrompt, kPrompt}, {"A", "B"}, 4);
+  for (int budget : {0, 1, -1}) {
+    result =
+        runServingGeneration("", boundedSource, params(budget), boundedCodec);
+    const int count = budget < 0 ? 2 : budget;
+    require(result.content == std::string("AB").substr(0, count) &&
+                result.finishReason == FinishReason::Length &&
+                result.usage.completionTokens == count &&
+                bounded.histories.size() == static_cast<std::size_t>(count) &&
+                bounded.decoded.size() ==
+                    static_cast<std::size_t>(std::max(0, count - 1)),
+            "direct token source ignored the budget or context limit");
+  }
+
+  int resetsBefore = device.resets;
+  int callbacks = 0;
+  result = runServingGeneration("", source, sampling, codec,
+                                [&](const CompletionChunk &) {
+                                  ++callbacks;
+                                  return false;
+                                });
+  require(result.finishReason == FinishReason::Cancelled && callbacks == 1 &&
+              result.usage.completionTokens == 1 &&
+              device.resets == resetsBefore + 2 && device.histories.empty(),
+          "direct token source cancellation did not reset immediately");
+
+  // Generated IDs must be checked before they reach the text codec.
+  bool decodedInvalidToken = false;
+  auto invalidCodec = codecFor();
+  invalidCodec.tokenBytes = [&](int) {
+    decodedInvalidToken = true;
+    return "invalid";
+  };
+  for (int token : {-1, kVocab}) {
+    auto invalidSource = source;
+    invalidSource.selectToken = [token](const std::vector<int> &) {
+      return token;
+    };
+    resetsBefore = device.resets;
+    requireFailure(
+        [&] {
+          runServingGeneration("", invalidSource, params(1), invalidCodec);
+        },
+        "selected token ID");
+    require(!decodedInvalidToken && device.resets == resetsBefore + 2,
+            "invalid selected ID reached tokenBytes or did not reset");
+  }
+  auto prefixCodec = codecFor({0});
+  prefixCodec.vocabSize = 1;
+  auto prefixSampling = params(1);
+  prefixSampling.stopTokenIds.clear();
+  auto paddedSource = source;
+  paddedSource.selectToken = [](const std::vector<int> &) { return 1; };
+  requireFailure(
+      [&] {
+        runServingGeneration("", paddedSource, prefixSampling, prefixCodec);
+      },
+      "selected token ID");
+
+  auto incompleteSource = source;
+  incompleteSource.selectToken = {};
+  const int prefillsBefore = device.prefills;
+  requireFailure(
+      [&] { runServingGeneration("", incompleteSource, sampling, codec); },
+      "incomplete execution");
+  auto invalidSampling = sampling;
+  invalidSampling.stopTokenIds = {std::numeric_limits<long long>::max()};
+  requireFailure(
+      [&] { runServingGeneration("", source, invalidSampling, codec); },
+      "stop_token_ids");
+  require(device.prefills == prefillsBefore,
+          "invalid token source configuration reached prefill");
+
+  auto throwingSource = source;
+  throwingSource.decode = [](int) {
+    throw std::runtime_error("source failure");
+  };
+  resetsBefore = device.resets;
+  requireFailure(
+      [&] { runServingGeneration("", throwingSource, params(2), codec); },
+      "source failure");
+  require(device.resets == resetsBefore + 2,
+          "direct token source exception did not reset");
+}
+
 } // namespace
 
 int main() {
@@ -576,6 +732,9 @@ int main() {
     checkSeeds();
     // CHECK: serving explicit seed and legacy sampler: passed
     std::cout << "serving explicit seed and legacy sampler: passed\n";
+    checkTokenSource();
+    // CHECK: serving direct token source contract: passed
+    std::cout << "serving direct token source contract: passed\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
