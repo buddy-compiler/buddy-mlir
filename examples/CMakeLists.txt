@@ -4,6 +4,13 @@ link_directories(
   "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
 )
 
+# The model importers run at build time and load the buddy Python packages.
+# Depend on the package target so an importer cannot start while the library it
+# loads (libBuddyMLIRPythonCAPI) is still being linked.
+if(TARGET BuddyMLIRPythonModules)
+  set(BUDDY_PYTHON_IMPORT_DEPENDS BuddyMLIRPythonModules)
+endif()
+
 if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
