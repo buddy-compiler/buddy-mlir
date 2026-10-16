@@ -92,7 +92,7 @@ buddy_add_model(
   RUNNER_SRC DeepSeekR1Runner.cpp
   RUNNER_PLUGIN_SRC DeepSeekR1RunnerPlugin.cpp
   MODEL_PLUGIN_SRC DeepSeekR1ResidentModelPlugin.cpp
-  EXTRA_SRCS DeepSeekR1ResidentModel.cpp
+  EXTRA_SRCS DeepSeekR1ResidentModel.cpp DeepSeekR1RawCodec.cpp
   HF_CONFIG "${BUDDY_DSR1_HF_CONFIG}"
   LOCAL_MODEL "${BUDDY_DSR1_LOCAL_MODEL}"
   BUILD_DIR "${DEEPSEEKR1_BUILD_DIR}"
