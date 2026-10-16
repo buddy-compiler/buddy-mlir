@@ -136,16 +136,14 @@ struct ResidentModelCapabilities {
 
 /// Request-time sampling and stopping configuration.
 struct SamplingParams {
-  /// Transitional legacy limit used by existing adapters and HTTP parsing.
-  /// DeepSeek/Qwen count total tokens; TT counts new tokens. A value of 0
-  /// retains the adapter's historical behavior. The compatible serving path
-  /// will use maxNewTokens instead; this field does not change CLI semantics.
+  /// Legacy adapter limit. Qwen counts total tokens and TT counts new tokens.
+  /// A value of 0 retains their historical behavior. Compatible HTTP serving
+  /// uses maxNewTokens; this field does not change CLI semantics.
   int maxTokens = 512;
 
   buddy::SamplerConfig samplerConfig;
 
-  /// Optional string stops supplied by the transport layer. The MVP may choose
-  /// to support token-id stops first and leave string stops to the adapter.
+  /// String stops matched incrementally by the compatible serving controller.
   std::vector<std::string> stop;
 
   /// Optional token-id stops merged with model/template default stop ids.
@@ -153,8 +151,8 @@ struct SamplingParams {
 
   /// Compatible serving budget: 0 is prefill only, -1 is context-limited,
   /// positive values count sampled new tokens (including EOS/stop tokens).
-  /// Reserved until the adapter declares maxNewTokens capability. Existing
-  /// HTTP parsing and legacy adapters do not consume these new fields yet.
+  /// Only adapters declaring maxNewTokens capability may serve this contract.
+  /// Legacy adapters must migrate before accepting compatible HTTP generation.
   int maxNewTokens = 512;
   SamplingParameterPresence explicitParameters;
   SamplingSeedPolicy seedPolicy = SamplingSeedPolicy::Random;
@@ -202,8 +200,8 @@ struct ChatCompletionRequest {
 /// Tokenization request.
 struct TokenizeRequest {
   std::string content;
-  /// Preserve the legacy C++ default. The compatible raw HTTP contract
-  /// uses addSpecial=false by default.
+  /// Retain the historical C++ caller default. The HTTP raw tokenizer selects
+  /// addSpecial=false explicitly, independently of this DTO default.
   bool addSpecial = true;
   bool countOnly = false;
   bool parseSpecial = true;
