@@ -59,6 +59,14 @@ if(BUDDY_ENABLE_TESTS)
   set_tests_properties(buddy-server-json-codec PROPERTIES
     PASS_REGULAR_EXPRESSION "JsonCodec tests passed")
 
+  add_executable(buddy-server-http-writer-test
+    SimpleHttpServerTest.cpp SimpleHttpServer.cpp JsonCodec.cpp
+    AudioTranscriptionJsonCodec.cpp)
+  target_compile_features(buddy-server-http-writer-test PRIVATE cxx_std_17)
+  target_link_libraries(buddy-server-http-writer-test PRIVATE
+    buddy_runtime_core buddy_runtime_llm LLVMSupport Threads::Threads)
+  add_test(NAME buddy-server-http-writer COMMAND buddy-server-http-writer-test)
+
   set(_buddy_resident_abi_plugins)
   foreach(_variant
       v2 v1 missing-create missing-destroy missing-type null null-type empty-type)
@@ -289,12 +297,15 @@ if(BUDDY_ENABLE_TESTS)
 
   include(${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionTests.cmake)
   include(${CMAKE_CURRENT_SOURCE_DIR}/ResidentAdapterChecks.cmake)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/ServingContractTests.cmake)
 
   add_custom_target(check-buddy-server
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j1 -R buddy-server
     DEPENDS
       buddy-server
       buddy-server-json-codec-test
+      buddy-server-http-writer-test
+      buddy-server-serving-contract-fixtures
       buddy-server-resident-plugin-handle-test
       buddy-server-embedding-plugin-handle-test
       buddy-server-masked-lm-plugin-handle-test
