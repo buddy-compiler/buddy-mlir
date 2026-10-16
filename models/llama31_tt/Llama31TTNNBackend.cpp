@@ -16,6 +16,8 @@
 
 #include "buddy/runtime/models/Llama31TTNNBackend.h"
 
+#include "buddy/runtime/llm/ServingGeneration.h"
+
 #ifndef BUDDY_LLAMA31_TT_HAS_TTNN
 #define BUDDY_LLAMA31_TT_HAS_TTNN 0
 #endif
@@ -430,17 +432,41 @@ bool isTokenDType(TTDataType dtype) {
          dtype == TTDataType::UInt32;
 }
 
+void releaseTensor(::tt::runtime::Tensor &tensor, bool force = true) {
+  if (!tensor.handle)
+    return;
+  try {
+    // TTNN's force argument does not override the runtime retain flag.
+    // Allocation checks also make cleanup safe for aliased output handles
+    // and inputs already released by the submitted program.
+    if (::tt::runtime::isTensorAllocated(tensor)) {
+      ::tt::runtime::setTensorRetain(tensor, false);
+      ::tt::runtime::deallocateTensor(tensor, force);
+    }
+  } catch (...) {
+  }
+}
+
 int tokenAt(const std::vector<std::byte> &data, TTDataType dtype,
             size_t index) {
+  const auto read = [&]<typename T>() {
+    if (index >= data.size() / sizeof(T))
+      throw std::runtime_error(
+          "llama31_tt: token output index is out of bounds");
+    T value;
+    std::memcpy(&value, data.data() + index * sizeof(T), sizeof(T));
+    if (static_cast<uint64_t>(value) >
+        static_cast<uint64_t>(std::numeric_limits<int>::max()))
+      throw std::runtime_error("llama31_tt: output token ID is out of range");
+    return static_cast<int>(value);
+  };
   switch (dtype) {
   case TTDataType::Int32:
-    return reinterpret_cast<const int32_t *>(data.data())[index];
+    return read.template operator()<int32_t>();
   case TTDataType::Int64:
-    return static_cast<int>(
-        reinterpret_cast<const int64_t *>(data.data())[index]);
+    return read.template operator()<int64_t>();
   case TTDataType::UInt32:
-    return static_cast<int>(
-        reinterpret_cast<const uint32_t *>(data.data())[index]);
+    return read.template operator()<uint32_t>();
   default:
     throw std::runtime_error("llama31_tt: output is not token-id dtype");
   }
@@ -448,8 +474,17 @@ int tokenAt(const std::vector<std::byte> &data, TTDataType dtype,
 
 int sampleOutput(::tt::runtime::Tensor &output, int position,
                  buddy::Sampler &sampler, const std::vector<int> &recent) {
-  const auto hostShards = ::tt::runtime::toHost(
+  auto hostShards = ::tt::runtime::toHost(
       output, !isTokenDType(::tt::runtime::getTensorDataType(output)), true);
+  struct ReadbackCleanup {
+    std::vector<::tt::runtime::Tensor> &shards;
+    const ::tt::runtime::Tensor &output;
+    ~ReadbackCleanup() {
+      for (auto &shard : shards)
+        if (shard.handle != output.handle)
+          releaseTensor(shard, false);
+    }
+  } cleanup{hostShards, output};
   if (hostShards.empty())
     throw std::runtime_error("llama31_tt: output toHost returned no shards");
   auto host = hostShards.front();
@@ -457,9 +492,12 @@ int sampleOutput(::tt::runtime::Tensor &output, int position,
   const auto shape = ::tt::runtime::getTensorShape(host);
   const auto data = ::tt::runtime::getTensorDataBuffer(host);
   const size_t elementSize = itemSizeFor(dtype);
+  if (data.size() % elementSize != 0)
+    throw std::runtime_error("llama31_tt: output has an incomplete element");
   const size_t elements = data.size() / elementSize;
   if (elements == 0)
     throw std::runtime_error("llama31_tt: output tensor is empty");
+  (void)volume(shape);
   if (isTokenDType(dtype)) {
     size_t start = 0;
     if (shape.size() >= 2)
@@ -503,22 +541,14 @@ int sampleOutput(::tt::runtime::Tensor &output, int position,
 }
 
 void release(std::unordered_map<std::string, ::tt::runtime::Tensor> &tensors) {
-  for (auto &entry : tensors) {
-    try {
-      ::tt::runtime::deallocateTensor(entry.second, true);
-    } catch (...) {
-    }
-  }
+  for (auto &entry : tensors)
+    releaseTensor(entry.second);
   tensors.clear();
 }
 
 void release(std::unordered_map<uint32_t, ::tt::runtime::Tensor> &tensors) {
-  for (auto &entry : tensors) {
-    try {
-      ::tt::runtime::deallocateTensor(entry.second, true);
-    } catch (...) {
-    }
-  }
+  for (auto &entry : tensors)
+    releaseTensor(entry.second);
   tensors.clear();
 }
 
@@ -535,6 +565,36 @@ public:
   }
 
   ~Session() { close(); }
+
+  bool supportsServing() {
+    bool supported = true;
+    for (const auto &phase : {std::make_pair("prefill", &*prefillBinary),
+                              std::make_pair("decode", &*decodeBinary)}) {
+      const auto descriptors =
+          phase.second->getProgramOutputs(metadata.programIndex);
+      if (descriptors.empty())
+        throw std::runtime_error("llama31_tt: " + std::string(phase.first) +
+                                 " program has no token/logit output");
+      const auto &shape = descriptors.back().shape;
+      (void)volume(shape);
+      const auto dtype = descriptors.back().dataType;
+      bool supportedShape = !shape.empty();
+      if (supportedShape) {
+        // Token IDs use their last axis as sequence. Logits use their
+        // penultimate axis only at rank >= 3; rank 2 selects row zero.
+        auto prefixEnd = shape.end() - 1;
+        if (!isTokenDType(dtype) && shape.size() >= 3)
+          --prefixEnd;
+        supportedShape =
+            std::all_of(shape.begin(), prefixEnd,
+                        [](uint32_t dimension) { return dimension == 1; });
+      }
+      supported &= supportedShape;
+      supported &= isTokenDType(dtype) || dtype == TTDataType::Float32 ||
+                   dtype == TTDataType::BFloat16;
+    }
+    return supported;
+  }
 
   void reset() {
     std::lock_guard<std::mutex> lock(mutex);
@@ -561,6 +621,138 @@ public:
       return result;
     } catch (...) {
       release(pastKV);
+      active = false;
+      throw;
+    }
+  }
+
+  CompletionResult serve(const std::string &prompt,
+                         const SamplingParams &sampling,
+                         const ServingTextCodec &codec,
+                         const CompletionStreamCallback &callback) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (closed || !device)
+      throw std::runtime_error("llama31_tt: TTNN session is closed");
+    if (active)
+      throw std::runtime_error("llama31_tt: TTNN session request is already "
+                               "active");
+    // Validate compatible-serving outputs before resetting request state or
+    // executing either program. Legacy generation retains its dtype support.
+    if (!supportsServing())
+      throw std::runtime_error(
+          "llama31_tt: unsupported compatible-serving output shape/dtype; "
+          "require batch-1 Float32/BFloat16 logits or Int32/Int64/UInt32 "
+          "token IDs with supported sequence axes; Float16 is unsupported");
+    std::unordered_map<std::string, ::tt::runtime::Tensor> pastKV;
+    std::vector<::tt::runtime::Tensor> outputs;
+    std::vector<::tt::runtime::Tensor> dynamicInputs;
+    int cachePosition = 0;
+    int outputPosition = 0;
+    buddy::Sampler greedy(buddy::SamplerConfig{}, 0);
+
+    auto releaseOutputs = [&] {
+      for (auto &output : outputs) {
+        const bool retainedKV =
+            std::any_of(pastKV.begin(), pastKV.end(), [&](const auto &entry) {
+              return entry.second.handle == output.handle;
+            });
+        if (retainedKV)
+          continue;
+        releaseTensor(output, false);
+      }
+      outputs.clear();
+      for (auto &input : dynamicInputs) {
+        const bool retainedKV =
+            std::any_of(pastKV.begin(), pastKV.end(), [&](const auto &entry) {
+              return entry.second.handle == input.handle;
+            });
+        if (!retainedKV)
+          releaseTensor(input, false);
+      }
+      dynamicInputs.clear();
+    };
+    auto resetRequest = [&] {
+      releaseOutputs();
+      release(pastKV);
+      cachePosition = 0;
+      outputPosition = 0;
+    };
+    auto updateKV = [&](const std::vector<std::string> &roles) {
+      auto updated = extractKV(outputs, roles, *decodeBinary);
+      // Some programs return an existing KV input as an output. Preserve
+      // those handles while releasing caches replaced by new tensors.
+      for (auto &entry : pastKV) {
+        const bool reused =
+            std::any_of(updated.begin(), updated.end(), [&](const auto &next) {
+              return next.second.handle == entry.second.handle;
+            });
+        if (reused)
+          continue;
+        releaseTensor(entry.second, false);
+      }
+      pastKV = std::move(updated);
+    };
+
+    ServingTokenSource source;
+    source.reset = resetRequest;
+    source.validToken = [&](int token) {
+      try {
+        (void)codec.tokenBytes(token);
+        return true;
+      } catch (const std::invalid_argument &) {
+        return false;
+      }
+    };
+    source.prefill = [&](const std::vector<int> &tokens) {
+      auto inputs = buildInputs(prefill, prefillInputs, *prefillBinary,
+                                prefillStatic, tokens, 0, true,
+                                metadata.eosTokenId, pastKV, &dynamicInputs);
+      outputs = ::tt::runtime::submit(*device, *prefillBinary,
+                                      metadata.programIndex, inputs);
+      ::tt::runtime::wait(outputs);
+      updateKV(prefillKVRoles);
+      cachePosition = static_cast<int>(tokens.size());
+      outputPosition = cachePosition - 1;
+    };
+    source.decode = [&](int token) {
+      releaseOutputs();
+      auto inputs = buildInputs(decode, decodeInputs, *decodeBinary,
+                                decodeStatic, {token}, cachePosition, false,
+                                metadata.eosTokenId, pastKV, &dynamicInputs);
+      outputs = ::tt::runtime::submit(*device, *decodeBinary,
+                                      metadata.programIndex, inputs);
+      ::tt::runtime::wait(outputs);
+      if (outputs.empty())
+        throw std::runtime_error("llama31_tt: decode returned no output");
+      if (outputs.size() >= decodeKVRoles.size() + 1)
+        updateKV(decodeKVRoles);
+      ++cachePosition;
+      outputPosition = 0;
+    };
+    source.selectToken = [&](const std::vector<int> &) {
+      if (outputs.empty())
+        throw std::runtime_error("llama31_tt: no output available to select "
+                                 "a token");
+      if (::tt::runtime::getTensorDataType(outputs.back()) ==
+          TTDataType::Float16)
+        throw std::runtime_error(
+            "llama31_tt: compatible serving does not support Float16 "
+            "outputs; use Float32/BFloat16 logits or device token IDs");
+      // Device-argmax and host-logit programs both support greedy serving.
+      // Sampling is deliberately deferred until the common controller asks
+      // for a token, so a zero budget still runs prefill without selection.
+      return sampleOutput(outputs.back(), outputPosition, greedy, {});
+    };
+
+    active = true;
+    try {
+      CompletionResult result =
+          runServingGeneration(prompt, source, sampling, codec, callback);
+      resetRequest();
+      active = false;
+      return result;
+    } catch (...) {
+      resetRequest();
       active = false;
       throw;
     }
@@ -695,7 +887,8 @@ private:
       const std::unordered_map<uint32_t, ::tt::runtime::Tensor> &cache,
       const std::vector<int> &tokens, int cachePosition, bool prefill,
       int padToken,
-      const std::unordered_map<std::string, ::tt::runtime::Tensor> &requestKV) {
+      const std::unordered_map<std::string, ::tt::runtime::Tensor> &requestKV,
+      std::vector<::tt::runtime::Tensor> *dynamicInputs = nullptr) {
     std::vector<::tt::runtime::Tensor> result(descs.size());
     for (uint32_t slot = 0; slot < phase.roles.size(); ++slot) {
       if (auto cached = cache.find(slot); cached != cache.end()) {
@@ -790,6 +983,8 @@ private:
       }
       result[slot] = toDevice(hostTensor(buffer, desc), *device, binary,
                               metadata.programIndex, slot);
+      if (dynamicInputs)
+        dynamicInputs->push_back(result[slot]);
     }
     return result;
   }
@@ -802,20 +997,38 @@ private:
       throw std::runtime_error("llama31_tt: output count is smaller than KV "
                                "role count");
     std::unordered_map<std::string, ::tt::runtime::Tensor> result;
-    for (size_t index = 0; index < roles.size(); ++index) {
-      const std::string &role = roles[index];
-      auto slot = decodeKVSlots.find(role);
-      if (slot == decodeKVSlots.end())
-        throw std::runtime_error("llama31_tt: no decode KV slot for '" + role +
-                                 "'");
-      auto layout =
-          ::tt::runtime::getLayout(binary, metadata.programIndex, slot->second);
-      auto &output = outputs[index];
-      ::tt::runtime::setTensorRetain(output, true);
-      result[role] = ::tt::runtime::hasLayout(output, layout)
-                         ? output
-                         : ::tt::runtime::toLayout(output, *device, layout);
-      ::tt::runtime::setTensorRetain(result[role], true);
+    try {
+      for (size_t index = 0; index < roles.size(); ++index) {
+        const std::string &role = roles[index];
+        auto slot = decodeKVSlots.find(role);
+        if (slot == decodeKVSlots.end())
+          throw std::runtime_error("llama31_tt: no decode KV slot for '" +
+                                   role + "'");
+        auto layout = ::tt::runtime::getLayout(binary, metadata.programIndex,
+                                               slot->second);
+        auto &output = outputs[index];
+        ::tt::runtime::setTensorRetain(output, true);
+        result[role] = ::tt::runtime::hasLayout(output, layout)
+                           ? output
+                           : ::tt::runtime::toLayout(output, *device, layout);
+        ::tt::runtime::setTensorRetain(result[role], true);
+      }
+    } catch (...) {
+      // A converted KV tensor may have its own allocation. Output aliases
+      // are released once through outputs below; retained input aliases
+      // stay alive through the caller's pastKV handles.
+      for (auto &entry : result) {
+        const bool outputAlias = std::any_of(
+            outputs.begin(), outputs.end(), [&](const auto &output) {
+              return output.handle == entry.second.handle;
+            });
+        if (!outputAlias)
+          releaseTensor(entry.second, false);
+      }
+      for (auto &output : outputs)
+        releaseTensor(output, false);
+      outputs.clear();
+      throw;
     }
     return result;
   }
@@ -920,7 +1133,14 @@ private:
       const bool hasDecodeKV = decodeOutputs.size() >= decodeKVRoles.size() + 1;
       if (hasDecodeKV) {
         auto updated = extractKV(decodeOutputs, decodeKVRoles, *decodeBinary);
-        release(pastKV);
+        for (auto &entry : pastKV) {
+          const bool reused = std::any_of(
+              updated.begin(), updated.end(), [&](const auto &next) {
+                return next.second.handle == entry.second.handle;
+              });
+          if (!reused)
+            releaseTensor(entry.second, false);
+        }
         pastKV = std::move(updated);
       }
       for (size_t index = 0; index < decodeOutputs.size(); ++index) {
@@ -1005,6 +1225,13 @@ createLlama31TTNNBackend(const Llama31TTExecution::Metadata &metadata) {
                              const CompletionStreamCallback &callback) {
     return session->generate(request, callback);
   };
+  if (session->supportsServing())
+    hooks.serve = [session](const std::string &prompt,
+                            const SamplingParams &sampling,
+                            const ServingTextCodec &codec,
+                            const CompletionStreamCallback &callback) {
+      return session->serve(prompt, sampling, codec, callback);
+    };
   hooks.reset = [session] { session->reset(); };
   return hooks;
 }

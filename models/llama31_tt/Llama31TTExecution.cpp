@@ -18,6 +18,7 @@
 
 #include "buddy/LLM/ChatTemplate.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/llm/TextGeneration.h"
 
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
@@ -312,7 +313,7 @@ std::vector<uint8_t> decodeBase64(std::string_view text) {
   for (int index = 0; index < 64; ++index)
     reverse[static_cast<unsigned char>(alphabet[index])] = index;
   std::vector<uint8_t> bytes;
-  int value = 0;
+  uint32_t value = 0;
   int bits = -8;
   for (unsigned char c : text) {
     if (c == '=')
@@ -342,19 +343,21 @@ class Llama31TTExecution::Tokenizer {
 public:
   explicit Tokenizer(const fs::path &root) { load(root); }
 
-  std::vector<int> encode(std::string_view text, bool addSpecial) const {
+  std::vector<int> encode(std::string_view text, bool addSpecial,
+                          bool parseSpecial = true) const {
     std::vector<int> ids;
     if (addSpecial)
       ids.push_back(kBeginOfText);
     std::size_t position = 0;
     while (position < text.size()) {
-      if (auto special = matchSpecial(text, position)) {
+      if (auto special =
+              parseSpecial ? matchSpecial(text, position) : std::nullopt) {
         ids.push_back(special->first);
         position += special->second;
         continue;
       }
       std::size_t next = position + 1;
-      while (next < text.size() && !matchSpecial(text, next))
+      while (next < text.size() && (!parseSpecial || !matchSpecial(text, next)))
         ++next;
       appendBPE(ids, text.substr(position, next - position));
       position = next;
@@ -375,14 +378,25 @@ public:
     return found == idToToken.end() ? std::string() : found->second;
   }
 
+  bool hasRawBytes() const { return tiktoken; }
+
+  std::string rawBytes(int id) const {
+    if (auto found = specialTextById.find(id); found != specialTextById.end())
+      return found->second;
+    if (auto found = idToToken.find(id); found != idToToken.end())
+      return found->second;
+    throw std::invalid_argument("tokens: llama31_tt token ID is out of range");
+  }
+
 private:
   void load(const fs::path &root) {
     fs::path model = root / "original" / "tokenizer.model";
     if (!fs::is_regular_file(model))
       model = root / "tokenizer.model";
-    if (fs::is_regular_file(model))
+    if (fs::is_regular_file(model)) {
       loadTiktoken(model);
-    else if (fs::is_regular_file(root / "tokenizer.json"))
+      tiktoken = true;
+    } else if (fs::is_regular_file(root / "tokenizer.json"))
       loadJson(root / "tokenizer.json");
     else
       throw std::runtime_error(
@@ -396,6 +410,36 @@ private:
     addSpecial(kEndHeader, "<|end_header_id|>");
     addSpecial(kEom, "<|eom_id|>");
     addSpecial(kEot, "<|eot_id|>");
+    if (tiktoken && fs::is_regular_file(root / "tokenizer_config.json"))
+      loadSpecialConfig(root / "tokenizer_config.json");
+  }
+
+  void loadSpecialConfig(const fs::path &path) {
+    auto buffer = llvm::MemoryBuffer::getFile(path.string());
+    if (!buffer)
+      throw std::runtime_error("llama31_tt: cannot read " + path.string());
+    auto parsed = llvm::json::parse((*buffer)->getBuffer());
+    if (!parsed)
+      throw std::runtime_error("llama31_tt: cannot parse tokenizer config: " +
+                               llvm::toString(parsed.takeError()));
+    auto *root = parsed->getAsObject();
+    if (!root)
+      throw std::runtime_error(
+          "llama31_tt: tokenizer config must be an object");
+    if (auto *added = root->getObject("added_tokens_decoder")) {
+      for (const auto &entry : *added) {
+        auto *token = entry.second.getAsObject();
+        auto content = token ? token->getString("content") : std::nullopt;
+        if (!content || content->empty())
+          throw std::runtime_error("llama31_tt: invalid added token content");
+        if (token->getBoolean("special") == false)
+          continue;
+        int id = 0;
+        if (llvm::StringRef(entry.first).getAsInteger(10, id) || id < 0)
+          throw std::runtime_error("llama31_tt: invalid added token ID");
+        addSpecial(id, content->str());
+      }
+    }
   }
 
   void loadTiktoken(const fs::path &path) {
@@ -409,9 +453,17 @@ private:
         continue;
       const std::vector<uint8_t> decoded =
           decodeBase64(std::string_view(line).substr(0, space));
-      const int id = std::stoi(line.substr(space + 1));
+      const std::string rank = line.substr(space + 1);
+      std::size_t consumed = 0;
+      const long long parsedId = std::stoll(rank, &consumed);
+      if (consumed != rank.size() || parsedId < 0 ||
+          parsedId > std::numeric_limits<int>::max() || decoded.empty())
+        throw std::runtime_error("llama31_tt: invalid tokenizer rank");
+      const int id = static_cast<int>(parsedId);
       std::string token(reinterpret_cast<const char *>(decoded.data()),
                         decoded.size());
+      if (tokenToId.count(token) || idToToken.count(id))
+        throw std::runtime_error("llama31_tt: duplicate tokenizer rank/token");
       tokenToId.emplace(token, id);
       idToToken[id] = std::move(token);
     }
@@ -463,17 +515,23 @@ private:
   }
 
   void addSpecial(int id, const std::string &text) {
+    if ((specialTextById.count(id) && specialTextById.at(id) != text) ||
+        (specialToId.count(text) && specialToId.at(text) != id) ||
+        (idToToken.count(id) && idToToken.at(id) != text))
+      throw std::runtime_error("llama31_tt: conflicting special token ID/text");
     specialToId[text] = id;
     specialTextById[id] = text;
   }
 
   std::optional<std::pair<int, std::size_t>>
   matchSpecial(std::string_view text, std::size_t position) const {
+    std::optional<std::pair<int, std::size_t>> result;
     for (const auto &entry : specialToId) {
-      if (text.substr(position, entry.first.size()) == entry.first)
-        return std::make_pair(entry.second, entry.first.size());
+      if (text.substr(position, entry.first.size()) == entry.first &&
+          (!result || entry.first.size() > result->second))
+        result = std::make_pair(entry.second, entry.first.size());
     }
-    return std::nullopt;
+    return result;
   }
 
   void appendBPE(std::vector<int> &ids, std::string_view text) const {
@@ -510,6 +568,7 @@ private:
   std::unordered_map<int, std::string> idToToken;
   std::unordered_map<std::string, int> specialToId;
   std::unordered_map<int, std::string> specialTextById;
+  bool tiktoken = false;
 };
 
 Llama31TTExecution::Llama31TTExecution() = default;
@@ -564,22 +623,53 @@ void Llama31TTExecution::load(const ResidentModelConfig &config) {
 
   auto candidateTokenizer =
       std::make_unique<Tokenizer>(fs::path(candidate.tokenizerPath));
+  std::unique_ptr<buddy::ChatTemplate> candidateTemplate;
+  if (!config.chatTemplatePath.empty())
+    candidateTemplate = std::make_unique<buddy::ChatTemplate>(
+        buddy::ChatTemplate::fromFile(config.chatTemplatePath));
+  if (candidateTemplate) {
+    // ChatTemplate stores IDs as int. Check the source values before its
+    // narrowing conversion can turn a malformed artifact into valid stops.
+    auto buffer = llvm::MemoryBuffer::getFile(config.chatTemplatePath);
+    if (!buffer)
+      throw std::runtime_error("llama31_tt: cannot read chat template");
+    auto parsed = llvm::json::parse((*buffer)->getBuffer());
+    if (!parsed)
+      throw std::runtime_error("llama31_tt: cannot parse chat template: " +
+                               llvm::toString(parsed.takeError()));
+    auto *object = parsed->getAsObject();
+    if (!object)
+      throw std::runtime_error("llama31_tt: chat template must be an object");
+    if (auto *stops = object->getArray("stop_token_ids")) {
+      for (const auto &stop : *stops) {
+        auto id = stop.getAsInteger();
+        if (!id || *id < 0 || *id > std::numeric_limits<int>::max())
+          throw std::runtime_error(
+              "llama31_tt: invalid template stop_token_ids");
+        if (candidateTokenizer->hasRawBytes())
+          (void)candidateTokenizer->rawBytes(static_cast<int>(*id));
+      }
+    }
+  }
   Backend candidateBackend = backendValue;
+  ServingBackend candidateServing = servingBackend;
   ResetCallback candidateReset = resetCallback;
-  if (!candidateBackend && backendFactory) {
+  if (!candidateBackend && !candidateServing && backendFactory) {
     BackendHooks hooks = backendFactory(candidate);
     candidateBackend = std::move(hooks.generate);
+    candidateServing = std::move(hooks.serve);
     if (hooks.reset)
       candidateReset = std::move(hooks.reset);
-    if (!candidateBackend)
+    if (!candidateBackend && !candidateServing)
       throw std::runtime_error(
-          "llama31_tt: backend factory returned no generate function");
+          "llama31_tt: backend factory returned no execution function");
   }
   metadataValue = std::move(candidate);
   tokenizer = std::move(candidateTokenizer);
   backendValue = std::move(candidateBackend);
+  servingBackend = std::move(candidateServing);
   resetCallback = std::move(candidateReset);
-  chatTemplatePath = config.chatTemplatePath;
+  chatTemplate = std::move(candidateTemplate);
   loaded = true;
   reset();
 }
@@ -607,19 +697,83 @@ TokenizeResult Llama31TTExecution::tokenize(const std::string &text,
   return result;
 }
 
+ResidentModelCapabilities Llama31TTExecution::capabilities() const {
+  ResidentModelCapabilities result;
+  if (!loaded || !tokenizer || !tokenizer->hasRawBytes())
+    return result;
+  result.rawTokenize = result.rawDetokenize = true;
+  result.tokenizeAddSpecial = result.tokenizeParseSpecial = true;
+  result.tokenizeWithPieces = true;
+  if (servingBackend) {
+    result.streaming = result.maxNewTokens = true;
+    result.stop = result.stopTokenIds = true;
+    result.chatRoles =
+        chatTemplate ? chatTemplate->supportedRoles()
+                     : std::vector<std::string>{"system", "user", "assistant"};
+    result.chatMultiTurn = !result.chatRoles.empty();
+  }
+  // Both TT phases can return device argmax IDs. No sampling feature is
+  // certified, even if a particular phase happens to expose floating logits.
+  return result;
+}
+
+TokenizeResult
+Llama31TTExecution::tokenizeRaw(const TokenizeRequest &request) const {
+  if (!capabilities().rawTokenize)
+    throw std::invalid_argument(
+        "tokenize: llama31_tt raw encoding requires tokenizer.model");
+  const auto ids = tokenizer->encode(request.content, request.addSpecial,
+                                     request.parseSpecial);
+  TokenizeResult result;
+  result.count = ids.size();
+  if (!request.countOnly) {
+    result.tokens = ids;
+    if (request.withPieces) {
+      for (int id : ids) {
+        Utf8StreamDecoder decoder;
+        std::string piece = decoder.append(tokenizer->rawBytes(id));
+        piece += decoder.finish();
+        result.pieces.push_back(std::move(piece));
+      }
+    }
+  }
+  return result;
+}
+
+DetokenizeResult
+Llama31TTExecution::detokenize(const DetokenizeRequest &request) const {
+  if (!capabilities().rawDetokenize)
+    throw std::invalid_argument(
+        "detokenize: llama31_tt raw decoding requires tokenizer.model");
+  std::string bytes;
+  for (int id : request.tokens)
+    bytes += tokenizer->rawBytes(id);
+  Utf8StreamDecoder decoder;
+  std::string content = decoder.append(bytes);
+  content += decoder.finish();
+  return {std::move(content)};
+}
+
 std::string
 Llama31TTExecution::renderChat(const ChatCompletionRequest &request) const {
   if (!loaded)
     throw std::runtime_error("llama31_tt: execution is not loaded");
+  if (!request.images.empty())
+    throw std::invalid_argument("llama31_tt: image inputs are not supported");
+  const auto *tmpl = chatTemplate.get();
+  const auto roles =
+      tmpl ? tmpl->supportedRoles()
+           : std::vector<std::string>{"system", "user", "assistant"};
   std::vector<buddy::Message> messages;
   if (request.messages.empty()) {
     if (request.input.empty())
       throw std::invalid_argument("llama31_tt: chat request has no messages");
+    if (std::find(roles.begin(), roles.end(), "user") == roles.end())
+      throw std::invalid_argument("messages: template does not support user");
     messages.push_back({"user", request.input});
   } else {
     for (const ChatMessage &message : request.messages) {
-      if (message.role != "system" && message.role != "user" &&
-          message.role != "assistant")
+      if (std::find(roles.begin(), roles.end(), message.role) == roles.end())
         throw std::invalid_argument("llama31_tt: unsupported chat role '" +
                                     message.role + "'");
       if (!message.images.empty())
@@ -629,8 +783,26 @@ Llama31TTExecution::renderChat(const ChatCompletionRequest &request) const {
     }
   }
 
-  if (!chatTemplatePath.empty())
-    return buddy::ChatTemplate::fromFile(chatTemplatePath).apply(messages);
+  if (tmpl) {
+    if (tmpl->systemInFirstUser()) {
+      bool seenNonSystem = false;
+      bool seenSystem = false;
+      for (const auto &message : messages) {
+        if (message.role == "system") {
+          if (seenSystem || seenNonSystem)
+            throw std::invalid_argument(
+                "messages: this template requires one leading system message");
+          seenSystem = true;
+        } else {
+          seenNonSystem = true;
+        }
+      }
+      if (seenSystem && (messages.size() < 2 || messages[1].role != "user"))
+        throw std::invalid_argument(
+            "messages: this template requires a user immediately after system");
+    }
+    return tmpl->apply(messages);
+  }
 
   std::string prompt = "<|begin_of_text|>";
   for (const buddy::Message &message : messages) {
@@ -639,6 +811,81 @@ Llama31TTExecution::renderChat(const ChatCompletionRequest &request) const {
   }
   prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n";
   return prompt;
+}
+
+CompletionResult Llama31TTExecution::generateServing(
+    const std::string &prompt, const SamplingParams &sampling,
+    const CompletionStreamCallback &callback, bool addSpecial) {
+  if (!capabilities().maxNewTokens)
+    throw std::invalid_argument(
+        "max_tokens: llama31_tt compatible serving backend is unavailable");
+  const auto &provided = sampling.explicitParameters;
+  const auto &config = sampling.samplerConfig;
+  for (const auto &field :
+       {std::make_pair(provided.temperature || config.temperature != 0,
+                       "temperature"),
+        std::make_pair(provided.topK || config.topK != 0, "top_k"),
+        std::make_pair(provided.topP || config.topP != 1, "top_p"),
+        std::make_pair(provided.minP || config.minP != 0, "min_p"),
+        std::make_pair(provided.repeatPenalty || config.repeatPenalty != 1,
+                       "repeat_penalty"),
+        std::make_pair(provided.repeatLastN || config.repeatLastN != 64,
+                       "repeat_last_n"),
+        std::make_pair(provided.seed || config.seed != 0 ||
+                           sampling.seedPolicy == SamplingSeedPolicy::Fixed,
+                       "seed")})
+    if (field.first)
+      throw std::invalid_argument(std::string(field.second) +
+                                  ": unsupported by llama31_tt greedy serving");
+
+  SamplingParams params = sampling;
+  for (long long token : params.stopTokenIds) {
+    if (token < 0 || token > std::numeric_limits<int>::max())
+      throw std::invalid_argument("stop_token_ids: token ID is out of range");
+    (void)tokenizer->rawBytes(static_cast<int>(token));
+  }
+  if (!metadataValue.ignoreEOS) {
+    for (int token : {metadataValue.eosTokenId, kEndOfText, kEom, kEot})
+      params.stopTokenIds.push_back(token);
+  }
+  if (chatTemplate) {
+    for (int token : chatTemplate->stopTokenIds())
+      params.stopTokenIds.push_back(token);
+    for (const auto &text : chatTemplate->stopTokens()) {
+      if (auto token = tokenizer->specialTokenId(text))
+        params.stopTokenIds.push_back(*token);
+      else
+        params.stop.push_back(text);
+    }
+  }
+  ServingTextCodec codec;
+  codec.contextLength = metadataValue.maxCacheLen;
+  codec.encode = [this, addSpecial](const std::string &text) {
+    return tokenizer->encode(text, addSpecial &&
+                                       !startsWith(text, "<|begin_of_text|>"));
+  };
+  codec.tokenBytes = [this](int token) { return tokenizer->rawBytes(token); };
+  const auto id = nextId();
+  auto emit = [&](CompletionChunk chunk) {
+    chunk.id = id;
+    chunk.model = metadataValue.modelName;
+    return !callback || callback(chunk);
+  };
+  reset();
+  try {
+    auto result = servingBackend(prompt, params, codec, emit);
+    result.id = id;
+    result.model = metadataValue.modelName;
+    reset();
+    return result;
+  } catch (...) {
+    // Preserve the execution/callback error if cleanup also fails.
+    try {
+      reset();
+    } catch (...) {
+    }
+    throw;
+  }
 }
 
 CompletionResult

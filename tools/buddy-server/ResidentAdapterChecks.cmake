@@ -145,3 +145,5 @@ add_test(NAME buddy-server-deepseek-serving
 set_tests_properties(buddy-server-deepseek-serving PROPERTIES TIMEOUT 30)
 list(APPEND BUDDY_SERVER_RESIDENT_ADAPTER_TARGETS
   buddy-server-deepseek-serving-test)
+
+include(${CMAKE_CURRENT_LIST_DIR}/Llama31TTTests.cmake)
