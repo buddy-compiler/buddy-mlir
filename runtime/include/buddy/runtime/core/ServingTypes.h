@@ -185,6 +185,10 @@ struct ChatMessage {
   std::string role;    // "system", "user", "assistant"
   std::string content; // Plain message text.
   std::vector<ImageInput> images;
+  /// An image content part followed nonempty text in the original message.
+  /// Adapters restricted to image-prefix layouts must reject this ordering.
+  /// Direct C++ callers use prefix placement unless they set this flag.
+  bool imagesAfterText = false;
 };
 
 /// Chat completion request. If messages is empty, input is treated as a single

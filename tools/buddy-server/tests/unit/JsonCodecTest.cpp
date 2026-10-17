@@ -335,6 +335,15 @@ void testCodecsAndChat() {
       R"({"messages":[{"role":"user","content":[{"type":"text","text":"A","image_url":null},{"type":"image_url","image_url":"/tmp/a.png","text":null}]}]})");
   CHECK(nullCrossFields.request.messages.front().content == "A");
   CHECK(nullCrossFields.request.images.size() == 1);
+  CHECK(nullCrossFields.request.messages.front().imagesAfterText);
+  auto prefixImage = parseChatCompletionRequest(
+      R"({"messages":[{"role":"user","content":[{"type":"text","text":""},{"type":"image_url","image_url":"image.png"},{"type":"text","text":"caption"}]}]})");
+  CHECK(!prefixImage.request.messages.front().imagesAfterText);
+  CHECK(prefixImage.request.messages.front().content == "caption");
+  auto interleavedImage = parseChatCompletionRequest(
+      R"({"messages":[{"role":"user","content":[{"type":"text","text":"before"},{"type":"image_url","image_url":"image.png"},{"type":"text","text":"after"}]}]})");
+  CHECK(interleavedImage.request.messages.front().imagesAfterText);
+  CHECK(interleavedImage.request.messages.front().content == "beforeafter");
   auto nullImageAlias = parseChatCompletionRequest(
       R"({"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":null,"uri":"/tmp/a.png"}}]}]})");
   CHECK(nullImageAlias.request.images.front().uri == "/tmp/a.png");

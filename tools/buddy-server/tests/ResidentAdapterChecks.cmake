@@ -147,3 +147,4 @@ list(APPEND BUDDY_SERVER_RESIDENT_ADAPTER_TARGETS
 
 include(${CMAKE_CURRENT_LIST_DIR}/Llama31TTTests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/Qwen3VLRawCodecTests.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/Qwen3VLTests.cmake)

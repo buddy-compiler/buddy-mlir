@@ -297,6 +297,7 @@ void parseMessageContent(const json::Value &value, ChatMessage &message,
         }
       if (!imageValue)
         throw JsonCodecError("image content part requires image_url: " + field);
+      message.imagesAfterText |= !message.content.empty();
       appendImage(message.images,
                   parseImageValue(*imageValue, field + ".image_url"), field);
       continue;

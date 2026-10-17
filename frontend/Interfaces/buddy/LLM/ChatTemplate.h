@@ -144,6 +144,9 @@ private:
     return defaultVal;
   }
 
+public:
+  /// Construct from an already parsed document so callers can validate the
+  /// source values before applying the template's legacy int conversion.
   static ChatTemplate fromJSON(const llvm::json::Value &root) {
     ChatTemplate tmpl;
     auto *obj = root.getAsObject();
