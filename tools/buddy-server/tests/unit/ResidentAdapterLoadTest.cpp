@@ -47,8 +47,9 @@ int main(int argc, char **argv) {
           model->isLoaded())
         throw std::runtime_error("new resident model must be unloaded");
 
-      // No production adapter has certified the compatible serving path yet.
-      // Query every capability through the new vtable before loading weights.
+      // Capabilities depend on loaded resources and remain empty while
+      // unloaded. Query every capability through the v2 vtable before loading
+      // weights.
       const auto caps = model->capabilities();
       const auto &sampling = caps.sampling;
       if (caps.rawTokenize || caps.rawDetokenize || caps.tokenizeAddSpecial ||
