@@ -25,6 +25,10 @@ are checked against backend observations recorded by the fixture. The
 seed examples check how explicit seeds reach the backend; real seeded sampling
 and repeat-request reproducibility require separate Sampler/runtime tests.
 
+Before starting a server, the executor rejects unsupported format versions,
+duplicate IDs, unknown profiles or `setup`/`expect` fields, and assertions that
+do not match the JSON or SSE response branch.
+
 The executor uses these assertion rules:
 
 * `request.method`, `path`, and optional `json` define the HTTP request.
@@ -41,7 +45,8 @@ The executor uses these assertion rules:
   counts literal `[DONE]` events, and `eof` requires the connection to close.
 * `consistent_event_fields` requires the same values across all JSON events;
   `required_event_types` validates their types. `usage_events` counts events
-  carrying usage; `concatenated_content` checks native content deltas.
+  carrying usage; `concatenated_content` joins native content or chat
+  `delta.content` in order.
 
 Do not compare timestamps, timings, or arbitrary generated IDs as golden bytes.
 Always parse actual wire JSON strictly before comparing decoded values. A NUL
@@ -87,3 +92,5 @@ the legacy generation overload. See the [TT serving guide](llama31-tt.md) and
 [Qwen serving guide](qwen3-vl.md) for supported modes and tokenizer/package
 limits. Portable link checks and synthetic HTTP/runtime fixtures do not
 exercise real model inference, SDK branches, or devices.
+See the [server validation boundaries](../README.md#build-checks) for the
+separate real-weight, TTNN SDK, device, and external-client acceptance areas.

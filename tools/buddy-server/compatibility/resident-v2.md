@@ -116,12 +116,17 @@ DeepSeek and Qwen production plugin targets can also be built in separately
 configured model build directories without importing weights:
 
 ```bash
-cmake --build <deepseek-build> --target buddy_models_deepseek_r1_server -- -j1
-cmake --build <qwen-build> --target buddy_models_qwen3_vl_server -- -j1
+cmake --build "$DEEPSEEK_BUILD" --target buddy_models_deepseek_r1_server -- -j1
+cmake --build "$QWEN_BUILD" --target buddy_models_qwen3_vl_server -- -j1
 ```
+
+Set these variables to build directories configured with the corresponding
+model option and matching local model metadata.
 
 The TT portable source check uses `BUDDY_LLAMA31_TT_HAS_TTNN=0`. Compiling the
 SDK branch requires `buddy_models_llama31_tt_server_runtime` and
 `buddy_models_llama31_tt_server` with the real SDK and
 `BUDDY_LLAMA31_TT_HAS_TTNN=1`. Portable link/load checks do not compile that
 branch or exercise model inference, devices, or external serving integrations.
+The [server validation boundaries](../README.md#build-checks) distinguish those
+acceptance areas from default-suite coverage.
