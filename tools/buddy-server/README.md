@@ -65,6 +65,18 @@ ninja -C build -j1 check-buddy
 tests, and `check-buddy` includes `check-buddy-server`. All server CTest checks
 run with one worker.
 
+The [build workflow](../../.github/workflows/TestBuild.yml) also runs the server
+and runtime/CLI regressions with model downloads disabled. The equivalent local
+entry point is:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  ninja -C build -j1 check-buddy-server check-buddy-runtime-llm
+```
+
+This offline check uses metadata and synthetic fixtures. Its validation scope
+excludes SDK compilation and actual model inference, as detailed below.
+
 | Link-check target | Production sources checked |
 | --- | --- |
 | `buddy-server-deepseek-resident-link-check` | DeepSeek resident model, plugin, and the real generated `ModelSession`. |
@@ -112,6 +124,15 @@ ctest --test-dir build --output-on-failure -j1 \
 serving tests and Qwen raw-codec/serving tests run through `check-buddy-server`
 and `check-buddy`.
 
+The checks above leave the following integration properties unverified:
+
+| Validation area | Required evidence beyond the default suite |
+| --- | --- |
+| DeepSeek actual inference | Matching model kernels and weights, packaged completion/chat over HTTP, streaming, repeated requests, and output-quality checks. Scripted sessions and plugin compilation do not establish these results. |
+| TTNN SDK compilation | Both production TT server targets compiled with the actual SDK and `BUDDY_LLAMA31_TT_HAS_TTNN=1`. The portable target compiles with this setting disabled. |
+| TT and Qwen actual inference | Matching programs/kernels, real weights, and execution on the intended device or host, including output quality and complete HTTP requests. Synthetic programs and dynamically loaded fixture kernels do not establish these results. |
+| External serving integration | End-to-end requests through RuyiAI-Serving or another external client. The direct HTTP contract fixture does not exercise that integration. |
+
 ## Serving compatibility contract
 
 The comparison is pinned to Buddy
@@ -158,19 +179,21 @@ separately from production adapter and real inference checks.
 
 ### Normalization and parameter semantics
 
-Process fields in this order: recognize names, normalize optional `null`, select
-aliases, validate types and ranges, supply defaults, then check backend
-capabilities. Remember which non-null fields were explicitly supplied. Required
+The compatible resident and embedding JSON routes recognize field names,
+normalize optional `null`, select aliases, validate types and ranges, supply
+defaults, then check declared backend capabilities where applicable. They retain
+which non-null fields were explicitly supplied. Required
 prompt/content/messages/tokens remain subject to their endpoint input checks.
 Unknown names, even with `null`, return 400. A recognized but unimplemented
 optional feature is rejected when non-null; `null` does not request that feature.
+The dedicated masked-LM and transcription APIs retain their own parsers.
 
 | Field | Pinned Buddy parser | Implemented default and accepted values | Contract IDs |
 | --- | --- | --- | --- |
 | Length aliases | Only `max_tokens`; other names ignored. | First non-null of `n_predict`, `max_completion_tokens`, `max_tokens`. Validate only that value; differing aliases are not a conflict. Default 512; integer `[-1, INT32_MAX]`. | P01–P03 |
 | New-token budget | Backend-dependent: DeepSeek/Qwen use total-token limits; TT uses a new-token limit. | 0 evaluates the prompt without sampling; −1 runs until stop/context boundary; positive values count sampled new tokens. Prompt overflow is an error; no silent truncation/context movement. | C01–C08 |
 | `temperature` | Number copied without range checks. | 0; finite number; nonpositive becomes greedy. | P04 |
-| `top_k` | Integer narrowed to `int`. | 0; representable integer; nonpositive disables filtering. | P05 |
+| `top_k` | Integer narrowed to `int`. | 0; integer `[INT32_MIN, INT32_MAX]`; nonpositive disables filtering. | P05 |
 | `top_p` | Number copied without range checks. | 1; finite number in `(0,1]`. | P06 |
 | `min_p` | Number copied without range checks. | 0; finite number in `[0,1]`. | P07 |
 | `repeat_penalty` | Number copied without range checks. | 1; finite number greater than 0. | P08 |
@@ -198,13 +221,12 @@ requests. For example, explicitly setting `temperature:0` still returns 400.
 Upstream's seed sentinel is defined in [llama.h][llama-header] and interpreted
 in [llama-sampler.cpp][llama-sampler].
 
-Keep Buddy's greedy defaults (`temperature=0`, `top_k=0`, `top_p=1`, `min_p=0`)
-and default budget 512. Upstream defaults differ. Keep the existing chat
-`input`/`prompt`, tokenize `text`/`count_only`, and `image_path` extensions, with
-proper type validation; when `messages` is provided, it takes precedence over
-bare chat text. `add_special` adds model-defined special tokens only, never chat
-wrapping. Capability checks must describe the loaded artifact/configuration,
-not infer support from a model-family name.
+Buddy uses greedy defaults (`temperature=0`, `top_k=0`, `top_p=1`, `min_p=0`)
+and a default budget of 512. Upstream defaults differ. The existing chat
+`input`/`prompt`, tokenize `text`/`count_only`, and `image_path` extensions have
+type validation; when `messages` is provided, it takes precedence over bare chat
+text. `add_special` adds model-defined special tokens without chat wrapping.
+Capability checks use the loaded artifact/configuration.
 
 ### Response and streaming semantics
 
@@ -245,7 +267,7 @@ data: [DONE]
 ```
 
 Errors use `{"error":{"message":"...","type":"...","code":400}}`, with
-the offending parameter named in validation messages. Cover invalid requests
+the offending parameter named in validation messages. They cover invalid requests
 (400), unknown paths (404), wrong methods (405), unavailable models (503), and
 unexpected failures (500). Both handler and routing errors use this envelope;
 wrong methods return 405 with `Allow`. JSON/capability validation and backend

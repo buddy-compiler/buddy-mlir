@@ -8,7 +8,10 @@ compile the real resident adapter and generated ModelSession offline. Generated
 files stay in the build directory. The spec supplies parameter counts, so this
 check does not need PyTorch, Transformers, model weights, or generated kernels.
 
-The load tests only create each production resident model, verify its initial
-unloaded state through the v1 interface, and destroy it. The portable
+The load tests use the production discovery descriptor and resident v2 loader.
+They create each production resident model twice, verify its initial unloaded
+state and empty capabilities, check that raw decoding rejects unloaded use,
+and destroy it. They do not load weights or execute model kernels. The portable
 Tenstorrent check explicitly compiles with `BUDDY_LLAMA31_TT_HAS_TTNN=0`; it does
-not validate the TTNN SDK branch or inference on a device.
+not validate the TTNN SDK branch or inference on a device. See the
+[build checks and validation boundaries](../README.md#build-checks).
