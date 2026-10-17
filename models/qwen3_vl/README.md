@@ -70,6 +70,8 @@ Qwen-3-VL 0.0
 2026
 ```
 
+## Run with buddy-server
+
 Qwen3-VL packages also contain `qwen3_vl_server.so`, referenced by the
 manifest `model_library` attribute. Start the resident HTTP model with:
 
@@ -79,32 +81,64 @@ manifest `model_library` attribute. Start the resident HTTP model with:
   --host 127.0.0.1 --port 8080
 ```
 
-The server accepts one local image through `image_path`, or an OpenAI-style
-chat content array:
+The server exposes completion/chat, raw `/tokenize` and `/detokenize`, health,
+and model listing. It accepts one local image through `image_path`, or an
+OpenAI-style chat content array. Put the image before text and use the
+canonical packaged instruction:
 
 ```json
 {
   "messages": [{
     "role": "user",
     "content": [
-      {"type": "text", "text": "Read all text in the image."},
-      {"type": "image_url", "image_url": {"url": "file:/tmp/input.png"}}
+      {"type": "image_url", "image_url": {"url": "models/qwen3_vl/test_text.png"}},
+      {"type": "text", "text": "Read all the text in the image."}
     ]
   }],
   "stream": false
 }
 ```
 
-Only local paths/file URIs and one fixed-grid image are currently supported;
-omitting the image uses the packaged test image.
-Remote URLs, data URIs, in-memory image bytes, multiple images, video and
-non-greedy sampling are rejected or unsupported. Decoder RoPE tables are
-packaged for the build-time prompt length; requests with another tokenized
-prompt length are rejected rather than producing silently incorrect results.
-String stop sequences are not applied; `stop_token_ids` and the model EOS
-ids are honored.
-The HTTP resident path is implemented separately from `Qwen3VLRunner`, so
-the existing buddy-cli interface and output behavior remain unchanged.
+Only local paths/hostless `file:` URIs and one fixed-grid image are supported.
+Text-before-image, interleaved image/text, multiple image occurrences, remote
+URLs, data URIs, in-memory image bytes, and video are rejected. A top-level
+image, or the bundled fallback when no image is supplied, attaches to the first
+user message. Default chat preserves system/user/assistant roles, empty message
+contents, and multiple turns; a configured Buddy JSON template is cached when
+loading and rendered once. Unsupported roles are rejected.
+
+Decoder RoPE tables and image positions are packaged for the build-time prompt
+layout. Both the complete encoded prompt length and all 98 image-pad positions
+must match those resources. A differently shaped request requires rebuilt
+positional constants. Completion expects an already rendered prompt with
+exactly one `<|vision_start|>` + 98 `<|image_pad|>` + `<|vision_end|>` block;
+it adds no template, image block, or BOS. Chat adds that block itself before
+the selected user message's text. The example above uses the default build-time
+instruction but still requires matching positional resources.
+
+HTTP generation is greedy only: omit `temperature`, `top_k`, `top_p`, `min_p`,
+`repeat_penalty`, `repeat_last_n`, and `seed`. Explicit non-null sampling fields
+are rejected even at default values, including `temperature:0`. Budget aliases
+use `n_predict > max_completion_tokens > max_tokens`; 0 evaluates the prompt,
+-1 runs until stop/context, and positive values count newly selected tokens.
+The shared serving controller applies string/token stops, usage accounting,
+UTF-8 streaming, and cancellation with cleanup for subsequent requests.
+
+Raw tokenization adds no chat/image scaffold or automatic BOS and never
+truncates. It uses deterministic DP segmentation of the packaged byte
+vocabulary; canonical BPE merge rules, regex splitting, and NFC normalization
+are absent. It therefore does not certify canonical or legacy token ID
+equivalence. Raw detokenization validates every ID, joins bytes including
+special tokens and content after EOS, and repairs UTF-8 once.
+
+See the [Qwen serving guide](../../tools/buddy-server/compatibility/qwen3-vl.md)
+for codec options, fully rendered completion examples, template/image limits,
+and validation boundaries. Build server/runtime/resident plugins from matching
+sources for the v2 `ChatMessage.imagesAfterText` DTO layout. Default runtime
+tests use synthetic RAX resources and dynamically loaded fixture kernels,
+without exercising model weights or model arithmetic. The resident path uses
+different tokenizer and request controls from `Qwen3VLRunner`, preserving
+the existing buddy-cli interface and output behavior.
 
 ## Notes
 

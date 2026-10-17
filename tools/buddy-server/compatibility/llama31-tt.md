@@ -95,7 +95,8 @@ The request's model alias does not switch the single loaded model; results and
 stream chunks identify the loaded model. Resident requests are serialized.
 Request-scoped KV state, inputs, and outputs are released on success,
 cancellation, or exception, allowing subsequent requests to reuse the session.
-When a callback returns false, no more callbacks or terminal chunk are emitted.
+When a callback returns false, no further callbacks are emitted; cancellation
+before the terminal chunk suppresses it.
 
 ## Build and validation boundaries
 
@@ -130,7 +131,8 @@ cmake --build "$BUDDY_BUILD" --target \
   buddy_models_llama31_tt_server_runtime buddy_models_llama31_tt_server -- -j1
 ```
 
-Portable link/load checks, scripted generation, and the synthetic HTTP
-contract exercise different paths from SDK-enabled model execution.
-Validate the production targets with the SDK and run the packaged model
-on a device to check inference behavior.
+Portable link/load checks, scripted generation, and the synthetic HTTP contract
+exercise different paths from SDK-enabled model execution. Validate the
+production targets with the SDK and run the packaged model on a device to
+check inference behavior. Qwen's serving limits are described in the
+[Qwen guide](qwen3-vl.md).

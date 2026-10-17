@@ -98,14 +98,18 @@ its production resident adapter and raw codec with an injected scripted
 and serving tests also build with all model options OFF. The TT serving test
 executes the production execution/resident classes with a scripted token source
 and a synthetic byte vocabulary, including special-token metadata and templates.
-It supplies token IDs directly and requires no TTNN SDK. The separate HTTP contract
-fixture executes the shared generation controller through real sockets and
+It supplies token IDs directly and requires no TTNN SDK. Qwen raw-codec tests
+use the repository vocabulary; its serving test loads synthetic RAX resources
+through the production runtime and calls real `dlopen` vision/decoder fixture
+kernels. It covers request behavior and resource flow without Qwen weights or
+model arithmetic. The separate HTTP contract fixture executes the shared
+generation controller through real sockets and
 checks the contract examples, streaming framing, errors, and cancellation.
 These tests do not load model weights.
 
-These checks validate source compatibility and plugin linking. Inference
-acceptance still needs real model artifacts. The portable TT check does not
-validate the TTNN SDK branch: the separate production targets
+These checks validate source compatibility and plugin linking without exercising
+model inference. The portable TT check does not validate the TTNN SDK branch:
+the production targets
 `buddy_models_llama31_tt_server_runtime` and `buddy_models_llama31_tt_server`
 require the actual TT SDK and compile with `BUDDY_LLAMA31_TT_HAS_TTNN=1`.
 To build and run the TT source tests alone:
@@ -117,29 +121,34 @@ ctest --test-dir build --output-on-failure -j1 \
   -R '^buddy-server-llama31-tt-(execution|batch-manifest|serving)$'
 ```
 
-`check-buddy-resident-adapters` runs plugin link/load checks; the TT execution
-and serving tests run through `check-buddy-server` and `check-buddy`.
+`check-buddy-resident-adapters` runs plugin link/load checks; TT execution and
+serving tests and Qwen raw-codec/serving tests run through `check-buddy-server`
+and `check-buddy`.
 
-## Issue #912 compatibility contract
+## Serving compatibility contract
 
 The comparison is pinned to Buddy
 `5f4e6edaa07d284a34efdc4e47a2f888d042c8f2` and llama.cpp
-`3e4dfa8f39f904e681737d9f512a6e6338d848aa`. The tables distinguish
-the pinned Buddy baseline from the serving contract. Supported requests
-depend on the loaded adapter and package. The examples in
-[compatibility/](compatibility/README.md) specify request and response
-semantics; synthetic fixtures do not execute model weights.
-Qwen does not advertise compatible generation or raw codecs.
-Its legacy CLI entry point remains available.
+`3e4dfa8f39f904e681737d9f512a6e6338d848aa`. The public JSON/HTTP contract
+uses resident ABI v2. DeepSeek supports raw codecs and sampling. Llama 3.1 TT
+supports raw codecs and greedy serving for batch 1 packages with a
+tiktoken-format `tokenizer.model`. Qwen3-VL supports raw codecs, role-preserving
+chat, and greedy single-image generation with static prompt/image-position
+guards.
+Requests are rejected when the loaded adapter does not declare support.
+See [DeepSeek setup and codec limits](compatibility/deepseek.md),
+[TT setup, sampling, and tokenizer limits](compatibility/llama31-tt.md), and
+[Qwen tokenizer, image-layout, and package limits](compatibility/qwen3-vl.md).
+The examples in [compatibility/](compatibility/README.md) run against a
+synthetic HTTP fixture without model weights or model arithmetic.
 
 The upstream references are the fixed revision's
 [endpoint documentation][llama-readme], [generation schema][llama-schema],
 [schema alias handling][llama-schema-header], and
 [HTTP tokenizer handlers][llama-context]. “Baseline” below means the pinned
 Buddy source. The implemented column describes the shared serving contract
-used by DeepSeek and TT; individual capabilities still depend on the loaded
-artifacts. Test IDs identify
-request and response contract scenarios.
+used by DeepSeek, TT, and Qwen; individual capabilities depend on the loaded
+artifacts. Test IDs identify executable contract scenarios.
 
 | Interface | Fixed upstream behavior | Pinned Buddy baseline | Implemented serving behavior | Backend scope | Contract IDs and remaining differences |
 | --- | --- | --- | --- | --- | --- |
@@ -196,9 +205,9 @@ Empty completion/tokenizer text is accepted by JSON parsing; generation still
 requires the loaded codec to produce an input token (DeepSeek completion adds
 BOS). An explicitly supplied unsupported sampling field is rejected even when
 its value is neutral; omitted/null fields do not request that feature.
-TT declares greedy generation only: omit `temperature`, `top_k`, `top_p`,
-`min_p`, `repeat_penalty`, `repeat_last_n`, and `seed` from TT HTTP requests.
-For example, explicitly setting `temperature:0` still returns 400 on TT.
+TT and Qwen declare greedy generation only: omit `temperature`, `top_k`,
+`top_p`, `min_p`, `repeat_penalty`, `repeat_last_n`, and `seed` from their HTTP
+requests. For example, explicitly setting `temperature:0` still returns 400.
 Upstream's seed sentinel is defined in [llama.h][llama-header] and interpreted
 in [llama-sampler.cpp][llama-sampler].
 
@@ -224,8 +233,7 @@ sampled tokens, including a token that triggers EOS or a stop. String/token
 stops take precedence over the budget when both occur on the same step.
 Generation is shared between streaming and nonstreaming serving paths; each
 request resets its session, and cancellation/errors release resources so another
-request can run. Serving does not change model weights,
-kernels, or numerical precision.
+request can run.
 
 Chat responses include `created` (Unix seconds). Every event for one request
 uses the same ID, model, and timestamp. A normal chat stream sends an assistant
@@ -261,25 +269,24 @@ encoding is unsupported.
 
 ### Adapter and regression boundaries
 
-| Path | Implementation boundary | Acceptance boundary |
+| Path | Implementation boundary | Test scope and limitations |
 | --- | --- | --- |
-| DeepSeek R1 | Public serving generation, raw codec, declared sampling; JSON template required for chat. | Scripted production adapter and HTTP tests run without weights. Real artifact completion/chat, JSON/SSE and cancellation require separate acceptance. |
-| Llama 3.1 TT | Shared serving controller over device token IDs or Float32/BFloat16 logits; greedy only. Both program output descriptors must qualify before compatible generation is declared; Float16 keeps legacy generation only. Raw codec requires `tokenizer.model`; whole-span BPE omits canonical regex pre-tokenization. | Production execution/resident tests inject a token source. SDK compilation and device inference remain separate; token IDs are not certified equivalent to the canonical Llama tokenizer. |
-| Qwen3-VL | Existing greedy/single-image runtime; resident v2 capabilities remain conservative. | The adapter does not advertise compatible HTTP generation or raw codecs. |
-| CLI | Old bool `runGeneration` overload prints plain text or JSONL, with historical budget, repeat-penalty, and nonzero-seed behavior. | Golden tests execute that exact overload. HTTP budget, seed-0, and history changes do not alter it. |
-| Other service kinds | Dedicated embedding, masked-LM, and transcription factories/routes. | Preserve those interfaces, factories, and regression tests. |
+| DeepSeek R1 | Public serving generation, raw codec, declared sampling; JSON template required for chat. | Scripted production adapter and HTTP tests exercise completion/chat, JSON/SSE, and cancellation without model weights or kernels. |
+| Llama 3.1 TT | Shared serving controller over device token IDs or Float32/BFloat16 logits; greedy only. Both program output descriptors must qualify before compatible generation is declared; Float16 keeps legacy generation only. Raw codec requires `tokenizer.model`; whole-span BPE omits canonical regex pre-tokenization. | Production execution/resident tests inject a token source without compiling the TTNN SDK branch or exercising devices. Token IDs are not certified equivalent to the canonical Llama tokenizer. |
+| Qwen3-VL | Shared serving controller, greedy only; raw DP codec without automatic BOS; chat preserves supported roles/empty turns and one image before user text. Encoded prompt length and image positions must match packaged static resources. | Default tests use production runtime/RAX loading with synthetic dynamically loaded kernels, without exercising model weights or arithmetic. Raw token IDs are not certified canonical or legacy equivalent. |
+| CLI | The bool `runGeneration` overload prints plain text or JSONL, with its CLI budget, repeat-penalty, and nonzero-seed behavior. | Golden tests execute that overload independently of the HTTP serving controller. |
+| Other service kinds | Dedicated embedding, masked-LM, and transcription factories/routes. | HTTP tests exercise each service's interfaces and factories. |
 
-The resident v2 loader requires
+The resident loader requires
 `buddy_create_resident_model_v2`, `buddy_destroy_resident_model_v2`, and
 `buddy_resident_model_type_v2`, and checks all three before invoking a resident
 entry point. It rejects v1 plugins without constructing an object. Rebuild
 server/runtime/resident plugins together and repackage `.rax` files; there is no
 v1 fallback. Discovery descriptor v1, CLI runner, embedding, masked-LM, and
 transcription ABIs stay as they are. See the
-[migration guide](compatibility/resident-v2.md) for the DTO boundary, checks, and
-remaining backend acceptance requirements.
-No claim of backend device acceptance, real inference, or external serving
-integration follows from the contract examples or a no-weight adapter link check.
+[ABI guide](compatibility/resident-v2.md) for the DTO boundary and test scopes.
+Contract examples and no-weight adapter link checks do not exercise backend
+devices, model inference, or external serving integrations.
 
 [llama-readme]: https://github.com/ggml-org/llama.cpp/blob/3e4dfa8f39f904e681737d9f512a6e6338d848aa/tools/server/README.md
 [llama-schema]: https://github.com/ggml-org/llama.cpp/blob/3e4dfa8f39f904e681737d9f512a6e6338d848aa/tools/server/server-schema.cpp
