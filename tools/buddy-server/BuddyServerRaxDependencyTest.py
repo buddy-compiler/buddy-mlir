@@ -33,7 +33,7 @@ def main() -> int:
         check=False,
     )
     assert result.returncode != 0, "server unexpectedly started"
-    assert "missing buddy_create_resident_model_v1" in result.stderr, (
+    assert "missing buddy_create_resident_model_v2" in result.stderr, (
         result.stderr
     )
     assert "returned a null descriptor" not in result.stderr, result.stderr

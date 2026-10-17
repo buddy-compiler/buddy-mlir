@@ -21,13 +21,17 @@
 //
 // Required exports:
 //   extern "C" buddy::runtime::ResidentModel *
-//   buddy_create_resident_model_v1();
+//   buddy_create_resident_model_v2();
 //
 //   extern "C" void
-//   buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *);
+//   buddy_destroy_resident_model_v2(buddy::runtime::ResidentModel *);
 //
-// Optional export:
-//   extern "C" const char *buddy_resident_model_type_v1();
+//   extern "C" const char *buddy_resident_model_type_v2();
+//
+// All three v2 symbols are required. There is no v1 fallback: the additional
+// virtual methods and serving DTOs are incompatible with the v1 C++ ABI.
+// Rebuild server/runtime/resident plugins together and repackage .rax files.
+// The discovery descriptor and non-resident service ABIs remain v1.
 //
 //===----------------------------------------------------------------------===//
 

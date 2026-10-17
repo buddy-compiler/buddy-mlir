@@ -18,6 +18,7 @@
 #define BUDDY_RUNTIME_MODELS_LLAMA31TTEXECUTION_H
 
 #include "buddy/runtime/core/ServingTypes.h"
+#include "buddy/runtime/llm/ServingGeneration.h"
 
 #include <cstdint>
 #include <functional>
@@ -26,6 +27,7 @@
 #include <vector>
 
 namespace buddy {
+class ChatTemplate;
 namespace runtime {
 
 /// Long-lived, model-specific state used by the llama31_tt resident plugin.
@@ -65,9 +67,13 @@ public:
   using Backend = std::function<CompletionResult(
       const BackendRequest &, const CompletionStreamCallback &)>;
   using ResetCallback = std::function<void()>;
+  using ServingBackend = std::function<CompletionResult(
+      const std::string &, const SamplingParams &, const ServingTextCodec &,
+      const CompletionStreamCallback &)>;
   struct BackendHooks {
     Backend generate;
     ResetCallback reset;
+    ServingBackend serve;
   };
   using BackendFactory = std::function<BackendHooks(const Metadata &)>;
 
@@ -87,17 +93,30 @@ public:
 
   TokenizeResult tokenize(const std::string &text, bool countOnly,
                           bool addSpecial = true) const;
+  TokenizeResult tokenizeRaw(const TokenizeRequest &request) const;
+  DetokenizeResult detokenize(const DetokenizeRequest &request) const;
+  ResidentModelCapabilities capabilities() const;
   std::string renderChat(const ChatCompletionRequest &request) const;
 
   CompletionResult generate(const std::string &prompt,
                             const SamplingParams &sampling,
                             const CompletionStreamCallback &callback = {});
 
+  /// Compatible serving path. The legacy generate() entry retains its limits
+  /// and output contract for existing non-HTTP callers.
+  CompletionResult
+  generateServing(const std::string &prompt, const SamplingParams &sampling,
+                  const CompletionStreamCallback &callback = {},
+                  bool addSpecial = true);
+
   /// Install a test/injected backend. A production plugin uses
   /// setBackendFactory() to create its hardware session during load().
   void setBackend(Backend backend) { backendValue = std::move(backend); }
   void setBackendFactory(BackendFactory factory) {
     backendFactory = std::move(factory);
+  }
+  void setServingBackend(ServingBackend backend) {
+    servingBackend = std::move(backend);
   }
   void setResetCallback(ResetCallback callback) {
     resetCallback = std::move(callback);
@@ -108,11 +127,12 @@ private:
   std::unique_ptr<Tokenizer> tokenizer;
   Metadata metadataValue;
   Backend backendValue;
+  ServingBackend servingBackend;
   BackendFactory backendFactory;
   ResetCallback resetCallback;
   int cachePositionValue = 0;
   bool loaded = false;
-  std::string chatTemplatePath;
+  std::unique_ptr<buddy::ChatTemplate> chatTemplate;
 };
 
 } // namespace runtime

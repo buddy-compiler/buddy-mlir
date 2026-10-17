@@ -18,16 +18,16 @@
 #include "buddy/runtime/core/ResidentModelPlugin.h"
 #include "buddy/runtime/models/DeepSeekR1ResidentModel.h"
 
-extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
+extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v2() {
   return new buddy::runtime::DeepSeekR1ResidentModel();
 }
 
 extern "C" void
-buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *model) {
+buddy_destroy_resident_model_v2(buddy::runtime::ResidentModel *model) {
   delete model;
 }
 
-extern "C" const char *buddy_resident_model_type_v1() { return "deepseek_r1"; }
+extern "C" const char *buddy_resident_model_type_v2() { return "deepseek_r1"; }
 
 extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
 buddy_model_plugin_descriptor_v1() {

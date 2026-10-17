@@ -53,6 +53,10 @@ public:
   /// Return the current load/runtime status.
   virtual ModelStatus status() const = 0;
 
+  /// Describe compatible serving features of the loaded artifact/configuration.
+  /// Return conservative defaults before load or before a feature is migrated.
+  virtual ResidentModelCapabilities capabilities() const = 0;
+
   /// Convenience predicate for /health.
   virtual bool isLoaded() const {
     return status().state == ModelLoadState::Ready;
@@ -63,6 +67,11 @@ public:
 
   /// Tokenize text using the model-specific tokenizer.
   virtual TokenizeResult tokenize(const TokenizeRequest &request) = 0;
+
+  /// Decode all tokens as raw text, including special tokens and bytes after
+  /// EOS. Join bytes before UTF-8 repair. Reject unsupported decoding
+  /// explicitly.
+  virtual DetokenizeResult detokenize(const DetokenizeRequest &request) = 0;
 
   /// Run a non-streaming completion on a fully rendered prompt.
   virtual CompletionResult complete(const CompletionRequest &request) = 0;

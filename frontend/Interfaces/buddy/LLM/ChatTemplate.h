@@ -106,6 +106,18 @@ public:
   const std::string &bosToken() const { return bosToken_; }
   const std::string &eosToken() const { return eosToken_; }
 
+  /// Roles expressible by this template. Callers must reject other roles
+  /// rather than allowing apply() to drop their role markers.
+  std::vector<std::string> supportedRoles() const {
+    std::vector<std::string> roles;
+    for (const auto &entry : rolePrefixes_)
+      roles.push_back(entry.first);
+    if (systemInFirstUser_ && rolePrefixes_.count("system") == 0)
+      roles.push_back("system");
+    return roles;
+  }
+  bool systemInFirstUser() const { return systemInFirstUser_; }
+
 private:
   std::string bosToken_;
   std::string eosToken_;
@@ -132,6 +144,9 @@ private:
     return defaultVal;
   }
 
+public:
+  /// Construct from an already parsed document so callers can validate the
+  /// source values before applying the template's legacy int conversion.
   static ChatTemplate fromJSON(const llvm::json::Value &root) {
     ChatTemplate tmpl;
     auto *obj = root.getAsObject();

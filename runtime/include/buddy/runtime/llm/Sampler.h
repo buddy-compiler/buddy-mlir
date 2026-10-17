@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <numeric>
 #include <random>
@@ -54,6 +55,13 @@ public:
       std::random_device rd;
       rng_.seed(rd());
     }
+  }
+
+  /// Use an explicitly selected seed, including zero. The one-argument
+  /// constructor retains its historical zero-means-random behavior.
+  Sampler(SamplerConfig config, uint64_t explicitSeed)
+      : config_(config), rng_(explicitSeed) {
+    config_.seed = explicitSeed;
   }
 
   /// Select next token from a logits array of the given vocabSize.

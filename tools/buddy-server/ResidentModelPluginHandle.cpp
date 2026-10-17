@@ -30,20 +30,14 @@ Fn lookupRequiredSymbol(void *handle, const std::string &pluginPath,
   dlerror();
   void *raw = dlsym(handle, symbol);
   const char *err = dlerror();
-  if (err) {
+  if (err || !raw) {
     throw std::runtime_error("buddy-server: resident plugin " + pluginPath +
-                             " missing " + symbol + ": " + err);
+                             " missing " + symbol +
+                             "; resident ABI v2 is required. Rebuild "
+                             "buddy-server, runtime and resident plugins "
+                             "together, then repackage .rax files: " +
+                             (err ? err : "symbol resolved to null"));
   }
-  return reinterpret_cast<Fn>(raw);
-}
-
-template <typename Fn>
-Fn lookupOptionalSymbol(void *handle, const char *symbol) {
-  dlerror();
-  void *raw = dlsym(handle, symbol);
-  const char *err = dlerror();
-  if (err)
-    return nullptr;
   return reinterpret_cast<Fn>(raw);
 }
 
@@ -63,17 +57,19 @@ ResidentModelPluginHandle::ResidentModelPluginHandle(
 
   try {
     create = lookupRequiredSymbol<buddy::runtime::CreateResidentModelFn>(
-        handle, pluginPath, "buddy_create_resident_model_v1");
+        handle, pluginPath, "buddy_create_resident_model_v2");
     destroy = lookupRequiredSymbol<buddy::runtime::DestroyResidentModelFn>(
-        handle, pluginPath, "buddy_destroy_resident_model_v1");
+        handle, pluginPath, "buddy_destroy_resident_model_v2");
 
-    auto type = lookupOptionalSymbol<buddy::runtime::ResidentModelTypeFn>(
-        handle, "buddy_resident_model_type_v1");
-    if (type) {
-      const char *name = type();
-      if (name)
-        pluginModelType = name;
-    }
+    // Resolve every required symbol before calling any plugin entry point.
+    // In particular, never construct a v1 object or access its old vtable.
+    auto type = lookupRequiredSymbol<buddy::runtime::ResidentModelTypeFn>(
+        handle, pluginPath, "buddy_resident_model_type_v2");
+    const char *name = type();
+    if (!name || !*name)
+      throw std::runtime_error("buddy-server: resident model type is empty: " +
+                               pluginPath);
+    pluginModelType = name;
   } catch (...) {
     dlclose(handle);
     handle = nullptr;

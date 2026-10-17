@@ -75,7 +75,7 @@ def main() -> int:
         Path(mismatch),
         work,
         "factory-mismatch",
-        "missing buddy_create_resident_model_v1",
+        "missing buddy_create_resident_model_v2",
     )
 
     print("buddy-server startup failure tests passed")

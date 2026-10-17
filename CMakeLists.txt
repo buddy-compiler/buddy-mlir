@@ -428,7 +428,7 @@ endif()
 
 if(BUDDY_ENABLE_TESTS)
   add_custom_target(check-buddy
-    DEPENDS check-examples check-tests
+    DEPENDS check-examples check-tests check-buddy-server
   )
 endif()
 

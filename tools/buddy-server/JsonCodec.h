@@ -22,6 +22,7 @@
 #include "buddy/runtime/core/MaskedLMTypes.h"
 #include "buddy/runtime/core/ServingTypes.h"
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 
@@ -41,11 +42,13 @@ struct DecodedAudioTranscriptionRequest {
 struct DecodedCompletionRequest {
   buddy::runtime::CompletionRequest request;
   bool stream = false;
+  bool includeUsage = false;
 };
 
 struct DecodedChatRequest {
   buddy::runtime::ChatCompletionRequest request;
   bool stream = false;
+  bool includeUsage = false;
 };
 
 struct DecodedEmbeddingRequest {
@@ -62,6 +65,21 @@ DecodedChatRequest parseChatCompletionRequest(const std::string &body);
 DecodedEmbeddingRequest parseEmbeddingRequest(const std::string &body);
 DecodedMaskedLMRequest parseMaskedLMRequest(const std::string &body);
 buddy::runtime::TokenizeRequest parseTokenizeRequest(const std::string &body);
+buddy::runtime::DetokenizeRequest
+parseDetokenizeRequest(const std::string &body);
+
+void validateCapabilities(
+    const DecodedCompletionRequest &decoded,
+    const buddy::runtime::ResidentModelCapabilities &capabilities);
+void validateCapabilities(
+    const DecodedChatRequest &decoded,
+    const buddy::runtime::ResidentModelCapabilities &capabilities);
+void validateCapabilities(
+    const buddy::runtime::TokenizeRequest &request,
+    const buddy::runtime::ResidentModelCapabilities &capabilities);
+void validateCapabilities(
+    const buddy::runtime::DetokenizeRequest &request,
+    const buddy::runtime::ResidentModelCapabilities &capabilities);
 
 std::string toJson(const buddy::runtime::ModelStatus &status);
 std::string toJson(const buddy::runtime::CompletionResult &result);
@@ -70,12 +88,25 @@ toOpenAIEmbeddingJson(const buddy::runtime::EmbeddingResult &result);
 std::string toOpenAIAudioTranscriptionJson(
     const buddy::runtime::AudioTranscriptionResult &result);
 std::string toJson(const buddy::runtime::MaskedLMResult &result);
-std::string toOpenAIChatJson(const buddy::runtime::CompletionResult &result);
-std::string toJson(const buddy::runtime::TokenizeResult &result,
-                   bool countOnly);
+/// Pass one request timestamp to all chat serializers to keep metadata stable.
+/// A zero timestamp defaults to the current Unix time.
+std::string toOpenAIChatJson(const buddy::runtime::CompletionResult &result,
+                             int64_t created = 0);
+std::string toJson(const buddy::runtime::TokenizeResult &result, bool countOnly,
+                   bool withPieces = false);
+std::string toJson(const buddy::runtime::DetokenizeResult &result);
+std::string toModelListJson(const buddy::runtime::ModelStatus &status,
+                            int64_t created = 0);
 
 std::string toCompletionChunkJson(const buddy::runtime::CompletionChunk &chunk);
-std::string toOpenAIChatChunkJson(const buddy::runtime::CompletionChunk &chunk);
+std::string toOpenAIChatChunkJson(const buddy::runtime::CompletionChunk &chunk,
+                                  int64_t created = 0);
+std::string toOpenAIChatRoleChunkJson(const std::string &id,
+                                      const std::string &model,
+                                      int64_t created = 0);
+std::string
+toOpenAIChatUsageChunkJson(const buddy::runtime::CompletionResult &result,
+                           int64_t created = 0);
 
 std::string errorJson(const std::string &message, const std::string &type,
                       int code);

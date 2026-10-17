@@ -150,7 +150,32 @@ int main() {
   assert(model.status().state == ModelLoadState::Ready);
   CompletionRequest request;
   request.prompt = "abc";
-  assert(model.complete(request).content == "resident");
+  assert(!model.capabilities().maxNewTokens);
+  expectFailure([&] { model.complete(request); }, "backend is unavailable");
+  modelExecution->setServingBackend(
+      [](const std::string &prompt, const SamplingParams &params,
+         const ServingTextCodec &codec,
+         const CompletionStreamCallback &callback) {
+        std::size_t index = 0;
+        ServingTokenSource source;
+        source.reset = [&] { index = 0; };
+        source.prefill = [](const std::vector<int> &) {};
+        source.decode = [](int) {};
+        source.selectToken = [&](const std::vector<int> &) {
+          return index++ == 0 ? 3 : 128009;
+        };
+        source.validToken = [&](int token) {
+          try {
+            (void)codec.tokenBytes(token);
+            return true;
+          } catch (const std::invalid_argument &) {
+            return false;
+          }
+        };
+        return runServingGeneration(prompt, source, params, codec, callback);
+      });
+  assert(model.capabilities().maxNewTokens);
+  assert(model.complete(request).content == "abc");
 
   expectFailure([&] { execution->generate("", sampling); }, "prompt is empty");
   assert(execution->cachePosition() == 0);
