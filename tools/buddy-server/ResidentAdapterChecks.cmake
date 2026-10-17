@@ -54,6 +54,7 @@ target_include_directories(buddy-server-deepseek-resident-link-check PRIVATE
   "${_RESIDENT_GENERATED_DIR}")
 
 add_library(buddy-server-qwen3-vl-resident-link-check MODULE
+  "${_RESIDENT_MODELS_DIR}/qwen3_vl/Qwen3VLRawCodec.cpp"
   "${_RESIDENT_MODELS_DIR}/qwen3_vl/Qwen3VLRuntime.cpp"
   "${_RESIDENT_MODELS_DIR}/qwen3_vl/Qwen3VLResidentModel.cpp"
   "${_RESIDENT_MODELS_DIR}/qwen3_vl/Qwen3VLResidentModelPlugin.cpp")
@@ -147,3 +148,4 @@ list(APPEND BUDDY_SERVER_RESIDENT_ADAPTER_TARGETS
   buddy-server-deepseek-serving-test)
 
 include(${CMAKE_CURRENT_LIST_DIR}/Llama31TTTests.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/Qwen3VLRawCodecTests.cmake)
