@@ -297,4 +297,18 @@ def TileDepthwiseConv2dOp : Tile_Op<"tile_depthwise_conv2d"> {
     type($input) type($filter) type($output)}];
 }
 
+def TileUpsampleNearestOp : Tile_Op<"tile_upsample_nearest"> {
+    let summary = "Upsample a tensor using nearest neighbor interpolation.";
+    let description = [{
+    Upsamples a 4D tensor [N, C, H, W] using nearest neighbor interpolation.
+    The scale factor is not stored explicitly; it is inferred from the ratio
+    between the output and input H/W dimensions.
+  }];
+    let arguments = (ins MemRefRankOf<[AnyType], [4]>:$input,
+                           MemRefRankOf<[AnyType], [4]>:$output
+    );
+    let assemblyFormat = [{$input $output attr-dict `:`
+    type($input) type($output)}];
+}
+
 #endif // TILE_OPS

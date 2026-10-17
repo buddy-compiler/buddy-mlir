@@ -615,7 +615,7 @@ public:
     auto inputType = dyn_cast<MemRefType>(input.getType());
     auto zeroType = dyn_cast<MemRefType>(zero.getType());
     auto outputType = dyn_cast<MemRefType>(output.getType());
-    if (!inputType || !zeroType || !outputType || !inputType.hasStaticShape() ||
+    if (!inputType || !zeroType || !outputType || !inputType.hasStaticShape() ||     
         !zeroType.hasStaticShape() || !outputType.hasStaticShape() ||
         inputType.getRank() != 2 || zeroType.getRank() != 2 ||
         outputType.getRank() != 2 ||
@@ -1392,6 +1392,46 @@ public:
   }
 };
 
+class UpsampleNearestLowering
+    : public OpRewritePattern<linalg::GenericOp> {
+public :
+  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::GenericOp convOp,
+                                PatternRewriter &rewriter) const override {
+    Block &body = convOp.getRegion().front();
+    if (body.getOperations().size() != 5)
+      return failure();
+    
+    auto inputs = convOp.getInputs();
+    auto outputs = convOp.getOutputs();
+    if (inputs.size() != 2 || outputs.size() != 1)
+      return failure();
+
+    memref::LoadOp LoadOp;  
+    int loadCount = 0,linalgCount = 0,indexCastCount = 0;
+    for (auto &op : body.getOperations()){
+      if (isa<memref::LoadOp>(op)) {
+        LoadOp = dyn_cast<memref::LoadOp>(op);
+        loadCount++;
+      }
+      else if (isa<arith::ConstantOp>(op)) continue;
+      else if (isa<arith::IndexCastOp>(op)) indexCastCount++;
+      else if (isa<linalg::IndexOp>(op)) linalgCount++;
+      else if (isa<linalg::YieldOp>(op)) continue;  
+      else return failure();  
+    }
+    
+    if (loadCount != 1 || linalgCount != 1 || indexCastCount != 2)
+      return failure();
+
+    Value sourceImage = LoadOp.getMemRef();
+    Value outputImage = convOp.getOutputs()[0];
+    tile::TileUpsampleNearestOp::create(rewriter, convOp.getLoc(), sourceImage, outputImage);
+    rewriter.eraseOp(convOp);
+    return success();
+  }
+};
+
 } // namespace
 
 void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns,
@@ -1408,6 +1448,7 @@ void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns,
   patterns.add<Conv2dNhwcFhwcLowering>(patterns.getContext());
   patterns.add<Conv2dNchwFchwLowering>(patterns.getContext());
   patterns.add<DepthwiseConv2dNhwcHwcmLowering>(patterns.getContext());
+  patterns.add<UpsampleNearestLowering>(patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1640,6 +1681,28 @@ public:
         if (enabled && enabled.getValue())
           return false;
       }
+      Block &body = op.getRegion().front();
+      if (body.getOperations().size() == 5) {
+        int loadCount = 0, linalgCount = 0, indexCastCount = 0;
+        bool recognized = true;
+        for (auto &bodyOp : body.getOperations()) {
+          if (isa<memref::LoadOp>(bodyOp))
+            loadCount++;
+          else if (isa<arith::IndexCastOp>(bodyOp))
+            indexCastCount++;
+          else if (isa<linalg::IndexOp>(bodyOp))
+            linalgCount++;
+          else if (isa<linalg::YieldOp>(bodyOp))
+            continue;
+          else {
+            recognized = false;
+            break;
+          }
+        }
+        if (recognized && loadCount == 1 && linalgCount == 1 &&
+            indexCastCount == 2)
+          return false;
+      }
       return true;
     });
     if (quantizedOnly)
@@ -1657,6 +1720,7 @@ public:
                 linalg::LinalgDialect, arith::ArithDialect, scf::SCFDialect>();
   }
 };
+
 } // namespace
 
 namespace mlir {
