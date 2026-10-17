@@ -796,6 +796,18 @@ function(buddy_add_model)
       set(_Q_RAX_EMBED_PAYLOAD OFF)
     endif()
 
+    # Keep preprocessing/staging dimensions identical to the decoder spec.
+    # Otherwise a nondefault spec can package buffers for the default N=160.
+    execute_process(
+      COMMAND "${Python3_EXECUTABLE}" -c
+        "import json,sys; n=json.load(open(sys.argv[1]))['max_seq_len']; assert type(n) is int and 0 < n <= 2147483647; print(n)"
+        "${MDL_SPEC}"
+      OUTPUT_VARIABLE _Q_MAXLEN
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE _Q_MAXLEN_RESULT)
+    if(NOT _Q_MAXLEN_RESULT EQUAL 0)
+      message(FATAL_ERROR "qwen3_vl: max_seq_len must be a positive int32")
+    endif()
     set(_Q_ENV
       BUDDY_MLIR_BUILD_DIR=${CMAKE_BINARY_DIR}
       LLVM_MLIR_BUILD_DIR=${LLVM_BINARY_DIR}
@@ -804,6 +816,7 @@ function(buddy_add_model)
       QWEN3_VL_OUT_DIR=${_Q_ART}
       QWEN3_VL_PKG=${BIN}
       QWEN3_VL_SPEC=${MDL_SPEC}
+      QWEN3_VL_MAXLEN=${_Q_MAXLEN}
       BUDDY_PACKAGE_VERSION=${BUDDY_PACKAGE_VERSION}
       BUDDY_RAX_EMBED_PAYLOAD=${_Q_RAX_EMBED_PAYLOAD}
       QWEN3_VL_MODEL_PATH=${MDL_LOCAL_MODEL})

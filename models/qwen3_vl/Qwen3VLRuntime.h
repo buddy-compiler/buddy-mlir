@@ -38,11 +38,19 @@ public:
   int contextLength() const;
   std::size_t imageTokenCount() const;
   const std::string &modelName() const;
+  ResidentModelCapabilities capabilities() const;
   TokenizeResult tokenize(const std::string &prompt, bool countOnly) const;
+  TokenizeResult tokenize(const TokenizeRequest &request) const;
+  DetokenizeResult detokenize(const DetokenizeRequest &request) const;
   CompletionResult generate(const std::string &prompt,
                             const std::vector<ImageInput> &images,
                             const SamplingParams &sampling,
                             const CompletionStreamCallback &callback = {});
+  CompletionResult
+  generateServing(const std::string &prompt,
+                  const std::vector<ImageInput> &images,
+                  const SamplingParams &sampling,
+                  const CompletionStreamCallback &callback = {});
 
 private:
   std::unique_ptr<Impl> impl;
