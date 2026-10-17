@@ -1,7 +1,7 @@
 # Executable HTTP contract examples
 
 [target-contract.json](target-contract.json) specifies requests and representative
-response assertions for the Issue #912 serving contract.
+response assertions for the serving contract.
 `buddy-server-serving-http-contract` executes all examples through HTTP sockets
 against the synthetic resident and embedding fixture plugins. It is included in
 `check-buddy-server`. It exercises the production JSON/HTTP layers and shared
@@ -64,7 +64,7 @@ For SSE, check event framing, not only the presence of `[DONE]` in a response.
 | S01–S03 | Native EOF, chat role/content/finish sequence, optional usage, one chat `[DONE]`. |
 | R01–R04 | Structured 404/405/503/500 before streaming headers. |
 
-The HTTP test covers repeated requests after cancellation/errors, client
+The HTTP test adds repeated requests after cancellation/errors, client
 connections reset after the first HTTP header byte or first SSE event, backend
 callback cancellation and session reset observations, terminal events carrying
 text, and midstream exceptions. Separate response-writer tests use a socketpair
@@ -76,8 +76,14 @@ execution/resident tests use a scripted token source to cover greedy budgets,
 raw bytes and special tokens, single template application, string/token stops,
 cancellation, and reuse after errors. Their vocabulary and TT programs are
 fixtures; they do not establish canonical Llama token equivalence or execute
-the TTNN SDK branch. CLI golden tests execute the legacy generation
-overload. See the [TT serving guide](llama31-tt.md) for supported output types,
-explicit sampling rejection, and the whole-span BPE limitation. Real artifact inference,
-SDK, and device checks remain separate acceptance gates. A portable link check
-or synthetic HTTP result does not replace them.
+the TTNN SDK branch. Qwen codec tests use its production vocabulary and record
+known canonical segmentation/normalization differences. Qwen serving tests
+load fixture RAX resources through the production runtime and execute actual
+`dlopen` vision/decoder functions with synthetic arithmetic. They cover raw
+codecs, greedy budgets/stops/usage, roles and empty turns, image ordering,
+static-position guards, callback cancellation, and failure recovery; they do
+not execute Qwen model weights or kernels. CLI golden tests execute
+the legacy generation overload. See the [TT serving guide](llama31-tt.md) and
+[Qwen serving guide](qwen3-vl.md) for supported modes and tokenizer/package
+limits. Portable link checks and synthetic HTTP/runtime fixtures do not
+exercise real model inference, SDK branches, or devices.
