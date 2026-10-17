@@ -15,7 +15,7 @@
 #
 # ===----------------------------------------------------------------------===//
 
-"""Execute every prospective example plus adversarial real HTTP/SSE checks.
+"""Execute HTTP contract examples plus adversarial HTTP/SSE checks.
 
 The fixture uses scripted logits with the production serving controller. These
 checks provide no evidence about real model vocabularies, kernels or accuracy.
@@ -89,6 +89,102 @@ def check_type(value, name):
         "array": list,
     }
     check(type(value) is types[name], f"expected {name}, got {value!r}")
+
+
+def media_type(value):
+    return value.split(";", 1)[0].strip().lower()
+
+
+def validate_contract(contract):
+    check(isinstance(contract, dict), "contract must be an object")
+    check(
+        type(contract.get("format_version")) is int
+        and contract["format_version"] == 1,
+        "unsupported contract format_version",
+    )
+    examples = contract.get("examples")
+    check(isinstance(examples, list) and examples, "examples must be nonempty")
+    setup_fields = {
+        "load_state",
+        "throw_before_stream",
+        "unsupported_parameters",
+        "sampled_token_ids",
+        "prefill_calls",
+        "sample_calls",
+        "template_applications",
+        "expected_seed_policy",
+        "expected_rendered_messages",
+    }
+    shared_expect_fields = {"status", "content_type", "note"}
+    json_expect_fields = {
+        "json_subset",
+        "strings_contain",
+        "required_json_types",
+        "absent_json_pointers",
+    }
+    sse_expect_fields = {
+        "sse_json_subsets",
+        "done_sentinels",
+        "eof",
+        "consistent_event_fields",
+        "required_event_types",
+        "usage_events",
+        "concatenated_content",
+    }
+    ids = set()
+    for example in examples:
+        check(isinstance(example, dict), "example must be an object")
+        identifier = example.get("id")
+        check(
+            isinstance(identifier, str) and identifier,
+            "example id must be a nonempty string",
+        )
+        check(identifier not in ids, f"duplicate contract id: {identifier}")
+        ids.add(identifier)
+        check(
+            example.get("profile") in ("resident", "embedding"),
+            f"{identifier}: unknown contract profile",
+        )
+        request = example.get("request")
+        check(
+            isinstance(request, dict),
+            f"{identifier}: request must be an object",
+        )
+        check(
+            isinstance(request.get("method"), str)
+            and isinstance(request.get("path"), str),
+            f"{identifier}: request requires method and path strings",
+        )
+        setup = example.get("setup", {})
+        check(isinstance(setup, dict), f"{identifier}: setup must be an object")
+        unknown_setup = setup.keys() - setup_fields
+        check(
+            not unknown_setup,
+            f"{identifier}: unknown setup fields: {sorted(unknown_setup)}",
+        )
+        expected = example.get("expect")
+        check(
+            isinstance(expected, dict),
+            f"{identifier}: expect must be an object",
+        )
+        check(
+            type(expected.get("status")) is int,
+            f"{identifier}: expect requires an integer status",
+        )
+        sse = "sse_json_subsets" in expected
+        allowed = shared_expect_fields | (
+            sse_expect_fields if sse else json_expect_fields
+        )
+        unknown_expect = expected.keys() - allowed
+        check(
+            not unknown_expect,
+            f"{identifier}: unsupported expect fields: {sorted(unknown_expect)}",
+        )
+        if "eof" in expected:
+            check(
+                expected["eof"] is True,
+                f"{identifier}: only eof:true is supported",
+            )
 
 
 def parse_sse(body):
@@ -211,16 +307,24 @@ class Server:
             )
             response = connection.getresponse()
             headers = dict(response.getheaders())
-            # For SSE, reading an unframed body to completion requires real EOF.
-            payload = response.read()
-            if headers.get("Content-Type", "").startswith("text/event-stream"):
+            if media_type(response.getheader("Content-Type", "")) == (
+                "text/event-stream"
+            ):
                 check(
-                    "Content-Length" not in headers, "SSE must terminate by EOF"
+                    response.getheader("Content-Length") is None,
+                    "SSE must terminate by EOF",
+                )
+                check(
+                    response.getheader("Transfer-Encoding") is None
+                    and not response.chunked,
+                    "SSE must use an unframed body terminated by EOF",
                 )
                 check(
                     response.will_close,
                     "SSE connection must close after its terminal event",
                 )
+            # Reading an unframed SSE body to completion requires real EOF.
+            payload = response.read()
             return response.status, headers, payload
         finally:
             connection.close()
@@ -277,13 +381,13 @@ def run_example(server, example):
         status == expected["status"],
         f"{example['id']}: HTTP {status}: {body!r}",
     )
-    if "sse_json_subsets" in expected:
+    if "content_type" in expected:
         check(
-            headers.get("Content-Type", "").startswith(
-                expected["content_type"]
-            ),
+            media_type(headers.get("Content-Type", ""))
+            == media_type(expected["content_type"]),
             headers,
         )
+    if "sse_json_subsets" in expected:
         all_events = parse_sse(body)
         check(
             all_events.count("[DONE]") == expected["done_sentinels"], all_events
@@ -313,7 +417,8 @@ def run_example(server, example):
             )
         if "concatenated_content" in expected:
             check(
-                content(events, False) == expected["concatenated_content"],
+                content(events, request["path"] == "/v1/chat/completions")
+                == expected["concatenated_content"],
                 events,
             )
     else:
@@ -512,9 +617,10 @@ def main():
             "usage: test.py SERVER RESIDENT_RAX EMBEDDING_RAX CONTRACT_JSON SCRATCHDIR"
         )
     executable, resident, embedding, contract_path, scratch_path = sys.argv[1:]
+    contract = strict_json(Path(contract_path).read_text())
+    validate_contract(contract)
     scratch = Path(scratch_path)
     scratch.mkdir(parents=True, exist_ok=True)
-    contract = strict_json(Path(contract_path).read_text())
     groups = {}
     setup_fields = {
         "load_state",

@@ -1707,7 +1707,7 @@
           "stream_options": {
             "include_usage": false
           },
-          "n_predict": 1
+          "n_predict": 2
         }
       },
       "expect": {
@@ -1742,6 +1742,17 @@
             "choices": [
               {
                 "index": 0,
+                "delta": {
+                  "content": "B"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "choices": [
+              {
+                "index": 0,
                 "delta": {},
                 "finish_reason": "length"
               }
@@ -1759,7 +1770,8 @@
           "id": "string",
           "created": "integer"
         },
-        "usage_events": 0
+        "usage_events": 0,
+        "concatenated_content": "AB"
       }
     },
     {
@@ -1780,7 +1792,7 @@
           "stream_options": {
             "include_usage": true
           },
-          "n_predict": 1
+          "n_predict": 2
         }
       },
       "expect": {
@@ -1815,6 +1827,17 @@
             "choices": [
               {
                 "index": 0,
+                "delta": {
+                  "content": "B"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "choices": [
+              {
+                "index": 0,
                 "delta": {},
                 "finish_reason": "length"
               }
@@ -1824,8 +1847,8 @@
             "choices": [],
             "usage": {
               "prompt_tokens": 1,
-              "completion_tokens": 1,
-              "total_tokens": 2
+              "completion_tokens": 2,
+              "total_tokens": 3
             }
           }
         ],
@@ -1840,7 +1863,8 @@
           "id": "string",
           "created": "integer"
         },
-        "usage_events": 1
+        "usage_events": 1,
+        "concatenated_content": "AB"
       }
     },
     {
