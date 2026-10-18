@@ -144,7 +144,7 @@ private:
 
     Value globalPtr = LLVM::AddressOfOp::create(builder, loc, global);
     Value cst0 = LLVM::ConstantOp::create(builder, loc, builder.getI64Type(),
-                                          builder.getIndexAttr(0));
+                                          builder.getI64IntegerAttr(0));
     return LLVM::GEPOp::create(
         builder, loc, LLVM::LLVMPointerType::get(builder.getContext()),
         global.getType(), globalPtr, ArrayRef<Value>({cst0, cst0}));

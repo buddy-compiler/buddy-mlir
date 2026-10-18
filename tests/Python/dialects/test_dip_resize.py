@@ -1,7 +1,7 @@
 # RUN: %PYTHON %s | FileCheck %s
 
-from buddy_mlir.dialects import dip, func
 from buddy_mlir import ir
+from buddy_mlir.dialects import dip, func
 
 
 def run(f):
@@ -124,7 +124,7 @@ def testDipResize2DNearestInpterpolationF32():
         module = dipResize2D(
             ir.F32Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type NEAREST_NEIGHBOUR_INTERPOLATION>"
+                "#dip.interpolation_type<NEAREST_NEIGHBOUR_INTERPOLATION>"
             ),
             context,
         )
@@ -140,7 +140,7 @@ def testDipResize2DNearestInpterpolationF64():
         module = dipResize2D(
             ir.F64Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type NEAREST_NEIGHBOUR_INTERPOLATION>"
+                "#dip.interpolation_type<NEAREST_NEIGHBOUR_INTERPOLATION>"
             ),
             context,
         )
@@ -156,7 +156,7 @@ def testDipResize2DBilinearF32():
         module = dipResize2D(
             ir.F32Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type BILINEAR_INTERPOLATION>"
+                "#dip.interpolation_type<BILINEAR_INTERPOLATION>"
             ),
             context,
         )
@@ -172,7 +172,7 @@ def testDipResize2DBilinearF64():
         module = dipResize2D(
             ir.F64Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type BILINEAR_INTERPOLATION>"
+                "#dip.interpolation_type<BILINEAR_INTERPOLATION>"
             ),
             context,
         )
@@ -188,7 +188,7 @@ def testDipResize4DNchwNearestInterpolationF32():
         module = dipResize4DNchw(
             ir.F32Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type NEAREST_NEIGHBOUR_INTERPOLATION>"
+                "#dip.interpolation_type<NEAREST_NEIGHBOUR_INTERPOLATION>"
             ),
             context,
         )
@@ -204,7 +204,7 @@ def testDipResize4DNchwNearestInterpolationF64():
         module = dipResize4DNchw(
             ir.F64Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type NEAREST_NEIGHBOUR_INTERPOLATION>"
+                "#dip.interpolation_type<NEAREST_NEIGHBOUR_INTERPOLATION>"
             ),
             context,
         )
@@ -220,7 +220,7 @@ def testDipResize4DNchwBilinearF32():
         module = dipResize4DNchw(
             ir.F32Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type BILINEAR_INTERPOLATION>"
+                "#dip.interpolation_type<BILINEAR_INTERPOLATION>"
             ),
             context,
         )
@@ -236,7 +236,7 @@ def testDipResize4DNchwBilinearF64():
         module = dipResize4DNchw(
             ir.F64Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type BILINEAR_INTERPOLATION>"
+                "#dip.interpolation_type<BILINEAR_INTERPOLATION>"
             ),
             context,
         )
@@ -252,7 +252,7 @@ def testDipResize4DNhwcNearestInterpolationF32():
         module = dipResize4DNhwc(
             ir.F32Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type NEAREST_NEIGHBOUR_INTERPOLATION>"
+                "#dip.interpolation_type<NEAREST_NEIGHBOUR_INTERPOLATION>"
             ),
             context,
         )
@@ -268,7 +268,7 @@ def testDipResize4DNhwcNearestInterpolationF64():
         module = dipResize4DNhwc(
             ir.F64Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type NEAREST_NEIGHBOUR_INTERPOLATION>"
+                "#dip.interpolation_type<NEAREST_NEIGHBOUR_INTERPOLATION>"
             ),
             context,
         )
@@ -284,7 +284,7 @@ def testDipResize4DNhwcBilinearF32():
         module = dipResize4DNhwc(
             ir.F32Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type BILINEAR_INTERPOLATION>"
+                "#dip.interpolation_type<BILINEAR_INTERPOLATION>"
             ),
             context,
         )
@@ -300,7 +300,7 @@ def testDipResize4DNhwcBilinearF64():
         module = dipResize4DNhwc(
             ir.F64Type.get(),
             ir.Attribute.parse(
-                "#dip<interpolation_type BILINEAR_INTERPOLATION>"
+                "#dip.interpolation_type<BILINEAR_INTERPOLATION>"
             ),
             context,
         )

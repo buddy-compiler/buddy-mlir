@@ -98,9 +98,47 @@ private:
   SamplerConfig config_;
   std::mt19937 rng_;
 
+  /// Index of the largest logit: the first one if several are equal, and 0
+  /// if logits[0] is NaN (a NaN never compares greater). This is the index
+  /// std::max_element returns.
+  ///
+  /// Greedy decoding runs this over the whole vocabulary (~150K logits) for
+  /// every token. std::max_element is one dependent compare chain; here the
+  /// maximum is kept as kLanes independent running maxima, and its first
+  /// index is searched kLanes logits at a time. Compilers vectorize both
+  /// loops.
   int greedySample(const float *logits, size_t vocabSize) {
-    return static_cast<int>(
-        std::distance(logits, std::max_element(logits, logits + vocabSize)));
+    constexpr size_t kLanes = 64;
+    if (vocabSize == 0)
+      return 0;
+
+    // The maximum.
+    float lane[kLanes];
+    std::fill(lane, lane + kLanes, logits[0]);
+    size_t i = 0;
+    for (; i + kLanes <= vocabSize; i += kLanes)
+      for (size_t j = 0; j < kLanes; ++j)
+        lane[j] = logits[i + j] > lane[j] ? logits[i + j] : lane[j];
+    float best = lane[0];
+    for (size_t j = 1; j < kLanes; ++j)
+      best = lane[j] > best ? lane[j] : best;
+    for (; i < vocabSize; ++i)
+      best = logits[i] > best ? logits[i] : best;
+
+    // Its first index: skip the blocks of kLanes logits that do not hold it.
+    i = 0;
+    for (; i + kLanes <= vocabSize; i += kLanes) {
+      bool found = false;
+      for (size_t j = 0; j < kLanes; ++j)
+        found |= logits[i + j] == best;
+      if (found)
+        break;
+    }
+    for (; i < vocabSize; ++i)
+      if (logits[i] == best)
+        return static_cast<int>(i);
+    // logits[0] is NaN: so is best, and no logit compares equal to it.
+    return 0;
   }
 
   void applyRepeatPenalty(std::vector<float> &logits,

@@ -1,8 +1,11 @@
 add_executable(rax-pack rax-pack.cpp)
 
 target_compile_features(rax-pack PRIVATE cxx_std_17)
+target_compile_definitions(rax-pack PRIVATE
+  BUDDY_VERSION="${BUDDY_PACKAGE_VERSION}")
 
 target_link_libraries(rax-pack PRIVATE
+  CLI11
   buddy_rax
   BuddyRHAL
   MLIRParser

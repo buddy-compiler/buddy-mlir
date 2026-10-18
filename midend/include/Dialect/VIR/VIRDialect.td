@@ -37,6 +37,8 @@ def VIR_Dialect : Dialect {
     portable vector operations across different architectures.
   }];
   let cppNamespace = "::buddy::vir";
+  // Preserve the existing attr-dict syntax for inherent attributes.
+  let useStrictPropertiesInAssemblyFormat = 0;
   let extraClassDeclaration = [{
       void registerTypes();
       void registerAttrs();

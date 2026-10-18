@@ -46,6 +46,8 @@ VARIANT_PRECISION = {
     "w8a16": {"kv_type": "f16", "logits_type": "f16", "activation_type": "f16"},
     "w8a8": {"kv_type": "f32", "logits_type": "f32", "activation_type": "f32"},
     "w4a16": {"kv_type": "f16", "logits_type": "f16", "activation_type": "f16"},
+    # int4 in 32-row groups, kernels for RVV VLEN 1024 (graph/transform/k3_w4.py)
+    "w4g32": {"kv_type": "f32", "logits_type": "f32", "activation_type": "f32"},
 }
 
 VARIANT_WEIGHT_TEMPLATES = {
@@ -67,6 +69,10 @@ VARIANT_WEIGHT_TEMPLATES = {
     "w4a16": [
         {"tag": "f16_params", "suffix": "-w4a16-f16", "element_type": "f16"},
         {"tag": "i4_params", "suffix": "-w4a16-i4packed", "element_type": "i8"},
+    ],
+    "w4g32": [
+        {"tag": "f32_params", "suffix": "-w4g32-f32", "element_type": "f32"},
+        {"tag": "i8_params", "suffix": "-w4g32-q4", "element_type": "i8"},
     ],
 }
 
@@ -94,8 +100,41 @@ def _find_cached_hf_config(model_path: str) -> str | None:
     return matches[-1] if matches else None
 
 
+def text_decoder_config(hf: dict) -> dict:
+    """The HF config of the model buddy-codegen builds: for a Qwen3-VL-MoE
+    model (Qwen3VLMoeForConditionalGeneration), its text decoder as a
+    Qwen3MoeForCausalLM, which it is for text-only input (the interleaved
+    MRoPE of three equal positions is the RoPE of that position); any other
+    config unchanged."""
+    if (hf.get("architectures") or [None])[0] != (
+        "Qwen3VLMoeForConditionalGeneration"
+    ):
+        return hf
+    text = dict(hf["text_config"])
+    text.pop("rope_scaling", None)
+    rope = {
+        k: v
+        for k, v in text.get("rope_parameters", {}).items()
+        if not k.startswith("mrope")
+    }
+    if rope:
+        text["rope_parameters"] = rope
+        text.setdefault("rope_theta", rope.get("rope_theta"))
+    text.update(
+        architectures=["Qwen3MoeForCausalLM"],
+        model_type="qwen3_moe",
+        tie_word_embeddings=hf.get("tie_word_embeddings", False),
+    )
+    return text
+
+
 def load_hf_config(spec: dict, cli_hf_config: str | None) -> dict:
-    """Load HuggingFace config.json with cascading fallbacks."""
+    """Load HuggingFace config.json with cascading fallbacks; a
+    vision-language model gives its text decoder (text_decoder_config)."""
+    return text_decoder_config(_load_hf_config(spec, cli_hf_config))
+
+
+def _load_hf_config(spec: dict, cli_hf_config: str | None) -> dict:
     # 1. Explicit CLI path
     if cli_hf_config:
         with open(cli_hf_config) as f:
@@ -223,6 +262,8 @@ def compute_weights(variant: str, param_counts: dict) -> list[dict]:
 
         if variant in ("f32", "f16", "bf16"):
             num_elements = param_counts["total"]
+        elif variant == "w4g32":
+            num_elements = param_counts[f"{etype}_elements"]
         elif (
             variant in ("w8a32", "w8a16")
             or variant == "w8a8"
@@ -251,6 +292,200 @@ def compute_weights(variant: str, param_counts: dict) -> list[dict]:
         )
 
     return weights
+
+
+# What the w4g32 kernels (graph/transform/k3_w4.py) require: the prefill
+# attention kernel takes the rows of a chunk 32 at a time (ATTN_ROWS) and the
+# head dimensions 16 at a time (ATTN_DIMS).
+W4G32_CHUNK_MULTIPLE = 32
+W4G32_HEAD_DIM_MULTIPLE = 16
+
+
+# "prefill_ime": the rows of a matrix-engine prefill tile (k3_w4.IME_ROWS).
+W4G32_IME_ROWS = 64
+
+
+def derive_prefill_ime(spec: dict, variant: str, prefill_chunk: int) -> bool:
+    """Opt-in "prefill_ime" (docs/K3DeepSeekR1.md): the prefill tiles of
+    w4g32 run on the matrix engine of the SpacemiT K3 A100 cores, on a second
+    copy of the weights in the IME layout."""
+    raw = spec.get("prefill_ime", False)
+    if not isinstance(raw, bool):
+        raise ValueError(f"prefill_ime must be true or false, got {raw!r}")
+    if raw and variant != "w4g32":
+        raise ValueError("prefill_ime needs the variant w4g32")
+    if raw and prefill_chunk != W4G32_IME_ROWS:
+        raise ValueError(
+            f"prefill_ime needs prefill_chunk {W4G32_IME_ROWS}, "
+            f"got {prefill_chunk}"
+        )
+    return raw
+
+
+# "kernels": which collection of w4g32 kernels the model uses: "k3"
+# (graph/transform/k3_w4.py, docs/K3DeepSeekR1.md) or "a210"
+# (graph/transform/a210_w4.py, docs/A210DeepSeekR1.md).
+W4G32_KERNELS = ("k3", "a210")
+
+
+def derive_kernels(spec: dict, variant: str) -> str | None:
+    """The w4g32 kernel collection (default "k3"); None for other variants."""
+    raw = spec.get("kernels")
+    if variant != "w4g32":
+        if raw is not None:
+            raise ValueError("kernels needs the variant w4g32")
+        return None
+    raw = "k3" if raw is None else raw
+    if raw not in W4G32_KERNELS:
+        raise ValueError(f"kernels must be one of {W4G32_KERNELS}, got {raw!r}")
+    if raw == "a210" and spec.get("prefill_ime"):
+        raise ValueError("prefill_ime needs the kernels k3")
+    return raw
+
+
+def require_pinned_threads(spec: dict, field: str) -> None:
+    """Per-thread fields mean something only when thread i stays on one
+    known CPU: the thread pool pins it to the i-th CPU the process may run
+    on, libomp threads may migrate."""
+    if spec.get("thread_pool") is not True:
+        raise ValueError(f"{field} needs thread_pool true")
+
+
+def derive_thread_weights(spec: dict, kernels: str | None) -> dict | None:
+    """Opt-in "thread_weights" of the A210 kernels: {"prefill": [...],
+    "decode": [...]}, one positive weight per thread (num_threads), the share
+    of each kernel's work thread i gets; a missing list means equal shares."""
+    raw = spec.get("thread_weights")
+    if raw is None:
+        return None
+    if kernels != "a210":
+        raise ValueError("thread_weights needs the kernels a210")
+    require_pinned_threads(spec, "thread_weights")
+    threads = spec.get("num_threads", 48)
+    if not isinstance(raw, dict) or set(raw) - {"prefill", "decode"}:
+        raise ValueError(
+            'thread_weights must be {"prefill": [...], "decode": [...]}'
+        )
+    for key, ws in raw.items():
+        if (
+            not isinstance(ws, list)
+            or len(ws) != threads
+            or not all(isinstance(w, (int, float)) and w > 0 for w in ws)
+        ):
+            raise ValueError(
+                f"thread_weights {key} must be {threads} positive numbers "
+                f"(num_threads), got {ws!r}"
+            )
+    return {key: raw.get(key) for key in ("prefill", "decode")}
+
+
+# "thread_cores": the cores the A210 kernels know (a210_w4.TILE_SHAPES).
+A210_CORES = ("c908", "c920")
+
+
+def derive_thread_cores(spec: dict, kernels: str | None) -> list | None:
+    """Opt-in "thread_cores" of the A210 kernels: the core of each thread
+    (num_threads entries, "c908" or "c920"), which picks the shape of its
+    prefill tiles; none: the C920 shape for all."""
+    raw = spec.get("thread_cores")
+    if raw is None:
+        return None
+    if kernels != "a210":
+        raise ValueError("thread_cores needs the kernels a210")
+    require_pinned_threads(spec, "thread_cores")
+    threads = spec.get("num_threads", 48)
+    if (
+        not isinstance(raw, list)
+        or len(raw) != threads
+        or not all(c in A210_CORES for c in raw)
+    ):
+        raise ValueError(
+            f"thread_cores must be {threads} of {A210_CORES} (num_threads), "
+            f"got {raw!r}"
+        )
+    return list(raw)
+
+
+def w4g32_param_counts(hf: dict, prefill_chunk: int, ime: bool) -> dict:
+    """w4g32 (graph/transform/k3_w4.py) buffer sizes, from the HF config of a
+    Qwen2 model: every Linear weight [K, N] becomes K * N * 9 / 16 bytes of
+    int4 tiles with their f16 scales; the embedding, the norms, the q / k / v
+    biases and the RoPE inv_freq stay f32. With `ime` ("prefill_ime"), the
+    weights of the layers other than the LM head (whose prefill computes one
+    row) get a second copy, in the IME layout, of the same size. Rejects the
+    models and the prefill_chunk (derive_prefill_chunk) the kernels do not
+    support."""
+    arch = (hf.get("architectures") or ["?"])[0]
+    if arch not in ("Qwen2ForCausalLM", "Qwen3MoeForCausalLM"):
+        raise ValueError(
+            f"w4g32 supports Qwen2ForCausalLM and Qwen3MoeForCausalLM "
+            f"models, not {arch}"
+        )
+    moe = arch == "Qwen3MoeForCausalLM"
+    if hf.get("tie_word_embeddings"):
+        raise ValueError("w4g32 does not support tie_word_embeddings")
+    if not prefill_chunk:
+        raise ValueError("w4g32 needs prefill_chunk")
+    if prefill_chunk % W4G32_CHUNK_MULTIPLE:
+        raise ValueError(
+            f"w4g32 needs prefill_chunk to be a multiple of "
+            f"{W4G32_CHUNK_MULTIPLE}, got {prefill_chunk}"
+        )
+    h = hf["hidden_size"]
+    heads = hf["num_attention_heads"]
+    d = hf.get("head_dim", h // heads)
+    if d % W4G32_HEAD_DIM_MULTIPLE:
+        raise ValueError(
+            f"w4g32 needs a head_dim that is a multiple of "
+            f"{W4G32_HEAD_DIM_MULTIPLE}, got {d}"
+        )
+    kv = hf.get("num_key_value_heads", heads) * d
+    vocab = hf["vocab_size"]
+    layers = hf["num_hidden_layers"]
+    linears = [
+        (h, heads * d),  # q, k, v: one weight, one tile range each
+        (h, kv),
+        (h, kv),
+        (heads * d, h),  # o
+    ]
+    if moe:
+        # Qwen3-MoE: every layer a MoE block (k3_w4.pack_moe); the router
+        # [h, experts] stays f32
+        if hf.get("mlp_only_layers") or hf.get("decoder_sparse_step", 1) != 1:
+            raise ValueError("w4g32 needs a MoE block in every layer")
+        if not hf.get("norm_topk_prob", False):
+            # the kernel computes the routing: the top-k weights normalized
+            raise ValueError("w4g32 needs norm_topk_prob")
+        inter = hf["moe_intermediate_size"]
+        # transformers 5 writes num_experts as num_local_experts
+        experts = hf.get("num_experts", hf.get("num_local_experts"))
+        expert_linears = [(h, inter), (h, inter), (inter, h)]
+        if h % 128:
+            raise ValueError(f"w4g32 needs hidden_size % 128 == 0, got {h}")
+    else:
+        inter = hf["intermediate_size"]
+        experts = 0
+        linears += [(h, inter), (h, inter), (inter, h)]  # gate, up, down
+        expert_linears = []
+    for k, n in linears + expert_linears + [(h, vocab)]:
+        # N % 128: the K3 tiles (the A210 ones need N % 16)
+        if k % 32 or n % 128:
+            raise ValueError(
+                f"w4g32 needs Linear weights [K, N] with K % 32 == 0 and "
+                f"N % 128 == 0, got [{k}, {n}]"
+            )
+    # with ime, the dense layers get a second, IME-layout copy (not the
+    # experts: the MoE kernel has no matrix-engine tiles)
+    per_layer = sum(k * n for k, n in linears) * (2 if ime else 1)
+    per_layer += experts * sum(k * n for k, n in expert_linears)
+    i8 = (layers * per_layer + h * vocab) * 9 // 16
+    f32_layer = 2 * h
+    if moe:
+        f32_layer += 2 * d + h * experts  # q_norm, k_norm, router
+    else:
+        f32_layer += heads * d + 2 * kv  # the q / k / v biases
+    f32 = vocab * h + layers * f32_layer + h + d // 2
+    return {"f32_elements": f32, "i8_elements": i8}
 
 
 def derive_tiered_kv_cache(spec: dict) -> dict:
@@ -297,6 +532,90 @@ def derive_shapes(hf: dict, spec: dict) -> dict:
         "max_token_len": spec.get("max_token_len", 1024),
         "num_hidden_layers": hf["num_hidden_layers"],
     }
+
+
+DEFAULT_PREFILL_CHUNK = 64
+
+
+def derive_prefill_chunk(spec: dict, shape: dict, tiered: bool) -> int:
+    """Opt-in chunked prefill: the number of prompt tokens per forward_prefill
+    call, or 0 (off, the default) for one call over max_token_len positions.
+
+    The spec sets `prefill_chunk` to a positive integer, or to `true` for
+    DEFAULT_PREFILL_CHUNK. When on, import_model.py traces forward_prefill
+    like forward_decode, with `prefill_chunk` tokens and their positions in
+    and the KV cache in and out, and the generated ModelSession::prefill()
+    walks the prompt chunk by chunk (see docs/ChunkedPrefill.md). Prefill
+    then costs about as much as the prompt is long, rounded up to whole
+    chunks, instead of always max_token_len positions.
+    """
+    raw = spec.get("prefill_chunk", 0)
+    if raw is True:
+        chunk = DEFAULT_PREFILL_CHUNK
+    elif raw is False or raw is None:
+        chunk = 0
+    elif isinstance(raw, int) and raw >= 0:
+        chunk = raw
+    else:
+        raise ValueError(
+            f"prefill_chunk must be true/false or a non-negative integer, "
+            f"got {raw!r}"
+        )
+    if chunk == 0:
+        return 0
+    if chunk > shape["max_token_len"]:
+        raise ValueError(
+            f"prefill_chunk ({chunk}) must not exceed max_token_len "
+            f"({shape['max_token_len']})"
+        )
+    if tiered:
+        raise ValueError(
+            "prefill_chunk and tiered_kv_cache are mutually exclusive"
+        )
+    return chunk
+
+
+def derive_memory_options(spec: dict, tiered: bool, prefill_chunk: int) -> dict:
+    """Opt-in memory options of the model library and session, both off by
+    default (see docs/ModelMemoryOptions.md):
+
+    arena      every buffer the model allocates during a forward call comes
+               from a bump arena (runtime/arena/BuddyArena.c, linked into the
+               model library); frees are no-ops and the session resets the
+               arena before each call. compile_pipeline.py lowers the
+               allocations to the generic MLIR allocation functions and drops
+               the buffer deallocation passes. The arena holds all the buffers
+               of a call, so it needs chunked prefill: one prefill call over
+               max_token_len positions allocates tens of GiB (42 GiB for f32
+               DeepSeek-R1-Distill-Qwen-1.5B).
+    hugepages  the session asks for 2 MiB pages (madvise MADV_HUGEPAGE) for
+               the weight buffers before reading the weights in.
+    """
+    options = {}
+    for key in ("arena", "hugepages"):
+        raw = spec.get(key, False)
+        if not isinstance(raw, bool):
+            raise ValueError(f"{key} must be true or false, got {raw!r}")
+        options[key] = raw
+    if options["arena"] and tiered:
+        raise ValueError("arena and tiered_kv_cache are mutually exclusive")
+    if options["arena"] and not prefill_chunk:
+        raise ValueError(
+            "arena needs prefill_chunk: a prefill call over max_token_len "
+            "positions allocates too much to keep all of it"
+        )
+    return options
+
+
+def derive_thread_pool(spec: dict) -> bool:
+    """Opt-in "thread_pool": the model library runs its parallel loops on a
+    pinned pool of spinning threads (runtime/threadpool/BuddyThreadPool.c,
+    linked in place of libomp by buddy_model.cmake; docs/ModelThreadPool.md).
+    """
+    raw = spec.get("thread_pool", False)
+    if not isinstance(raw, bool):
+        raise ValueError(f"thread_pool must be true or false, got {raw!r}")
+    return raw
 
 
 def derive_decode_pack(hf: dict, spec: dict) -> dict:
@@ -359,10 +678,24 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     shape = derive_shapes(hf, spec)
     tokens = derive_tokens(hf, spec)
     precision = VARIANT_PRECISION.get(variant, VARIANT_PRECISION["f32"])
-    param_counts = count_params(spec)
-    weights = compute_weights(variant, param_counts)
     tiered_kv_cache = derive_tiered_kv_cache(spec)
+    prefill_chunk = derive_prefill_chunk(
+        spec, shape, tiered_kv_cache["enabled"]
+    )
+    param_counts = (
+        w4g32_param_counts(
+            hf,
+            prefill_chunk,
+            derive_prefill_ime(spec, variant, prefill_chunk),
+        )
+        if variant == "w4g32"
+        else count_params(spec)
+    )
+    weights = compute_weights(variant, param_counts)
     decode_pack = derive_decode_pack(hf, spec)
+    memory_options = derive_memory_options(
+        spec, tiered_kv_cache["enabled"], prefill_chunk
+    )
     if decode_pack["enabled"] and variant not in ("f32", "f16", "bf16"):
         raise RuntimeError(
             f"decode_pack_vector_size is only supported for f32/f16/bf16 "
@@ -404,6 +737,8 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         model_id = f"{model_id}_tiered_kv_cache"
     if decode_pack["enabled"]:
         model_id = f"{model_id}_packed_ffn"
+    if prefill_chunk:
+        model_id = f"{model_id}_prefill_chunk{prefill_chunk}"
 
     return {
         "model_family": model_family,
@@ -421,6 +756,19 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "tokens": tokens,
         "tiered_kv_cache": tiered_kv_cache,
         "decode_pack": decode_pack,
+        "arena": memory_options["arena"],
+        "hugepages": memory_options["hugepages"],
+        "thread_pool": derive_thread_pool(spec),
+        "prefill_ime": derive_prefill_ime(spec, variant, prefill_chunk),
+        "kernels": derive_kernels(spec, variant),
+        "thread_weights": derive_thread_weights(
+            spec, derive_kernels(spec, variant)
+        ),
+        "thread_cores": derive_thread_cores(
+            spec, derive_kernels(spec, variant)
+        ),
+        # >0: forward_prefill takes this many prompt tokens per call
+        "prefill_chunk": prefill_chunk,
         "cpp_types": {
             "kv": ELEMENT_TYPE_CPP[kv_type],
             "logits": ELEMENT_TYPE_CPP[precision["logits_type"]],
@@ -439,6 +787,29 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
                 "subgraph_prefill": "subgraph",
                 "forward_decode": "standard",
                 "subgraph_decode": "subgraph_decode",
+                # with prefill_ime (the K3 A100 cores), all the kernels are
+                # compiled for the A100
+                **(
+                    {
+                        "k3_kernels": (
+                            "kernels_a100"
+                            if derive_prefill_ime(spec, variant, prefill_chunk)
+                            else "kernels"
+                        )
+                    }
+                    if derive_kernels(spec, variant) == "k3"
+                    else {}
+                ),
+                **(
+                    {"a210_kernels": "kernels"}
+                    if derive_kernels(spec, variant) == "a210"
+                    else {}
+                ),
+                **(
+                    {"k3_kernels_ime": "kernels_ime"}
+                    if derive_prefill_ime(spec, variant, prefill_chunk)
+                    else {}
+                ),
             },
         },
     }

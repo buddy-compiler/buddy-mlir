@@ -32,26 +32,32 @@ def load_module(path: pathlib.Path, name: str):
 
 
 def main():
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 9:
         raise SystemExit(
-            "usage: test.py WHISPER_GENERATOR GENERIC_GENERATOR SPEC RAX_PACK OUT_DIR"
+            "usage: test.py WHISPER_GENERATOR GENERIC_GENERATOR "
+            "BGE_GENERATOR PROTEINGLM_GENERATOR TENSTORRENT_GENERATOR "
+            "SPEC RAX_PACK OUT_DIR"
         )
 
-    whisper_path, generic_path, spec_path, rax_pack, output_path = map(
-        pathlib.Path, sys.argv[1:]
-    )
+    (
+        whisper_path,
+        generic_path,
+        bge_path,
+        proteinglm_path,
+        tenstorrent_path,
+        spec_path,
+        rax_pack,
+        output_path,
+    ) = map(pathlib.Path, sys.argv[1:])
     output_path.mkdir(parents=True, exist_ok=True)
 
     whisper_generator = load_module(whisper_path, "whisper_manifest_generator")
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
     whisper_text = whisper_generator.gen_manifest(
-        spec, "file:whisper_runner.so", "file:whisper_transcription.so"
+        spec, "file:whisper_runner.so", "file:whisper_server.so"
     )
     assert 'runner_library = "file:whisper_runner.so"' in whisper_text
-    assert (
-        'transcription_library = "file:whisper_transcription.so"'
-        in whisper_text
-    )
+    assert 'model_library = "file:whisper_server.so"' in whisper_text
     for key in (
         "params_size",
         "vocab_size",
@@ -72,7 +78,7 @@ def main():
         spec.get("so_name", "whisper_model.so"),
         spec.get("vocab_file", "vocab.txt"),
         "whisper_runner.so",
-        "whisper_transcription.so",
+        "whisper_server.so",
     ):
         (output_path / filename).write_bytes(b"test")
     subprocess.run(
@@ -106,11 +112,52 @@ def main():
         "mlir_types": {"kv": "f32", "logits": "f32"},
     }
     without_plugin = generic_generator.gen_manifest(generic_config)
-    assert "transcription_library" not in without_plugin
+    assert "model_library" not in without_plugin
     with_plugin = generic_generator.gen_manifest(
-        generic_config, transcription_library="transcription.so"
+        generic_config, model_library="model.so"
     )
-    assert 'transcription_library = "file:transcription.so"' in with_plugin
+    assert 'runner_library = "file:test_runner.so"' in with_plugin
+    assert 'model_library = "file:model.so"' in with_plugin
+
+    bge_generator = load_module(bge_path, "bge_manifest_generator")
+    bge_text = bge_generator.gen_manifest(
+        {
+            "model_family": "bge_m3",
+            "variant": "test",
+            "params_size": 1,
+            "max_seq_len": 2,
+            "hidden_size": 3,
+        },
+        "file:bge_runner.so",
+        "bge_server.so",
+    )
+    assert 'runner_library = "file:bge_runner.so"' in bge_text
+    assert 'model_library = "file:bge_server.so"' in bge_text
+
+    proteinglm_generator = load_module(
+        proteinglm_path, "proteinglm_manifest_generator"
+    )
+    proteinglm_text = proteinglm_generator.gen_manifest(
+        {
+            "model_family": "proteinglm",
+            "variant": "test",
+            "max_seq_len": 2,
+            "vocab_size": 3,
+        },
+        1,
+        "file:proteinglm_runner.so",
+        "file:proteinglm_server.so",
+    )
+    assert 'runner_library = "file:proteinglm_runner.so"' in proteinglm_text
+    assert 'model_library = "file:proteinglm_server.so"' in proteinglm_text
+
+    tenstorrent_help = subprocess.run(
+        [sys.executable, str(tenstorrent_path), "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "--model-library" in tenstorrent_help
 
     print("Manifest generator tests passed")
     return 0

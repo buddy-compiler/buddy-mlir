@@ -24,6 +24,8 @@
 #include <string>
 #include <vector>
 
+#include "CLI11.hpp"
+
 #include "buddy/runtime/rax/RAX.h"
 #include "flatbuffers/flatbuffers.h"
 
@@ -154,13 +156,18 @@ static void printPayloadIndex(const std::vector<uint8_t> &indexBlob) {
 } // namespace
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    std::cerr << "usage: rax-inspect <file.rax>\n";
-    return 2;
+  std::string pathArg;
+  CLI::App app{"rax-inspect: dump a Buddy MLIR .rax manifest"};
+  app.set_version_flag("--version", BUDDY_VERSION);
+  app.add_option("file", pathArg, "Input .rax file")->required();
+  try {
+    app.parse(argc, argv);
+  } catch (const CLI::ParseError &e) {
+    return app.exit(e);
   }
 
   try {
-    const char *path = argv[1];
+    const char *path = pathArg.c_str();
 
     std::ifstream ifs(path, std::ios::binary);
     if (!ifs)

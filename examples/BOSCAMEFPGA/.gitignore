@@ -1,0 +1,7 @@
+# Build outputs
+build/
+hello/build/
+*.o
+*.elf
+*.bin
+*.d

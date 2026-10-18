@@ -1,7 +1,6 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
 
 try:
     from torch._decomp import aot_autograd_decompositions as decomp
@@ -32,7 +31,7 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = arith.ori
 # CHECK: return %{{.*}}
 # CHECK: }

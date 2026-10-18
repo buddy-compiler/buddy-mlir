@@ -25,6 +25,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def BuddyTrace_Dialect : Dialect {
   let name = "buddy_trace";
   let cppNamespace = "::buddy::trace";
+  // Preserve the existing attr-dict syntax for inherent attributes.
+  let useStrictPropertiesInAssemblyFormat = 0;
   let summary = "Buddy trace instrumentation dialect";
   let description = [{
     The `buddy_trace` dialect represents explicit profiling and debugging

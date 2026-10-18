@@ -108,11 +108,13 @@ jobs:
             if [ "${{ matrix.arch }}" = "x64" ]; then
               uv_args+=(--torch-backend cpu)
             elif [ "${{ matrix.arch }}" = "riscv64" ]; then
-              uv_args+=(--index-strategy unsafe-best-match)
+              uv_args+=(
+                --index-strategy unsafe-best-match
+                --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/
+              )
             fi
             uv_args+=(
               --extra-index-url https://download.pytorch.org/whl/cpu
-              --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/
               "${torch_packages[@]}"
             )
             uv "${uv_args[@]}"

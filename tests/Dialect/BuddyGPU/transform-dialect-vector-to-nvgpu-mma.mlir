@@ -35,7 +35,7 @@ module attributes { transform.with_named_sequence } {
     transform.apply_patterns to %func {
       transform.apply_patterns.buddy.unroll_vectors_gpu_mma_sync
     } : !transform.any_op
-    transform.buddy.vector.vector_to_mma_conversion %func { use_wmma } : (!transform.any_op) -> ()
+    transform.buddy.vector.vector_to_mma_conversion %func <{use_wmma}> : (!transform.any_op) -> ()
 
     // Apply canonicalization post-hoc to trigger DCE and pass the test
     // (i.e. all vector.contract are dead).
@@ -83,7 +83,7 @@ module attributes { transform.with_named_sequence } {
     transform.apply_patterns to %func {
       transform.apply_patterns.buddy.unroll_vectors_gpu_mma_sync
     } : !transform.any_op
-    transform.buddy.vector.vector_to_mma_conversion %func { use_mma_sync } : (!transform.any_op) -> ()
+    transform.buddy.vector.vector_to_mma_conversion %func <{use_mma_sync}> : (!transform.any_op) -> ()
 
     // Apply canonicalization post-hoc to trigger DCE and pass the test
     // (i.e. all vector.contract are dead).

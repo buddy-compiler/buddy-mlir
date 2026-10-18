@@ -15,10 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "AudioTranscriptionModelPluginHandle.h"
-#include "BackendSelection.h"
 #include "EmbeddingModelPluginHandle.h"
 #include "JsonCodec.h"
 #include "MaskedLMModelPluginHandle.h"
+#include "ModelPluginDiscovery.h"
 #include "ResidentModelPluginHandle.h"
 #include "SimpleHttpServer.h"
 
@@ -29,6 +29,7 @@
 #include "buddy/runtime/core/MaskedLMModel.h"
 #include "buddy/runtime/core/MaskedLMTypes.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/core/RaxDependenciesHandle.h"
 #include "buddy/runtime/core/ResidentModel.h"
 #include "buddy/runtime/core/ServingTypes.h"
 
@@ -41,6 +42,8 @@
 #include <string>
 #include <thread>
 
+#include "CLI11.hpp"
+
 using buddy::runtime::AudioTranscriptionModel;
 using buddy::runtime::AudioTranscriptionModelConfig;
 using buddy::runtime::EmbeddingModel;
@@ -48,10 +51,10 @@ using buddy::runtime::EmbeddingModelConfig;
 using buddy::runtime::MaskedLMModel;
 using buddy::runtime::MaskedLMModelConfig;
 using buddy::runtime::ModelLoadState;
+using buddy::runtime::ModelServiceKind;
 using buddy::runtime::ModelStatus;
 using buddy::runtime::ResidentModel;
 using buddy::runtime::ResidentModelConfig;
-using buddy::server::BackendKind;
 using buddy::server::HttpRequest;
 using buddy::server::ResponseWriter;
 using buddy::server::SimpleHttpServer;
@@ -59,32 +62,6 @@ using buddy::server::SimpleHttpServer;
 namespace {
 
 enum ServerLoadState { Loading = 0, Ready = 1, Error = 2 };
-
-void usage(const char *program, std::ostream &stream = std::cout) {
-  stream << "Usage: " << program << " [options]\n\n"
-         << "Model source (one required):\n"
-         << "  --model <path.rax>       Model manifest (recommended)\n"
-         << "  --model-so <path.so>     Model library (legacy mode)\n"
-         << "  --weights <path>         Weights; repeatable in legacy mode\n"
-         << "  --vocab <path>           Vocabulary (legacy mode)\n"
-         << "  --model-type <name>      Model name override\n\n"
-         << "Backend plugin (at most one explicit override):\n"
-         << "  --serving-so <path.so>       Resident completion plugin\n"
-         << "  --embedding-so <path.so>     Embedding plugin\n"
-         << "  --masked-lm-so <path.so>     Masked-LM plugin\n"
-         << "  --transcription-so <path.so> Audio transcription plugin\n\n"
-         << "Server:\n"
-         << "  --host <addr>            Bind address (default 127.0.0.1)\n"
-         << "  --port <port>            Bind port (default 8080)\n"
-         << "  --chat-template <path>   Chat template JSON\n"
-         << "  --help / -h\n";
-}
-
-bool hasSuffix(const std::string &value, const std::string &suffix) {
-  return value.size() >= suffix.size() &&
-         value.compare(value.size() - suffix.size(), suffix.size(), suffix) ==
-             0;
-}
 
 bool isReady(const std::atomic<int> &state) {
   return state.load(std::memory_order_acquire) == Ready;
@@ -263,83 +240,52 @@ void handleTranscription(AudioTranscriptionModel &model,
 
 int main(int argc, char **argv) {
   ResidentModelConfig modelConfig;
-  buddy::server::BackendPluginPaths explicitPlugins;
   std::string modelType;
   std::string host = "127.0.0.1";
   int port = 8080;
 
-  for (int index = 1; index < argc; ++index) {
-    const std::string argument = argv[index];
-    if (argument == "--model" && index + 1 < argc)
-      modelConfig.raxPath = argv[++index];
-    else if (argument == "--model-so" && index + 1 < argc)
-      modelConfig.modelSoPath = argv[++index];
-    else if (argument == "--weights" && index + 1 < argc)
-      modelConfig.weightPaths.push_back(argv[++index]);
-    else if (argument == "--vocab" && index + 1 < argc)
-      modelConfig.vocabPath = argv[++index];
-    else if (argument == "--model-type" && index + 1 < argc) {
-      modelType = argv[++index];
-      modelConfig.modelName = modelType;
-    } else if (argument == "--serving-so" && index + 1 < argc)
-      explicitPlugins.resident = argv[++index];
-    else if (argument == "--embedding-so" && index + 1 < argc)
-      explicitPlugins.embedding = argv[++index];
-    else if (argument == "--masked-lm-so" && index + 1 < argc)
-      explicitPlugins.maskedLM = argv[++index];
-    else if (argument == "--transcription-so" && index + 1 < argc)
-      explicitPlugins.transcription = argv[++index];
-    else if (argument == "--chat-template" && index + 1 < argc)
-      modelConfig.chatTemplatePath = argv[++index];
-    else if (argument == "--host" && index + 1 < argc)
-      host = argv[++index];
-    else if (argument == "--port" && index + 1 < argc)
-      port = std::stoi(argv[++index]);
-    else if (argument == "--help" || argument == "-h") {
-      usage(argv[0]);
-      return 0;
-    } else {
-      std::cerr << "Unknown or incomplete argument: " << argument << "\n";
-      usage(argv[0], std::cerr);
-      return 2;
-    }
-  }
-
-  if (modelConfig.raxPath.empty() && modelConfig.modelSoPath.empty()) {
-    std::cerr << "Provide --model <path.rax> or --model-so <path.so>.\n";
-    return 2;
-  }
-  if (!modelConfig.modelSoPath.empty() &&
-      hasSuffix(modelConfig.modelSoPath, ".rax")) {
-    std::cerr << "Use --model, not --model-so, for .rax packages.\n";
-    return 2;
-  }
-  if (!modelConfig.modelSoPath.empty() && modelConfig.weightPaths.empty()) {
-    std::cerr << "Legacy --model-so mode requires --weights.\n";
-    return 2;
-  }
-
-  buddy::server::BackendPluginPaths manifestPlugins;
-  if (!modelConfig.raxPath.empty()) {
-    try {
-      const auto manifest =
-          buddy::runtime::ModelManifest::loadFromRax(modelConfig.raxPath);
-      manifestPlugins = buddy::server::pluginPathsFromManifest(manifest);
-      if (modelConfig.modelName.empty())
-        modelConfig.modelName = manifest.modelName;
-    } catch (const std::exception &error) {
-      std::cerr << "buddy-server: failed to read model manifest: "
-                << error.what() << "\n";
-      return 1;
-    }
-  }
-
-  buddy::server::BackendSelection selection;
+  CLI::App app{"buddy-server: HTTP inference server for Buddy MLIR models"};
+  app.set_version_flag("--version", BUDDY_VERSION);
+  app.add_option("--model", modelConfig.raxPath, "Model manifest")
+      ->group("Model source");
+  app.add_option("--model-type", modelType, "Model name override")
+      ->group("Model source");
+  app.add_option("--host", host, "Bind address")
+      ->group("Server")
+      ->capture_default_str();
+  app.add_option("--port", port, "Bind port")
+      ->group("Server")
+      ->capture_default_str();
+  app.add_option("--chat-template", modelConfig.chatTemplatePath,
+                 "Chat template JSON")
+      ->group("Server");
   try {
-    selection = buddy::server::selectBackend(explicitPlugins, manifestPlugins);
-  } catch (const std::invalid_argument &error) {
-    std::cerr << "buddy-server: " << error.what() << "\n";
+    app.parse(argc, argv);
+  } catch (const CLI::ParseError &e) {
+    return app.exit(e);
+  }
+  if (!modelType.empty())
+    modelConfig.modelName = modelType;
+
+  if (modelConfig.raxPath.empty()) {
+    std::cerr << "Provide --model <path.rax>.\n";
     return 2;
+  }
+  std::unique_ptr<buddy::runtime::RaxDependenciesHandle> raxDependencies;
+  buddy::server::ModelPluginDiscoveryResult selection;
+  try {
+    const auto manifest =
+        buddy::runtime::ModelManifest::loadFromRax(modelConfig.raxPath);
+    if (manifest.modelLibraryPath.empty())
+      throw std::runtime_error("model manifest is missing model_library");
+    if (modelConfig.modelName.empty())
+      modelConfig.modelName = manifest.modelName;
+    raxDependencies = std::make_unique<buddy::runtime::RaxDependenciesHandle>(
+        manifest.dependentSoPaths, "");
+    selection = buddy::server::discoverModelPlugin(manifest.modelLibraryPath);
+  } catch (const std::exception &error) {
+    std::cerr << "buddy-server: " << error.what() << "\n";
+    return 1;
   }
 
   std::unique_ptr<buddy::server::ResidentModelPluginHandle> residentPlugin;
@@ -357,8 +303,8 @@ int main(int argc, char **argv) {
       transcriptionModel(nullptr, [](AudioTranscriptionModel *) {});
 
   try {
-    switch (selection.kind) {
-    case BackendKind::Resident:
+    switch (selection.serviceKind) {
+    case ModelServiceKind::Resident:
       residentPlugin =
           std::make_unique<buddy::server::ResidentModelPluginHandle>(
               selection.pluginPath);
@@ -376,21 +322,21 @@ int main(int argc, char **argv) {
       modelType = modelType.empty() ? residentPlugin->modelType() : modelType;
       residentModel = residentPlugin->createModel();
       break;
-    case BackendKind::Embedding:
+    case ModelServiceKind::Embedding:
       embeddingPlugin =
           std::make_unique<buddy::server::EmbeddingModelPluginHandle>(
               selection.pluginPath);
       modelType = modelType.empty() ? embeddingPlugin->modelType() : modelType;
       embeddingModel = embeddingPlugin->createModel();
       break;
-    case BackendKind::MaskedLM:
+    case ModelServiceKind::MaskedLM:
       maskedLMPlugin =
           std::make_unique<buddy::server::MaskedLMModelPluginHandle>(
               selection.pluginPath);
       modelType = modelType.empty() ? maskedLMPlugin->modelType() : modelType;
       maskedLMModel = maskedLMPlugin->createModel();
       break;
-    case BackendKind::Transcription:
+    case ModelServiceKind::Transcription:
       transcriptionPlugin =
           std::make_unique<buddy::server::AudioTranscriptionModelPluginHandle>(
               selection.pluginPath);
@@ -398,6 +344,8 @@ int main(int argc, char **argv) {
           modelType.empty() ? transcriptionPlugin->modelType() : modelType;
       transcriptionModel = transcriptionPlugin->createModel();
       break;
+    case ModelServiceKind::Invalid:
+      throw std::runtime_error("buddy-server: invalid model service kind");
     }
   } catch (const std::exception &error) {
     std::cerr << error.what() << "\n";
@@ -418,26 +366,29 @@ int main(int argc, char **argv) {
     ModelStatus status;
     const int state = loadState.load(std::memory_order_acquire);
     if (state == Ready) {
-      switch (selection.kind) {
-      case BackendKind::Resident:
+      switch (selection.serviceKind) {
+      case ModelServiceKind::Resident:
         status = residentModel->status();
         break;
-      case BackendKind::Embedding:
+      case ModelServiceKind::Embedding:
         status = embeddingModel->status();
         break;
-      case BackendKind::MaskedLM:
+      case ModelServiceKind::MaskedLM:
         status = maskedLMModel->status();
         break;
-      case BackendKind::Transcription:
+      case ModelServiceKind::Transcription:
         status = transcriptionModel->status();
         break;
+      case ModelServiceKind::Invalid:
+        throw std::runtime_error("invalid model service kind");
       }
     } else {
       status.state =
           state == Error ? ModelLoadState::Error : ModelLoadState::Loading;
       status.modelName =
           modelConfig.modelName.empty() ? modelType : modelConfig.modelName;
-      status.backend = selection.kind == BackendKind::Resident ? "" : "cpu";
+      status.backend =
+          selection.serviceKind == ModelServiceKind::Resident ? "" : "cpu";
       if (state == Error) {
         std::lock_guard<std::mutex> lock(loadErrorMutex);
         status.message = loadError;
@@ -451,25 +402,25 @@ int main(int argc, char **argv) {
 
   server.post("/completion",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                if (selection.kind != BackendKind::Resident)
+                if (selection.serviceKind != ModelServiceKind::Resident)
                   return unsupported(writer, "/completion");
                 handleCompletion(*residentModel, loadState, request, writer);
               });
   server.post("/v1/chat/completions",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                if (selection.kind != BackendKind::Resident)
+                if (selection.serviceKind != ModelServiceKind::Resident)
                   return unsupported(writer, "/v1/chat/completions");
                 handleChat(*residentModel, loadState, request, writer);
               });
   server.post("/tokenize",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                if (selection.kind != BackendKind::Resident)
+                if (selection.serviceKind != ModelServiceKind::Resident)
                   return unsupported(writer, "/tokenize");
                 handleTokenize(*residentModel, loadState, request, writer);
               });
 
   auto embeddings = [&](const HttpRequest &request, ResponseWriter &writer) {
-    if (selection.kind != BackendKind::Embedding)
+    if (selection.serviceKind != ModelServiceKind::Embedding)
       return unsupported(writer, "/v1/embeddings");
     handleEmbedding(*embeddingModel, loadState, request, writer);
   };
@@ -477,7 +428,7 @@ int main(int argc, char **argv) {
   server.post("/embeddings", embeddings);
 
   auto maskedLM = [&](const HttpRequest &request, ResponseWriter &writer) {
-    if (selection.kind != BackendKind::MaskedLM)
+    if (selection.serviceKind != ModelServiceKind::MaskedLM)
       return unsupported(writer, "/v1/masked-lm");
     handleMaskedLM(*maskedLMModel, loadState, request, writer);
   };
@@ -485,7 +436,7 @@ int main(int argc, char **argv) {
   server.post("/masked-lm", maskedLM);
 
   auto transcription = [&](const HttpRequest &request, ResponseWriter &writer) {
-    if (selection.kind != BackendKind::Transcription)
+    if (selection.serviceKind != ModelServiceKind::Transcription)
       return unsupported(writer, "/v1/audio/transcriptions");
     handleTranscription(*transcriptionModel, loadState, request, writer);
   };
@@ -495,21 +446,23 @@ int main(int argc, char **argv) {
   std::thread loadThread([&] {
     try {
       std::cerr << "[buddy-server] loading "
-                << buddy::server::backendKindName(selection.kind)
+                << buddy::server::modelServiceKindName(selection.serviceKind)
                 << " model...\n";
-      switch (selection.kind) {
-      case BackendKind::Resident:
+      switch (selection.serviceKind) {
+      case ModelServiceKind::Resident:
         residentModel->load(modelConfig);
         break;
-      case BackendKind::Embedding:
+      case ModelServiceKind::Embedding:
         embeddingModel->load(embeddingCfg);
         break;
-      case BackendKind::MaskedLM:
+      case ModelServiceKind::MaskedLM:
         maskedLMModel->load(maskedCfg);
         break;
-      case BackendKind::Transcription:
+      case ModelServiceKind::Transcription:
         transcriptionModel->load(transcriptionCfg);
         break;
+      case ModelServiceKind::Invalid:
+        throw std::runtime_error("invalid model service kind");
       }
       loadState.store(Ready, std::memory_order_release);
       std::cerr << "[buddy-server] model loaded\n";

@@ -41,13 +41,22 @@ guide are called out below.
 > `pip install -r requirements.txt`); that also provides the `torch` used by the
 > `examples/BuddyJIT/*.py` tests run under `ninja check-buddy`.
 
-> **_NOTE (RISC-V Python packages):_** use the Ruyi package index already
-> listed in `requirements.txt` for the RISC-V PyTorch wheel. If pip rejects the
-> wheel's `manylinux_2_38_riscv64` platform tag, install the requirements with
-> uv as the RISC-V CI does (`uv pip install --index-strategy
-> unsafe-best-match -r requirements.txt`). For the pinned LLVM revision used
-> by this repository, `nanobind==2.9.2` was used for the successful native RISC-V
-> build; nanobind 2.15.0 caused one MLIR Python binding test failure.
+> **_NOTE (RISC-V Python packages):_** PyPI has no riscv64 wheels of torch,
+> tokenizers and several other requirements; add the Ruyi package index on a
+> RISC-V host (`requirements.txt` does not list it, so that other hosts install
+> from PyPI alone). Install the requirements with uv as the RISC-V CI does,
+> which also accepts the wheels' `manylinux_2_38_riscv64` platform tag that pip
+> may reject:
+>
+> ```
+> uv pip install --index-strategy unsafe-best-match \
+>   --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
+>   -r requirements.txt
+> ```
+>
+> For the pinned LLVM revision used by this repository, `nanobind==2.9.2` was
+> used for the successful native RISC-V build; nanobind 2.15.0 caused one MLIR
+> Python binding test failure.
 
 ## Build Steps
 
@@ -184,6 +193,17 @@ $ export BUILD_CROSS_MLIR_DIR=$PWD
 
 5. Build Cross-Compiled `buddy-mlir`
 
+This builds the Buddy tools for riscv64. `buddy-cli` runs `.rax` files on a
+RISC-V board, while `buddy-server` serves packages that contain a
+`model_library`. `make riscv-cli` and `make riscv-server` configure the
+toolchain and cross MLIR from `make riscv` in the same `build-cross-rv`
+tree, then build only the requested tool. A cross build does not build the
+Python packages
+(`BUDDY_MLIR_ENABLE_PYTHON_PACKAGES` defaults to `OFF` there) and builds
+`buddy-cli` without libnuma (`BUDDY_CLI_ENABLE_NUMA` defaults to `OFF` there;
+`ON` takes libnuma from the target's sysroot, given as `CMAKE_SYSROOT` or
+`CMAKE_FIND_ROOT_PATH`).
+
 ```
 $ cd buddy-mlir
 $ mkdir build-cross-rv
@@ -203,7 +223,7 @@ $ cmake -G Ninja .. \
     -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR} --gcc-toolchain=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}" \
     -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR} --gcc-toolchain=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}" \
     -DLLVM_ENABLE_ZSTD=Off
-$ ninja StaticMLIRCRunnerUtils StaticMLIRRunnerUtils
+$ ninja buddy-cli buddy-server
 ```
 
 ## Testing RVV Environment

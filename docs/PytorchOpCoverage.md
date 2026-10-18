@@ -145,7 +145,7 @@ review flags are conservative exclusions, not all confirmed restrictions.
 The live snapshot uses Linux x86-64, Python 3.12.3, NumPy 2.4.2 and
 PyTorch 2.10.0+cpu. LLVM and Buddy were built in fresh build directories with
 Release mode, assertions, and Python bindings enabled. LLVM uses revision
-`2d26d272a0ff74b8c81eac0607b07f98b82ecc46`, with the X86/RISCV targets and OpenMP
+`3845a20590afedfbece4d000f97a6cfbbea3bf43`, with the X86/RISCV targets and OpenMP
 runtime. Buddy uses this checkout's sources; loaded Python sources are checked
 against the repository. Reports retain the actual pre-commit Git revision and
 dirty state, together with the tested source hashes. The profile definition
@@ -199,11 +199,14 @@ For a native build with Python bindings enabled, run both repository suites:
 
 ```bash
 ninja -C build check-buddy
+# Build the server fixtures before running CTest.
+ninja -C build \
+  buddy-server-model-service-fixtures buddy-server-runtime-dependency-fixture
 ctest --test-dir build --output-on-failure
 ```
 
-The recorded Linux x86-64 CPU build passes 608 lit tests (237 examples and
-371 regression tests) and all nine CTest tests. Four lit tests require unavailable
+The recorded Linux x86-64 CPU build passes 640 lit tests (239 examples and
+401 regression tests) and all 13 CTest tests. Four lit tests require unavailable
 AMX/scalable-vector capabilities or external Buckyball dialects and are reported
 as unsupported. Optional model E2E targets and other hardware configurations are
 outside this run.

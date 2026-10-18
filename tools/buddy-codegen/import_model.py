@@ -125,7 +125,9 @@ def load_model(config: dict):
     )
     activation = config["precision"]["activation_type"]
 
-    if activation == "f16":
+    if config.get("architecture") == "Qwen3MoeForCausalLM":
+        model = load_qwen3_moe(model_path, activation)
+    elif activation == "f16":
         model = AutoModelForCausalLM.from_pretrained(model_path).eval().half()
     elif activation == "bf16":
         model = (
@@ -140,6 +142,53 @@ def load_model(config: dict):
     print(
         f"[import] Model loaded: {model_path} ({activation})", file=sys.stderr
     )
+    return model
+
+
+def load_qwen3_moe(model_path: str, activation: str):
+    """A Qwen3-MoE causal LM whose experts are traced as one node each
+    (buddy.compiler.moe). From a Qwen3-VL-MoE checkpoint, its text decoder
+    (gen_config.text_decoder_config): the checkpoint is loaded as the
+    vision-language model, which converts its expert layout, and the text
+    decoder's parameters are moved, not copied, into a Qwen3MoeForCausalLM
+    (model.language_model.* -> model.*)."""
+    from buddy.compiler.moe import use_buddy_moe_experts
+    from gen_config import text_decoder_config
+    from transformers import (
+        AutoConfig,
+        Qwen3MoeConfig,
+        Qwen3MoeForCausalLM,
+        Qwen3VLMoeForConditionalGeneration,
+    )
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import (
+        Qwen3MoeRotaryEmbedding,
+    )
+
+    dtype = {"f16": torch.float16, "bf16": torch.bfloat16}.get(
+        activation, torch.float32
+    )
+    hf = AutoConfig.from_pretrained(model_path).to_dict()
+    text = text_decoder_config(hf)
+    if text is hf:
+        model = Qwen3MoeForCausalLM.from_pretrained(model_path, dtype=dtype)
+    else:
+        vl = Qwen3VLMoeForConditionalGeneration.from_pretrained(
+            model_path, dtype=dtype
+        )
+        config = Qwen3MoeConfig(**text)
+        with torch.device("meta"):
+            model = Qwen3MoeForCausalLM(config)
+        state = {
+            "model." + k: v
+            for k, v in vl.model.language_model.state_dict().items()
+        }
+        state["lm_head.weight"] = vl.lm_head.weight
+        model.load_state_dict(state, strict=True, assign=True)
+        # the non-persistent RoPE buffers, still on the meta device
+        model.model.rotary_emb = Qwen3MoeRotaryEmbedding(config=config)
+        del vl
+    model = model.to(dtype).eval()
+    use_buddy_moe_experts(model)
     return model
 
 
@@ -172,7 +221,7 @@ def compile_graphs(model, config: dict):
             "input_ids": torch.zeros((1, max_token_len), dtype=torch.int64)
         }
         data_decode = {"input_ids": torch.zeros((1, 1), dtype=torch.int64)}
-        cache_position = torch.tensor([200], dtype=torch.int64)
+        cache_position = decode_trace_position(max_token_len)
 
         graphs_prefill = prefill_compiler.importer(
             model,
@@ -203,6 +252,100 @@ def compile_graphs(model, config: dict):
     params = prefill_compiler.imported_params[graphs_prefill[0]]
     print(
         f"[import] Graphs imported: {len(params)} parameters", file=sys.stderr
+    )
+    return graphs_prefill, graphs_decode, params
+
+
+def decode_trace_position(max_token_len: int) -> torch.Tensor:
+    """The cache position forward_decode is traced at: 1, right after the
+    one-token call that allocates the StaticCache before the trace, so that
+    it is in range for any cache of 2 positions or more (0 for a cache of
+    one). The position is an input of the traced graph, which does not
+    depend on its value; tracing at a position past the cache did not
+    always fail, but ran the model on indices out of range."""
+    return torch.tensor([min(1, max_token_len - 1)], dtype=torch.int64)
+
+
+def _warmed_static_cache(model, max_token_len: int):
+    """A StaticCache whose layers are allocated: StaticCache allocates them on
+    the first update, and a cache passed to a trace must already hold its
+    tensors so that they become graph inputs. Allocated by a one-token call
+    at position 0, which also advances the cache by one token."""
+    cache = StaticCache(config=model.config, max_cache_len=max_token_len)
+    model(
+        input_ids=torch.zeros((1, 1), dtype=torch.int64),
+        past_key_values=cache,
+        use_cache=True,
+        cache_implementation="static",
+    )
+    return cache
+
+
+def compile_chunk_graphs(model, config: dict):
+    """Like compile_graphs, for chunked prefill (config["prefill_chunk"]):
+    forward_prefill is traced like forward_decode, with prefill_chunk tokens
+    and their start position in and the KV cache in and out, so that the
+    session prefills a prompt chunk by chunk (docs/ChunkedPrefill.md). Both
+    graphs have the decode ABI and differ in the number of tokens only;
+    forward_prefill returns the logits of the chunk's last row only
+    (logits_to_keep=1), the only row the session uses.
+
+    Each trace gets its own cache: tracing runs the model and advances the
+    cache it is given. forward_prefill is traced on an empty cache (allocated,
+    then reset) at positions 0 .. prefill_chunk - 1, which are in range for
+    any prefill_chunk <= max_token_len. forward_decode is traced as in
+    compile_graphs, at decode_trace_position()."""
+    max_token_len = config["shape"]["max_token_len"]
+    chunk = int(config["prefill_chunk"])
+    if not 0 < chunk <= max_token_len:
+        raise ValueError(
+            f"prefill_chunk ({chunk}) must be in 1 .. max_token_len "
+            f"({max_token_len})"
+        )
+
+    prefill_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_prefill",
+    )
+    decode_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_decode",
+    )
+
+    with torch.no_grad():
+        past_kv_prefill = _warmed_static_cache(model, max_token_len)
+        past_kv_prefill.reset()  # logically empty: no tokens, zero K/V
+        graphs_prefill = prefill_compiler.importer(
+            model,
+            input_ids=torch.zeros((1, chunk), dtype=torch.int64),
+            use_cache=True,
+            cache_position=torch.arange(chunk, dtype=torch.int64),
+            past_key_values=past_kv_prefill,
+            cache_implementation="static",
+            # the session uses the logits of the chunk's last row only
+            logits_to_keep=1,
+        )
+
+        past_kv_decode = _warmed_static_cache(model, max_token_len)
+        graphs_decode = decode_compiler.importer(
+            model,
+            input_ids=torch.zeros((1, 1), dtype=torch.int64),
+            use_cache=True,
+            cache_position=decode_trace_position(max_token_len),
+            past_key_values=past_kv_decode,
+            cache_implementation="static",
+        )
+
+    assert len(graphs_prefill) == 1
+    assert len(graphs_decode) == 1
+
+    params = prefill_compiler.imported_params[graphs_prefill[0]]
+    print(
+        f"[import] Graphs imported (prefill chunk {chunk}): "
+        f"{len(params)} parameters",
+        file=sys.stderr,
     )
     return graphs_prefill, graphs_decode, params
 
@@ -381,10 +524,7 @@ def compile_and_export_tiered_graphs(
 
         with torch.no_grad():
             past_kv = StaticCache(config=model.config, max_cache_len=cache_size)
-            cache_position = torch.tensor(
-                [min(200 * cache_size // 1024, cache_size - 1)],
-                dtype=torch.int64,
-            )
+            cache_position = decode_trace_position(cache_size)
 
             model(
                 input_ids=data_decode["input_ids"],
@@ -530,13 +670,17 @@ def apply_pre_transforms(graph_prefill, graph_decode):
     )
 
 
-def apply_fusion(graph_prefill, graph_decode):
+def apply_fusion(graph_prefill, graph_decode, chunked_prefill=False):
     """Apply fusion patterns and rename subgraphs."""
     pattern_prefill = [
         simply_fuse,
         apply_classic_fusion,
         flash_attention_prefill,
     ]
+    if chunked_prefill:
+        # The chunk attends to the KV cache, like decode; flash attention
+        # covers the full-prompt prefill graph.
+        pattern_prefill = [simply_fuse, apply_classic_fusion]
     pattern_decode = [simply_fuse, apply_classic_fusion, gqa_attention_fusion]
 
     graph_prefill.fuse_ops(pattern_prefill)
@@ -792,6 +936,120 @@ def export_template_partitioned_mlir(
 # ──────────────────────────────────────────────────────────────────────────────
 # Quantization (variant-specific)
 # ──────────────────────────────────────────────────────────────────────────────
+
+
+def apply_k3_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
+    """w4g32: every Linear layer and the attention of both graphs become calls
+    to the int4 kernels of graph/transform/k3_w4.py, which are written to
+    k3_kernels-w4g32.mlir (compile_pipeline.py pipeline "kernels"); with
+    "prefill_ime", the prefill tiles on the matrix engine to
+    k3_kernels_ime-w4g32.mlir (pipeline "kernels_ime").
+
+    Prefill (prefill_chunk rows) and decode (one row) get the same parameter
+    rewrite: they share the weights. Prefill goes first: with "prefill_ime"
+    it records the weights its matrix-engine tiles read in a second, IME
+    layout, and decode gets the same copies."""
+    from buddy.compiler.graph.transform.k3_w4 import gen_kernels, k3_w4_rewrite
+
+    threads = config["compilation"]["num_threads"]
+    if config.get("kernels") == "a210":
+        return apply_a210_w4(graph_prefill, graph_decode, config, output_dir)
+    use_ime = bool(config.get("prefill_ime"))
+    ime_weights = set()
+    # the MoE weights, packed once for both graphs
+    packed = {}
+    specs = {}
+    for graph, rows, ime in (
+        (graph_prefill, config["prefill_chunk"], use_ime),
+        (graph_decode, 1, False),
+    ):
+        # inputs: the token ids, then the start position
+        for spec in k3_w4_rewrite(
+            graph, rows, graph.inputs[1].name, threads, ime, ime_weights, packed
+        ):
+            specs[spec["name"]] = spec
+
+    def shapes(graph):
+        return [
+            (tuple(p.tensor_meta["shape"]), p.tensor_meta["dtype"])
+            for p in graph.params
+        ]
+
+    if shapes(graph_prefill) != shapes(graph_decode):
+        raise RuntimeError("w4g32: prefill and decode parameters differ")
+    for part, name in (("main", "k3_kernels"), ("ime", "k3_kernels_ime")):
+        if part == "ime" and not use_ime:
+            continue
+        path = os.path.join(output_dir, f"{name}-w4g32.mlir")
+        with open(path, "w") as f:
+            f.write(gen_kernels(specs.values(), part))
+        print(f"[import] Written: {os.path.basename(path)}", file=sys.stderr)
+
+
+def apply_a210_w4(graph_prefill, graph_decode, config: dict, output_dir: str):
+    """w4g32 with "kernels": "a210": the rewrite of apply_k3_w4 with the
+    kernels of graph/transform/a210_w4.py (RVV, VLEN 128, the work of each
+    kernel split by "thread_weights", the prefill tiles of each thread
+    those of its core in "thread_cores"), written to
+    a210_kernels-w4g32.mlir (compile_pipeline.py pipeline "kernels")."""
+    from buddy.compiler.graph.transform.a210_w4 import (
+        a210_w4_rewrite,
+        gen_kernels,
+    )
+
+    threads = config["compilation"]["num_threads"]
+    weights = config.get("thread_weights")
+    cores = config.get("thread_cores")
+    specs = {}
+    for graph, rows in (
+        (graph_prefill, config["prefill_chunk"]),
+        (graph_decode, 1),
+    ):
+        # inputs: the token ids, then the start position
+        for spec in a210_w4_rewrite(
+            graph, rows, graph.inputs[1].name, threads, weights, cores
+        ):
+            specs[spec["name"]] = spec
+
+    def shapes(graph):
+        return [
+            (tuple(p.tensor_meta["shape"]), p.tensor_meta["dtype"])
+            for p in graph.params
+        ]
+
+    if shapes(graph_prefill) != shapes(graph_decode):
+        raise RuntimeError("w4g32: prefill and decode parameters differ")
+    path = os.path.join(output_dir, "a210_kernels-w4g32.mlir")
+    with open(path, "w") as f:
+        f.write(gen_kernels(specs.values()))
+    print(f"[import] Written: {os.path.basename(path)}", file=sys.stderr)
+
+
+def extract_k3_weights(graph, config: dict) -> dict[str, numpy.ndarray]:
+    """w4g32: the f32 parameters and the packed int4 weights, each in
+    parameter order, as the forward functions take them."""
+    from buddy.compiler.graph.type import TensorDType
+
+    f32, i8 = [], []
+    for node, ref in zip(graph.params, graph._params_ref):
+        data = ref.detach().contiguous().numpy().reshape(-1)
+        if node.tensor_meta["dtype"] == TensorDType.Int8:
+            i8.append(data.astype(numpy.int8, copy=False))
+        else:
+            f32.append(data.astype(numpy.float32, copy=False))
+    buckets = {
+        "f32_params": numpy.concatenate(f32),
+        "i8_params": numpy.concatenate(i8),
+    }
+    # gen_config.w4g32_param_counts sized the session's buffers.
+    for w in config["weights"]:
+        actual = len(buckets[w["tag"]])
+        if actual != w["num_elements"]:
+            raise RuntimeError(
+                f"w4g32: {w['tag']} has {actual} elements, gen_config "
+                f"expected {w['num_elements']}"
+            )
+    return buckets
 
 
 def apply_quantization(graph_prefill, graph_decode, variant: str):
@@ -1113,11 +1371,22 @@ def expected_weight_entries(config: dict, output_dir: str) -> list[dict]:
     return entries
 
 
+def w4g32_layout(config: dict) -> str:
+    """The kernel collection of a w4g32 model and the version of its weight
+    layout: the W4G32_LAYOUT_VERSION that graph/transform/<kernels>_w4.py
+    must declare (a missing one is an error, not a silent default)."""
+    kernels = config.get("kernels") or "k3"
+    module = importlib.import_module(
+        f"buddy.compiler.graph.transform.{kernels}_w4"
+    )
+    return f"{kernels}:{module.W4G32_LAYOUT_VERSION}"
+
+
 def weights_manifest_payload(config: dict, output_dir: str) -> dict:
     model_path = (
         os.environ.get("DEEPSEEKR1_MODEL_PATH") or config["hf_model_path"]
     )
-    return {
+    payload = {
         "model_path": model_path,
         "model_id": config.get("model_id"),
         "model_family": config.get("model_family"),
@@ -1140,6 +1409,13 @@ def weights_manifest_payload(config: dict, output_dir: str) -> dict:
             for entry in expected_weight_entries(config, output_dir)
         ],
     }
+    # Likewise the int4 tiles of w4g32: a change of their layout (or of the
+    # kernels that read them) keeps the file sizes. Only w4g32 manifests get
+    # the field, so that the manifests of other variants stay as they were
+    # (the comparison is exact) and their weights are still reused.
+    if config.get("variant") == "w4g32":
+        payload["w4g32_layout"] = w4g32_layout(config)
+    return payload
 
 
 def write_weights_manifest(config: dict, output_dir: str) -> None:
@@ -1225,6 +1501,13 @@ def import_model(
     os.makedirs(output_dir, exist_ok=True)
     variant = config["variant"]
     is_quantized = variant.startswith("w")
+    chunked_prefill = bool(config.get("prefill_chunk"))
+    if chunked_prefill and (
+        export_layer_partitioned or export_template_partitioned
+    ):
+        raise ValueError(
+            "prefill_chunk is not supported with partitioned exports"
+        )
 
     # 1. Load model
     with timed_import_step("load_model"):
@@ -1272,8 +1555,10 @@ def import_model(
 
     # 2. Compile graphs
     with timed_import_step("compile_graphs"):
-        graphs_prefill, graphs_decode, original_params = compile_graphs(
-            model, config
+        graphs_prefill, graphs_decode, original_params = (
+            compile_chunk_graphs(model, config)
+            if chunked_prefill
+            else compile_graphs(model, config)
         )
 
     # 3. Pre-fusion transforms
@@ -1293,7 +1578,10 @@ def import_model(
             pack_decode_weights(graphs_decode[0], decode_pack)
 
     # 4. Quantization (if applicable)
-    if is_quantized:
+    if variant == "w4g32":
+        with timed_import_step("k3_w4"):
+            apply_k3_w4(graphs_prefill[0], graphs_decode[0], config, output_dir)
+    elif is_quantized:
         with timed_import_step("quantization"):
             apply_quantization(graphs_prefill[0], graphs_decode[0], variant)
 
@@ -1313,6 +1601,8 @@ def import_model(
                     "--skip-weights is only supported for f32/f16/bf16"
                 )
             weight_buckets = {}
+        elif variant == "w4g32":
+            weight_buckets = extract_k3_weights(graphs_prefill[0], config)
         elif is_quantized:
             weight_buckets = extract_quantized_weights(
                 graphs_prefill[0], original_params, config
@@ -1325,7 +1615,9 @@ def import_model(
 
     # 6. Fusion + subgraph rename
     with timed_import_step("fusion"):
-        apply_fusion(graphs_prefill[0], graphs_decode[0])
+        apply_fusion(
+            graphs_prefill[0], graphs_decode[0], chunked_prefill=chunked_prefill
+        )
 
     if export_layer_partitioned:
         with timed_import_step("export_layer_partitioned_mlir"):

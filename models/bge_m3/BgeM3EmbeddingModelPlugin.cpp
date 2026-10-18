@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "buddy/runtime/core/ModelPlugin.h"
 #include "buddy/runtime/models/BgeM3EmbeddingModel.h"
 
 extern "C" buddy::runtime::EmbeddingModel *buddy_create_embedding_model_v1() {
@@ -26,3 +27,11 @@ buddy_destroy_embedding_model_v1(buddy::runtime::EmbeddingModel *model) {
 }
 
 extern "C" const char *buddy_embedding_model_type_v1() { return "bge_m3"; }
+
+extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
+buddy_model_plugin_descriptor_v1() {
+  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
+      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
+      buddy::runtime::ModelServiceKind::Embedding, 0};
+  return &descriptor;
+}

@@ -34,5 +34,5 @@ print(graph._imported_module)
 # CHECK: linalg.generic
 # CHECK: tensor.extract %{{.*}}[{{.*}}] : tensor<1x4x9xf32>
 # CHECK: } -> tensor<1x1x2x2x3x3xf32>
-# CHECK: tosa.transpose %{{.*}} {perms = array<i32: 0, 1, 2, 4, 3, 5>}
+# CHECK: tosa.transpose %{{.*}} perms([0, 1, 2, 4, 3, 5])
 # CHECK: return %{{.*}} : tensor<1x1x4x4xf32>

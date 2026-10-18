@@ -19,7 +19,7 @@ rhal.module @transcription_test attributes {
     model_name = "fake_transcription",
     vocab_uri = "file:vocab.txt",
     runner_library = "file:runner.so",
-    transcription_library = "file:transcription.so"} {
+    model_library = "file:transcription.so"} {
   rhal.constant @params {id = 1 : i32, storage = "external",
                          type = tensor<1xf32>, uri = "file:weights.bin"}
   rhal.codeobj @model {id = 1 : i32, kind = "host_shared_lib",

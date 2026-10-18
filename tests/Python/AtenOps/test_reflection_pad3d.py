@@ -1,8 +1,6 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 

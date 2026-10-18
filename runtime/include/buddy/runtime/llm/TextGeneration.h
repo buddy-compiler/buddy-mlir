@@ -32,6 +32,7 @@
 #include <atomic>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace buddy {
@@ -47,6 +48,17 @@ namespace runtime {
 /// Log a message to stderr with [Log] prefix.  Suppressed when @p suppress is
 /// true (e.g. in quiet / piped mode).
 void printLog(const std::string &msg, bool suppress = false);
+
+/// Buffers byte-level tokenizer output until complete UTF-8 code points are
+/// available. Permanently malformed sequences are replaced with U+FFFD.
+class Utf8StreamDecoder {
+public:
+  std::string append(std::string_view bytes);
+  std::string finish();
+
+private:
+  std::string pending_;
+};
 
 //===----------------------------------------------------------------------===//
 // Signal handling

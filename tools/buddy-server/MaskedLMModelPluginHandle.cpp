@@ -41,7 +41,7 @@ template <typename Fn> Fn optional(void *h, const char *s) {
 MaskedLMModelPluginHandle::MaskedLMModelPluginHandle(const std::string &p)
     : pluginPath(p) {
   if (p.empty())
-    throw std::runtime_error("buddy-server: --masked-lm-so path is empty");
+    throw std::runtime_error("buddy-server: model plugin path is empty");
   handle = dlopen(p.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!handle)
     throw std::runtime_error(

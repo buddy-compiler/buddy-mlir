@@ -48,7 +48,7 @@ func.func @kernel() {
   %7 = "tosa.const"() <{values = dense<[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]> : tensor<40xi64>}> : () -> tensor<40xi64>
   %8 = "tosa.const"() <{values = dense<1> : tensor<40xi64>}> : () -> tensor<40xi64>
   %9 = tosa.add %7, %8 : (tensor<40xi64>, tensor<40xi64>) -> tensor<40xi64>
-  %s0 = tosa.const_shape {values = dense<[40, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %s0 = tosa.const_shape values(dense<[40, 1]> : tensor<2xindex>) : () -> !tosa.shape<2>
   %10 = tosa.reshape %9, %s0 : (tensor<40xi64>, !tosa.shape<2>) -> tensor<40x1xi64>
   %11 = tensor.empty() : tensor<40x40xi1>
   %12 = linalg.generic {indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "parallel", "reduction"]} ins(%7, %10 : tensor<40xi64>, tensor<40x1xi64>) outs(%11 : tensor<40x40xi1>) {
@@ -64,9 +64,9 @@ func.func @kernel() {
     linalg.yield %4175 : f32
   } -> tensor<40x40xf32>
   %extracted_slice = tensor.extract_slice %cst[0, 0] [1, 40] [1, 1] : tensor<1x40xi1> to tensor<1x40xi1>
-  %s1 = tosa.const_shape {values = dense<[1, 1, 40]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %s1 = tosa.const_shape values(dense<[1, 1, 40]> : tensor<3xindex>) : () -> !tosa.shape<3>
   %15 = tosa.reshape %extracted_slice, %s1 : (tensor<1x40xi1>, !tosa.shape<3>) -> tensor<1x1x40xi1>
-  %s2 = tosa.const_shape {values = dense<[1, 1, 1, 40]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %s2 = tosa.const_shape values(dense<[1, 1, 1, 40]> : tensor<4xindex>) : () -> !tosa.shape<4>
   %16 = tosa.reshape %15, %s2 : (tensor<1x1x40xi1>, !tosa.shape<4>) -> tensor<1x1x1x40xi1>
   %extracted_slice_2 = tensor.extract_slice %16[0, 0, 0, 0] [1, 1, 1, 40] [1, 1, 1, 1] : tensor<1x1x1x40xi1> to tensor<1x1x1x40xi1>
   %17 = "tosa.const"() <{values = dense<false> : tensor<1x1x40x40xi1>}> : () -> tensor<1x1x40x40xi1>
@@ -82,9 +82,9 @@ func.func @kernel() {
     %4175 = arith.select %in, %cst_3, %in_742 : f32
     linalg.yield %4175 : f32
   } -> tensor<1x1x40x40xf32>
-  %s3 = tosa.const_shape {values = dense<[1, 40, 40]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %s3 = tosa.const_shape values(dense<[1, 40, 40]> : tensor<3xindex>) : () -> !tosa.shape<3>
   %25 = tosa.reshape %14, %s3 : (tensor<40x40xf32>, !tosa.shape<3>) -> tensor<1x40x40xf32>
-  %s4 = tosa.const_shape {values = dense<[1, 1, 40, 40]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %s4 = tosa.const_shape values(dense<[1, 1, 40, 40]> : tensor<4xindex>) : () -> !tosa.shape<4>
   %26 = tosa.reshape %25, %s4 : (tensor<1x40x40xf32>, !tosa.shape<4>) -> tensor<1x1x40x40xf32>
   %extracted_slice_4 = tensor.extract_slice %26[0, 0, 0, 0] [1, 1, 40, 40] [1, 1, 1, 1] : tensor<1x1x40x40xf32> to tensor<1x1x40x40xf32>
   %extracted_slice_5 = tensor.extract_slice %extracted_slice_4[0, 0, 0, 0] [1, 1, 40, 40] [1, 1, 1, 1] : tensor<1x1x40x40xf32> to tensor<1x1x40x40xf32>

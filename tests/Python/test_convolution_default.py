@@ -1,11 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 class Convolution(torch.nn.Module):
@@ -31,11 +29,11 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.transpose
 # CHECK: %{{.*}} = tosa.transpose
-# CHECK: %{{.*}} = "tosa.const"()
-# CHECK: %{{.*}} = "tosa.const"()
+# CHECK: %{{.*}} = tosa.const values(
+# CHECK: %{{.*}} = tosa.const values(
 # CHECK: %{{.*}} = tosa.conv2d
 # CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}}

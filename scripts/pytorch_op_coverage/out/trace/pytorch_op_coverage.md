@@ -1,15 +1,17 @@
 # PyTorch operator coverage
 
 - Mode: **trace**; run: **completed**; exit: **0**
-- Generated (UTC): `2026-10-01T06:00:14.270073+00:00`
+- Generated (UTC): `2026-10-18T06:43:59.747055+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `de42a9f44b491a4e9a7f21ae325c75ceed25bfb7`; dirty: `True`
-- Source SHA-256: `337b9a0db6f652add913fe36779ccf069d793dbc4776f2f1290db48e848a2e2a`
+- Source: `ff1ae01373eac10ac25e856a7f8a74e0494e1db5`; dirty: `True`
+- Source SHA-256: `3d31e0659c041b7b0745dfc65d8ad0cb0443e4058653cd8e09976122b2f293fd`
 - Profile: `cpu-export-v13`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
 
 > v1 has 106 entries versus v0's 108: two Buddy cache helpers were removed; Prim namespace and softmax overload were corrected. Percentages are not directly comparable.
+
+Stack diagnostic: buddy.compiler: ModuleNotFoundError: No module named 'buddy'
 
 Export uses `buddy.compiler.export` for checked one-hot and pixel-unshuffle semantics. Actual custom targets are recorded per case; this profile does not claim the unadapted export path supports these boundaries.
 

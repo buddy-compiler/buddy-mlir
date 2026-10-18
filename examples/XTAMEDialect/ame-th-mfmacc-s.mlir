@@ -183,14 +183,14 @@ module {
 
 // Expected lowering for tile-based operations:
 // CHECK-LABEL: func.func @main
-// CHECK: llvm.call @llvm.riscv.th.mcfgmi
-// CHECK: llvm.call @llvm.riscv.th.mcfgni
-// CHECK: llvm.call @llvm.riscv.th.mcfgki
-// CHECK: llvm.call @llvm.riscv.th.mzero
-// CHECK: llvm.call @llvm.riscv.th.mlde32
-// CHECK: llvm.call @llvm.riscv.th.mldte32
-// CHECK: llvm.call @llvm.riscv.th.mfmacc.s
-// CHECK: llvm.call @llvm.riscv.th.mste32
+// CHECK: llvm.inline_asm has_side_effects "th.mcfgmi 4"
+// CHECK: llvm.inline_asm has_side_effects "th.mcfgni 4"
+// CHECK: llvm.inline_asm has_side_effects "th.mcfgki 32"
+// CHECK: llvm.inline_asm has_side_effects "th.mzero m0"
+// CHECK: llvm.inline_asm has_side_effects "th.mlde32 m1, $0, $1"
+// CHECK: llvm.inline_asm has_side_effects "th.mldte32 m2, $0, $1"
+// CHECK: llvm.inline_asm has_side_effects "th.mfmacc.s m0, m2, m1"
+// CHECK: llvm.inline_asm has_side_effects "th.mste32 m0, $0, $1"
 
 // ASM: .attribute 5, "{{.*xtheadmatrix.*}}"
 // ASM: th.mfmacc.s{{[ \t]}}

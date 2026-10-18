@@ -752,6 +752,7 @@ class CallExternalOp(Op):
         args_index: list[int],
         tensor_meta: dict,
         name: str = None,
+        written_args: list[int] = None,
     ) -> None:
         super().__init__()
         if name is not None:
@@ -760,6 +761,28 @@ class CallExternalOp(Op):
         self._arguments = list(args)
         self._args_index = list(args_index)
         self.tensor_meta = tensor_meta
+        # The indices of the arguments the function writes, or None if
+        # unknown. With a list, the declaration marks every argument
+        # {bufferization.access = "read" | "read-write"}: one-shot
+        # bufferization then copies none of the arguments that are only read
+        # (by default it assumes an external function writes all of them).
+        # An index out of range would mark a written argument "read": reject
+        # it here rather than miscompile.
+        if written_args is not None:
+            for i in written_args:
+                if (
+                    not isinstance(i, int)
+                    or isinstance(i, bool)
+                    or not 0 <= i < len(self._arguments)
+                ):
+                    raise ValueError(
+                        f"CallExternalOp '{call_func_name}': written_args "
+                        f"must be argument indices in [0, "
+                        f"{len(self._arguments)}), got {i!r}"
+                    )
+        self.written_args = (
+            None if written_args is None else sorted(set(written_args))
+        )
         self._op_type = OpType.Unfusable
 
 
@@ -1264,6 +1287,18 @@ class TopkOp(Op):
     Top-k operation.
     Implements aten.topk: returns the k largest elements along a dimension.
     Returns (values, indices).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class MoEExpertsOp(Op):
+    """
+    The experts of a mixture-of-experts block, buddy::moe_experts
+    (frontend/Python/moe.py): args (x, idx, w, gate_up, down), result
+    [T, H]. A backend replaces it with a kernel (graph/transform/k3_w4.py).
     """
 
     def __init__(self) -> None:

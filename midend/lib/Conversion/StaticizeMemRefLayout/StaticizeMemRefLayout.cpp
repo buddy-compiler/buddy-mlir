@@ -16,12 +16,15 @@
 //
 // This file implements a pass that finds memref.copy operations with dynamic
 // layouts, traces back to their source reinterpret_cast operations, and
-// converts them to use static layouts when the shape is fully static.
+// converts them to use static layouts when the shape, the offset and the
+// strides of the reinterpret_cast are all compile-time constants. The static
+// layout has the same offset and strides: only the type changes.
 //
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
@@ -51,20 +54,6 @@ static bool hasDynamicLayout(MemRefType type) {
   return false;
 }
 
-/// Computes row-major strides from shape
-static SmallVector<int64_t> computeRowMajorStrides(ArrayRef<int64_t> shape) {
-  SmallVector<int64_t> strides;
-  strides.reserve(shape.size());
-  for (unsigned i = 0; i < shape.size(); ++i) {
-    int64_t stride = 1;
-    for (unsigned j = i + 1; j < shape.size(); ++j) {
-      stride *= shape[j];
-    }
-    strides.push_back(stride);
-  }
-  return strides;
-}
-
 class StaticizeMemRefLayoutPass
     : public PassWrapper<StaticizeMemRefLayoutPass,
                          OperationPass<func::FuncOp>> {
@@ -74,8 +63,9 @@ public:
   StringRef getArgument() const final { return "staticize-memref-layout"; }
 
   StringRef getDescription() const final {
-    return "Convert dynamic layouts in memref.reinterpret_cast operations used"
-           "by memref.copy to static layouts when shapes are fully static.";
+    return "Convert dynamic layouts in memref.reinterpret_cast operations used "
+           "by memref.copy to static layouts when the shape, the offset and "
+           "the strides are constants.";
   }
 
   void runOnOperation() override {
@@ -109,13 +99,21 @@ public:
       if (!allDimensionsStatic)
         return;
 
-      // Compute static strides
-      SmallVector<int64_t> staticStrides = computeRowMajorStrides(shape);
-      // Ensure last stride is 1
-      staticStrides.back() = 1;
-
-      // Create static offset (assume 0)
-      int64_t staticOffset = 0;
+      // The offset and strides the reinterpret_cast computes. They must be
+      // constants: a view of a buffer at a runtime offset (e.g. one head of a
+      // KV cache) keeps its dynamic layout.
+      std::optional<int64_t> offset =
+          getConstantIntValue(reinterpretOp.getMixedOffsets()[0]);
+      if (!offset)
+        return;
+      int64_t staticOffset = *offset;
+      SmallVector<int64_t> staticStrides;
+      for (OpFoldResult stride : reinterpretOp.getMixedStrides()) {
+        std::optional<int64_t> value = getConstantIntValue(stride);
+        if (!value)
+          return;
+        staticStrides.push_back(*value);
+      }
 
       // Get the base buffer from the original reinterpret_cast (first operand)
       Value baseBuffer = reinterpretOp.getOperand(0);

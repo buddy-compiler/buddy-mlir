@@ -32,6 +32,8 @@ include "mlir/IR/PatternBase.td"
 def Gemmini_Dialect : Dialect {
   let name = "gemmini";
   let cppNamespace = "::buddy::gemmini";
+  // Preserve the existing attr-dict syntax for inherent attributes.
+  let useStrictPropertiesInAssemblyFormat = 0;
   let summary = "Basic dialect to target RISC-V Gemmini extension";
   let description = [{
     Gemmini is an accelerator based on systolic array architecture.

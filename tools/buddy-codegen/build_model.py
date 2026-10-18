@@ -129,7 +129,7 @@ def main() -> int:
     ap.add_argument(
         "--is-rvv-crosscompile",
         action="store_true",
-        help="Enable RVV cross-compilation for model.so (sets IS_RVV_CROSSCOMPILE=ON)",
+        help="Enable RVV cross-compilation for the model and runner package",
     )
     ap.add_argument(
         "--riscv-gnu-toolchain",
@@ -141,13 +141,21 @@ def main() -> int:
         "--riscv-omp-shared",
         type=Path,
         default=None,
-        help="Path to target OpenMP shared library used for RVV Stage 3 linking",
+        help="Path to target OpenMP shared library used for RVV Stage 3 linking "
+        '(not needed with "thread_pool" in the spec)',
     )
     ap.add_argument(
         "--riscv-mlir-c-runner-utils",
         type=Path,
         default=None,
         help="Path to target mlir_c_runner_utils shared library used for RVV Stage 3 linking",
+    )
+    ap.add_argument(
+        "--riscv-llvm-build-dir",
+        type=Path,
+        default=None,
+        help="riscv64 LLVM build dir (lib/libLLVMSupport.a, include/llvm/Config) "
+        "linked into the RVV runtime plugins",
     )
     ap.add_argument(
         "--buddy-mlir-build-dir",
@@ -187,13 +195,14 @@ def main() -> int:
         "deepseek_r1",
         "whisper",
         "qwen3_vl",
+        "qwen3_vl_moe",
         "bge_m3",
         "proteinglm",
     }:
         print(
             "error: unsupported model_family in spec: "
             f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
-            "bge_m3, proteinglm)",
+            "qwen3_vl_moe, bge_m3, proteinglm)",
             file=sys.stderr,
         )
         return 1
@@ -203,6 +212,7 @@ def main() -> int:
     rvv_toolchain: Path | None = None
     rvv_omp_shared: Path | None = None
     rvv_mlir_runner_utils: Path | None = None
+    rvv_llvm_build_dir: Path | None = None
     rvv_build_dir: Path | None = None
     if args.is_rvv_crosscompile:
         if args.riscv_gnu_toolchain is None:
@@ -211,7 +221,9 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        if args.riscv_omp_shared is None:
+        # A model with "thread_pool" links no libomp (docs/ModelThreadPool.md).
+        needs_omp = spec_data.get("thread_pool") is not True
+        if args.riscv_omp_shared is None and needs_omp:
             print(
                 "error: --is-rvv-crosscompile requires --riscv-omp-shared",
                 file=sys.stderr,
@@ -232,8 +244,9 @@ def main() -> int:
             )
             return 1
 
-        rvv_omp_shared = resolve_from_cwd(args.riscv_omp_shared)
-        if not rvv_omp_shared.is_file():
+        if args.riscv_omp_shared is not None:
+            rvv_omp_shared = resolve_from_cwd(args.riscv_omp_shared)
+        if rvv_omp_shared is not None and not rvv_omp_shared.is_file():
             print(
                 f"error: --riscv-omp-shared is not a file: {rvv_omp_shared}",
                 file=sys.stderr,
@@ -244,6 +257,21 @@ def main() -> int:
         if not rvv_mlir_runner_utils.is_file():
             print(
                 f"error: --riscv-mlir-c-runner-utils is not a file: {rvv_mlir_runner_utils}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if args.riscv_llvm_build_dir is None:
+            print(
+                "error: --is-rvv-crosscompile requires --riscv-llvm-build-dir",
+                file=sys.stderr,
+            )
+            return 1
+        rvv_llvm_build_dir = resolve_from_cwd(args.riscv_llvm_build_dir)
+        if not (rvv_llvm_build_dir / "lib" / "libLLVMSupport.a").is_file():
+            print(
+                "error: --riscv-llvm-build-dir has no lib/libLLVMSupport.a: "
+                f"{rvv_llvm_build_dir}",
                 file=sys.stderr,
             )
             return 1
@@ -322,6 +350,22 @@ def main() -> int:
                 "importer uses --spec and optional --local-model.",
                 file=sys.stderr,
             )
+    elif model_family == "qwen3_vl_moe":
+        cmake_args.extend(
+            [
+                f"-DBUDDY_QWEN3_VL_MOE_SPEC={spec}",
+                "-DBUDDY_BUILD_QWEN3_VL_MOE_MODEL=ON",
+            ]
+        )
+        if local_model is not None:
+            cmake_args.append(f"-DBUDDY_QWEN3_VL_MOE_LOCAL_MODEL={local_model}")
+        if args.hf_config is not None:
+            hf = resolve_from_cwd(args.hf_config)
+            cmake_args.append(f"-DBUDDY_QWEN3_VL_MOE_HF_CONFIG={hf}")
+        elif local_model is not None:
+            auto_cfg = local_model / "config.json"
+            if auto_cfg.is_file():
+                cmake_args.append(f"-DBUDDY_QWEN3_VL_MOE_HF_CONFIG={auto_cfg}")
     elif model_family == "bge_m3":
         if local_model is None:
             print(
@@ -367,9 +411,12 @@ def main() -> int:
         cmake_args.extend(
             [
                 "-DIS_RVV_CROSSCOMPILE=ON",
+                "-DBUDDY_TARGET_TRIPLE=riscv64-unknown-linux-gnu",
+                "-DBUDDY_OPT_ATTR=+m,+d,+v",
                 f"-DRISCV_GNU_TOOLCHAIN={rvv_toolchain}",
-                f"-DRISCV_OMP_SHARED={rvv_omp_shared}",
+                f"-DRISCV_OMP_SHARED={rvv_omp_shared or ''}",
                 f"-DRISCV_MLIR_C_RUNNER_UTILS={rvv_mlir_runner_utils}",
+                f"-DRISCV_LLVM_BUILD_DIR={rvv_llvm_build_dir}",
                 f"-DBUDDY_MLIR_BUILD_DIR={rvv_build_dir}",
             ]
         )

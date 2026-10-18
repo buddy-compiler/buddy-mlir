@@ -3689,9 +3689,9 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
                                             APFloat(double(0.0000000001)));
   Value melFloor = tensor::SplatOp::create(rewriter, loc, tensorTy1, cMelFloor);
 
-  auto linalgMaxOp = linalg::MaxOp::create(
+  auto linalgMaxOp = linalg::ElementwiseOp::create(
       rewriter, loc, /*input=*/ValueRange{melFloor, matMulResult},
-      /*outputs=*/ValueRange{melFloor});
+      /*outputs=*/ValueRange{melFloor}, linalg::ElementwiseKind::max_signed);
   Value spectrogramMax = linalgMaxOp.getResultTensors()[0];
 
   // #log10_trait for 'linalg.generic' operation.
@@ -3870,9 +3870,10 @@ public:
     Value logSpecFloor = tensor::SplatOp::create(
         rewriter, loc, RankedTensorType::get({80, 3000}, f64), maxNumMinus8);
 
-    auto linalgMaxOp = linalg::MaxOp::create(
+    auto linalgMaxOp = linalg::ElementwiseOp::create(
         rewriter, loc, /*input=*/ValueRange{logSpecCut, logSpecFloor},
-        /*outputs=*/ValueRange{logSpecFloor});
+        /*outputs=*/ValueRange{logSpecFloor},
+        linalg::ElementwiseKind::max_signed);
     Value logSpecMax = linalgMaxOp.getResultTensors()[0];
 
     Value f0F32 =

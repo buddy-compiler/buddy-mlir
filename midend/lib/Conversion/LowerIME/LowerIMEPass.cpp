@@ -43,7 +43,11 @@ public:
     return "IME dialect lowering pass.";
   }
   LowerIMEToLLVMPass() = default;
-  LowerIMEToLLVMPass(const LowerIMEToLLVMPass &) {}
+  LowerIMEToLLVMPass(const LowerIMEToLLVMPass &other) : PassWrapper(other) {}
+
+  Option<std::string> targetCPU{
+      *this, "target", llvm::cl::desc("IME target: generic (K1) or k3 (A100)"),
+      llvm::cl::init("generic")};
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
@@ -65,7 +69,14 @@ void LowerIMEToLLVMPass::runOnOperation() {
   LLVMConversionTarget target(*context);
 
   configureIMELegalizeForExportTarget(target);
-  populateIMELegalizeForLLVMExportPatterns(converter, patterns);
+  if (targetCPU == "k3")
+    populateIMEK3LegalizeForLLVMExportPatterns(converter, patterns);
+  else if (targetCPU == "generic")
+    populateIMELegalizeForLLVMExportPatterns(converter, patterns);
+  else {
+    module.emitError("unsupported IME target: ") << targetCPU;
+    return signalPassFailure();
+  }
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();

@@ -105,7 +105,7 @@ Run the canonical package.
 
 The same canonical package can be served through the resident plugin. Enable
 the model target while configuring the project; the package target builds
-`llama31_tt_serving.so` and records it in the manifest as `serving_library`.
+`llama31_tt_server.so` and records it in the manifest as `model_library`.
 
 ```bash
 conda run -n buddy-mlir cmake --build "$BUDDY_BUILD" \
@@ -155,7 +155,7 @@ curl -sS http://127.0.0.1:8080/tokenize \
   -d '{"content":"Hello buddy-server","add_special":true,"count_only":false}' | jq .
 ```
 
-`llama31_tt_serving.so` resolves TTNN runtime libraries through its build/install
+`llama31_tt_server.so` resolves TTNN runtime libraries through its build/install
 RPATH. When running from a non-installed build, keep the tt-metal runtime and
 the conda `buddy-mlir` Python library on `LD_LIBRARY_PATH`; a missing Binary,
 artifact, tokenizer, or device is a load error and `/health` remains in the

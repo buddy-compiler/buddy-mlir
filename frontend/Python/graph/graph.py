@@ -923,6 +923,10 @@ class GraphImporter:
         self._ops_registry = ops_registry
         self._current_param_pack_offset = None
         self._enable_external_calls = enable_external_calls
+        # Name -> ir.FunctionType of the external functions declared in
+        # self._module, so that each one is declared once.
+        self._external_func_types = {}
+        self._external_func_written = {}
 
     def _verbose_output(self):
         if self._verbose_path is None:
@@ -1190,8 +1194,18 @@ class GraphImporter:
         """
         Generate external function declaration for CallExternalOp.
 
+        Several CallExternalOp nodes may call the same function (e.g. every
+        matmul replaced by replace_matmul_with_onednn calls
+        onednn_matmul_f32): the function is declared once, at the first call
+        site. All call sites must have the same signature, since a symbol has
+        one function type.
+
         Args:
             call_node: CallExternalOp node that calls an external function
+
+        Raises:
+            ValueError: if the function was already declared with a different
+                signature.
         """
         from ..ops.utils import mlir_element_type_get
         from .operation import CallExternalOp
@@ -1255,6 +1269,26 @@ class GraphImporter:
             inputs=arg_types, results=result_types
         )
 
+        written = getattr(call_node, "written_args", None)
+        declared_type = self._external_func_types.get(func_name)
+        if declared_type is not None:
+            if declared_type != function_type:
+                raise ValueError(
+                    f"external function '{func_name}' is called with type "
+                    f"{function_type}, but it is already declared with type "
+                    f"{declared_type}; call sites with different signatures "
+                    "need different function names"
+                )
+            if self._external_func_written[func_name] != written:
+                raise ValueError(
+                    f"external function '{func_name}' is called with "
+                    f"written_args {written}, but it is already declared "
+                    f"with written_args {self._external_func_written[func_name]}"
+                )
+            return
+        self._external_func_types[func_name] = function_type
+        self._external_func_written[func_name] = written
+
         # Create private function declaration
         with ir.InsertionPoint(self._module.body):
             func_decl = func.FuncOp(
@@ -1262,6 +1296,22 @@ class GraphImporter:
             )
             # Add llvm.emit_c_interface attribute for C ABI compatibility
             func_decl.attributes["llvm.emit_c_interface"] = ir.UnitAttr.get()
+            # What the function does with its arguments, when the call says
+            # (CallExternalOp.written_args): one-shot bufferization reads it
+            # instead of assuming that every argument is written.
+            if written is not None:
+                func_decl.attributes["arg_attrs"] = ir.ArrayAttr.get(
+                    [
+                        ir.DictAttr.get(
+                            {
+                                "bufferization.access": ir.StringAttr.get(
+                                    "read-write" if i in written else "read"
+                                )
+                            }
+                        )
+                        for i in range(len(arg_types))
+                    ]
+                )
 
     def _import_op(self, node: Op):
         """

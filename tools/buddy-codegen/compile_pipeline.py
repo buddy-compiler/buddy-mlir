@@ -60,7 +60,7 @@ LOWER_TO_LLVM = [
     "-arith-expand",
     "-convert-vector-to-llvm",
     "-convert-arith-to-llvm",
-    "-finalize-memref-to-llvm",
+    "-finalize-memref-to-llvm",  # see lower_to_llvm()
     "-convert-scf-to-cf",
     "-convert-cf-to-llvm",
     "-llvm-request-c-wrappers",
@@ -73,6 +73,61 @@ LOWER_TO_LLVM = [
 ]
 
 
+# The buffer deallocation passes, left out with the arena.
+BUFFER_DEALLOCATION = [
+    "-ownership-based-buffer-deallocation",
+    "-canonicalize",
+    "-buffer-deallocation-simplification",
+    "-bufferization-lower-deallocations",
+]
+
+
+# The matrix-engine code of the SpacemiT K3 A100 cores (pipeline
+# "kernels_ime") is written for exactly this VLEN: vscale 16, at which
+# vector<[8]xi8> is one 8 x 16 int8 tile of smt.vmadot.
+A100_VLEN = 1024
+
+
+def a100_llc_args(llc_base_args: list[str]) -> list[str]:
+    """llc options of the A100 code, on top of the build's: the IME
+    extension, the exact VLEN (whatever BUDDY_RISCV_VLEN gives the other
+    kernels; an option llc accepts once is not repeated) and the A100
+    scheduling model, top down (it issues the weight load of an IME step
+    first and unpacks it while the activations load)."""
+    vmax = f"-riscv-v-vector-bits-max={A100_VLEN}"
+    given = [
+        a for a in llc_base_args if a.startswith("-riscv-v-vector-bits-max=")
+    ]
+    if any(a != vmax for a in given):
+        raise ValueError(
+            f"the A100 IME kernels need VLEN {A100_VLEN}, the build gives "
+            f"{given[-1]}"
+        )
+    return [
+        f"-mattr=+xsmtvdotii,+zvl{A100_VLEN}b",
+        "-mcpu=spacemit-a100",
+        "-misched-prera-direction=topdown",
+        *([] if given else [vmax]),
+    ]
+
+
+def lower_to_llvm(arena: bool) -> list[str]:
+    """LOWER_TO_LLVM. With the arena (gen_config.derive_memory_options),
+    allocations and frees call _mlir_memref_to_llvm_alloc / _aligned_alloc /
+    _free, which runtime/arena/BuddyArena.c implements, instead of malloc /
+    aligned_alloc / free."""
+    if not arena:
+        return list(LOWER_TO_LLVM)
+    return [
+        (
+            "-finalize-memref-to-llvm=use-generic-functions=true"
+            if p == "-finalize-memref-to-llvm"
+            else p
+        )
+        for p in LOWER_TO_LLVM
+    ]
+
+
 def build_stages(
     pipeline_type: str,
     num_threads: int,
@@ -80,6 +135,8 @@ def build_stages(
     variant: str = "f32",
     tiered: bool = False,
     decode_pack: dict | None = None,
+    arena: bool = False,
+    chunked_prefill: bool = False,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -97,6 +154,51 @@ def build_stages(
     ):
         llc_base_args.append("-code-model=large")
 
+    if pipeline_type in ("kernels", "kernels_a100", "kernels_ime"):
+        # Generated kernels (graph/transform/k3_w4.py, a210_w4.py): scf / vector /
+        # memref, scf.parallel for the threads. "kernels_ime": the prefill
+        # tiles on the matrix engine of the SpacemiT K3 A100 cores (IME
+        # dialect), for the A100 only (a100_llc_args). "kernels_a100": the
+        # other kernels when the model runs on the A100 cores only, with
+        # the same llc options: scheduled for the in-order A100, which
+        # issues independent work in the latency of a reduction (decode
+        # attention at position 900: 332 -> 284 us); the same results.
+        ime = pipeline_type == "kernels_ime"
+        a100 = pipeline_type != "kernels"
+        lower = lower_to_llvm(arena)
+        i = lower.index("-convert-vector-to-llvm") + 1
+        stages.append(
+            (
+                "buddy-opt",
+                (["-lower-ime=target=k3"] if ime else [])
+                + [
+                    f"-convert-scf-to-openmp=num-threads={num_threads}",
+                    "-expand-strided-metadata",
+                    "-convert-vector-to-scf",
+                    "-lower-affine",
+                    "-expand-strided-metadata",
+                ]
+                + lower[:i]
+                + ["-convert-ub-to-llvm"]
+                + lower[i:],
+            )
+        )
+        # buddy-translate also translates the IME intrinsics.
+        if ime:
+            stages.append(("buddy-translate", ["--buddy-to-llvmir"]))
+        else:
+            stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
+        stages.append(("llvm-as", []))
+        stages.append(
+            (
+                "llc",
+                llc_base_args
+                + (a100_llc_args(llc_base_args) if a100 else [])
+                + ["-filetype=obj", "-relocation-model=pic", "-O3"],
+            )
+        )
+        return stages
+
     if pipeline_type == "forward":
         stages.append(
             (
@@ -106,7 +208,7 @@ def build_stages(
                     "-canonicalize",
                     "-cse",
                 ]
-                + LOWER_TO_LLVM,
+                + lower_to_llvm(arena),
             )
         )
         stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
@@ -145,10 +247,8 @@ def build_stages(
         [
             "-one-shot-bufferize=bufferize-function-boundaries",
             "-expand-strided-metadata",
-            "-ownership-based-buffer-deallocation",
-            "-canonicalize",
-            "-buffer-deallocation-simplification",
-            "-bufferization-lower-deallocations",
+            # With the arena, nothing is freed before the session resets it.
+            *([] if arena else BUFFER_DEALLOCATION),
             "-convert-bufferization-to-memref",
             "-cse",
             "-canonicalize",
@@ -156,8 +256,15 @@ def build_stages(
         ]
     )
 
-    if pipeline_type == "subgraph_decode":
+    # The KV caches are function arguments that the graph updates: write them
+    # in place instead of copying each into a new buffer first. Decode, and
+    # prefill in chunks (gen_config.derive_prefill_chunk), which has the
+    # decode ABI; the session handles results that alias its inputs.
+    if pipeline_type == "subgraph_decode" or (
+        pipeline_type == "subgraph" and chunked_prefill
+    ):
         opts.append("-eliminate-memref-copy")
+    if pipeline_type == "subgraph_decode":
         opts.extend(
             [
                 "-assume-tight-memref-layout",
@@ -214,6 +321,12 @@ def build_stages(
                 "-affine-parallelize",
                 "-convert-vector-to-scf",
                 "-lower-affine",
+                # -affine-parallelize makes every parallel loop of a nest an
+                # scf.parallel dimension, the unit batch dimension too, and
+                # -convert-scf-to-openmp forks the threads over the outermost
+                # scf.parallel only: with one iteration, one thread runs the
+                # whole nest. -canonicalize drops single-iteration dimensions.
+                "-canonicalize",
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
                 "-cse",
             ]
@@ -227,13 +340,14 @@ def build_stages(
                 "-affine-parallelize",
                 "-convert-vector-to-scf",
                 "-lower-affine",
+                "-canonicalize",  # as for "subgraph" above
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
             ]
         )
         if tiered:
             opts.append("-cse")
 
-    opts.extend(LOWER_TO_LLVM)
+    opts.extend(lower_to_llvm(arena))
     stages.append(("buddy-opt", opts))
 
     # ── Stage 4–6: LLVM backend ─────────────────────────────────────────────
@@ -258,6 +372,8 @@ def build_stages(
 def _resolve_tool(name: str, buddy_opt: str, llvm_dir: str) -> str:
     if name == "buddy-opt":
         return buddy_opt
+    if name == "buddy-translate":
+        return os.path.join(os.path.dirname(buddy_opt), name)
     return os.path.join(llvm_dir, name)
 
 
@@ -321,6 +437,9 @@ MLIR_FILE_MAP = {
     "forward_prefill": ("forward_prefill.mlir", "forward_prefill.o"),
     "subgraph_prefill": ("subgraph0_prefill.mlir", "subgraph_prefill.o"),
     "forward_decode": ("forward_decode.mlir", "forward_decode.o"),
+    "k3_kernels": ("k3_kernels.mlir", "k3_kernels.o"),
+    "k3_kernels_ime": ("k3_kernels_ime.mlir", "k3_kernels_ime.o"),
+    "a210_kernels": ("a210_kernels.mlir", "a210_kernels.o"),
     "subgraph_decode": ("subgraph0_decode.mlir", "subgraph_decode.o"),
 }
 
@@ -402,6 +521,8 @@ def _compile_one(task: dict) -> str:
         task.get("variant", "f32"),
         task.get("tiered", False),
         task.get("decode_pack"),
+        task.get("arena", False),
+        task.get("chunked_prefill", False),
     )
     run_pipeline(
         stages,
@@ -451,6 +572,8 @@ def compile_all(
                 "variant": variant,
                 "tiered": is_tiered_kv_cache(config),
                 "decode_pack": decode_pack,
+                "arena": bool(config.get("arena", False)),
+                "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": input_path,
                 "output": output_path,
                 "buddy_opt": buddy_opt,
@@ -646,6 +769,8 @@ def compile_partitioned(
                 "variant": variant,
                 "decode_pack": decode_pack,
                 "tiered": is_tiered_kv_cache(config),
+                "arena": bool(config.get("arena", False)),
+                "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": mlir_name
                 if os.path.isabs(mlir_name)
                 else os.path.join(mlir_dir, mlir_name),
@@ -958,6 +1083,8 @@ def main():
             variant,
             is_tiered_kv_cache(config),
             config.get("decode_pack"),
+            bool(config.get("arena", False)),
+            bool(config.get("prefill_chunk")),
         )
 
         print(
