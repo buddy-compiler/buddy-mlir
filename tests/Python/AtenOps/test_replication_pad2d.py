@@ -1,8 +1,6 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
@@ -27,5 +25,6 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: tosa.pad
+# CHECK: linalg.generic
+# CHECK: tensor.extract
 # CHECK: return

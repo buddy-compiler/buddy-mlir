@@ -68,7 +68,19 @@ func.func @main() {
 
   %time = arith.subf %t_end, %t_start : f64
   vector.print %time : f64
-  // CHECK-EXEC: {{[0-9]+\.[0-9]+}}
+  // The clock can return zero elapsed time for this small input.
+  // CHECK-EXEC: {{^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$}}
+
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %last = arith.subi %size, %c1 : index
+  %first_value = memref.load %y[%c0] : memref<?xf32>
+  %last_value = memref.load %y[%last] : memref<?xf32>
+  vector.print %first_value : f32
+  vector.print %last_value : f32
+  // 5 * 2 + 3 = 13 at both ends of the output.
+  // CHECK-EXEC-NEXT: {{^13$}}
+  // CHECK-EXEC-NEXT: {{^13$}}
 
   return
 }
