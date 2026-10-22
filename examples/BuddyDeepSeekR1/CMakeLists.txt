@@ -2039,7 +2039,7 @@ target_link_libraries(buddy-deepseek-r1-f16-run ${BUDDY_DEEPSEEKR1_F16_LIBS})
 target_link_libraries(buddy-deepseek-r1-bf16-run ${BUDDY_DEEPSEEKR1_BF16_LIBS})
 target_link_libraries(buddy-deepseek-r1-w8a32-run ${BUDDY_DEEPSEEKR1_W8A32_LIBS})
 target_link_libraries(buddy-deepseek-r1-w8a8-run ${BUDDY_DEEPSEEKR1_W8A8_LIBS})
-target_link_libraries(buddy-deepseek-r1-w4a16-run ${BUDDY_DEEPSEEKR1_W4A16_LIBS})
+target_link_libraries(buddy-deepseek-r1-w4a16-run ${BUDDY_DEEPSEEKR1_W4A16_LIBS} CLI11)
 target_link_libraries(buddy-deepseek-r1-w8a16-run ${BUDDY_DEEPSEEKR1_W8A16_LIBS})
 target_link_libraries(buddy-deepseek-r1-packed-run ${BUDDY_DEEPSEEKR1_PACKED_LIBS})
 target_link_libraries(buddy-deepseek-r1-packed-f16-run ${BUDDY_DEEPSEEKR1_PACKED_F16_LIBS})
@@ -2369,7 +2369,7 @@ set(DEEPSEEKR1_TEST_VARIANT "f32" CACHE STRING
 if(DEEPSEEKR1_TEST_VARIANT STREQUAL "w4a16")
   add_test(
     NAME example.buddy-deepseek-r1-w4a16-run
-    COMMAND sh -c "printf '%s\n' 'Hi' | env DEEPSEEKR1_MAX_NEW_TOKENS=16 \"$<TARGET_FILE:buddy-deepseek-r1-w4a16-run>\""
+    COMMAND $<TARGET_FILE:buddy-deepseek-r1-w4a16-run> --prompt Hi --max-tokens=16
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
   )
   set_tests_properties(

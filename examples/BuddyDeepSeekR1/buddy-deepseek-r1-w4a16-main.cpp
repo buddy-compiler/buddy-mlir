@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CLI11.hpp>
 #include <array>
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
@@ -24,7 +25,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -443,7 +443,15 @@ void copy_kv_by_cache_position_block(const KVPtrArray &prefillPtrs,
 // DeepSeekR1 W4A16 Quantized Inference Main Entry
 // -----------------------------------------------------------------------------
 
-int main() {
+int main(int argc, char **argv) {
+  /// Parse command line options.
+  CLI::App app{"DeepSeekR1 W4A16 quantized inference"};
+  std::string inputStr;
+  int maxNewTokens = static_cast<int>(MaxTokenLength);
+  app.add_option("--prompt", inputStr, "Input prompt (interactive if omitted)");
+  app.add_option("--max-tokens", maxNewTokens, "Maximum generated tokens");
+  CLI11_PARSE(app, argc, argv);
+
   /// Print the title of this example.
   const std::string title =
       "DeepSeekR1 W4A16 Quantized Inference Powered by Buddy Compiler";
@@ -458,8 +466,9 @@ int main() {
       deepSeekR1BuildDir + "arg0-w4a16-i4packed.data";
 
   /// Get user message.
-  std::string inputStr;
-  getUserInput(inputStr);
+  if (inputStr.empty()) {
+    getUserInput(inputStr);
+  }
 
   /// Initialize data containers
   Text<size_t, 2> outputContainer;
@@ -677,13 +686,8 @@ int main() {
 
   cachePosition.getData()[0] = tokenizedText.getTokenCnt();
   int generateLen = MaxTokenLength - tokenizedText.getTokenCnt();
-  // Bound the decode for callers that only need a smoke test (the ctest sets
-  // this); interactive use keeps generating until the model emits EOS.
-  if (const char *env = std::getenv("DEEPSEEKR1_MAX_NEW_TOKENS")) {
-    const int maxNewTokens = std::atoi(env);
-    if (maxNewTokens > 0 && generateLen > maxNewTokens) {
-      generateLen = maxNewTokens;
-    }
+  if (maxNewTokens > 0 && generateLen > maxNewTokens) {
+    generateLen = maxNewTokens;
   }
   double decodeTimeAccumMs = 0.0;
   size_t decodeTokens = 0;
