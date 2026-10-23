@@ -110,92 +110,88 @@ struct DecodeReturns {
   // %0#0: updated cache_position
   MemRef<long long, 1> cache_position_out;
 
-  // %0#1 - %0#2: first KV pair
+  // %0#1 - %0#2: first KV pair, then 27 groups of (dummy, kv, kv).
   MemRef<uint16_t, 4> kv0;
   MemRef<uint16_t, 4> kv1;
-
-  // %0#3 - %0#29: 27 consecutive dummy memrefs (no KV interspersed!)
   MemRef<long long, 1> ret_dummy0;
-  MemRef<long long, 1> ret_dummy1;
-  MemRef<long long, 1> ret_dummy2;
-  MemRef<long long, 1> ret_dummy3;
-  MemRef<long long, 1> ret_dummy4;
-  MemRef<long long, 1> ret_dummy5;
-  MemRef<long long, 1> ret_dummy6;
-  MemRef<long long, 1> ret_dummy7;
-  MemRef<long long, 1> ret_dummy8;
-  MemRef<long long, 1> ret_dummy9;
-  MemRef<long long, 1> ret_dummy10;
-  MemRef<long long, 1> ret_dummy11;
-  MemRef<long long, 1> ret_dummy12;
-  MemRef<long long, 1> ret_dummy13;
-  MemRef<long long, 1> ret_dummy14;
-  MemRef<long long, 1> ret_dummy15;
-  MemRef<long long, 1> ret_dummy16;
-  MemRef<long long, 1> ret_dummy17;
-  MemRef<long long, 1> ret_dummy18;
-  MemRef<long long, 1> ret_dummy19;
-  MemRef<long long, 1> ret_dummy20;
-  MemRef<long long, 1> ret_dummy21;
-  MemRef<long long, 1> ret_dummy22;
-  MemRef<long long, 1> ret_dummy23;
-  MemRef<long long, 1> ret_dummy24;
-  MemRef<long long, 1> ret_dummy25;
-  MemRef<long long, 1> ret_dummy26;
-
-  // %0#30 - %0#83: remaining 54 KV caches (total 56 with kv0, kv1)
   MemRef<uint16_t, 4> kv2;
   MemRef<uint16_t, 4> kv3;
+  MemRef<long long, 1> ret_dummy1;
   MemRef<uint16_t, 4> kv4;
   MemRef<uint16_t, 4> kv5;
+  MemRef<long long, 1> ret_dummy2;
   MemRef<uint16_t, 4> kv6;
   MemRef<uint16_t, 4> kv7;
+  MemRef<long long, 1> ret_dummy3;
   MemRef<uint16_t, 4> kv8;
   MemRef<uint16_t, 4> kv9;
+  MemRef<long long, 1> ret_dummy4;
   MemRef<uint16_t, 4> kv10;
   MemRef<uint16_t, 4> kv11;
+  MemRef<long long, 1> ret_dummy5;
   MemRef<uint16_t, 4> kv12;
   MemRef<uint16_t, 4> kv13;
+  MemRef<long long, 1> ret_dummy6;
   MemRef<uint16_t, 4> kv14;
   MemRef<uint16_t, 4> kv15;
+  MemRef<long long, 1> ret_dummy7;
   MemRef<uint16_t, 4> kv16;
   MemRef<uint16_t, 4> kv17;
+  MemRef<long long, 1> ret_dummy8;
   MemRef<uint16_t, 4> kv18;
   MemRef<uint16_t, 4> kv19;
+  MemRef<long long, 1> ret_dummy9;
   MemRef<uint16_t, 4> kv20;
   MemRef<uint16_t, 4> kv21;
+  MemRef<long long, 1> ret_dummy10;
   MemRef<uint16_t, 4> kv22;
   MemRef<uint16_t, 4> kv23;
+  MemRef<long long, 1> ret_dummy11;
   MemRef<uint16_t, 4> kv24;
   MemRef<uint16_t, 4> kv25;
+  MemRef<long long, 1> ret_dummy12;
   MemRef<uint16_t, 4> kv26;
   MemRef<uint16_t, 4> kv27;
+  MemRef<long long, 1> ret_dummy13;
   MemRef<uint16_t, 4> kv28;
   MemRef<uint16_t, 4> kv29;
+  MemRef<long long, 1> ret_dummy14;
   MemRef<uint16_t, 4> kv30;
   MemRef<uint16_t, 4> kv31;
+  MemRef<long long, 1> ret_dummy15;
   MemRef<uint16_t, 4> kv32;
   MemRef<uint16_t, 4> kv33;
+  MemRef<long long, 1> ret_dummy16;
   MemRef<uint16_t, 4> kv34;
   MemRef<uint16_t, 4> kv35;
+  MemRef<long long, 1> ret_dummy17;
   MemRef<uint16_t, 4> kv36;
   MemRef<uint16_t, 4> kv37;
+  MemRef<long long, 1> ret_dummy18;
   MemRef<uint16_t, 4> kv38;
   MemRef<uint16_t, 4> kv39;
+  MemRef<long long, 1> ret_dummy19;
   MemRef<uint16_t, 4> kv40;
   MemRef<uint16_t, 4> kv41;
+  MemRef<long long, 1> ret_dummy20;
   MemRef<uint16_t, 4> kv42;
   MemRef<uint16_t, 4> kv43;
+  MemRef<long long, 1> ret_dummy21;
   MemRef<uint16_t, 4> kv44;
   MemRef<uint16_t, 4> kv45;
+  MemRef<long long, 1> ret_dummy22;
   MemRef<uint16_t, 4> kv46;
   MemRef<uint16_t, 4> kv47;
+  MemRef<long long, 1> ret_dummy23;
   MemRef<uint16_t, 4> kv48;
   MemRef<uint16_t, 4> kv49;
+  MemRef<long long, 1> ret_dummy24;
   MemRef<uint16_t, 4> kv50;
   MemRef<uint16_t, 4> kv51;
+  MemRef<long long, 1> ret_dummy25;
   MemRef<uint16_t, 4> kv52;
   MemRef<uint16_t, 4> kv53;
+  MemRef<long long, 1> ret_dummy26;
   MemRef<uint16_t, 4> kv54;
   MemRef<uint16_t, 4> kv55;
 
@@ -596,84 +592,84 @@ int main(int argc, char **argv) {
       kv0,
       kv1,
       MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
-      MemRef<long long, 1>({1}, 0LL),
       kv2,
       kv3,
+      MemRef<long long, 1>({1}, 0LL),
       kv4,
       kv5,
+      MemRef<long long, 1>({1}, 0LL),
       kv6,
       kv7,
+      MemRef<long long, 1>({1}, 0LL),
       kv8,
       kv9,
+      MemRef<long long, 1>({1}, 0LL),
       kv10,
       kv11,
+      MemRef<long long, 1>({1}, 0LL),
       kv12,
       kv13,
+      MemRef<long long, 1>({1}, 0LL),
       kv14,
       kv15,
+      MemRef<long long, 1>({1}, 0LL),
       kv16,
       kv17,
+      MemRef<long long, 1>({1}, 0LL),
       kv18,
       kv19,
+      MemRef<long long, 1>({1}, 0LL),
       kv20,
       kv21,
+      MemRef<long long, 1>({1}, 0LL),
       kv22,
       kv23,
+      MemRef<long long, 1>({1}, 0LL),
       kv24,
       kv25,
+      MemRef<long long, 1>({1}, 0LL),
       kv26,
       kv27,
+      MemRef<long long, 1>({1}, 0LL),
       kv28,
       kv29,
+      MemRef<long long, 1>({1}, 0LL),
       kv30,
       kv31,
+      MemRef<long long, 1>({1}, 0LL),
       kv32,
       kv33,
+      MemRef<long long, 1>({1}, 0LL),
       kv34,
       kv35,
+      MemRef<long long, 1>({1}, 0LL),
       kv36,
       kv37,
+      MemRef<long long, 1>({1}, 0LL),
       kv38,
       kv39,
+      MemRef<long long, 1>({1}, 0LL),
       kv40,
       kv41,
+      MemRef<long long, 1>({1}, 0LL),
       kv42,
       kv43,
+      MemRef<long long, 1>({1}, 0LL),
       kv44,
       kv45,
+      MemRef<long long, 1>({1}, 0LL),
       kv46,
       kv47,
+      MemRef<long long, 1>({1}, 0LL),
       kv48,
       kv49,
+      MemRef<long long, 1>({1}, 0LL),
       kv50,
       kv51,
+      MemRef<long long, 1>({1}, 0LL),
       kv52,
       kv53,
+      MemRef<long long, 1>({1}, 0LL),
       kv54,
       kv55,
       logits_decode};
