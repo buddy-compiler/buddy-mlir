@@ -11,10 +11,6 @@ inputs:
   llvm-build-root:
     description: Path to the LLVM build cache root.
     required: true
-  buddy-enable-png:
-    description: Configure buddy-mlir with -DBUDDY_ENABLE_PNG=ON.
-    required: false
-    default: "false"
 
 runs:
   using: composite
@@ -134,11 +130,6 @@ runs:
         git submodule status || true
         rm -rf build
 
-        png_arg=""
-        if [ "${{ inputs.buddy-enable-png }}" = "true" ]; then
-          png_arg="-DBUDDY_ENABLE_PNG=ON"
-        fi
-
         cmake -G Ninja -S . -B build \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -148,7 +139,7 @@ runs:
           -DCMAKE_BUILD_TYPE=RELEASE \
           -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
           -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
-          $png_arg \
+          -DBUDDY_ENABLE_PNG=ON \
           -DPython3_EXECUTABLE="$(which python)" \
           -DPython_EXECUTABLE="$(which python)"
 
