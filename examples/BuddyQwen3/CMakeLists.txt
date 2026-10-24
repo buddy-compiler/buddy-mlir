@@ -30,6 +30,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-qwen3.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
           --precision f32
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward_prefill.mlir, subgraph0_prefill.mlir and arg0.data..."
 )
 
