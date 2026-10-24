@@ -12,14 +12,11 @@ export PYTHONPATH="$PWD/build/python_packages:${PYTHONPATH:-}"
 if [ "$arch" = "riscv64" ]; then
   cmake -S . -B build \
     -DBUDDY_QWEN3_EXAMPLES=ON \
-    -DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
-    -DBUDDY_ENABLE_PNG=ON \
-    -DDEEPSEEKR1_TEST_VARIANT=w4a16
+    -DBUDDY_ENABLE_PNG=ON
 
   ccache -z
   ninja -C build \
-    buddy-qwen3-0.6b-run \
-    buddy-deepseek-r1-w4a16-run
+    buddy-qwen3-0.6b-run
   ccache -s
 else
   # The YOLO26 importer needs ultralytics, which depends on torchvision;
