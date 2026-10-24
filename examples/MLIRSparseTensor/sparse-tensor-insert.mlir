@@ -1,5 +1,5 @@
 #SV = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed" ]
+  map = (d0) -> (d0 : compressed)
 }>
 
 func.func @main() {
