@@ -253,6 +253,44 @@ of a serial loop between them; the sums are the same, and so is the text.
 3 alternating runs: decode after a short prompt 27.05 -> 27.18 tok/s, after
 458 tokens 25.61 -> 25.77, after 900 tokens 24.30 -> 24.40.
 
+## Decode attention in the VIR dialect
+
+The decode attention is `_attn_decode_vir_fn` (`k3_w4.py`), written in the
+VIR dialect after the vector kernel `_attn_decode_fn` (which the A210
+kernels still use): the attention of a work item is one
+`vir.set_vl` region of the VIR dialect ([DynamicVector.md](DynamicVector.md))
+of 128 lanes that yields the (max, sum) of each head. q, the accumulators and
+the key and value rows are dynamic vectors, a score is a `vir.reduce` (with
+`reassoc`, i.e. `vfredusum`), the products with the values `vir.fma`; the
+online softmax over the 16 scores of a block is the vector code of the
+vector kernel, in the same order. `-lower-vir-to-vector` lowers a `set_vl`
+with results to vl / w vectors of `vector-width` w and vl % w scalars per
+dynamic vector, carried by the loops of the region (vl must be a constant);
+the kernels pipelines use w = 128 (`compile_pipeline.KERNELS_VIR_VECTOR_WIDTH`),
+one vector per head, LMUL 4 at VLEN 1024 (the head dimension of the models
+on the K3 kernels; one that is not a multiple of 128 would be lowered partly
+to scalars). The rotated q, computed as vector
+code, enters the region as a dynamic vector (`vir.from_vector`).
+
+At vector-width 128 the results are those of the vector kernel bit for bit
+(host and board), and so is the machine code of the parallel body: the same
+instructions in the same order. In the full model, `k3_kernels.o` differs only
+in the order of two instructions of the attention prologue, and every
+function after it keeps its address. Decode, `buddy-cli` greedy, three
+alternating runs, the same text:
+
+| decode, tok/s | vector kernel | VIR kernel |
+| --- | --- | --- |
+| after 458 tokens | 26.77-26.91 | 26.45-26.58 |
+| after 900 tokens | 25.05-25.11 | 25.49-25.59 |
+
+Two builds with the same code differ by up to 2% in either direction, so a
+difference below that is not one of the kernels. A first version made of
+`set_vl` regions without results (strip-mined loops, nothing carried out but
+through memory) had the accumulators, q and the scores of each block of 16
+keys go through stack buffers and was 2-5% slower (one call at position 900:
+150.7 instead of 147.0 us).
+
 ## Tests
 
 - `tests/Python/test_k3_w4_kernels.py`: the kernels, compiled for the host by
@@ -260,7 +298,9 @@ of a serial loop between them; the sums are the same, and so is the text.
   plain / with bias / with RMSNorm / q, k, v / gate, up; one row and several;
   attention for decode and for a prefill chunk, KV cache update included;
   the `prefill_ime` attention with its two matrix loops emulated, against a
-  reference rounded to fp16 like it).
+  reference rounded to fp16 like it; the decode attention also against the
+  bits of the vector kernel at vector-width 128, and against the reference at
+  vector-width 24).
 - `tests/Python/test_k3_w4_import.py`: a tiny random Qwen2 through the import:
   no Linear or attention op left, the kernels generated, the weight buffers of
   the sizes `gen_config.py` computed; and the same with `prefill_ime`.

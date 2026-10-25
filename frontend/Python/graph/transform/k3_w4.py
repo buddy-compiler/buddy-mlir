@@ -2232,7 +2232,8 @@ def _attn_decode_fn(ty, spec, block=16):
     online softmax over blocks of `block` keys (one rescale per block,
     vectorized exp), then a per-key tail. The G heads share the loads of
     each key and value row; each head computes exactly what it computes
-    alone. Used for decode (m == 1).
+    alone. The decode (m == 1) attention of the A210 kernels (a210_w4.py);
+    that of the K3 kernels is _attn_decode_vir_fn.
 
     The keys of a block are loops, not unrolled: the scores go through a
     small stack buffer into the vector of the block, and each value row is
@@ -2369,6 +2370,233 @@ def _attn_decode_fn(ty, spec, block=16):
             for g, (hh, q_lo) in enumerate(heads):
                 mx, l, acc = results[3 * g : 3 * g + 3]
                 vector.StoreOp(_divf(acc, _bcast(vd, l)), a["o"], [i, q_lo])
+                lse = _addf(math.LogOp(l).result, mx)
+                memref.StoreOp(lse, a["lse"], [c0, hh, i])
+            scf.ReduceOp([], 0)
+        _attn_epilogue(fn, a, outs)
+
+
+# The VIR dialect (midend/include/Dialect/VIR, docs/DynamicVector.md): a
+# vir.set_vl region computes on !vir.vec<?xT> values of the length it sets.
+# With results, -lower-vir-to-vector lowers each of them to vl / w vectors
+# of its vector-width w and vl % w scalars, so values flow through the
+# region (a vir.reduce over all lanes, loops carrying dynamic vectors) and
+# out of it; the vl must then be a constant.
+
+
+def _dvec(t):
+    return ir.Type.parse(f"!vir.vec<?x{t}>")
+
+
+def _set_vl(vl, types):
+    """vir.set_vl %vl { ... } -> types: returns the op and the block of its
+    region, which the caller fills and ends with vector.YieldOp."""
+    op = ir.Operation.create(
+        "vir.set_vl", results=types, operands=[vl], regions=1
+    )
+    return op, op.regions[0].blocks.append()
+
+
+def _vload(t, mem, indices):
+    return ir.Operation.create(
+        "vir.load", results=[t], operands=[mem, *indices]
+    ).result
+
+
+def _vstore(v, mem, indices):
+    ir.Operation.create("vir.store", operands=[v, mem, *indices])
+
+
+def _vbcast(t, s):
+    return ir.Operation.create(
+        "vir.broadcast", results=[t], operands=[s]
+    ).result
+
+
+def _vfrom(t, v):
+    """The lanes of the vector v (computed outside the region) as a
+    dynamic vector."""
+    return ir.Operation.create(
+        "vir.from_vector", results=[t], operands=[v]
+    ).result
+
+
+def _vfma(a, b, c):
+    return ir.Operation.create(
+        "vir.fma", results=[a.type], operands=[a, b, c]
+    ).result
+
+
+def _vsum(v, acc):
+    """acc + the sum of the lanes of v, in any order."""
+    return ir.Operation.create(
+        "vir.reduce",
+        results=[acc.type],
+        operands=[v, acc],
+        attributes={
+            "kind": ir.StringAttr.get("add"),
+            "reassoc": ir.UnitAttr.get(),
+        },
+    ).result
+
+
+def _attn_decode_vir_fn(ty, spec, block=16):
+    """The decode attention of the K3 kernels: _attn_decode_fn with the
+    attention of a work item in one vir.set_vl region of d lanes, which
+    yields the (max, sum) of each head: q, the accumulators and the key and
+    value rows are dynamic vectors, the scores vir.reduce of them, the
+    online softmax over the keys of a block the vector code of
+    _attn_decode_fn, in the same order. The rotated q enters the region as
+    a vector (vir.from_vector). At the vector-width of the kernels pipeline
+    (compile_pipeline.KERNELS_VIR_VECTOR_WIDTH, 128), each dynamic vector of
+    a head dimension of 128 is one vector, and the results and the machine
+    code are those of _attn_decode_fn."""
+    m, h, kvh, d = spec["m"], spec["heads"], spec["kv_heads"], spec["dim"]
+    hd, B = d // 2, block
+    G = _decode_heads_per_item(spec)
+    fn, a, outs = _attn_fn(ty, spec, q_norm=False)
+    qk_norm = spec.get("qk_norm_eps") is not None
+    vd, vb, vh = _vec(d, ty.f32), _vec(B, ty.f32), _vec(hd, ty.f32)
+    dv = _dvec(ty.f32)
+    f0 = fn.const(ty.f32, 0.0)
+    # the start of each score: -0.0 + s == s
+    fz = fn.const(ty.f32, -0.0)
+    c0 = fn.idx(0)
+    with ir.InsertionPoint(fn.entry):
+        body, (hg, i) = _parallel(fn, [fn.idx(h // G), fn.idx(m)])
+        with ir.InsertionPoint(body):
+            kh = _divui(_muli(hg, fn.idx(G)), fn.idx(h // kvh))
+            ca = vector.LoadOp(vh, a["cs"], [i, c0]).result
+            sa = vector.LoadOp(vh, a["sn"], [i, c0]).result
+
+            # the scores, then the probabilities, of a block's keys
+            buf = memref.AllocaOp(
+                _memref([G, B], ty.f32), [], [], alignment=128
+            ).result
+            heads, qvs = [], []
+            for g in range(G):
+                hh = _addi(_muli(hg, fn.idx(G)), fn.idx(g))
+                q_lo = _muli(hh, fn.idx(d))
+                qa = _read(vh, a["q"], [i, q_lo], f0)
+                qb_ = _read(vh, a["q"], [i, _addi(q_lo, fn.idx(hd))], f0)
+                if qk_norm:
+                    qa, qb_ = _head_rmsnorm(fn, ty, spec, a["qn"], qa, qb_)
+                rl = _fma(qa, ca, arith.NegFOp(_mulf(qb_, sa)).result)
+                rh = _fma(qb_, ca, _mulf(qa, sa))
+                qv = vector.InsertStridedSliceOp(
+                    rl, fn.const(vd, 0.0), [0], [1]
+                ).result
+                qv = vector.InsertStridedSliceOp(rh, qv, [hd], [1]).result
+                qvs.append(_mulf(qv, fn.const(vd, spec["scale"])))
+                heads.append((hh, q_lo))
+            length = arith.MinUIOp(
+                _addi(_addi(a["start"], i), fn.idx(1)), fn.idx(spec["ctx"])
+            ).result
+            nblk = _divui(length, fn.idx(B))
+            ninf = fn.const(ty.f32, float("-inf"))
+
+            region, rb = _set_vl(fn.idx(d), [ty.f32] * (2 * G))
+            with ir.InsertionPoint(rb):
+                qss = [_vfrom(dv, qv) for qv in qvs]
+
+                def key(j):
+                    return _vload(dv, a["kc"], [c0, kh, j, c0])
+
+                def value(j):
+                    return _vload(dv, a["vc"], [c0, kh, j, c0])
+
+                def score(qs, kv):
+                    return _vsum(_mulf(qs, kv), fz)
+
+                # blocks of B keys; per head (max, sum, acc)
+                init = [ninf, f0, _vbcast(dv, f0)] * G
+                bl = scf.ForOp(c0, nblk, fn.idx(1), init)
+                with ir.InsertionPoint(bl.body):
+                    state = list(bl.inner_iter_args)
+                    j0 = _muli(bl.induction_variable, fn.idx(B))
+                    sl = scf.ForOp(c0, fn.idx(B), fn.idx(1))
+                    with ir.InsertionPoint(sl.body):
+                        u = sl.induction_variable
+                        kv = key(_addi(j0, u))
+                        for g in range(G):
+                            memref.StoreOp(
+                                score(qss[g], kv), buf, [fn.idx(g), u]
+                            )
+                        scf.YieldOp([])
+                    ss = [
+                        vector.LoadOp(vb, buf, [fn.idx(g), c0]).result
+                        for g in range(G)
+                    ]
+                    news, ps, accs = [], [], []
+                    for g in range(G):
+                        mx, l, acc = state[3 * g : 3 * g + 3]
+                        mn = arith.MaximumFOp(
+                            mx, _reduce(ty.f32, "maximumf", ss[g])
+                        ).result
+                        alpha = math.ExpOp(_subf(mx, mn)).result
+                        p = _exp(fn, ty, _subf(ss[g], _bcast(vb, mn)), B)
+                        accs.append(_mulf(acc, _vbcast(dv, alpha)))
+                        ps.append(p)
+                        news.append((mn, alpha, l))
+                    for g in range(G):
+                        vector.StoreOp(ps[g], buf, [fn.idx(g), c0])
+                    vl = scf.ForOp(c0, fn.idx(B), fn.idx(1), accs)
+                    with ir.InsertionPoint(vl.body):
+                        u = vl.induction_variable
+                        vv = value(_addi(j0, u))
+                        scf.YieldOp(
+                            [
+                                _vfma(
+                                    vv,
+                                    _vbcast(
+                                        dv,
+                                        memref.LoadOp(
+                                            buf, [fn.idx(g), u]
+                                        ).result,
+                                    ),
+                                    acc,
+                                )
+                                for g, acc in enumerate(vl.inner_iter_args)
+                            ]
+                        )
+                    accs = list(vl.results)
+                    out = []
+                    for g in range(G):
+                        mn, alpha, l = news[g]
+                        psum = _reduce(ty.f32, "add", ps[g], reassoc=True)
+                        out += [mn, _addf(_mulf(l, alpha), psum), accs[g]]
+                    scf.YieldOp(out)
+                # the remaining keys, one at a time
+                tl = scf.ForOp(
+                    _muli(nblk, fn.idx(B)), length, fn.idx(1), list(bl.results)
+                )
+                with ir.InsertionPoint(tl.body):
+                    state = list(tl.inner_iter_args)
+                    j = tl.induction_variable
+                    kv, vv = key(j), value(j)
+                    out = []
+                    for g in range(G):
+                        mx, l, acc = state[3 * g : 3 * g + 3]
+                        s = score(qss[g], kv)
+                        mn = arith.MaximumFOp(mx, s).result
+                        alpha = math.ExpOp(_subf(mx, mn)).result
+                        beta = math.ExpOp(_subf(s, mn)).result
+                        acc = _vfma(
+                            vv,
+                            _vbcast(dv, beta),
+                            _mulf(acc, _vbcast(dv, alpha)),
+                        )
+                        out += [mn, _addf(_mulf(l, alpha), beta), acc]
+                    scf.YieldOp(out)
+                results = list(tl.results)
+                stats = []
+                for g, (hh, q_lo) in enumerate(heads):
+                    mx, l, acc = results[3 * g : 3 * g + 3]
+                    _vstore(_divf(acc, _vbcast(dv, l)), a["o"], [i, q_lo])
+                    stats += [mx, l]
+                vector.YieldOp(stats)
+            for g, (hh, q_lo) in enumerate(heads):
+                mx, l = region.results[2 * g], region.results[2 * g + 1]
                 lse = _addf(math.LogOp(l).result, mx)
                 memref.StoreOp(lse, a["lse"], [c0, hh, i])
             scf.ReduceOp([], 0)
@@ -3381,7 +3609,7 @@ def build_kernels(specs, part: str = "main", emulate_ime=False) -> ir.Module:
                 _moe_fn(ty, s)
             elif s["kind"] == "attn":
                 if s["m"] == 1:
-                    _attn_decode_fn(ty, s)
+                    _attn_decode_vir_fn(ty, s)
                 elif ime:
                     _attn_prefill_ime_fn(ty, s)
                 else:

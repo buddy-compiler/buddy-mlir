@@ -5,8 +5,8 @@
 # against numpy references: the int4 matmul kernels (plain, with bias, with a
 # fused RMSNorm, q / k / v, gate / up / SiLU), one decode row and a block of
 # prefill rows; and the attention kernels (RoPE, KV cache update, causal
-# attention), decode and prefill, and the prefill one of "prefill_ime" with
-# its two matrix loops emulated (the host has no IME).
+# attention), decode (VIR dialect) and prefill, and the prefill one of
+# "prefill_ime" with its two matrix loops emulated (the host has no IME).
 
 import ctypes
 import os
@@ -34,13 +34,24 @@ THREADS = 3
 rng = numpy.random.default_rng(0)
 
 
-def jit(specs, emulate_ime=False):
-    """The kernels of `specs`, lowered like compile_pipeline.py does."""
+def jit(specs, emulate_ime=False, vir_width=None, kernels=None):
+    """The kernels of `specs` (or the MLIR text `kernels`), lowered like
+    compile_pipeline.py does (VIR regions with vector-width `vir_width` if
+    given)."""
     stages = compile_pipeline.build_stages("kernels", THREADS, "", "w4g32")
     passes = next(args for tool, args in stages if tool == "buddy-opt")
+    if vir_width:
+        passes = [
+            (
+                f"-lower-vir-to-vector=vector-width={vir_width}"
+                if p.startswith("-lower-vir-to-vector")
+                else p
+            )
+            for p in passes
+        ]
     llvm = subprocess.run(
         [BUDDY_OPT, *passes],
-        input=k3_w4.gen_kernels(specs, emulate_ime=emulate_ime),
+        input=kernels or k3_w4.gen_kernels(specs, emulate_ime=emulate_ime),
         capture_output=True,
         text=True,
         check=True,
@@ -53,6 +64,16 @@ def jit(specs, emulate_ime=False):
             shared_libs=[os.path.join(OMP_DIR, "libomp.so")],
             enable_pic=platform.machine().lower() == "riscv64",
         )
+
+
+def vector_decode_attention(spec):
+    """MLIR text of the vector kernel the K3 decode attention is written
+    after (k3_w4._attn_decode_fn, that of the A210 kernels)."""
+    with ir.Context(), ir.Location.unknown():
+        module = ir.Module.create()
+        with ir.InsertionPoint(module.body):
+            k3_w4._attn_decode_fn(k3_w4._Types(), spec)
+        return str(module)
 
 
 def ptr(x):
@@ -371,3 +392,90 @@ for start in (0, 37, 70):
 # CHECK: decode start 0: 4 heads per item, same bits True True
 # CHECK-NEXT: decode start 37: 4 heads per item, same bits True True
 # CHECK-NEXT: decode start 70: 4 heads per item, same bits True True
+
+# The decode attention in a VIR region. With the pipeline's vector-width (128,
+# the head dim), the same bits as the vector kernel it is written after; with
+# vector-width 24 (five vectors and 8 scalars per head), each score summed in
+# parts, against the reference.
+for threads in (None, 2):
+    for start in (0, 15, 16, 37, 70):
+        base = {
+            "kind": "attn",
+            "m": 1,
+            "heads": H8,
+            "kv_heads": KV2,
+            "dim": D,
+            "scale": D**-0.5,
+            "ctx": CTX,
+        }
+        if threads:
+            base["threads"] = threads
+        q = rng.standard_normal((1, H8 * D)).astype(numpy.float32)
+        k = rng.standard_normal((1, KV2 * D)).astype(numpy.float32)
+        v = rng.standard_normal((1, KV2 * D)).astype(numpy.float32)
+        kc0 = numpy.zeros((1, KV2, CTX, D), numpy.float32)
+        vc0 = numpy.zeros((1, KV2, CTX, D), numpy.float32)
+        kc0[0, :, :start] = rng.standard_normal((KV2, start, D))
+        vc0[0, :, :start] = rng.standard_normal((KV2, start, D))
+        pos = numpy.array([start], numpy.int64)
+        want, want_k, want_v = ref_attention(
+            q, k, v, kc0, vc0, start, inv_freq, D**-0.5
+        )
+        outs = []
+        for tag, width in (("vec", None), ("vir", None), ("vir24", 24)):
+            spec = dict(base, name=f"k3_attn_{tag}_s{start}")
+            kernels = vector_decode_attention(spec) if tag == "vec" else None
+            kc, vc = kc0.copy(), vc0.copy()
+            o, lse, _, _ = call(
+                jit([spec], vir_width=width, kernels=kernels),
+                spec["name"],
+                4,
+                [2, 3, 4, 4],
+                q,
+                k,
+                v,
+                kc,
+                vc,
+                pos,
+                inv_freq,
+            )
+            caches = numpy.allclose(kc, want_k, atol=1e-5) and numpy.allclose(
+                vc, want_v, atol=1e-6
+            )
+            outs.append((o.copy(), lse.copy(), caches))
+        same = numpy.array_equal(outs[0][0], outs[1][0]) and numpy.array_equal(
+            outs[0][1], outs[1][1]
+        )
+        print(f"vir decode threads {threads} start {start}: same bits {same}")
+        report("  vector-width 24", outs[2][0], want, 1e-5)
+        print(f"  caches {all(c for _, _, c in outs)}")
+# CHECK: vir decode threads None start 0: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads None start 15: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads None start 16: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads None start 37: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads None start 70: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads 2 start 0: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads 2 start 15: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads 2 start 16: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads 2 start 37: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True
+# CHECK-NEXT: vir decode threads 2 start 70: same bits True
+# CHECK-NEXT:   vector-width 24: (1, 1024) error ok
+# CHECK-NEXT:   caches True

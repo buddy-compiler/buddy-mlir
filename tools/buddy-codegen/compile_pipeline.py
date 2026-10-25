@@ -88,6 +88,13 @@ BUFFER_DEALLOCATION = [
 A100_VLEN = 1024
 
 
+# The vector-width of -lower-vir-to-vector for the generated kernels: the f32
+# lanes of a VIR region's vectors (the decode attention of the K3 kernels,
+# k3_w4._attn_decode_vir_fn). 128, the head dimension of the models: a region
+# over a head is one vector, LMUL 4 at the A100's VLEN 1024.
+KERNELS_VIR_VECTOR_WIDTH = 128
+
+
 def a100_llc_args(llc_base_args: list[str]) -> list[str]:
     """llc options of the A100 code, on top of the build's: the IME
     extension, the exact VLEN (whatever BUDDY_RISCV_VLEN gives the other
@@ -172,6 +179,8 @@ def build_stages(
                 "buddy-opt",
                 (["-lower-ime=target=k3"] if ime else [])
                 + [
+                    "-lower-vir-to-vector="
+                    f"vector-width={KERNELS_VIR_VECTOR_WIDTH}",
                     f"-convert-scf-to-openmp=num-threads={num_threads}",
                     "-expand-strided-metadata",
                     "-convert-vector-to-scf",
