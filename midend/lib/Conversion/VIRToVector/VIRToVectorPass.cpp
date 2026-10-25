@@ -800,11 +800,46 @@ private:
               virSymbolTable[std::get<0>(it)] = std::get<1>(it);
             }
           })
-          .Case<affine::AffineYieldOp, vector::YieldOp>([&](Operation *) {
-            // During recursive descent, these terminators are handled by their
-            // parent operations (such as affine. for). We will ignore them
-            // directly here.
+          .Case<scf::ForOp>([&](scf::ForOp op) {
+            // as affine.for: the body lowered with the iteration arguments
+            // and the results of the loop mapped
+            SmallVector<Value> initialIterArgs;
+            for (Value arg : op.getInitArgs())
+              initialIterArgs.push_back(findValue(arg));
+            auto newForOp = scf::ForOp::create(
+                builder, loc, findValue(op.getLowerBound()),
+                findValue(op.getUpperBound()), findValue(op.getStep()),
+                initialIterArgs,
+                [&](OpBuilder &b, Location bodyLoc, Value iv,
+                    ValueRange iterArgs) {
+                  DenseMap<Value, Value> innerSymbolTable(virSymbolTable);
+                  innerSymbolTable[op.getInductionVar()] = iv;
+                  for (auto [arg, newArg] :
+                       llvm::zip(op.getRegionIterArgs(), iterArgs))
+                    innerSymbolTable[arg] = newArg;
+                  lowerBlock(b, bodyLoc, op.getBody(), innerSymbolTable,
+                             mainLoopIV, leadingIVs, targetVectorType,
+                             isTailLoop);
+                  SmallVector<Value> yieldOperands;
+                  for (Value operand :
+                       op.getBody()->getTerminator()->getOperands()) {
+                    auto it = innerSymbolTable.find(operand);
+                    yieldOperands.push_back(
+                        it != innerSymbolTable.end() ? it->second : operand);
+                  }
+                  scf::YieldOp::create(b, bodyLoc, yieldOperands);
+                },
+                op.getUnsignedCmp());
+            for (auto [result, newResult] :
+                 llvm::zip(op.getResults(), newForOp.getResults()))
+              virSymbolTable[result] = newResult;
           })
+          .Case<affine::AffineYieldOp, vector::YieldOp, scf::YieldOp>(
+              [&](Operation *) {
+                // During recursive descent, these terminators are handled by
+                // their parent operations (such as affine. for). We will ignore
+                // them directly here.
+              })
           .Case<arith::ConstantOp>([&](arith::ConstantOp op) {
             auto newConst =
                 arith::ConstantOp::create(builder, loc, op.getValue());
@@ -1709,31 +1744,50 @@ private:
     auto emitVectorAndTail = [&](OpBuilder &b, ArrayRef<Value> leadingIVs) {
       Value vlValue = op.getVl();
       Value vlStep = arith::ConstantIndexOp::create(b, loc, vectorWid);
-      Value vlUpboundPat = arith::SubIOp::create(b, loc, vlValue, vlStep);
-      Value vlUpbound = arith::AddIOp::create(
-          b, loc, vlUpboundPat, arith::ConstantIndexOp::create(b, loc, 1));
       Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+      Value tailStart;
+      if (cast<VectorType>(targetVectorType).isScalable()) {
+        // A scalable vector has vectorWid * vscale lanes: the step, and with
+        // it the end of the main loop, are runtime values.
+        Value step = arith::MulIOp::create(
+            b, loc, vlStep, vector::VectorScaleOp::create(b, loc));
+        Value vlRem = arith::RemSIOp::create(b, loc, vlValue, step);
+        tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
+        scf::ForOp::create(
+            b, loc, zero, tailStart, step, /*initArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              DenseMap<Value, Value> virSymbolTable;
+              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                         leadingIVs, targetVectorType, /*isTailLoop=*/false);
+              scf::YieldOp::create(bb, bodyLoc);
+            });
+      } else {
+        Value vlUpboundPat = arith::SubIOp::create(b, loc, vlValue, vlStep);
+        Value vlUpbound = arith::AddIOp::create(
+            b, loc, vlUpboundPat, arith::ConstantIndexOp::create(b, loc, 1));
 
-      affine::AffineForOp::create(
-          b, loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
-          /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
-          vectorWid,
-          /*iterArgs=*/ValueRange{},
-          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-            //===------------------------------------------------------------===//
-            // Step 4: Convert operations inside the dynamic vector region.
-            //===------------------------------------------------------------===//
-            DenseMap<Value, Value> virSymbolTable;
-            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
-                       leadingIVs, targetVectorType, /*isTailLoop=*/false);
-            affine::AffineYieldOp::create(bb, bodyLoc);
-          });
+        affine::AffineForOp::create(
+            b, loc, /*lowerBound=*/ValueRange{zero},
+            rewriter.getDimIdentityMap(),
+            /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
+            vectorWid,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              //===------------------------------------------------------------===//
+              // Step 4: Convert operations inside the dynamic vector region.
+              //===------------------------------------------------------------===//
+              DenseMap<Value, Value> virSymbolTable;
+              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                         leadingIVs, targetVectorType, /*isTailLoop=*/false);
+              affine::AffineYieldOp::create(bb, bodyLoc);
+            });
 
-      //===----------------------------------------------------------------===//
-      // Step 5: Create a tail loop to process the remaining elements.
-      //===----------------------------------------------------------------===//
-      Value vlRem = arith::RemSIOp::create(b, loc, vlValue, vlStep);
-      Value tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
+        //===----------------------------------------------------------------===//
+        // Step 5: Create a tail loop to process the remaining elements.
+        //===----------------------------------------------------------------===//
+        Value vlRem = arith::RemSIOp::create(b, loc, vlValue, vlStep);
+        tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
+      }
 
       affine::AffineForOp::create(
           b, loc, /*lowerBound=*/ValueRange{tailStart},
