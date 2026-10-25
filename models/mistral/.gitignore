@@ -1,0 +1,25 @@
+# Stale import artifacts from the original PR (large, machine-generated)
+arg0.data
+layer_partitioned/
+
+# buddy-codegen generated outputs
+generated/
+
+# Intermediate MLIR / weights artifacts
+*.mlir
+
+# Python
+__pycache__/
+
+# HuggingFace model snapshots (never checked in)
+snapshots/
+models--*/
+
+# PyTorch / HF checkpoint blobs
+*.safetensors
+*.bin
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.h5
