@@ -35,6 +35,7 @@
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
+#include "Dialect/VIR/VIRDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
 #include "Dialect/XTAME/XTAMEDialect.h"
 
@@ -100,6 +101,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::ime::IMEDialect>();
   registry.insert<::buddy::rhal::RHALDialect>();
   registry.insert<::buddy::rvv::RVVDialect>();
+  registry.insert<::buddy::vir::VIRDialect>();
   registry.insert<::buddy::vector_exp::VectorExpDialect>();
 }
 
