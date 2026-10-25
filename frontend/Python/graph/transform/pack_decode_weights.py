@@ -29,7 +29,9 @@ from ..operation import AddMMOp, MatmulOp, PlaceholderOp
 _WEIGHT_OPERAND = {MatmulOp: 1, AddMMOp: 2}
 
 
-def pack_decode_matmul_weights(graph: Graph, vecsize: int = 32):
+def pack_decode_matmul_weights(
+    graph: Graph, vecsize: int = 32, ime_shapes=None
+):
     """Rewrite every matmul weight in `graph` into panel-blocked layout:
 
         Bpacked[n / V][k][n % V] == B[k, n]        V = vecsize
@@ -50,6 +52,9 @@ def pack_decode_matmul_weights(graph: Graph, vecsize: int = 32):
         vecsize (int): panel width. Must equal the vector-size given to
             -matmul-vectorization-decode-packed, and must divide every
             weight's N.
+        ime_shapes: optional KxN strings. Selected weights use A100
+            [N/32][K/8][4][8][8] layout; all other weights keep the RVV
+            panel layout. The compiler's IME selection must match this list.
 
     Returns:
         list[int]: indices into graph._params_ref that were repacked.
@@ -66,6 +71,7 @@ def pack_decode_matmul_weights(graph: Graph, vecsize: int = 32):
     # shape -- and here many do.)
     name_to_index = {p.name: i for i, p in enumerate(graph.params)}
 
+    ime_shapes = set(ime_shapes or [])
     packed_indices = []
     unpacked = 0
     for node in graph.body:
@@ -99,13 +105,28 @@ def pack_decode_matmul_weights(graph: Graph, vecsize: int = 32):
             )
 
         # Rebind, never mutate: prefill's graph holds the same tensor object.
-        graph._params_ref[index] = (
-            weight.detach()
-            .reshape(k, n // vecsize, vecsize)
-            .permute(1, 0, 2)
-            .contiguous()
-            .reshape(k, n)
-        )
+        if f"{k}x{n}" in ime_shapes:
+            if vecsize != 32 or k % 16:
+                raise RuntimeError(
+                    "A100 GEMV packing requires vecsize=32 and K%16=0"
+                )
+            # [K/8, K8, N/32, 4, N8] -> [N/32, K/8, 4, N8, K8].
+            # Four contiguous native IME tiles feed one 32-output kernel.
+            graph._params_ref[index] = (
+                weight.detach()
+                .reshape(k // 8, 8, n // 32, 4, 8)
+                .permute(2, 0, 3, 4, 1)
+                .contiguous()
+                .reshape(k, n)
+            )
+        else:
+            graph._params_ref[index] = (
+                weight.detach()
+                .reshape(k, n // vecsize, vecsize)
+                .permute(1, 0, 2)
+                .contiguous()
+                .reshape(k, n)
+            )
         packed_indices.append(index)
 
     # The packed kernel selects per matmul, by shape; it cannot tell a packed

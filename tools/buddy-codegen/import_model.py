@@ -650,7 +650,9 @@ def pack_decode_weights(graph_decode, decode_pack: dict) -> None:
     the tensors -- which are still shared objects -- in place.
     """
     packed = pack_decode_matmul_weights(
-        graph_decode, vecsize=decode_pack["vector_size"]
+        graph_decode,
+        vecsize=decode_pack["vector_size"],
+        ime_shapes=decode_pack.get("ime_shapes"),
     )
     print(
         f"[import] packed {len(packed)} decode matmul weights into panel "
