@@ -2223,8 +2223,11 @@ struct LinalgTransposeToVectorPattern : public RewritePattern {
 };
 
 struct LinalgGenericToVIRPattern : public RewritePattern {
-  LinalgGenericToVIRPattern(MLIRContext *ctx)
-      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, ctx) {}
+  LinalgGenericToVIRPattern(MLIRContext *ctx, bool expOnly = false)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, ctx),
+        expOnly(expOnly) {}
+
+  bool expOnly;
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
@@ -2234,6 +2237,15 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
     }
     if (!linalgOp.hasPureBufferSemantics()) {
       return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+    }
+    if (expOnly) {
+      if (!isa<linalg::GenericOp>(op))
+        return failure();
+      bool hasExp = false;
+      op->walk([&](math::ExpOp) { hasExp = true; });
+      if (!hasExp || llvm::any_of(linalgOp.getIteratorTypesArray(),
+                                  linalg::isReductionIterator))
+        return failure();
     }
     // Guardrail: current VIR lowering handles elementwise/matmul-like patterns.
     // Reject reduction/index-based forms early to avoid partial rewrites.
@@ -2457,7 +2469,12 @@ class LinalgToVIRPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LinalgToVIRPass)
   LinalgToVIRPass() = default;
-  LinalgToVIRPass(const LinalgToVIRPass &) {}
+  LinalgToVIRPass(const LinalgToVIRPass &other) : PassWrapper(other) {}
+
+  Option<bool> expOnly{
+      *this, "exp-only",
+      llvm::cl::desc("Only vectorize parallel generic kernels containing exp"),
+      llvm::cl::init(false)};
 
   StringRef getArgument() const final { return "lower-linalg-to-vir"; }
   StringRef getDescription() const final {
@@ -2467,10 +2484,12 @@ public:
   void runOnOperation() override {
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
-    patterns.add<LinalgReduceToVIRPattern>(ctx);
-    patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
-    patterns.add<LinalgMatmulToVIRPattern>(ctx);
-    patterns.add<LinalgGenericToVIRPattern>(ctx);
+    if (!expOnly) {
+      patterns.add<LinalgReduceToVIRPattern>(ctx);
+      patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
+      patterns.add<LinalgMatmulToVIRPattern>(ctx);
+    }
+    patterns.add<LinalgGenericToVIRPattern>(ctx, expOnly);
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
       signalPassFailure();
     }
