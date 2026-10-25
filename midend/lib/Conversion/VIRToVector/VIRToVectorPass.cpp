@@ -209,7 +209,9 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   //
   // On RVV, a broadcast scalar that only feeds the scalar operand of
   // arithmetic (vfmul.vf, vfmacc.vf, ...) stays in a scalar register and is
-  // not counted.
+  // not counted. Such an instruction has one scalar operand: if the other
+  // operand (the other multiplicand of an fma) is a broadcast too, both are
+  // counted.
   Operation *setVL = srcRegion.getParentOp();
   Liveness liveness(setVL);
   auto isScalarOperand = [](Value v) {
@@ -217,13 +219,18 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
       return false;
     return llvm::all_of(v.getUses(), [](OpOperand &use) {
       Operation *user = use.getOwner();
-      if (isa<vir::FMAOp>(user))
-        // a multiplicand, not the addend
-        return use.getOperandNumber() < 2;
-      return isa<arith::AddFOp, arith::SubFOp, arith::MulFOp, arith::DivFOp,
-                 arith::MaximumFOp, arith::MinimumFOp, arith::MaxNumFOp,
-                 arith::MinNumFOp, arith::AddIOp, arith::SubIOp, arith::MulIOp>(
-          user);
+      unsigned n = use.getOperandNumber();
+      // a multiplicand of an fma, not the addend, or an operand of a binary
+      // op
+      bool binary =
+          isa<arith::AddFOp, arith::SubFOp, arith::MulFOp, arith::DivFOp,
+              arith::MaximumFOp, arith::MinimumFOp, arith::MaxNumFOp,
+              arith::MinNumFOp, arith::AddIOp, arith::SubIOp, arith::MulIOp>(
+              user);
+      if (!(isa<vir::FMAOp>(user) && n < 2) && !binary)
+        return false;
+      Value other = user->getOperand(1 - n);
+      return !other.getDefiningOp<vir::BroadcastOp>();
     });
   };
   auto isDynamic = [&](Value v) {

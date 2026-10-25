@@ -1,5 +1,8 @@
 // RUN: buddy-opt %s -split-input-file \
 // RUN:     -lower-vir-to-vector='rvv-vlen=256 verbose=true' | FileCheck %s
+// RUN: buddy-opt %s -split-input-file \
+// RUN:     -lower-vir-to-vector='rvv-vlen=1024 verbose=true' \
+// RUN: | FileCheck %s --check-prefix=VLEN1024
 
 // The register pressure of a region (Req_Group) counts the dynamic vectors
 // live at every op, those in nested loops included, and gives the vector
@@ -105,7 +108,8 @@ func.func @live_across(%m: memref<10x256xf32>, %o: memref<256xf32>,
 
 // On RVV, a broadcast that only feeds the scalar operand of arithmetic
 // (vfmul.vf) is not counted: x, its square and the product, 3, LMUL 8.
-// The vector size is no wider than the constant vl: 64 lanes, not 256.
+// The vector size is no wider than the constant vl: at VLEN 1024, 64 lanes,
+// not 256.
 func.func @broadcast_and_vl(%a: memref<64xf32>, %f: f32) {
   %vl = arith.constant 64 : index
   vir.set_vl %vl : index {
@@ -124,3 +128,52 @@ func.func @broadcast_and_vl(%a: memref<64xf32>, %f: f32) {
 // CHECK: Calculated LMUL = 8, Size_vec = (8 * 256) / 32 = 64
 // CHECK-LABEL: func.func @broadcast_and_vl
 // CHECK: arith.mulf {{.*}} : vector<64xf32>
+// VLEN1024: Calculated LMUL = 8, Size_vec = (8 * 1024) / 32 = 256
+// VLEN1024-NEXT: Clamped to the constant vl 64: Size_vec = 64
+// VLEN1024-LABEL: func.func @broadcast_and_vl
+// VLEN1024: arith.mulf {{.*}} : vector<64xf32>
+
+// -----
+
+// A set_vl with results of vl 128 at VLEN 1024: LMUL 8 would be 256 lanes,
+// which would lower to 128 scalars (more than the 64 pieces allowed); the
+// clamp to vl gives one vector of 128.
+func.func @results_clamped(%a: memref<128xf32>, %b: memref<128xf32>) -> f32 {
+  %vl = arith.constant 128 : index
+  %zero = arith.constant 0.0 : f32
+  %r = vir.set_vl %vl : index {
+    %x = vir.load %a[] : memref<128xf32> -> !vir.vec<?xf32>
+    %y = vir.load %b[] : memref<128xf32> -> !vir.vec<?xf32>
+    %p = arith.mulf %x, %y : !vir.vec<?xf32>
+    %s = vir.reduce %p, %zero {kind = "add"} : !vir.vec<?xf32>, f32 -> f32
+    vector.yield %s : f32
+  } -> f32
+  return %r : f32
+}
+
+// CHECK-LABEL: func.func @results_clamped
+// CHECK-COUNT-2: vector.reduction <add>, %{{.*}}, %{{.*}} : vector<64xf32> into f32
+// VLEN1024: Clamped to the constant vl 128: Size_vec = 128
+// VLEN1024-LABEL: func.func @results_clamped
+// VLEN1024: vector.reduction <add>, %{{.*}}, %{{.*}} : vector<128xf32> into f32
+// VLEN1024-NOT: vector.reduction
+
+// -----
+
+// An fma has one scalar operand on RVV (vfmacc.vf): a broadcast that is
+// both multiplicands is counted, with the addend and the result: 3.
+func.func @fma_two_broadcasts(%a: memref<1024xf32>, %f: f32) {
+  %vl = arith.constant 1024 : index
+  vir.set_vl %vl : index {
+    %acc = vir.load %a[] : memref<1024xf32> -> !vir.vec<?xf32>
+    %b = vir.broadcast %f : f32 -> !vir.vec<?xf32>
+    %r = vir.fma %b, %b, %acc : !vir.vec<?xf32>
+    vir.store %r, %a[] : !vir.vec<?xf32> -> memref<1024xf32>
+    vector.yield
+  }
+  return
+}
+
+// CHECK: 3 live at %{{.*}} = vir.fma
+// CHECK: Final Max Active Vectors (Req_Group): 3
+// CHECK-LABEL: func.func @fma_two_broadcasts
