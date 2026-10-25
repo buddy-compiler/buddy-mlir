@@ -25,6 +25,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Analysis/Liveness.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -194,104 +195,80 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
     }
   }
 
-  Block &block = srcRegion.front();
-  auto &operations = block.getOperations();
-
   VERBOSE_ANALYSIS_INFO(
-      "\n--- Running vectorTypeHelper Dataflow Analysis ---\n");
+      "\n--- Running vectorTypeHelper Liveness Analysis ---\n");
 
-  // Data Flow analysis
-  // USE, DEF, IN, OUT sets
-  DenseMap<Operation *, DenseSet<Value>> useSets, defSets, inSets, outSets;
-
-  // calculate USE and DEF sets
-  for (Operation &op : operations) {
-    for (Value result : op.getResults()) {
-      if (auto st = dyn_cast<ShapedType>(result.getType());
-          st && st.hasRank()) {
-        defSets[&op].insert(result);
-      }
-    }
-    for (Value operand : op.getOperands()) {
-      if (operand.getDefiningOp() &&
-          operand.getDefiningOp()->getParentRegion() == &srcRegion) {
-        if (auto st = dyn_cast<ShapedType>(operand.getType());
-            st && st.hasRank()) {
-          useSets[&op].insert(operand);
-        }
-      }
-    }
-  }
-
-  auto printValueSet = [&verbose](llvm::StringRef name,
-                                  const DenseSet<Value> &valueSet) {
-    VERBOSE_ANALYSIS_INFO("    " << name << " { ");
-    for (Value val : valueSet) {
-      if (verbose) {
-        val.print(llvm::outs(), OpPrintingFlags().printGenericOpForm());
-      }
-      VERBOSE_ANALYSIS_INFO(" ");
-    }
-    VERBOSE_ANALYSIS_INFO("}\n");
+  // Req_Group = max_i |IN(i) U OUT(i)|, counting the dynamic vectors (the
+  // vectors of the size chosen here) at every op of the region, those of
+  // nested loops included. Liveness gives the values live at an op of a
+  // block: those defined at or before it and used at or after it, in the
+  // block or in its nested regions (IN U OUT). At an op in a loop, the
+  // values live across the loop in the enclosing blocks are live too, but
+  // not the loop's results and the initial values that die at the loop:
+  // those are the iteration arguments of its body.
+  //
+  // On RVV, a broadcast scalar that only feeds the scalar operand of
+  // arithmetic (vfmul.vf, vfmacc.vf, ...) stays in a scalar register and is
+  // not counted. Such an instruction has one scalar operand: if the other
+  // operand (the other multiplicand of an fma) is a broadcast too, both are
+  // counted.
+  Operation *setVL = srcRegion.getParentOp();
+  Liveness liveness(setVL);
+  auto isScalarOperand = [](Value v) {
+    if (!v.getDefiningOp<vir::BroadcastOp>())
+      return false;
+    return llvm::all_of(v.getUses(), [](OpOperand &use) {
+      Operation *user = use.getOwner();
+      unsigned n = use.getOperandNumber();
+      // a multiplicand of an fma, not the addend, or an operand of a binary
+      // op
+      bool binary =
+          isa<arith::AddFOp, arith::SubFOp, arith::MulFOp, arith::DivFOp,
+              arith::MaximumFOp, arith::MinimumFOp, arith::MaxNumFOp,
+              arith::MinNumFOp, arith::AddIOp, arith::SubIOp, arith::MulIOp>(
+              user);
+      if (!(isa<vir::FMAOp>(user) && n < 2) && !binary)
+        return false;
+      Value other = user->getOperand(1 - n);
+      return !other.getDefiningOp<vir::BroadcastOp>();
+    });
   };
-
-  bool changed = true;
-  int iteration = 1;
-  while (changed) {
-    VERBOSE_ANALYSIS_INFO("\n--- Analysis Iteration " << iteration++
-                                                      << " ---\n");
-    changed = false;
-
-    // backward iteration
-    for (auto it = operations.rbegin(); it != operations.rend(); ++it) {
-      Operation &op = *it;
-
-      VERBOSE_ANALYSIS_INFO("Analyzing Op: ");
-      if (verbose) {
-        op.print(llvm::outs(), OpPrintingFlags().printGenericOpForm());
-      }
-      VERBOSE_ANALYSIS_INFO("\n");
-
-      DenseSet<Value> oldIn = inSets[&op];
-
-      // OUT(i) = ∪_{j ∈ Succ(i)} IN(j)
-      DenseSet<Value> outSet;
-      Operation *nextOp = op.getNextNode();
-      if (nextOp) {
-        outSet = inSets[nextOp];
-      }
-      outSets[&op] = outSet;
-      printValueSet("OUT:", outSets[&op]);
-      printValueSet("DEF:", defSets[&op]);
-      printValueSet("USE:", useSets[&op]);
-
-      // IN(i) = (OUT(i) - DEF(i)) ∪ USE(i)
-      DenseSet<Value> inSet = outSet;
-      for (Value defValue : defSets[&op]) {
-        inSet.erase(defValue);
-      }
-      inSet.insert(useSets[&op].begin(), useSets[&op].end());
-      inSets[&op] = inSet;
-      printValueSet("New IN:", inSets[&op]);
-
-      if (inSets[&op] != oldIn) {
-        changed = true;
+  auto isDynamic = [&](Value v) {
+    return isa<vir::DynamicVectorType>(v.getType()) &&
+           !(rvvVlen > 0 && isScalarOperand(v));
+  };
+  unsigned maxActiveVectors = 0;
+  srcRegion.walk([&](Operation *op) {
+    // an op with regions is measured at the ops of its blocks
+    if (op->getNumRegions() != 0)
+      return;
+    DenseSet<Value> live;
+    for (Value v :
+         liveness.getLiveness(op->getBlock())->currentlyLiveValues(op))
+      if (isDynamic(v))
+        live.insert(v);
+    for (Operation *loop = op->getParentOp(); loop != setVL;
+         loop = loop->getParentOp()) {
+      const LivenessBlockInfo *info = liveness.getLiveness(loop->getBlock());
+      for (Value v : info->currentlyLiveValues(loop)) {
+        if (!isDynamic(v) || v.getDefiningOp() == loop)
+          continue;
+        bool usedInside = llvm::any_of(v.getUsers(), [&](Operation *user) {
+          return loop->isProperAncestor(user);
+        });
+        if (llvm::is_contained(loop->getOperands(), v) && !usedInside &&
+            liveness.isDeadAfter(v, loop))
+          continue;
+        live.insert(v);
       }
     }
-  }
-
-  VERBOSE_ANALYSIS_INFO("\n--- Dataflow Analysis Converged ---\n");
-
-  // Req_Group = max_i ( |IN(i) ∪ OUT(i)| )
-  unsigned int maxActiveVectors = 0;
-  for (Operation &op : operations) {
-    DenseSet<Value> liveAcross = inSets[&op];
-    liveAcross.insert(outSets[&op].begin(), outSets[&op].end());
-
-    if (liveAcross.size() > maxActiveVectors) {
-      maxActiveVectors = liveAcross.size();
+    if (verbose) {
+      llvm::outs() << "  " << live.size() << " live at ";
+      op->print(llvm::outs(), OpPrintingFlags().skipRegions());
+      llvm::outs() << "\n";
     }
-  }
+    maxActiveVectors = std::max<unsigned>(maxActiveVectors, live.size());
+  });
 
   int reqGroup = (maxActiveVectors == 0) ? 1 : maxActiveVectors;
   VERBOSE_ANALYSIS_INFO("Final Max Active Vectors (Req_Group): " << reqGroup
@@ -331,11 +308,21 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                                                << ") / " << elementBitWidth
                                                << " = " << sizeVec << "\n");
   } else {
-    // Size_vec = (Size_Group * Size_Reg) / Width_Ele
-    sizeVec = (sizeGroup * vectorRegBitWidth) / elementBitWidth;
-    VERBOSE_ANALYSIS_INFO("Calculated Size_vec = ("
+    // Size_vec = 2^floor(log2(Size_Group * Size_Reg / Width_Ele))
+    sizeVec = llvm::bit_floor(uint64_t(sizeGroup) * vectorRegBitWidth /
+                              elementBitWidth);
+    VERBOSE_ANALYSIS_INFO("Calculated Size_vec = 2^floor(log2(("
                           << sizeGroup << " * " << vectorRegBitWidth << ") / "
-                          << elementBitWidth << " = " << sizeVec << "\n");
+                          << elementBitWidth << ")) = " << sizeVec << "\n");
+  }
+
+  // no wider than a constant vl: the lanes past it would compute nothing
+  if (std::optional<int64_t> vl =
+          getConstantIntValue(cast<vir::SetVLOp>(setVL).getVl());
+      vl && *vl > 0 && sizeVec > *vl) {
+    sizeVec = llvm::bit_floor(uint64_t(*vl));
+    VERBOSE_ANALYSIS_INFO("Clamped to the constant vl "
+                          << *vl << ": Size_vec = " << sizeVec << "\n");
   }
 
   if (sizeVec < 1) {
