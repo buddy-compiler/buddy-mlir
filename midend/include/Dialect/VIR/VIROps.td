@@ -134,7 +134,8 @@ def VIR_BroadcastOp : VIR_Op<"broadcast"> {
   let assemblyFormat = "$value attr-dict `:` type($value) `->` qualified(type($result))";
 }
 
-def VIR_FromVectorOp : VIR_Op<"from_vector"> {
+def VIR_FromVectorOp : VIR_Op<"from_vector",
+    [AllElementTypesMatch<["source", "result"]>]> {
   let summary = "A fixed-size vector as a dynamic vector.";
   let description = [{
     The `from_vector` operation gives the lanes of a 1-D vector, computed

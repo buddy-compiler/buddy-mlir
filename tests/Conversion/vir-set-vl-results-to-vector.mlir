@@ -73,3 +73,25 @@ func.func @from_vector(%v: vector<10xf32>, %b: memref<10xf32>) -> f32 {
 // CHECK-DAG: vector.extract_strided_slice %{{.*}} offsets = [4], sizes = [4], strides = [1] : vector<10xf32> to vector<4xf32>
 // CHECK-DAG: vector.extract %{{.*}}[8] : f32 from vector<10xf32>
 // CHECK-DAG: vector.extract %{{.*}}[9] : f32 from vector<10xf32>
+
+// A loop keeps its comparison: an unsigned scf.for stays unsigned.
+func.func @unsigned_loop(%lb: i8, %ub: i8, %step: i8) -> f32 {
+  %vl = arith.constant 4 : index
+  %zero = arith.constant 0.0 : f32
+  %one = arith.constant 1.0 : f32
+  %r = vir.set_vl %vl : index {
+    %x = vir.broadcast %zero : f32 -> !vir.vec<?xf32>
+    %ones = vir.broadcast %one : f32 -> !vir.vec<?xf32>
+    %v = scf.for unsigned %i = %lb to %ub step %step
+        iter_args(%a = %x) -> (!vir.vec<?xf32>) : i8 {
+      %n = arith.addf %a, %ones : !vir.vec<?xf32>
+      scf.yield %n : !vir.vec<?xf32>
+    }
+    %s = vir.reduce %v, %zero {kind = "add"} : !vir.vec<?xf32>, f32 -> f32
+    vector.yield %s : f32
+  } -> f32
+  return %r : f32
+}
+
+// CHECK-LABEL: func.func @unsigned_loop
+// CHECK: scf.for unsigned %{{.*}} = %{{.*}} to %{{.*}} step %{{.*}} iter_args(%{{.*}} = %{{.*}}) -> (vector<4xf32>) : i8

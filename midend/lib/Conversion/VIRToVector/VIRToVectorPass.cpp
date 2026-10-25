@@ -1348,7 +1348,9 @@ private:
     for (Operation &inner : block->without_terminator()) {
       Operation *op = &inner;
       for (Value v : op->getOperands()) {
-        if (isDyn(v.getType()) && get(v).size() != size_t(pieces.size()))
+        // (get() gives a value from above the region as one piece)
+        if (isDyn(v.getType()) &&
+            (!map.contains(v) || map[v].size() != size_t(pieces.size())))
           return op->emitError("a dynamic vector used in a vir.set_vl with "
                                "results must be defined in its region");
       }
@@ -1501,7 +1503,8 @@ private:
               flatten(forOp.getBody()->getTerminator()->getOperands(), yields,
                       nullptr);
               scf::YieldOp::create(bb, bodyLoc, yields);
-            });
+            },
+            forOp.getUnsignedCmp());
         if (failed(status))
           return failure();
         regroup(forOp.getResults(), newFor.getResults(), counts);
