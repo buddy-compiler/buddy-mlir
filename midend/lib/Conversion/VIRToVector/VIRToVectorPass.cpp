@@ -45,6 +45,7 @@
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/ADT/bit.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
@@ -133,8 +134,13 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
   }
 }
 
+/// The vector type of a dynamic vector region from its register pressure
+/// (Req_Group, the most dynamic vectors live at once) and the vector
+/// registers of the target: with `rvvVlen` (bits, > 0), a RISC-V Vector
+/// target with 32 registers of that VLEN, whatever the host; otherwise the
+/// host's registers.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
-                            bool useScalable, bool verbose) {
+                            bool useScalable, bool verbose, int rvvVlen) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
@@ -144,39 +150,48 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   // (VectorType::get asserts); 128-bit is a reasonable generic SIMD nominal.
   int vectorRegBitWidth = 128;
   int totalVectorRegs = 16;
-  llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
-
-  VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
-  if (Features.count("avx2") && Features["avx2"]) {
-    vectorRegBitWidth = 256;
-    totalVectorRegs = 16;
-    VERBOSE_ANALYSIS_INFO("[+] AVX2 is supported.\n");
-  } else {
-    VERBOSE_ANALYSIS_INFO("[-] AVX2 is NOT supported.\n");
-  }
-
-  if (Features.count("avx512f") && Features["avx512f"]) {
-    vectorRegBitWidth = 512;
+  if (rvvVlen > 0) {
+    // A RISC-V Vector target (e.g. a cross compilation): the host is not
+    // looked at.
+    vectorRegBitWidth = rvvVlen;
     totalVectorRegs = 32;
-    VERBOSE_ANALYSIS_INFO("[+] AVX-512F is supported.\n");
+    VERBOSE_ANALYSIS_INFO("--- RISC-V Vector target: VLEN " << rvvVlen
+                                                            << " ---\n");
   } else {
-    VERBOSE_ANALYSIS_INFO("[-] AVX-512F is NOT supported.\n");
-  }
+    llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
 
-  VERBOSE_ANALYSIS_INFO("\n--- Checking AArch64 Features ---\n");
-  if (Features.count("sve") && Features["sve"]) {
-    VERBOSE_ANALYSIS_INFO("[+] SVE is supported.\n");
+    VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
+    if (Features.count("avx2") && Features["avx2"]) {
+      vectorRegBitWidth = 256;
+      totalVectorRegs = 16;
+      VERBOSE_ANALYSIS_INFO("[+] AVX2 is supported.\n");
+    } else {
+      VERBOSE_ANALYSIS_INFO("[-] AVX2 is NOT supported.\n");
+    }
+
+    if (Features.count("avx512f") && Features["avx512f"]) {
+      vectorRegBitWidth = 512;
+      totalVectorRegs = 32;
+      VERBOSE_ANALYSIS_INFO("[+] AVX-512F is supported.\n");
+    } else {
+      VERBOSE_ANALYSIS_INFO("[-] AVX-512F is NOT supported.\n");
+    }
+
+    VERBOSE_ANALYSIS_INFO("\n--- Checking AArch64 Features ---\n");
+    if (Features.count("sve") && Features["sve"]) {
+      VERBOSE_ANALYSIS_INFO("[+] SVE is supported.\n");
 #if defined(__ARM_FEATURE_SVE)
-    uint64_t bytes = svcntb();
-    vectorRegBitWidth = bytes * 8;
-    totalVectorRegs = 32;
+      uint64_t bytes = svcntb();
+      vectorRegBitWidth = bytes * 8;
+      totalVectorRegs = 32;
 #else
-    assert(
-        false &&
-        "LLVM detected ARM SVE, but MACRO __ARM_FEATURE_SVE is not defined.");
+      assert(
+          false &&
+          "LLVM detected ARM SVE, but MACRO __ARM_FEATURE_SVE is not defined.");
 #endif
-  } else {
-    VERBOSE_ANALYSIS_INFO("[-] SVE is NOT supported.\n");
+    } else {
+      VERBOSE_ANALYSIS_INFO("[-] SVE is NOT supported.\n");
+    }
   }
 
   Block &block = srcRegion.front();
@@ -305,11 +320,23 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                         << totalVectorRegs << " / " << reqGroup
                         << ") = " << sizeGroup << "\n");
 
-  // Size_vec = (Size_Group * Size_Reg) / Width_Ele
-  int64_t sizeVec = (sizeGroup * vectorRegBitWidth) / elementBitWidth;
-  VERBOSE_ANALYSIS_INFO("Calculated Size_vec = ("
-                        << sizeGroup << " * " << vectorRegBitWidth << ") / "
-                        << elementBitWidth << " = " << sizeVec << "\n");
+  int64_t sizeVec;
+  if (rvvVlen > 0) {
+    // RVV: LMUL = min(8, 2^floor(log2(Size_Group))), and a register group
+    // of LMUL registers holds LMUL * VLEN / SEW elements.
+    int64_t lmul = std::min<int64_t>(8, llvm::bit_floor(unsigned(sizeGroup)));
+    sizeVec = lmul * rvvVlen / elementBitWidth;
+    VERBOSE_ANALYSIS_INFO("Calculated LMUL = " << lmul << ", Size_vec = ("
+                                               << lmul << " * " << rvvVlen
+                                               << ") / " << elementBitWidth
+                                               << " = " << sizeVec << "\n");
+  } else {
+    // Size_vec = (Size_Group * Size_Reg) / Width_Ele
+    sizeVec = (sizeGroup * vectorRegBitWidth) / elementBitWidth;
+    VERBOSE_ANALYSIS_INFO("Calculated Size_vec = ("
+                          << sizeGroup << " * " << vectorRegBitWidth << ") / "
+                          << elementBitWidth << " = " << sizeVec << "\n");
+  }
 
   if (sizeVec < 1) {
     emitWarning(srcRegion.getLoc(),
@@ -336,16 +363,19 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
 class VIRSetVLLowering : public ConvertOpToLLVMPattern<vir::SetVLOp> {
 public:
   VIRSetVLLowering(LLVMTypeConverter &converter, bool useScalable,
-                   int vectorWidth, bool verbose, bool useCustomVecWid)
+                   int vectorWidth, bool verbose, bool useCustomVecWid,
+                   int rvvVlen)
       : ConvertOpToLLVMPattern<vir::SetVLOp>(converter),
         useScalable(useScalable), vectorWidth(vectorWidth), verbose(verbose),
-        useCustomVecWid(useCustomVecWid) {}
+        useCustomVecWid(useCustomVecWid), rvvVlen(rvvVlen) {}
 
 private:
   bool useScalable;
   int vectorWidth;
   bool verbose;
   bool useCustomVecWid;
+  // VLEN of a RISC-V Vector target in bits, 0 for the host
+  int rvvVlen;
 
   /// Recursively search for anchor type within a given Region and its nested
   Type findAnchorTypeRecursive(Region &region) const {
@@ -1574,11 +1604,11 @@ private:
       return op.emitError("a vir.set_vl with results needs a constant vl");
     if (useScalable)
       return op.emitError("a vir.set_vl with results needs fixed vectors");
-    int64_t width =
-        useCustomVecWid
-            ? vectorWidth
-            : vectorTypeHelper(op.getRegion(), anchorType, false, verbose)
-                  .getShape()[0];
+    int64_t width = useCustomVecWid
+                        ? vectorWidth
+                        : vectorTypeHelper(op.getRegion(), anchorType, false,
+                                           verbose, rvvVlen)
+                              .getShape()[0];
     Pieces pieces{width, *vl / width, *vl % width};
     // keep the lowered code small: vl over a few vectors
     if (pieces.size() > 64)
@@ -1678,7 +1708,7 @@ private:
       }
     } else {
       targetVectorType =
-          vectorTypeHelper(region, anchorType, useScalable, verbose);
+          vectorTypeHelper(region, anchorType, useScalable, verbose, rvvVlen);
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
@@ -1771,9 +1801,10 @@ private:
 void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
                                            RewritePatternSet &patterns,
                                            bool useScalable, int vectorWidth,
-                                           bool verbose, bool useCustomVecWid) {
+                                           bool verbose, bool useCustomVecWid,
+                                           int rvvVlen) {
   // clang-format off
-  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid);
+  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen);
   // clang-format on
 }
 
@@ -1822,6 +1853,13 @@ public:
       llvm::cl::desc("Vector width for fixed/scalable vectors (default: 4)"),
       llvm::cl::init(DEFAULT_VECTOR_WIDTH)};
 
+  Option<int> rvvVlen{
+      *this, "rvv-vlen",
+      llvm::cl::desc("VLEN in bits of a RISC-V Vector target: without "
+                     "vector-width, the vector size comes from its 32 "
+                     "registers of VLEN bits instead of the host's"),
+      llvm::cl::init(0)};
+
   Option<bool> verbose{*this, "verbose",
                        llvm::cl::desc("Print register analysis information"),
                        llvm::cl::init(false)};
@@ -1848,10 +1886,18 @@ void VIRToVectorPass::runOnOperation() {
   target.addLegalOp<UnrealizedConversionCastOp>();
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
+  // RVV: VLEN is a power of two of at least 32 bits
+  if (rvvVlen != 0 &&
+      (rvvVlen < 32 || !llvm::has_single_bit(unsigned(rvvVlen)))) {
+    module.emitError("rvv-vlen must be a power of two >= 32, got ")
+        << int(rvvVlen);
+    return signalPassFailure();
+  }
   // use custome vector width
   bool useCustomVecWid = vectorWidth.getNumOccurrences() > 0;
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
-                                        vectorWidth, verbose, useCustomVecWid);
+                                        vectorWidth, verbose, useCustomVecWid,
+                                        rvvVlen);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
