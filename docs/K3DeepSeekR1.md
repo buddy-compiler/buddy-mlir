@@ -253,6 +253,54 @@ of a serial loop between them; the sums are the same, and so is the text.
 3 alternating runs: decode after a short prompt 27.05 -> 27.18 tok/s, after
 458 tokens 25.61 -> 25.77, after 900 tokens 24.30 -> 24.40.
 
+## Decode attention in the VIR dialect
+
+The decode attention is `_attn_decode_vir_fn` (`k3_w4.py`), written in the
+VIR dialect ([DynamicVector.md](DynamicVector.md)) with its Python bindings
+(`buddy_mlir.dialects.vir`), after the vector kernel `_attn_decode_fn` (which
+the A210 kernels still use). The attention of a work item is one `vir.set_vl`
+region of d / 2 = 64 lanes in which a head is its two RoPE halves, a
+`!vir.vec<2x?xf32>`, and which yields the (max, sum) of each head:
+
+- q is loaded, rotated (rotate_half is `vir.shuffle %neg_q, %q [1, 2]`,
+  i.e. `[-q[1], q[0]]`, with cos / sin stored as two equal rows) and scaled
+  in the region;
+- the accumulators and the key and value rows are dynamic vectors, a score
+  is a `vir.reduce` (with `reassoc`, i.e. `vfredusum`), the products with
+  the values `vir.fma`;
+- the online softmax over the 16 scores of a block is the vector code of the
+  vector kernel, in the same order;
+- with q / k norms (Qwen3), a region of its own sums the squares of the
+  halves of each head first, as the vector kernel does.
+
+`-lower-vir-to-vector` sizes the vectors of a `set_vl` with results for the
+target: the kernels pipelines give it `rvv-vlen=1024` (the A100's VLEN,
+`compile_pipeline.KERNELS_LOWER_VIR`) and fixed vectors, so the two rows of a
+head (row-flattened) are one `vector<128xf32>`, LMUL 4 (a region with a
+`vir.shuffle` keeps each dynamic vector in one vector).
+
+The results are those of the vector kernel bit for bit, with and without
+q / k norms (host tests). In the parallel body of the DeepSeek-R1 attention
+(12 heads, 2 per work item), the key and value loops have the same
+instructions as the vector kernel's (a reload of a spilled register sits
+elsewhere in two blocks); the rotation of q per work item is
+`vfneg` and register moves on one LMUL 4 group instead of arithmetic on two
+LMUL 2 halves (178 vector instructions in both bodies). Decode, `buddy-cli`
+greedy, three alternating runs, the same text:
+
+| decode, tok/s | vector kernel | VIR kernel |
+| --- | --- | --- |
+| after 63 tokens | 28.26-28.49 | 28.10-28.58 |
+| after 458 tokens | 26.82-27.13 | 27.02-27.04 |
+| after 900 tokens | 25.37-25.41 | 25.29-25.77 |
+
+Two builds with the same code differ by up to 2% in either direction, so a
+difference below that is not one of the kernels. A first version made of
+`set_vl` regions without results (strip-mined loops, nothing carried out but
+through memory) had the accumulators, q and the scores of each block of 16
+keys go through stack buffers and was 2-5% slower (one call at position 900:
+150.7 instead of 147.0 us).
+
 ## Tests
 
 - `tests/Python/test_k3_w4_kernels.py`: the kernels, compiled for the host by
@@ -260,7 +308,8 @@ of a serial loop between them; the sums are the same, and so is the text.
   plain / with bias / with RMSNorm / q, k, v / gate, up; one row and several;
   attention for decode and for a prefill chunk, KV cache update included;
   the `prefill_ime` attention with its two matrix loops emulated, against a
-  reference rounded to fp16 like it).
+  reference rounded to fp16 like it; the decode attention, with and
+  without q / k norms, also against the bits of the vector kernel).
 - `tests/Python/test_k3_w4_import.py`: a tiny random Qwen2 through the import:
   no Linear or attention op left, the kernels generated, the weight buffers of
   the sizes `gen_config.py` computed; and the same with `prefill_ime`.
