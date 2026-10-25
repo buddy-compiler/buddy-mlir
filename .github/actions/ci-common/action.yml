@@ -139,6 +139,7 @@ runs:
           -DCMAKE_BUILD_TYPE=RELEASE \
           -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
           -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
+          -DBUDDY_ENABLE_PNG=ON \
           -DPython3_EXECUTABLE="$(which python)" \
           -DPython_EXECUTABLE="$(which python)"
 
