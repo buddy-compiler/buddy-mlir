@@ -46,6 +46,20 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     The `set_vl` operation sets the vector length for subsequent dynamic vector
     operations within its region. This enables runtime vector length management
     for hardware-agnostic vector computations.
+
+    Without results, the region is lowered to a strip-mined loop: it runs
+    once per vector of the target width (then once per remaining element),
+    so no value flows from one part of the vectors to the next and the
+    region computes what it stores.
+
+    With results (`vector.yield %a, ... : f32, ...`), the region computes on
+    whole vectors of length `vl`, which must be a constant: a `vir.reduce`
+    reduces all `vl` lanes, and its result can be used in the region (also
+    by `vir.broadcast`), carried by `scf.for` / `affine.for` loops in it, or
+    yielded. Dynamic vectors may be loop-carried values of those loops.
+    The lowering splits each dynamic vector into vl / w vectors of the
+    target width w and vl % w scalars; a `vir.reduce` combines them in that
+    order.
   }];
   let arguments = (ins Index:$vl);
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
@@ -120,6 +134,21 @@ def VIR_BroadcastOp : VIR_Op<"broadcast"> {
   let assemblyFormat = "$value attr-dict `:` type($value) `->` qualified(type($result))";
 }
 
+def VIR_FromVectorOp : VIR_Op<"from_vector",
+    [AllElementTypesMatch<["source", "result"]>]> {
+  let summary = "A fixed-size vector as a dynamic vector.";
+  let description = [{
+    The `from_vector` operation gives the lanes of a 1-D vector, computed
+    outside the region, as a dynamic vector of the region. It is only
+    supported in a `vir.set_vl` with results, whose constant vl must be the
+    number of lanes of the vector.
+  }];
+  let arguments = (ins VectorOfRank<[1]>:$source);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$source attr-dict `:` type($source) `->` qualified(type($result))";
+}
+
 //===----------------------------------------------------------------------===//
 // Arithmetic Operations
 //===----------------------------------------------------------------------===//
@@ -149,11 +178,16 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
     v1 semantics:
     - `kind = \"add\"`    : floating-point sum reduction
     - `kind = \"maxnum\"` : floating-point maxnum reduction
+
+    With `reassoc`, the lanes may be combined in any order (the
+    `vector.reduction` it lowers to has `fastmath<reassoc>`: an unordered
+    reduction, e.g. `vfredusum` on RVV, instead of an ordered one).
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,
     AnyFloat:$acc,
-    StrAttr:$kind
+    StrAttr:$kind,
+    UnitAttr:$reassoc
   );
   let results = (outs AnyFloat:$result);
 

@@ -34,6 +34,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/PatternMatch.h"
@@ -665,8 +667,10 @@ private:
               return;
             }
 
-            auto reduced = vector::ReductionOp::create(builder, loc,
-                                                       combineKind, input, acc);
+            auto reduced = vector::ReductionOp::create(
+                builder, loc, combineKind, input, acc,
+                op.getReassoc() ? arith::FastMathFlags::reassoc
+                                : arith::FastMathFlags::none);
             virSymbolTable[op.getResult()] = reduced.getResult();
           })
           .Case<vir::SelectOp>([&](vir::SelectOp op) {
@@ -1268,6 +1272,331 @@ private:
     }
   }
 
+  /// The pieces a dynamic vector of a set_vl with results is lowered to:
+  /// `numVectors` vectors of `width` lanes, then `numScalars` scalars.
+  struct Pieces {
+    int64_t width, numVectors, numScalars;
+    int64_t size() const { return numVectors + numScalars; }
+    // the number of lanes, vl
+    int64_t length() const { return numVectors * width + numScalars; }
+    bool isVector(int64_t p) const { return p < numVectors; }
+    // the first lane of piece p
+    int64_t offset(int64_t p) const {
+      return isVector(p) ? p * width : numVectors * width + p - numVectors;
+    }
+    Type type(Type elem, int64_t p) const {
+      return isVector(p) ? Type(VectorType::get({width}, elem)) : elem;
+    }
+  };
+  using PieceMap = DenseMap<Value, SmallVector<Value, 4>>;
+
+  /// Lowers the ops of `block` but its terminator for a set_vl with results:
+  /// each op on dynamic vectors applies to every piece, a vir.reduce folds
+  /// the pieces in order and loops carry all pieces of their dynamic vector
+  /// values. `map` maps a value of the region to its pieces (one for a
+  /// value that is not a dynamic vector).
+  LogicalResult lowerBlockInPieces(OpBuilder &b, Location loc, Block *block,
+                                   PieceMap &map, const Pieces &pieces) const {
+    auto isDyn = [](Type t) { return isa<vir::DynamicVectorType>(t); };
+    auto elemOf = [](Type t) {
+      return cast<vir::DynamicVectorType>(t).getElementType();
+    };
+    // the pieces of a value (a value from above the region is its own
+    // piece)
+    auto get = [&](Value v) -> SmallVector<Value, 4> {
+      auto it = map.find(v);
+      if (it != map.end())
+        return it->second;
+      return {v};
+    };
+    auto one = [&](Value v) { return get(v).front(); };
+    // the memref indices of piece p of the access at `indices`
+    auto pieceIndices = [&](Value base, ValueRange indices, int64_t p) {
+      SmallVector<Value> out;
+      Value off = arith::ConstantIndexOp::create(b, loc, pieces.offset(p));
+      if (indices.empty()) {
+        int64_t rank = cast<MemRefType>(base.getType()).getRank();
+        for (int64_t i = 0; i + 1 < rank; ++i)
+          out.push_back(arith::ConstantIndexOp::create(b, loc, 0));
+        out.push_back(off);
+        return out;
+      }
+      for (Value index : indices.drop_back())
+        out.push_back(one(index));
+      out.push_back(arith::AddIOp::create(b, loc, one(indices.back()), off));
+      return out;
+    };
+    // flattens the pieces of `values`; `counts` gets the number of each
+    auto flatten = [&](ValueRange values, SmallVectorImpl<Value> &flat,
+                       SmallVectorImpl<int64_t> *counts) {
+      for (Value v : values) {
+        SmallVector<Value, 4> ps = get(v);
+        flat.append(ps.begin(), ps.end());
+        if (counts)
+          counts->push_back(ps.size());
+      }
+    };
+    auto regroup = [&](ValueRange olds, ValueRange flat,
+                       ArrayRef<int64_t> counts) {
+      int64_t at = 0;
+      for (auto [old, count] : llvm::zip(olds, counts)) {
+        map[old] = SmallVector<Value, 4>(flat.slice(at, count));
+        at += count;
+      }
+    };
+
+    for (Operation &inner : block->without_terminator()) {
+      Operation *op = &inner;
+      for (Value v : op->getOperands()) {
+        // (get() gives a value from above the region as one piece)
+        if (isDyn(v.getType()) &&
+            (!map.contains(v) || map[v].size() != size_t(pieces.size())))
+          return op->emitError("a dynamic vector used in a vir.set_vl with "
+                               "results must be defined in its region");
+      }
+      for (Type t : op->getResultTypes()) {
+        auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+        if (dyn && (dyn.getShape().size() != 1 || dyn.getScalingFactor()))
+          return op->emitError("a vir.set_vl with results supports only "
+                               "!vir.vec<?xT> vectors");
+      }
+
+      if (auto load = dyn_cast<vir::LoadOp>(op)) {
+        Value base = one(load.getBase());
+        Type elem = elemOf(load.getType());
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          SmallVector<Value> idx = pieceIndices(base, load.getIndices(), p);
+          if (!pieces.isVector(p)) {
+            out.push_back(memref::LoadOp::create(b, loc, base, idx));
+            continue;
+          }
+          auto vecTy = cast<VectorType>(pieces.type(elem, p));
+          if (shouldScalarizeI1VectorMemoryOp(vecTy))
+            out.push_back(
+                buildScalarizedI1VectorLoad(b, loc, vecTy, base, idx));
+          else if (hasStaticallyUnitStrideInVectorizedDim(base))
+            out.push_back(vector::LoadOp::create(b, loc, vecTy, base, idx));
+          else
+            out.push_back(vector::TransferReadOp::create(
+                b, loc, vecTy, base, idx,
+                arith::ConstantOp::create(b, loc, b.getZeroAttr(elem))));
+        }
+        map[load.getResult()] = out;
+      } else if (auto store = dyn_cast<vir::StoreOp>(op)) {
+        Value base = one(store.getBase());
+        SmallVector<Value, 4> values = get(store.getValue());
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          SmallVector<Value> idx = pieceIndices(base, store.getIndices(), p);
+          if (!pieces.isVector(p))
+            memref::StoreOp::create(b, loc, values[p], base, idx);
+          else if (shouldScalarizeI1VectorMemoryOp(
+                       cast<VectorType>(values[p].getType())))
+            buildScalarizedI1VectorStore(b, loc, values[p], base, idx);
+          else if (hasStaticallyUnitStrideInVectorizedDim(base))
+            vector::StoreOp::create(b, loc, values[p], base, idx);
+          else
+            vector::TransferWriteOp::create(b, loc, values[p], base, idx);
+        }
+      } else if (auto from = dyn_cast<vir::FromVectorOp>(op)) {
+        Value src = one(from.getSource());
+        auto srcTy = cast<VectorType>(src.getType());
+        if (srcTy.isScalable() || srcTy.getNumElements() != pieces.length())
+          return op->emitError("vir.from_vector needs a fixed vector of vl "
+                               "lanes");
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          int64_t off = pieces.offset(p);
+          if (!pieces.isVector(p))
+            out.push_back(vector::ExtractOp::create(b, loc, src, off));
+          else if (pieces.width == srcTy.getNumElements())
+            out.push_back(src);
+          else
+            out.push_back(vector::ExtractStridedSliceOp::create(
+                b, loc, src, ArrayRef<int64_t>{off},
+                ArrayRef<int64_t>{pieces.width}, ArrayRef<int64_t>{1}));
+        }
+        map[from.getResult()] = out;
+      } else if (auto cst = dyn_cast<vir::ConstantOp>(op)) {
+        Type elem = elemOf(cst.getType());
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          if (!pieces.isVector(p)) {
+            out.push_back(arith::ConstantOp::create(b, loc, cst.getValue()));
+            continue;
+          }
+          auto vecTy = cast<ShapedType>(pieces.type(elem, p));
+          out.push_back(arith::ConstantOp::create(
+              b, loc, vecTy, DenseElementsAttr::get(vecTy, cst.getValue())));
+        }
+        map[cst.getResult()] = out;
+      } else if (auto bcast = dyn_cast<vir::BroadcastOp>(op)) {
+        Value scalar = one(bcast.getValue());
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p)
+          out.push_back(
+              pieces.isVector(p)
+                  ? Value(vector::BroadcastOp::create(
+                        b, loc, pieces.type(scalar.getType(), p), scalar))
+                  : scalar);
+        map[bcast.getResult()] = out;
+      } else if (auto fma = dyn_cast<vir::FMAOp>(op)) {
+        SmallVector<Value, 4> lhs = get(fma.getLhs()), rhs = get(fma.getRhs()),
+                              acc = get(fma.getAcc()), out;
+        for (int64_t p = 0; p < pieces.size(); ++p)
+          out.push_back(
+              pieces.isVector(p)
+                  ? Value(vector::FMAOp::create(b, loc, lhs[p], rhs[p], acc[p]))
+                  : Value(math::FmaOp::create(b, loc, lhs[p], rhs[p], acc[p])));
+        map[fma.getResult()] = out;
+      } else if (auto reduce = dyn_cast<vir::ReduceOp>(op)) {
+        StringRef kind = reduce.getKind();
+        if (kind != "add" && kind != "maxnum")
+          return op->emitError(
+              "unsupported vir.reduce kind (expected add/maxnum)");
+        auto combineKind = kind == "add" ? vector::CombiningKind::ADD
+                                         : vector::CombiningKind::MAXNUMF;
+        auto fastmath = reduce.getReassoc() ? arith::FastMathFlags::reassoc
+                                            : arith::FastMathFlags::none;
+        Value acc = one(reduce.getAcc());
+        for (Value piece : get(reduce.getInput())) {
+          if (isa<VectorType>(piece.getType()))
+            acc = vector::ReductionOp::create(b, loc, combineKind, piece, acc,
+                                              fastmath);
+          else if (kind == "add")
+            acc = arith::AddFOp::create(b, loc, acc, piece);
+          else
+            acc = arith::MaxNumFOp::create(b, loc, acc, piece);
+        }
+        map[reduce.getResult()] = {acc};
+      } else if (auto select = dyn_cast<vir::SelectOp>(op)) {
+        SmallVector<Value, 4> cond = get(select.getCondition()),
+                              tv = get(select.getTrueValue()),
+                              fv = get(select.getFalseValue()), out;
+        for (int64_t p = 0; p < pieces.size(); ++p)
+          out.push_back(arith::SelectOp::create(b, loc, cond[p], tv[p], fv[p]));
+        map[select.getResult()] = out;
+      } else if (isa<vir::ExtFOp, vir::TruncFOp>(op)) {
+        Type elem = elemOf(op->getResult(0).getType());
+        SmallVector<Value, 4> in = get(op->getOperand(0)), out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          Type t = pieces.type(elem, p);
+          out.push_back(isa<vir::ExtFOp>(op)
+                            ? Value(arith::ExtFOp::create(b, loc, t, in[p]))
+                            : Value(arith::TruncFOp::create(b, loc, t, in[p])));
+        }
+        map[op->getResult(0)] = out;
+      } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {
+        SmallVector<Value> inits;
+        SmallVector<int64_t> counts;
+        flatten(forOp.getInitArgs(), inits, &counts);
+        LogicalResult status = success();
+        auto newFor = scf::ForOp::create(
+            b, loc, one(forOp.getLowerBound()), one(forOp.getUpperBound()),
+            one(forOp.getStep()), inits,
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange args) {
+              map[forOp.getInductionVar()] = {iv};
+              regroup(forOp.getRegionIterArgs(), args, counts);
+              status =
+                  lowerBlockInPieces(bb, bodyLoc, forOp.getBody(), map, pieces);
+              SmallVector<Value> yields;
+              flatten(forOp.getBody()->getTerminator()->getOperands(), yields,
+                      nullptr);
+              scf::YieldOp::create(bb, bodyLoc, yields);
+            },
+            forOp.getUnsignedCmp());
+        if (failed(status))
+          return failure();
+        regroup(forOp.getResults(), newFor.getResults(), counts);
+      } else if (auto forOp = dyn_cast<affine::AffineForOp>(op)) {
+        SmallVector<Value> inits, lbs, ubs;
+        SmallVector<int64_t> counts;
+        flatten(forOp.getInits(), inits, &counts);
+        flatten(forOp.getLowerBoundOperands(), lbs, nullptr);
+        flatten(forOp.getUpperBoundOperands(), ubs, nullptr);
+        LogicalResult status = success();
+        auto newFor = affine::AffineForOp::create(
+            b, loc, lbs, forOp.getLowerBoundMap(), ubs,
+            forOp.getUpperBoundMap(), forOp.getStep().getLimitedValue(), inits,
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange args) {
+              map[forOp.getInductionVar()] = {iv};
+              regroup(forOp.getRegionIterArgs(), args, counts);
+              status =
+                  lowerBlockInPieces(bb, bodyLoc, forOp.getBody(), map, pieces);
+              SmallVector<Value> yields;
+              flatten(forOp.getBody()->getTerminator()->getOperands(), yields,
+                      nullptr);
+              affine::AffineYieldOp::create(bb, bodyLoc, yields);
+            });
+        if (failed(status))
+          return failure();
+        regroup(forOp.getResults(), newFor.getResults(), counts);
+      } else if (op->getNumRegions() != 0) {
+        return op->emitError("unsupported op with regions in a vir.set_vl "
+                             "with results");
+      } else {
+        bool onDyn = llvm::any_of(op->getOperandTypes(), isDyn) ||
+                     llvm::any_of(op->getResultTypes(), isDyn);
+        if (onDyn &&
+            !isa<arith::ArithDialect, math::MathDialect>(op->getDialect()))
+          return op->emitError("unsupported op on dynamic vectors in a "
+                               "vir.set_vl with results");
+        // an elementwise op on every piece, or any other op once
+        int64_t n = onDyn ? pieces.size() : 1;
+        SmallVector<SmallVector<Value, 4>> results(op->getNumResults());
+        for (int64_t p = 0; p < n; ++p) {
+          OperationState state(loc, op->getName());
+          for (Value v : op->getOperands())
+            state.addOperands(isDyn(v.getType()) ? get(v)[p] : one(v));
+          for (Type t : op->getResultTypes())
+            state.addTypes(isDyn(t) ? pieces.type(elemOf(t), p) : t);
+          state.addAttributes(op->getAttrs());
+          Operation *newOp = b.create(state);
+          for (auto [i, r] : llvm::enumerate(newOp->getResults()))
+            results[i].push_back(r);
+        }
+        for (auto [old, rs] : llvm::zip(op->getResults(), results))
+          map[old] = rs;
+      }
+    }
+    return success();
+  }
+
+  /// Lowers a set_vl with results: its vl must be a constant, and its
+  /// region computes on whole dynamic vectors, each lowered to the pieces of
+  /// `Pieces` (no strip-mined loop), so that values can flow from one
+  /// piece to the next and out of the region.
+  LogicalResult lowerWithResults(vir::SetVLOp op,
+                                 ConversionPatternRewriter &rewriter,
+                                 Type anchorType) const {
+    std::optional<int64_t> vl = getConstantIntValue(op.getVl());
+    if (!vl)
+      return op.emitError("a vir.set_vl with results needs a constant vl");
+    if (useScalable)
+      return op.emitError("a vir.set_vl with results needs fixed vectors");
+    int64_t width =
+        useCustomVecWid
+            ? vectorWidth
+            : vectorTypeHelper(op.getRegion(), anchorType, false, verbose)
+                  .getShape()[0];
+    Pieces pieces{width, *vl / width, *vl % width};
+    // keep the lowered code small: vl over a few vectors
+    if (pieces.size() > 64)
+      return op.emitError("a vir.set_vl with results lowers to more than 64 "
+                          "pieces; increase vector-width");
+    PieceMap map;
+    Block &block = op.getRegion().front();
+    if (failed(lowerBlockInPieces(rewriter, op.getLoc(), &block, map, pieces)))
+      return failure();
+    SmallVector<Value> results;
+    for (Value v : block.getTerminator()->getOperands()) {
+      auto it = map.find(v);
+      results.push_back(it != map.end() ? it->second.front() : v);
+    }
+    rewriter.replaceOp(op, results);
+    return success();
+  }
+
   LogicalResult
   matchAndRewrite(vir::SetVLOp op, vir::SetVLOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -1284,6 +1613,14 @@ private:
           "Ensure there are operations with !vir.vec<?xT> types "
           "without scaling factors.");
     }
+    if (op.getNumResults() != 0)
+      return lowerWithResults(op, rewriter, anchorType);
+    WalkResult fromVector = region.walk([](vir::FromVectorOp from) {
+      from.emitError("vir.from_vector needs a vir.set_vl with results");
+      return WalkResult::interrupt();
+    });
+    if (fromVector.wasInterrupted())
+      return failure();
 
     //===------------------------------------------------------------------===//
     // Step 2: Construct the target vector type.
@@ -1468,6 +1805,7 @@ public:
         math::MathDialect,
         memref::MemRefDialect,
         affine::AffineDialect,
+        scf::SCFDialect,
         vector::VectorDialect,
         LLVM::LLVMDialect>();
     // clang-format on
@@ -1502,6 +1840,7 @@ void VIRToVectorPass::runOnOperation() {
       memref::MemRefDialect,
       vector::VectorDialect,
       affine::AffineDialect,
+      scf::SCFDialect,
       LLVM::LLVMDialect
     >();
   // clang-format on

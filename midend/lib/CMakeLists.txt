@@ -20,6 +20,7 @@ set(LinkedLibs
   BuddyAMETransforms
   BuddyRHAL
   BuddyTile
+  VIR
   ConvOptimization
   CBConvVectorization
   LowerBudPass
