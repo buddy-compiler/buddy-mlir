@@ -149,11 +149,16 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
     v1 semantics:
     - `kind = \"add\"`    : floating-point sum reduction
     - `kind = \"maxnum\"` : floating-point maxnum reduction
+
+    With `reassoc`, the lanes may be combined in any order (the
+    `vector.reduction` it lowers to has `fastmath<reassoc>`: an unordered
+    reduction, e.g. `vfredusum` on RVV, instead of an ordered one).
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,
     AnyFloat:$acc,
-    StrAttr:$kind
+    StrAttr:$kind,
+    UnitAttr:$reassoc
   );
   let results = (outs AnyFloat:$result);
 

@@ -665,8 +665,10 @@ private:
               return;
             }
 
-            auto reduced = vector::ReductionOp::create(builder, loc,
-                                                       combineKind, input, acc);
+            auto reduced = vector::ReductionOp::create(
+                builder, loc, combineKind, input, acc,
+                op.getReassoc() ? arith::FastMathFlags::reassoc
+                                : arith::FastMathFlags::none);
             virSymbolTable[op.getResult()] = reduced.getResult();
           })
           .Case<vir::SelectOp>([&](vir::SelectOp op) {
