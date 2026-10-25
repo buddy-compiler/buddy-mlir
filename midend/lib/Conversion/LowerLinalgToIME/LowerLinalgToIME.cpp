@@ -19,10 +19,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
@@ -31,6 +33,7 @@
 
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/IME/IMEOps.h"
+#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 using namespace buddy::ime;
@@ -69,15 +72,76 @@ static bool isSupportedElementType(Type elemType) {
 
 namespace {
 
+// Unsupported floating-point IME encodings can behave as a no-op on some
+// hardware. Check a known nonzero product before enabling a model's IME path.
+static void insertFP16IMECheck(PatternRewriter &rewriter, Location loc,
+                               ModuleOp module, bool a100,
+                               StringRef functionName) {
+  // C-wrapper export makes helper symbols external. Scope each helper to its
+  // graph so separately compiled Prefill and Decode partitions can be linked.
+  std::string name =
+      (a100 ? "__buddy_check_a100_fp16_ime_" : "__buddy_check_fp16_ime_") +
+      functionName.str();
+  if (!module.lookupSymbol<func::FuncOp>(name)) {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(module.getBody());
+    auto function = func::FuncOp::create(rewriter, loc, name,
+                                         rewriter.getFunctionType({}, {}));
+    function.setPrivate();
+    rewriter.setInsertionPointToStart(function.addEntryBlock());
+    int64_t size = a100 ? 8 : 4;
+    Type accumulatorType = a100 ? rewriter.getF32Type() : rewriter.getF16Type();
+    auto tileType = MemRefType::get({size, size}, rewriter.getF16Type());
+    Value a = memref::AllocaOp::create(rewriter, loc, tileType);
+    Value b = memref::AllocaOp::create(rewriter, loc, tileType);
+    Value c = memref::AllocaOp::create(
+        rewriter, loc, MemRefType::get({size, size}, accumulatorType));
+    Value zero =
+        arith::ConstantOp::create(rewriter, loc, accumulatorType,
+                                  rewriter.getFloatAttr(accumulatorType, 0.0));
+    Value one = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getF16Type(),
+        rewriter.getFloatAttr(rewriter.getF16Type(), 1.0));
+    Value expected = arith::ConstantOp::create(
+        rewriter, loc, accumulatorType,
+        rewriter.getFloatAttr(accumulatorType, static_cast<double>(size)));
+    for (int64_t i = 0; i < size; ++i)
+      for (int64_t j = 0; j < size; ++j) {
+        Value row = arith::ConstantIndexOp::create(rewriter, loc, i);
+        Value col = arith::ConstantIndexOp::create(rewriter, loc, j);
+        memref::StoreOp::create(rewriter, loc, one, a, ValueRange{row, col});
+        memref::StoreOp::create(rewriter, loc, one, b, ValueRange{row, col});
+        memref::StoreOp::create(rewriter, loc, zero, c, ValueRange{row, col});
+      }
+    if (a100)
+      VfwmadotOp::create(rewriter, loc, c, a, b);
+    else
+      VfmadotOp::create(rewriter, loc, c, a, b);
+    Value indexZero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value actual = memref::LoadOp::create(rewriter, loc, c,
+                                          ValueRange{indexZero, indexZero});
+    Value valid = arith::CmpFOp::create(
+        rewriter, loc, arith::CmpFPredicate::OEQ, actual, expected);
+    cf::AssertOp::create(
+        rewriter, loc, valid,
+        "FP16 IME numerical self-test failed; this hardware does not execute "
+        "the selected matrix instruction correctly");
+    func::ReturnOp::create(rewriter, loc);
+  }
+  func::CallOp::create(rewriter, loc, name, TypeRange{}, ValueRange{});
+}
+
 class MatmulToIMELowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
-  MatmulToIMELowering(MLIRContext *context, bool k3)
-      : OpRewritePattern<linalg::MatmulOp>(context), k3(k3) {}
+  MatmulToIMELowering(MLIRContext *context, bool k3, StringRef shapes = "",
+                      int64_t packedWidth = 0, bool parallelTiles = false,
+                      bool verifyFP16 = false, bool a100 = false,
+                      bool fastGemv = false, bool fastGemm = false)
+      : OpRewritePattern(context), k3(k3), shapes(shapes.str()),
+        packedWidth(packedWidth), parallelTiles(parallelTiles),
+        verifyFP16(verifyFP16), a100(a100), fastGemv(fastGemv),
+        fastGemm(fastGemm) {}
 
-private:
-  bool k3;
-
-public:
   LogicalResult matchAndRewrite(linalg::MatmulOp matmulOp,
                                 PatternRewriter &rewriter) const override {
     Location loc = matmulOp.getLoc();
@@ -126,7 +190,7 @@ public:
 
     bool isFloatMatmul = AElemType.isF16();
     if (isFloatMatmul) {
-      if (!CElemType.isF16()) {
+      if (!CElemType.isF16() && !(a100 && CElemType.isF32())) {
         return rewriter.notifyMatchFailure(
             matmulOp, "output C must be f16 for fp16 accumulation");
       }
@@ -152,6 +216,10 @@ public:
     // Get tile sizes for the element type
     int64_t tileM, tileK, tileN;
     getTileSizes(AElemType, tileM, tileK, tileN, k3);
+    bool wideningFP16 = a100 && isFloatMatmul;
+    if (wideningFP16)
+      tileM = tileK = tileN = 8;
+    Type accumulatorType = wideningFP16 ? rewriter.getF32Type() : CElemType;
 
     // This pattern only handles static dimensions
     bool hasStaticDims = !ShapedType::isDynamic(M) &&
@@ -160,6 +228,102 @@ public:
     if (!hasStaticDims) {
       return rewriter.notifyMatchFailure(
           matmulOp, "dynamic dimensions not supported in boundary pattern");
+    }
+
+    if (!shapes.empty()) {
+      SmallVector<StringRef> selected;
+      StringRef(shapes).split(selected, ',', -1, false);
+      std::string shape = std::to_string(K) + "x" + std::to_string(N);
+      if (!llvm::is_contained(selected, StringRef(shape)))
+        return failure();
+    }
+    if (packedWidth && (M != 1 || N % packedWidth != 0))
+      return rewriter.notifyMatchFailure(
+          matmulOp, "packed IME requires M=1 and N divisible by packed width");
+    if (fastGemm &&
+        (!a100 || !isFloatMatmul || !CElemType.isF16() || M < 8 || M % 8 ||
+         K % 8 || N % 32 || !AType.getLayout().isIdentity() ||
+         !CType.getLayout().isIdentity() || packedWidth))
+      return rewriter.notifyMatchFailure(
+          matmulOp, "A100 GEMM requires contiguous FP16 A/C, M%8=K%8=N%32=0");
+    if (verifyFP16 && isFloatMatmul)
+      insertFP16IMECheck(
+          rewriter, loc, matmulOp->getParentOfType<ModuleOp>(), a100,
+          matmulOp->getParentOfType<func::FuncOp>().getSymName());
+
+    if (fastGemm) {
+      auto index = [&](int64_t value) -> Value {
+        return arith::ConstantIndexOp::create(rewriter, loc, value);
+      };
+      Value zero = index(0), eight = index(8), one = index(1);
+      Value boundM = index(M), boundK = index(K), boundN = index(N);
+      Value packedA = memref::AllocOp::create(
+          rewriter, loc, MemRefType::get({M * K}, AElemType));
+      auto packRows =
+          scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
+                                  ValueRange{boundM}, ValueRange{eight});
+      rewriter.setInsertionPointToStart(packRows.getBody());
+      Value row = packRows.getInductionVars()[0];
+      Value rowBase = arith::MulIOp::create(rewriter, loc, row, boundK);
+      auto packK = scf::ForOp::create(rewriter, loc, zero, boundK, eight);
+      rewriter.setInsertionPointToStart(packK.getBody());
+      Value kb = packK.getInductionVar();
+      Value block = arith::MulIOp::create(rewriter, loc, kb, eight);
+      block = arith::AddIOp::create(rewriter, loc, block, rowBase);
+      auto packRow = scf::ForOp::create(rewriter, loc, zero, eight, one);
+      rewriter.setInsertionPointToStart(packRow.getBody());
+      Value r = packRow.getInductionVar();
+      Value sourceRow = arith::AddIOp::create(rewriter, loc, row, r);
+      Value offset = arith::MulIOp::create(rewriter, loc, r, eight);
+      offset = arith::AddIOp::create(rewriter, loc, offset, block);
+      Value vector =
+          vector::LoadOp::create(rewriter, loc, VectorType::get({8}, AElemType),
+                                 A, ValueRange{sourceRow, kb});
+      vector::StoreOp::create(rewriter, loc, vector, packedA,
+                              ValueRange{offset});
+      rewriter.setInsertionPointAfter(packRows);
+
+      auto columns =
+          scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
+                                  ValueRange{boundN}, ValueRange{index(32)});
+      rewriter.setInsertionPointToStart(columns.getBody());
+      Value column = columns.getInductionVars()[0];
+      Value packedB = memref::AllocOp::create(
+          rewriter, loc, MemRefType::get({K * 32}, BElemType));
+      PackBF16Op::create(rewriter, loc, packedB, B, column,
+                         rewriter.getI64IntegerAttr(K));
+      auto rows = scf::ForOp::create(rewriter, loc, zero, boundM, eight);
+      rewriter.setInsertionPointToStart(rows.getBody());
+      GemmF16Op::create(
+          rewriter, loc, C, packedA, packedB, rows.getInductionVar(), column,
+          rewriter.getI64IntegerAttr(K), rewriter.getI64IntegerAttr(N));
+      rewriter.setInsertionPointAfter(rows);
+      memref::DeallocOp::create(rewriter, loc, packedB);
+      rewriter.setInsertionPointAfter(columns);
+      memref::DeallocOp::create(rewriter, loc, packedA);
+      rewriter.eraseOp(matmulOp);
+      return success();
+    }
+
+    if (fastGemv) {
+      if (!a100 || !isFloatMatmul || !CElemType.isF16() || M != 1 ||
+          packedWidth != 32 || K % 16 || N % 32)
+        return matmulOp.emitError("A100 fast GEMV requires FP16 M=1, K%16=0, "
+                                  "N%32=0 and tile32-packed weights");
+      Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+      Value bound = arith::ConstantIndexOp::create(rewriter, loc, N);
+      Value step = arith::ConstantIndexOp::create(rewriter, loc, 32);
+      bool unroll = N <= 256 || K == N;
+      int64_t prefetch = N <= 256 ? 0 : (unroll ? 1024 : 512);
+      auto loop = scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
+                                          ValueRange{bound}, ValueRange{step});
+      rewriter.setInsertionPointToStart(loop.getBody());
+      GemvF16Op::create(rewriter, loc, C, A, B, loop.getInductionVars()[0],
+                        rewriter.getI64IntegerAttr(K),
+                        rewriter.getI64IntegerAttr(prefetch),
+                        rewriter.getBoolAttr(unroll));
+      rewriter.eraseOp(matmulOp);
+      return success();
     }
 
     // Calculate number of tiles (ceiling division)
@@ -183,21 +347,41 @@ public:
     Value numTilesNVal =
         arith::ConstantIndexOp::create(rewriter, loc, numTilesN);
 
+    Value flatB;
+    Value packedWidthVal;
+    if (packedWidth) {
+      auto metadata =
+          memref::ExtractStridedMetadataOp::create(rewriter, loc, B);
+      auto layout = StridedLayoutAttr::get(
+          rewriter.getContext(), ShapedType::kDynamic, ArrayRef<int64_t>{1});
+      auto flatType = MemRefType::get({K * N}, BElemType, layout);
+      flatB = memref::ReinterpretCastOp::create(
+          rewriter, loc, flatType, metadata.getBaseBuffer(),
+          metadata.getOffset(),
+          ArrayRef<OpFoldResult>{rewriter.getIndexAttr(K * N)},
+          ArrayRef<OpFoldResult>{rewriter.getIndexAttr(1)});
+      packedWidthVal =
+          arith::ConstantIndexOp::create(rewriter, loc, packedWidth);
+    }
+
     // Create zero constants for padding
     Value zeroElem = arith::ConstantOp::create(rewriter, loc, AElemType,
                                                rewriter.getZeroAttr(AElemType));
     // Zero constant for C tile (type depends on element type: f16 or i32)
-    Value zeroC = arith::ConstantOp::create(rewriter, loc, CElemType,
-                                            rewriter.getZeroAttr(CElemType));
+    Value zeroC = arith::ConstantOp::create(
+        rewriter, loc, accumulatorType, rewriter.getZeroAttr(accumulatorType));
 
     auto ATileType = MemRefType::get({tileM, tileK}, AElemType);
     auto BTileType = MemRefType::get({tileN, tileK},
                                      AElemType); // [N, K] for column-major pack
-    auto CTileType = MemRefType::get({tileM, tileN}, CElemType);
+    auto CTileType = MemRefType::get({tileM, tileN}, accumulatorType);
 
-    Value ATile = memref::AllocaOp::create(rewriter, loc, ATileType);
-    Value BTile = memref::AllocaOp::create(rewriter, loc, BTileType);
-    Value CTile = memref::AllocaOp::create(rewriter, loc, CTileType);
+    Value ATile, BTile, CTile;
+    if (!parallelTiles) {
+      ATile = memref::AllocaOp::create(rewriter, loc, ATileType);
+      BTile = memref::AllocaOp::create(rewriter, loc, BTileType);
+      CTile = memref::AllocaOp::create(rewriter, loc, CTileType);
+    }
 
     // Loop over M tiles
     auto loopTileM = scf::ForOp::create(rewriter, loc, c0, numTilesMVal, c1);
@@ -206,10 +390,26 @@ public:
     Value baseM = arith::MulIOp::create(rewriter, loc, tileIdxM, tileMVal);
 
     // Loop over N tiles
-    auto loopTileN = scf::ForOp::create(rewriter, loc, c0, numTilesNVal, c1);
-    rewriter.setInsertionPointToStart(loopTileN.getBody());
-    Value tileIdxN = loopTileN.getInductionVar();
+    Value tileIdxN;
+    if (parallelTiles) {
+      auto loopTileN =
+          scf::ParallelOp::create(rewriter, loc, ValueRange{c0},
+                                  ValueRange{numTilesNVal}, ValueRange{c1});
+      rewriter.setInsertionPointToStart(loopTileN.getBody());
+      tileIdxN = loopTileN.getInductionVars()[0];
+    } else {
+      auto loopTileN = scf::ForOp::create(rewriter, loc, c0, numTilesNVal, c1);
+      rewriter.setInsertionPointToStart(loopTileN.getBody());
+      tileIdxN = loopTileN.getInductionVar();
+    }
     Value baseN = arith::MulIOp::create(rewriter, loc, tileIdxN, tileNVal);
+
+    // Each parallel N tile needs its own scratch matrices.
+    if (parallelTiles) {
+      ATile = memref::AllocaOp::create(rewriter, loc, ATileType);
+      BTile = memref::AllocaOp::create(rewriter, loc, BTileType);
+      CTile = memref::AllocaOp::create(rewriter, loc, CTileType);
+    }
 
     // Initialize CTile to zeros (or copy from C for initial values)
     auto initCLoop1 = scf::ForOp::create(rewriter, loc, c0, tileMVal, c1);
@@ -231,11 +431,14 @@ public:
     Value inBound = arith::AndIOp::create(rewriter, loc, inBoundM, inBoundN);
 
     // Load from C if in bounds, else use zero
-    auto selectC = scf::IfOp::create(rewriter, loc, CElemType, inBound,
+    auto selectC = scf::IfOp::create(rewriter, loc, accumulatorType, inBound,
                                      /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectC.getThenRegion().front());
     Value cLoadVal = memref::LoadOp::create(rewriter, loc, C,
                                             ValueRange{globalCi, globalCj});
+    if (wideningFP16 && CElemType.isF16())
+      cLoadVal =
+          arith::ExtFOp::create(rewriter, loc, accumulatorType, cLoadVal);
     scf::YieldOp::create(rewriter, loc, cLoadVal);
     rewriter.setInsertionPointToStart(&selectC.getElseRegion().front());
     scf::YieldOp::create(rewriter, loc, zeroC);
@@ -302,9 +505,22 @@ public:
     auto selectB = scf::IfOp::create(rewriter, loc, AElemType, inBoundB,
                                      /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectB.getThenRegion().front());
-    // Load from B[k][n] in row-major
-    Value bLoadVal = memref::LoadOp::create(rewriter, loc, B,
-                                            ValueRange{globalBk, globalBn});
+    Value bLoadVal;
+    if (packedWidth) {
+      Value panel =
+          arith::DivUIOp::create(rewriter, loc, globalBn, packedWidthVal);
+      Value lane =
+          arith::RemUIOp::create(rewriter, loc, globalBn, packedWidthVal);
+      Value panelBase = arith::MulIOp::create(rewriter, loc, panel, boundK);
+      Value row = arith::AddIOp::create(rewriter, loc, panelBase, globalBk);
+      Value offset = arith::MulIOp::create(rewriter, loc, row, packedWidthVal);
+      offset = arith::AddIOp::create(rewriter, loc, offset, lane);
+      bLoadVal =
+          memref::LoadOp::create(rewriter, loc, flatB, ValueRange{offset});
+    } else {
+      bLoadVal = memref::LoadOp::create(rewriter, loc, B,
+                                        ValueRange{globalBk, globalBn});
+    }
     scf::YieldOp::create(rewriter, loc, bLoadVal);
     rewriter.setInsertionPointToStart(&selectB.getElseRegion().front());
     scf::YieldOp::create(rewriter, loc, zeroElem);
@@ -316,7 +532,9 @@ public:
     rewriter.setInsertionPointAfter(copyBLoop1);
 
     // IME vmadot/vfmadot on contiguous tile buffers
-    if (AElemType.isF16()) {
+    if (wideningFP16) {
+      VfwmadotOp::create(rewriter, loc, CTile, ATile, BTile);
+    } else if (AElemType.isF16()) {
       VfmadotOp::create(rewriter, loc, CTile, ATile, BTile);
     } else {
       VmadotOp::create(rewriter, loc, CTile, ATile, BTile);
@@ -347,6 +565,8 @@ public:
     rewriter.setInsertionPointToStart(&storeIf.getThenRegion().front());
     Value cResult = memref::LoadOp::create(rewriter, loc, CTile,
                                            ValueRange{storeCi, storeCj});
+    if (wideningFP16 && CElemType.isF16())
+      cResult = arith::TruncFOp::create(rewriter, loc, CElemType, cResult);
     memref::StoreOp::create(rewriter, loc, cResult, C,
                             ValueRange{globalStoreCi, globalStoreCj});
 
@@ -360,6 +580,16 @@ public:
 
     return success();
   }
+
+private:
+  bool k3;
+  std::string shapes;
+  int64_t packedWidth;
+  bool parallelTiles;
+  bool verifyFP16;
+  bool a100;
+  bool fastGemv;
+  bool fastGemm;
 };
 
 class GenericMatmulToIMELowering : public OpRewritePattern<linalg::GenericOp> {
@@ -1274,6 +1504,38 @@ public:
   Option<std::string> targetCPU{
       *this, "target", llvm::cl::desc("IME target: generic (K1) or k3 (A100)"),
       llvm::cl::init("generic")};
+  Option<std::string> matmulShapes{
+      *this, "matmul-shapes",
+      llvm::cl::desc("Optional comma-separated KxN matmul shapes to lower"),
+      llvm::cl::init("")};
+  Option<int64_t> packedVectorSize{
+      *this, "packed-vector-size",
+      llvm::cl::desc("Consume panel-packed decode weights (0 means row-major)"),
+      llvm::cl::init(0)};
+  Option<bool> parallelTiles{
+      *this, "parallel-tiles",
+      llvm::cl::desc("Parallelize independent N tiles with private scratch"),
+      llvm::cl::init(false)};
+  Option<bool> verifyFP16{
+      *this, "verify-fp16",
+      llvm::cl::desc("Check a nonzero FP16 IME product before model execution"),
+      llvm::cl::init(false)};
+  Option<bool> a100FP16{
+      *this, "a100-fp16",
+      llvm::cl::desc(
+          "Use A100 8x8x8 FP16 input / FP32 accumulation instructions"),
+      llvm::cl::init(false)};
+
+  Option<bool> a100Gemv{
+      *this, "a100-gemv",
+      llvm::cl::desc("Use register-resident GEMV and offline N32/K8 tiles"),
+      llvm::cl::init(false)};
+
+  Option<bool> a100Gemm{
+      *this, "a100-gemm",
+      llvm::cl::desc(
+          "Use packed Prefill panels and register-resident 8x32 GEMM"),
+      llvm::cl::init(false)};
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<IMEDialect>();
@@ -1281,6 +1543,8 @@ public:
     registry.insert<scf::SCFDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<memref::MemRefDialect>();
+    registry.insert<cf::ControlFlowDialect>();
+    registry.insert<vector::VectorDialect>();
   }
 
   void runOnOperation() override;
@@ -1298,8 +1562,25 @@ void LowerLinalgToIMEPass::runOnOperation() {
     return signalPassFailure();
   }
   bool k3 = targetCPU == "k3";
-  patterns.add<MatmulToIMELowering, GenericMatmulToIMELowering,
-               BatchMatmulTransposeBToIMELowering>(context, k3);
+  if (packedVectorSize < 0) {
+    module.emitError("packed-vector-size must be nonnegative");
+    return signalPassFailure();
+  }
+  if ((a100FP16 && !k3) || (a100Gemv && a100Gemm) ||
+      ((a100Gemm || a100Gemv) && !a100FP16) || (a100Gemm && packedVectorSize)) {
+    module.emitError(
+        "A100 FP16 kernels require target=k3 and compatible kernel options");
+    return signalPassFailure();
+  }
+  patterns.add<MatmulToIMELowering>(context, k3, matmulShapes, packedVectorSize,
+                                    parallelTiles, verifyFP16, a100FP16,
+                                    a100Gemv, a100Gemm);
+  // Selected packed matmuls must not redirect attention or generic operations.
+  if (matmulShapes.empty() && packedVectorSize == 0 && !a100FP16) {
+    patterns
+        .add<GenericMatmulToIMELowering, BatchMatmulTransposeBToIMELowering>(
+            context, k3);
+  }
   if (!k3) {
     patterns.add<Conv2DNhwcHwcfToIMELowering>(context);
     patterns.add<Conv2DNchwFchwToIMELowering>(context);

@@ -182,6 +182,7 @@ struct IMEK3DotLowering : public ConvertOpToLLVMPattern<OpTy> {
 
 void mlir::populateIMEK3LegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
+  populateIMEFP16KernelPatterns(converter, patterns);
   patterns.add<IMEK3DotLowering<VmadotOp, Vmadot_IntrOp>,
                IMEK3DotLowering<VmadotuOp, Vmadotu_IntrOp>,
                IMEK3DotLowering<VmadotsuOp, Vmadotsu_IntrOp>,
