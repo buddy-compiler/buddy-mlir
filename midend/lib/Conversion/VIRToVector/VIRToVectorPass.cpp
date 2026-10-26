@@ -36,6 +36,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/UB/IR/UBOps.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -96,6 +97,25 @@ static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
 static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
   return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
          vecTy.getElementType().isInteger(1);
+}
+
+// A memref of i1 holds a byte per element, a vector of i1 a bit per lane:
+// fixed i1 accesses are scalarized per lane, which a scalable vector
+// (N * vscale lanes) cannot be yet.
+static LogicalResult rejectI1Accesses(Region &region) {
+  WalkResult i1Access = region.walk([](Operation *access) {
+    Value base;
+    if (auto load = dyn_cast<vir::LoadOp>(access))
+      base = load.getBase();
+    else if (auto store = dyn_cast<vir::StoreOp>(access))
+      base = store.getBase();
+    if (!base ||
+        !cast<MemRefType>(base.getType()).getElementType().isInteger(1))
+      return WalkResult::advance();
+    access->emitError("a memref of i1 needs fixed vectors");
+    return WalkResult::interrupt();
+  });
+  return failure(i1Access.wasInterrupted());
 }
 
 static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
@@ -1337,19 +1357,33 @@ private:
   }
 
   /// The pieces a dynamic vector of a set_vl with results is lowered to:
-  /// `numVectors` vectors of `width` lanes, then `numScalars` scalars.
+  /// `numVectors` vectors of `width` lanes, then `numScalars` scalars. With
+  /// `scalable`, the vectors have width * vscale lanes (`lanes`, a runtime
+  /// value), there are no scalars, and the lanes of vector p from vl on are
+  /// off in `masks[p]`.
   struct Pieces {
     int64_t width, numVectors, numScalars;
+    bool scalable = false;
+    Value lanes;
+    SmallVector<Value> masks;
     int64_t size() const { return numVectors + numScalars; }
-    // the number of lanes, vl
+    // the number of lanes, vl (fixed pieces)
     int64_t length() const { return numVectors * width + numScalars; }
     bool isVector(int64_t p) const { return p < numVectors; }
-    // the first lane of piece p
-    int64_t offset(int64_t p) const {
+    // the first lane of piece p of fixed pieces
+    int64_t fixedOffset(int64_t p) const {
       return isVector(p) ? p * width : numVectors * width + p - numVectors;
     }
+    // the first lane of piece p
+    Value offset(OpBuilder &b, Location loc, int64_t p) const {
+      if (scalable)
+        return arith::MulIOp::create(
+            b, loc, arith::ConstantIndexOp::create(b, loc, p), lanes);
+      return arith::ConstantIndexOp::create(b, loc, fixedOffset(p));
+    }
     Type type(Type elem, int64_t p) const {
-      return isVector(p) ? Type(VectorType::get({width}, elem)) : elem;
+      return isVector(p) ? Type(VectorType::get({width}, elem, {scalable}))
+                         : elem;
     }
   };
   using PieceMap = DenseMap<Value, SmallVector<Value, 4>>;
@@ -1377,7 +1411,7 @@ private:
     // the memref indices of piece p of the access at `indices`
     auto pieceIndices = [&](Value base, ValueRange indices, int64_t p) {
       SmallVector<Value> out;
-      Value off = arith::ConstantIndexOp::create(b, loc, pieces.offset(p));
+      Value off = pieces.offset(b, loc, p);
       if (indices.empty()) {
         int64_t rank = cast<MemRefType>(base.getType()).getRank();
         for (int64_t i = 0; i + 1 < rank; ++i)
@@ -1436,7 +1470,16 @@ private:
             continue;
           }
           auto vecTy = cast<VectorType>(pieces.type(elem, p));
-          if (shouldScalarizeI1VectorMemoryOp(vecTy))
+          if (pieces.scalable) {
+            if (!hasStaticallyUnitStrideInVectorizedDim(base))
+              return op->emitError("a vir.set_vl with results on scalable "
+                                   "vectors needs unit-stride accesses");
+            // the lanes that are off are not used (a vir.reduce selects
+            // its identity there): no value to pass through
+            Value none = ub::PoisonOp::create(b, loc, vecTy);
+            out.push_back(vector::MaskedLoadOp::create(b, loc, vecTy, base, idx,
+                                                       pieces.masks[p], none));
+          } else if (shouldScalarizeI1VectorMemoryOp(vecTy))
             out.push_back(
                 buildScalarizedI1VectorLoad(b, loc, vecTy, base, idx));
           else if (hasStaticallyUnitStrideInVectorizedDim(base))
@@ -1454,8 +1497,14 @@ private:
           SmallVector<Value> idx = pieceIndices(base, store.getIndices(), p);
           if (!pieces.isVector(p))
             memref::StoreOp::create(b, loc, values[p], base, idx);
-          else if (shouldScalarizeI1VectorMemoryOp(
-                       cast<VectorType>(values[p].getType())))
+          else if (pieces.scalable) {
+            if (!hasStaticallyUnitStrideInVectorizedDim(base))
+              return op->emitError("a vir.set_vl with results on scalable "
+                                   "vectors needs unit-stride accesses");
+            vector::MaskedStoreOp::create(b, loc, base, idx, pieces.masks[p],
+                                          values[p]);
+          } else if (shouldScalarizeI1VectorMemoryOp(
+                         cast<VectorType>(values[p].getType())))
             buildScalarizedI1VectorStore(b, loc, values[p], base, idx);
           else if (hasStaticallyUnitStrideInVectorizedDim(base))
             vector::StoreOp::create(b, loc, values[p], base, idx);
@@ -1465,12 +1514,14 @@ private:
       } else if (auto from = dyn_cast<vir::FromVectorOp>(op)) {
         Value src = one(from.getSource());
         auto srcTy = cast<VectorType>(src.getType());
+        if (pieces.scalable)
+          return op->emitError("vir.from_vector needs fixed vectors");
         if (srcTy.isScalable() || srcTy.getNumElements() != pieces.length())
           return op->emitError("vir.from_vector needs a fixed vector of vl "
                                "lanes");
         SmallVector<Value, 4> out;
         for (int64_t p = 0; p < pieces.size(); ++p) {
-          int64_t off = pieces.offset(p);
+          int64_t off = pieces.fixedOffset(p);
           if (!pieces.isVector(p))
             out.push_back(vector::ExtractOp::create(b, loc, src, off));
           else if (pieces.width == srcTy.getNumElements())
@@ -1523,7 +1574,22 @@ private:
         auto fastmath = reduce.getReassoc() ? arith::FastMathFlags::reassoc
                                             : arith::FastMathFlags::none;
         Value acc = one(reduce.getAcc());
-        for (Value piece : get(reduce.getInput())) {
+        for (auto [p, piece] : llvm::enumerate(get(reduce.getInput()))) {
+          if (pieces.scalable) {
+            // the lanes that are off hold the identity: -0.0 for add, NaN
+            // for maxnum
+            auto vecTy = cast<VectorType>(piece.getType());
+            auto elem = cast<FloatType>(vecTy.getElementType());
+            APFloat identity = kind == "add"
+                                   ? APFloat::getZero(elem.getFloatSemantics(),
+                                                      /*Negative=*/true)
+                                   : APFloat::getQNaN(elem.getFloatSemantics());
+            Value fill = arith::ConstantOp::create(
+                b, loc, vecTy,
+                DenseElementsAttr::get(vecTy, b.getFloatAttr(elem, identity)));
+            piece =
+                arith::SelectOp::create(b, loc, pieces.masks[p], piece, fill);
+          }
           if (isa<VectorType>(piece.getType()))
             acc = vector::ReductionOp::create(b, loc, combineKind, piece, acc,
                                               fastmath);
@@ -1636,21 +1702,42 @@ private:
     std::optional<int64_t> vl = getConstantIntValue(op.getVl());
     if (!vl)
       return op.emitError("a vir.set_vl with results needs a constant vl");
-    if (useScalable)
-      return op.emitError("a vir.set_vl with results needs fixed vectors");
     int64_t width = useCustomVecWid
                         ? vectorWidth
-                        : vectorTypeHelper(op.getRegion(), anchorType, false,
-                                           verbose, rvvVlen)
+                        : vectorTypeHelper(op.getRegion(), anchorType,
+                                           useScalable, verbose, rvvVlen)
                               .getShape()[0];
     Pieces pieces{width, *vl / width, *vl % width};
+    // Vectors of width * vscale lanes cover vl: as many as at the minimum
+    // vscale (rvv-vlen / 64 on RVV, else 1), each masked from vl on. At a
+    // larger vscale, the last ones are all off.
+    if (useScalable)
+      pieces = {width,
+                llvm::divideCeil(*vl, width * (rvvVlen > 0 ? rvvVlen / 64 : 1)),
+                0, true};
     // keep the lowered code small: vl over a few vectors
     if (pieces.size() > 64)
       return op.emitError("a vir.set_vl with results lowers to more than 64 "
                           "pieces; increase vector-width");
+    Location loc = op.getLoc();
+    if (useScalable) {
+      if (failed(rejectI1Accesses(op.getRegion())))
+        return failure();
+      pieces.lanes = arith::MulIOp::create(
+          rewriter, loc, arith::ConstantIndexOp::create(rewriter, loc, width),
+          vector::VectorScaleOp::create(rewriter, loc));
+      auto maskTy = VectorType::get({width}, rewriter.getI1Type(), {true});
+      Value vlValue = arith::ConstantIndexOp::create(rewriter, loc, *vl);
+      for (int64_t p = 0; p < pieces.numVectors; ++p) {
+        Value rest = arith::SubIOp::create(rewriter, loc, vlValue,
+                                           pieces.offset(rewriter, loc, p));
+        pieces.masks.push_back(
+            vector::CreateMaskOp::create(rewriter, loc, maskTy, rest));
+      }
+    }
     PieceMap map;
     Block &block = op.getRegion().front();
-    if (failed(lowerBlockInPieces(rewriter, op.getLoc(), &block, map, pieces)))
+    if (failed(lowerBlockInPieces(rewriter, loc, &block, map, pieces)))
       return failure();
     SmallVector<Value> results;
     for (Value v : block.getTerminator()->getOperands()) {
@@ -1746,25 +1833,8 @@ private:
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
-    // A memref of i1 holds a byte per element, a vector of i1 a bit per
-    // lane: fixed i1 accesses are scalarized per lane, which a scalable
-    // vector (N * vscale lanes) cannot be yet.
-    if (targetVectorType.isScalable()) {
-      WalkResult i1Access = region.walk([](Operation *access) {
-        Value base;
-        if (auto load = dyn_cast<vir::LoadOp>(access))
-          base = load.getBase();
-        else if (auto store = dyn_cast<vir::StoreOp>(access))
-          base = store.getBase();
-        if (!base ||
-            !cast<MemRefType>(base.getType()).getElementType().isInteger(1))
-          return WalkResult::advance();
-        access->emitError("a memref of i1 needs fixed vectors");
-        return WalkResult::interrupt();
-      });
-      if (i1Access.wasInterrupted())
-        return failure();
-    }
+    if (targetVectorType.isScalable() && failed(rejectI1Accesses(region)))
+      return failure();
 
     //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
@@ -1927,6 +1997,7 @@ public:
         memref::MemRefDialect,
         affine::AffineDialect,
         scf::SCFDialect,
+        ub::UBDialect,
         vector::VectorDialect,
         LLVM::LLVMDialect>();
     // clang-format on
@@ -1948,7 +2019,8 @@ public:
       llvm::cl::desc("VLEN in bits of a RISC-V Vector target: without "
                      "vector-width, the vector size comes from its 32 "
                      "registers of VLEN bits instead of the host's; with "
-                     "use-scalable, the minimum VLEN"),
+                     "use-scalable, the minimum VLEN: the code is only "
+                     "valid on a VLEN of at least rvv-vlen"),
       llvm::cl::init(0)};
 
   Option<bool> verbose{*this, "verbose",
@@ -1970,6 +2042,7 @@ void VIRToVectorPass::runOnOperation() {
       vector::VectorDialect,
       affine::AffineDialect,
       scf::SCFDialect,
+      ub::UBDialect,
       LLVM::LLVMDialect
     >();
   // clang-format on
