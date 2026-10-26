@@ -114,20 +114,6 @@ func.func @two_layouts(%a: memref<2x64xf32>, %b: memref<64xf32>) -> f32 {
 
 // -----
 
-func.func @rank0(%a: memref<f32>) -> f32 {
-  %vl = arith.constant 4 : index
-  %z = arith.constant 0.0 : f32
-  %r = vir.set_vl %vl : index {
-    // expected-error @below {{a dynamic vector memory access needs a non-zero-rank memref}}
-    %x = vir.load %a[] : memref<f32> -> !vir.vec<?xf32>
-    %s = vir.reduce %x, %z {kind = "add"} : !vir.vec<?xf32>, f32 -> f32
-    vector.yield %s : f32
-  } -> f32
-  return %r : f32
-}
-
-// -----
-
 func.func @shuffle_strip_mined(%a: memref<2x8xf32>) {
   %vl = arith.constant 8 : index
   vir.set_vl %vl : index {

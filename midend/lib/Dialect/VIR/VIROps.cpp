@@ -34,6 +34,29 @@
 using namespace mlir;
 using namespace buddy::vir;
 
+// One index per memref dim or none, and a dim of the memref per dim of the
+// dynamic vector.
+static LogicalResult verifyAccess(Operation *op, MemRefType memref,
+                                  ValueRange indices, DynamicVectorType vec) {
+  if (!indices.empty() && int64_t(indices.size()) != memref.getRank())
+    return op->emitOpError("needs no index or one per memref dim, ")
+           << memref.getRank();
+  if (int64_t(vec.getShape().size()) > memref.getRank())
+    return op->emitOpError("needs a memref of at least the rank of the "
+                           "dynamic vector, ")
+           << vec.getShape().size();
+  return success();
+}
+
+LogicalResult LoadOp::verify() {
+  return verifyAccess(*this, getBase().getType(), getIndices(), getType());
+}
+
+LogicalResult StoreOp::verify() {
+  return verifyAccess(*this, getBase().getType(), getIndices(),
+                      getValue().getType());
+}
+
 LogicalResult ShuffleOp::verify() {
   ArrayRef<int64_t> shape = getV1().getType().getShape();
   if (shape.size() < 2)
