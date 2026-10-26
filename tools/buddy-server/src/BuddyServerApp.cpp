@@ -1,4 +1,4 @@
-//===- buddy-server.cpp - Buddy model HTTP server -----------------------===//
+//===- BuddyServerApp.cpp - Buddy model HTTP server application ---------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+
+#include "BuddyServerApp.h"
 
 #include "AudioTranscriptionModelPluginHandle.h"
 #include "EmbeddingModelPluginHandle.h"
@@ -41,8 +43,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
-
-#include "CLI11.hpp"
+#include <utility>
 
 using buddy::runtime::AudioTranscriptionModel;
 using buddy::runtime::AudioTranscriptionModelConfig;
@@ -238,39 +239,16 @@ void handleTranscription(AudioTranscriptionModel &model,
 
 } // namespace
 
-int main(int argc, char **argv) {
-  ResidentModelConfig modelConfig;
-  std::string modelType;
-  std::string host = "127.0.0.1";
-  int port = 8080;
+buddy::server::BuddyServerApp::BuddyServerApp(BuddyServerOptions options)
+    : options(std::move(options)) {}
 
-  CLI::App app{"buddy-server: HTTP inference server for Buddy MLIR models"};
-  app.set_version_flag("--version", BUDDY_VERSION);
-  app.add_option("--model", modelConfig.raxPath, "Model manifest")
-      ->group("Model source");
-  app.add_option("--model-type", modelType, "Model name override")
-      ->group("Model source");
-  app.add_option("--host", host, "Bind address")
-      ->group("Server")
-      ->capture_default_str();
-  app.add_option("--port", port, "Bind port")
-      ->group("Server")
-      ->capture_default_str();
-  app.add_option("--chat-template", modelConfig.chatTemplatePath,
-                 "Chat template JSON")
-      ->group("Server");
-  try {
-    app.parse(argc, argv);
-  } catch (const CLI::ParseError &e) {
-    return app.exit(e);
-  }
+int buddy::server::BuddyServerApp::run() {
+  ResidentModelConfig modelConfig;
+  modelConfig.raxPath = options.modelPath;
+  modelConfig.chatTemplatePath = options.chatTemplatePath;
+  std::string modelType = options.modelType;
   if (!modelType.empty())
     modelConfig.modelName = modelType;
-
-  if (modelConfig.raxPath.empty()) {
-    std::cerr << "Provide --model <path.rax>.\n";
-    return 2;
-  }
   std::unique_ptr<buddy::runtime::RaxDependenciesHandle> raxDependencies;
   buddy::server::ModelPluginDiscoveryResult selection;
   try {
@@ -478,7 +456,7 @@ int main(int argc, char **argv) {
   });
 
   try {
-    server.listen(host, port);
+    server.listen(options.host, options.port);
   } catch (const std::exception &error) {
     std::cerr << "[buddy-server] " << error.what() << "\n";
     if (loadThread.joinable())
