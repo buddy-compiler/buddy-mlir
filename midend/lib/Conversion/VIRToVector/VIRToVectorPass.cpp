@@ -1426,6 +1426,10 @@ private:
         -> FailureOr<std::pair<Value, SmallVector<Value>>> {
       auto type = cast<MemRefType>(base.getType());
       int64_t rank = type.getRank(), k = pieces.layout.size();
+      // the lanes are along the last dim
+      if (rank == 0)
+        return op->emitError(
+            "a dynamic vector memory access needs a non-zero-rank memref");
       if (!indices.empty() && int64_t(indices.size()) != rank)
         return op->emitError("expected no index or one per memref dim");
       SmallVector<Value> idx;
