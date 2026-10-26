@@ -488,7 +488,7 @@ private:
               destIndices.push_back(mainLoopIV);
             } else {
               // the last index is dynamic and global
-              Value lastIndex = sourceIndices.back();
+              Value lastIndex = findValue(sourceIndices.back());
               Value baseOffset =
                   arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
               // collect indices for load op
@@ -555,7 +555,7 @@ private:
               }
               destIndices.push_back(mainLoopIV);
             } else {
-              Value lastIndex = sourceIndices.back();
+              Value lastIndex = findValue(sourceIndices.back());
               Value baseOffset =
                   arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
               // collect indices for store op
@@ -1789,19 +1789,36 @@ private:
         tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
       }
 
-      affine::AffineForOp::create(
-          b, loc, /*lowerBound=*/ValueRange{tailStart},
-          rewriter.getDimIdentityMap(),
-          /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
-          /*step=*/1,
-          /*iterArgs=*/ValueRange{},
-          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-            DenseMap<Value, Value> virSymbolTable;
-            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
-                       leadingIVs, /*targetVectorType=*/Type{},
-                       /*isTailLoop=*/true);
-            affine::AffineYieldOp::create(bb, bodyLoc);
-          });
+      auto lowerTail = [&](OpBuilder &bb, Location bodyLoc, Value iv) {
+        DenseMap<Value, Value> virSymbolTable;
+        lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv, leadingIVs,
+                   /*targetVectorType=*/Type{},
+                   /*isTailLoop=*/true);
+      };
+      if (cast<VectorType>(targetVectorType).isScalable()) {
+        // Inside the loops over leading static dims, the scalable tailStart
+        // is not a valid affine symbol (its remsi divisor is not provably
+        // nonzero), so the tail loop is an scf.for as well.
+        scf::ForOp::create(
+            b, loc, tailStart, vlValue,
+            arith::ConstantIndexOp::create(b, loc, 1),
+            /*initArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              lowerTail(bb, bodyLoc, iv);
+              scf::YieldOp::create(bb, bodyLoc);
+            });
+      } else {
+        affine::AffineForOp::create(
+            b, loc, /*lowerBound=*/ValueRange{tailStart},
+            rewriter.getDimIdentityMap(),
+            /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
+            /*step=*/1,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              lowerTail(bb, bodyLoc, iv);
+              affine::AffineYieldOp::create(bb, bodyLoc);
+            });
+      }
     };
 
     if (leadingStaticDims.empty()) {

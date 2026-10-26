@@ -4,7 +4,8 @@
 // RUN: | FileCheck %s --check-prefix=FIXED
 
 // A vector<[4]xf32> has 4 * vscale lanes: the main loop steps by 4 * vscale
-// up to vl - vl % (4 * vscale), where the scalar tail loop starts.
+// up to vl - vl % (4 * vscale), where the scalar tail loop starts. Both are
+// scf.for, since that end is not a valid affine symbol inside other loops.
 func.func @sum(%a: memref<100xf32>, %o: memref<1xf32>) {
   %vl = arith.constant 100 : index
   %c0 = arith.constant 0 : index
@@ -28,7 +29,8 @@ func.func @sum(%a: memref<100xf32>, %o: memref<1xf32>) {
 // CHECK:   vector.load %{{.*}}[%[[I]]] : memref<100xf32>, vector<[4]xf32>
 // CHECK:   vector.reduction <add>, %{{.*}}, %{{.*}} : vector<[4]xf32> into f32
 // CHECK: }
-// CHECK: affine.for %{{.*}} = #map(%[[END]]) to #map(%{{.*}}) {
+// CHECK: %[[C1:.*]] = arith.constant 1 : index
+// CHECK: scf.for %{{.*}} = %[[END]] to %{{.*}} step %[[C1]] {
 // CHECK:   memref.load
 // CHECK:   arith.addf
 
@@ -62,8 +64,62 @@ func.func @loop(%a: memref<100xf32>, %lb: i8, %ub: i8, %step: i8) {
 // CHECK:     %[[N:.*]] = arith.addf %[[ACC]], %[[X]] : vector<[4]xf32>
 // CHECK:     scf.yield %[[N]] : vector<[4]xf32>
 // CHECK:   vector.store %[[R]], {{.*}} vector<[4]xf32>
-// CHECK: affine.for
+// CHECK: scf.for
 // CHECK:   %[[XS:.*]] = memref.load
 // CHECK:   %[[RS:.*]] = scf.for unsigned %{{.*}} iter_args(%[[ACCS:.*]] = %[[XS]]) -> (f32) : i8 {
 // CHECK:     arith.addf %[[ACCS]], %[[XS]] : f32
 // CHECK:   memref.store %[[RS]]
+
+// With a leading static dim, the main and tail loops are inside the loop
+// over that dim.
+func.func @copy2d(%a: memref<2x100xf32>, %b: memref<2x100xf32>) {
+  %vl = arith.constant 100 : index
+  vir.set_vl %vl : index {
+    %x = vir.load %a[] : memref<2x100xf32> -> !vir.vec<2x?xf32>
+    vir.store %x, %b[] : !vir.vec<2x?xf32> -> memref<2x100xf32>
+    vector.yield
+  }
+  return
+}
+
+// CHECK-LABEL: func.func @copy2d
+// CHECK: affine.for %[[D:.*]] = #map(%{{.*}}) to #map(%{{.*}}) {
+// CHECK:   %[[END:.*]] = arith.subi
+// CHECK:   scf.for %[[I:.*]] = %{{.*}} to %[[END]] step %{{.*}} {
+// CHECK:     vector.load %{{.*}}[%[[D]], %[[I]]] : memref<2x100xf32>, vector<[4]xf32>
+// CHECK:   scf.for %[[J:.*]] = %[[END]] to %{{.*}} step %{{.*}} {
+// CHECK:     memref.load %{{.*}}[%[[D]], %[[J]]] : memref<2x100xf32>
+
+// An index computed in an scf.for of the region is used through its lowered
+// value.
+func.func @index_in_loop(%a: memref<8xf32>, %b: memref<8xf32>) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %c4 = arith.constant 4 : index
+  vir.set_vl %c4 : index {
+    scf.for %i = %c0 to %c2 step %c1 {
+      %off = arith.muli %i, %c4 : index
+      %x = vir.load %a[%off] : memref<8xf32> -> !vir.vec<?xf32>
+      vir.store %x, %b[%off] : !vir.vec<?xf32> -> memref<8xf32>
+    }
+    vector.yield
+  }
+  return
+}
+
+// CHECK-LABEL: func.func @index_in_loop
+// CHECK: scf.for %[[IV:.*]] = %{{.*}} to %{{.*}} step %{{.*}} {
+// CHECK:   scf.for %[[I:.*]] = %{{.*}} to %{{.*}} step %{{.*}} {
+// CHECK:     %[[OFF:.*]] = arith.muli %[[I]], %{{.*}} : index
+// CHECK:     %[[A:.*]] = arith.addi %[[IV]], %[[OFF]] : index
+// CHECK:     vector.load %{{.*}}[%[[A]]] : memref<8xf32>, vector<[4]xf32>
+// CHECK:     %[[B:.*]] = arith.addi %[[IV]], %[[OFF]] : index
+// CHECK:     vector.store %{{.*}}, %{{.*}}[%[[B]]] : memref<8xf32>, vector<[4]xf32>
+
+// FIXED-LABEL: func.func @index_in_loop
+// FIXED: affine.for %[[IV:.*]] = #map(%{{.*}}) to #map(%{{.*}}) step 4 {
+// FIXED:   scf.for %[[I:.*]] = %{{.*}} to %{{.*}} step %{{.*}} {
+// FIXED:     %[[OFF:.*]] = arith.muli %[[I]], %{{.*}} : index
+// FIXED:     %[[A:.*]] = arith.addi %[[IV]], %[[OFF]] : index
+// FIXED:     vector.load %{{.*}}[%[[A]]] : memref<8xf32>, vector<4xf32>
