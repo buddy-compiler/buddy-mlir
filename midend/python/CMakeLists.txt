@@ -68,6 +68,14 @@ declare_mlir_dialect_python_bindings(
     dialects/vector_exp.py
   DIALECT_NAME vector_exp)
 
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
+  TD_FILE dialects/VIRBinding.td
+  SOURCES
+    dialects/vir.py
+  DIALECT_NAME vir)
+
 ################################################################################
 # Python extensions.
 # The sources for these are all in lib/python/Bindings, but since they have to
@@ -90,6 +98,18 @@ declare_mlir_python_extension(BuddyMLIRPythonSources.Extension
     BuddyMLIRCAPI
     MLIRCAPIConversion
     MLIRCAPITransforms
+)
+
+# The DynamicVectorType and ScalingFactorAttr classes of the vir dialect.
+declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.vir.Extension
+  MODULE_NAME _buddyDialectsVIR
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
+  ADD_TO_PARENT BuddyMLIRPythonSources
+  SOURCES
+    DialectVIR.cpp
+  EMBED_CAPI_LINK_LIBS
+    BuddyMLIRCAPI
+    MLIRCAPIIR
 )
 
 ################################################################################
