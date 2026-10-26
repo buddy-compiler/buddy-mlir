@@ -1602,14 +1602,23 @@ private:
               // are of other rows
               Value by = arith::ConstantOp::create(
                   b, loc, b.getI32IntegerAttr(std::abs(shift)));
-              Value none = ub::PoisonOp::create(b, loc, vecTy);
+              // the intrinsic takes LLVM types: index as an integer
+              VectorType llvmTy = vecTy;
+              if (vecTy.getElementType().isIndex()) {
+                llvmTy = vecTy.clone(b.getIntegerType(
+                    getTypeConverter()->getIndexTypeBitwidth()));
+                src = arith::IndexCastOp::create(b, loc, llvmTy, src);
+              }
+              Value none = ub::PoisonOp::create(b, loc, llvmTy);
               row = LLVM::CallIntrinsicOp::create(
-                        b, loc, vecTy,
+                        b, loc, llvmTy,
                         b.getStringAttr(shift > 0 ? "llvm.vector.splice.left"
                                                   : "llvm.vector.splice.right"),
                         shift > 0 ? ValueRange{src, none, by}
                                   : ValueRange{none, src, by})
                         .getResult(0);
+              if (llvmTy != vecTy)
+                row = arith::IndexCastOp::create(b, loc, vecTy, row);
             }
             if (r == 0) {
               out = row;
@@ -1871,14 +1880,19 @@ private:
         width = useScalable ? int64_t(llvm::bit_ceil(uint64_t(
                                   llvm::divideCeil(lanes * 64, rvvVlen))))
                             : lanes;
-      // vector<[N]xT> is a group of N * SEW / 64 registers, whatever the
-      // VLEN; each shuffle has its element type (vir.extf / truncf)
-      if (useScalable)
-        for (vir::ShuffleOp s : shuffles)
-          if (width * s.getType().getElementType().getIntOrFloatBitWidth() >
-              8 * 64)
+      // RVV: vector<[N]xT> is a group of N * SEW / 64 registers, whatever
+      // the VLEN, of at most 8; each shuffle has its element type (vir.extf
+      // / truncf; index as the LLVM lowering has it)
+      if (useScalable && rvvVlen > 0)
+        for (vir::ShuffleOp s : shuffles) {
+          Type elem = s.getType().getElementType();
+          int64_t sew = elem.isIndex()
+                            ? getTypeConverter()->getIndexTypeBitwidth()
+                            : elem.getIntOrFloatBitWidth();
+          if (width * sew > 8 * 64)
             return s.emitError("vir.shuffle needs a dynamic vector of ")
                    << lanes << " lanes in one register group of at most 8";
+        }
       if (verbose && !useCustomVecWid)
         llvm::outs() << "vir.shuffle: one vector of " << lanes
                      << " lanes, width " << width << "\n";
