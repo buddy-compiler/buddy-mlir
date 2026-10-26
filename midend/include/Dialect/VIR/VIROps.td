@@ -74,6 +74,8 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
   // TODO: Determine the region limitation.
   let regions = (region AnyRegion:$region);
+  // the lowering maps the values of the region, not entry block arguments
+  let hasVerifier = 1;
 
   let assemblyFormat = "$vl attr-dict `:` type($vl)"
       "$region (`->` type($results)^)?";

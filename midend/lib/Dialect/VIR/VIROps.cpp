@@ -34,6 +34,12 @@
 using namespace mlir;
 using namespace buddy::vir;
 
+LogicalResult SetVLOp::verify() {
+  if (!getRegion().empty() && getRegion().front().getNumArguments() != 0)
+    return emitOpError("region must not have block arguments");
+  return success();
+}
+
 // One index per memref dim or none, and a dim of the memref per dim of the
 // dynamic vector.
 static LogicalResult verifyAccess(Operation *op, MemRefType memref,

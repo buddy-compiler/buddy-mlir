@@ -1,5 +1,7 @@
 // RUN: buddy-opt %s -split-input-file -verify-diagnostics
 
+// Invalid VIR ops: memory accesses and vir.set_vl regions.
+
 // The lanes are along the last dim of the memref: it has one.
 func.func @rank0(%a: memref<f32>) {
   // expected-error @below {{'vir.load' op operand #0 must be non-0-ranked.memref}}
@@ -37,5 +39,22 @@ func.func @store_index_count(%x: !vir.vec<?xf32>, %a: memref<4x8xf32>, %i: index
 func.func @rank_too_small(%a: memref<8xf32>) {
   // expected-error @below {{needs a memref of at least the rank of the dynamic vector, 2}}
   %x = vir.load %a[] : memref<8xf32> -> !vir.vec<2x?xf32>
+  return
+}
+
+// -----
+
+// The lowering maps the values of the region: its entry block has no
+// arguments.
+func.func @set_vl_block_arg(%o: memref<2x8xf32>) {
+  %vl = arith.constant 8 : index
+  %z = arith.constant 0.0 : f32
+  // expected-error @below {{'vir.set_vl' op region must not have block arguments}}
+  "vir.set_vl"(%vl) ({
+  ^bb0(%x: !vir.vec<2x?xf32>):
+    %dummy = vir.broadcast %z : f32 -> !vir.vec<?xf32>
+    vir.store %x, %o[] : !vir.vec<2x?xf32> -> memref<2x8xf32>
+    vector.yield
+  }) : (index) -> ()
   return
 }
