@@ -454,7 +454,8 @@ private:
       int64_t rank = cast<MemRefType>(base.getType()).getRank();
       int64_t rows =
           cast<vir::DynamicVectorType>(vecType).getShape().size() - 1;
-      // (checked: the rows are those of the leading IVs)
+      // (checked before the lowering: the dynamic vectors are of the region,
+      // their rows those of the leading IVs)
       assert(rows == 0 || rows == int64_t(leadingIVs.size()));
       SmallVector<Value> out;
       for (int64_t i = 0; i < rank; ++i) {
@@ -1966,16 +1967,27 @@ private:
       if (!leadingStaticDims.empty())
         break;
     }
-    // the loops over the rows are those of one static layout
+    // The dynamic vectors are the values of the region (each lowered to a
+    // vector of the main loop and a scalar of the tail loop), and the loops
+    // over the rows are those of one static layout.
+    auto badLayout = [&](Type t) {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+      return dyn && dyn.getShape().size() > 1 &&
+             dyn.getShape().drop_back() != ArrayRef(leadingStaticDims);
+    };
     WalkResult layouts = region.walk([&](Operation *inner) {
-      for (Type t : inner->getResultTypes()) {
-        auto dyn = dyn_cast<vir::DynamicVectorType>(t);
-        if (dyn && dyn.getShape().size() > 1 &&
-            dyn.getShape().drop_back() != ArrayRef(leadingStaticDims)) {
-          inner->emitError("the multi-dimensional dynamic vectors of a "
-                           "vir.set_vl must have the same static layout");
+      for (Value v : inner->getOperands())
+        if (isa<vir::DynamicVectorType>(v.getType()) &&
+            !region.isAncestor(v.getParentRegion())) {
+          inner->emitError("a dynamic vector used in a vir.set_vl must be "
+                           "defined in its region");
           return WalkResult::interrupt();
         }
+      // (a loop-carried value has the type of the loop result)
+      if (llvm::any_of(inner->getResultTypes(), badLayout)) {
+        inner->emitError("the multi-dimensional dynamic vectors of a "
+                         "vir.set_vl must have the same static layout");
+        return WalkResult::interrupt();
       }
       return WalkResult::advance();
     });
