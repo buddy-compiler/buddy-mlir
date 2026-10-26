@@ -60,6 +60,15 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     The lowering splits each dynamic vector into vl / w vectors of the
     target width w and vl % w scalars; a `vir.reduce` combines them in that
     order.
+
+    The dynamic vectors of a region with results have one static layout,
+    e.g. `!vir.vec<2x?xf32>`: a dynamic vector holds its rows of vl lanes
+    one after the other (rows * vl lanes, split as above), and a
+    `vir.reduce` reduces all of them. A `vir.load` / `vir.store` maps the
+    rows to the dims before the last one of the memref, as `vector.load`
+    does; the memref must hold the rows one after the other (its last dim
+    has vl elements, the dims between match the layout), so that an access
+    is one access of rows * vl lanes.
   }];
   let arguments = (ins Index:$vl);
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
