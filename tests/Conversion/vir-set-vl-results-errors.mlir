@@ -155,3 +155,17 @@ func.func @shuffle_pieces(%a: memref<2x8xf32>) -> f32 {
   } -> f32
   return %r : f32
 }
+
+// -----
+
+func.func @shuffle_zero_vl(%z: f32) -> f32 {
+  %vl = arith.constant 0 : index
+  // expected-error @below {{vir.shuffle needs a dynamic vector with a positive number of lanes}}
+  %r = vir.set_vl %vl : index {
+    %x = vir.broadcast %z : f32 -> !vir.vec<2x?xf32>
+    %y = vir.shuffle %x, %x [1, 0] : !vir.vec<2x?xf32>
+    %s = vir.reduce %y, %z {kind = "add"} : !vir.vec<2x?xf32>, f32 -> f32
+    vector.yield %s : f32
+  } -> f32
+  return %r : f32
+}

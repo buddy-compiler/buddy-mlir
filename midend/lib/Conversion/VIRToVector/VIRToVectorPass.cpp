@@ -1859,21 +1859,27 @@ private:
     // A vir.shuffle moves lanes between rows within one vector: each
     // dynamic vector is one vector of all its lanes, whatever the register
     // pressure (a scalable one in a register group of at most 8).
-    bool hasShuffle =
-        op.getRegion()
-            .walk([](vir::ShuffleOp) { return WalkResult::interrupt(); })
-            .wasInterrupted();
-    if (hasShuffle && !useCustomVecWid) {
-      int64_t sew = anchorType.getIntOrFloatBitWidth();
-      int64_t vlen = rvvVlen > 0 ? rvvVlen : 128;
+    SmallVector<vir::ShuffleOp> shuffles;
+    op.getRegion().walk([&](vir::ShuffleOp s) { shuffles.push_back(s); });
+    if (!shuffles.empty()) {
+      if (lanes <= 0)
+        return op.emitError("vir.shuffle needs a dynamic vector with a "
+                            "positive number of lanes");
       // fixed: lanes; scalable: N * vscale >= lanes at the minimum vscale
-      width = useScalable ? int64_t(llvm::bit_ceil(
-                                uint64_t(llvm::divideCeil(lanes * 64, vlen))))
-                          : lanes;
-      if (useScalable && width * vlen / 64 * sew > 8 * vlen)
-        return op.emitError("vir.shuffle needs a dynamic vector of ")
-               << lanes << " lanes in one register group of at most 8";
-      if (verbose)
+      // (use-scalable without vector-width has rvv-vlen)
+      if (!useCustomVecWid)
+        width = useScalable ? int64_t(llvm::bit_ceil(uint64_t(
+                                  llvm::divideCeil(lanes * 64, rvvVlen))))
+                            : lanes;
+      // vector<[N]xT> is a group of N * SEW / 64 registers, whatever the
+      // VLEN; each shuffle has its element type (vir.extf / truncf)
+      if (useScalable)
+        for (vir::ShuffleOp s : shuffles)
+          if (width * s.getType().getElementType().getIntOrFloatBitWidth() >
+              8 * 64)
+            return s.emitError("vir.shuffle needs a dynamic vector of ")
+                   << lanes << " lanes in one register group of at most 8";
+      if (verbose && !useCustomVecWid)
         llvm::outs() << "vir.shuffle: one vector of " << lanes
                      << " lanes, width " << width << "\n";
     }
