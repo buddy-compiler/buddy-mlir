@@ -644,7 +644,7 @@ def derive_decode_pack(hf: dict, spec: dict) -> dict:
     if not vecsize:
         return {"enabled": False}
 
-    return {
+    packed = {
         "enabled": True,
         "vector_size": vecsize,
         # Divisibility of every weight's N by vecsize is checked by the graph
@@ -652,6 +652,119 @@ def derive_decode_pack(hf: dict, spec: dict) -> dict:
         # it covers lm_head and the attention projections, not just the FFN.
         "decode_file": "arg0-decode.data",
     }
+    if spec.get("ime_decode_kernel") == "gemv":
+        packed["ime_shapes"] = spec.get("ime_decode_shapes", [])
+        packed["ime_layout"] = "n32k8"
+    return packed
+
+
+def derive_fp16_optimizations(spec: dict, variant: str) -> dict:
+    """Opt-in K3 FP16 kernels; leave other model configurations unchanged."""
+
+    def shapes(key):
+        value = spec.get(key, [])
+        if not isinstance(value, list) or any(
+            not isinstance(shape, str)
+            or len(shape.split("x")) != 2
+            or any(
+                not size.isdecimal() or int(size) <= 0
+                for size in shape.split("x")
+            )
+            for shape in value
+        ):
+            raise ValueError(f"{key} must contain positive KxN strings")
+        return value
+
+    decode_shapes = shapes("ime_decode_shapes")
+    prefill_shapes = shapes("ime_prefill_shapes")
+    kernel = spec.get("ime_decode_kernel", "generic")
+    vlen = spec.get("prefill_rvv_vlen_bits", 0)
+    width = spec.get("prefill_rvv_vector_size", 0)
+    silu = spec.get("prefill_optimize_silu", False)
+    if kernel not in ("generic", "gemv"):
+        raise ValueError("ime_decode_kernel must be generic or gemv")
+    if type(silu) is not bool:
+        raise ValueError("prefill_optimize_silu must be a boolean")
+    if type(vlen) is not int or (
+        vlen and (vlen < 128 or vlen > 65536 or vlen & (vlen - 1))
+    ):
+        raise ValueError(
+            "prefill_rvv_vlen_bits must be zero or a power of two in [128, 65536]"
+        )
+    if type(width) is not int or width not in (0, 8, 16, 32, 64, 128):
+        raise ValueError(
+            "prefill_rvv_vector_size must be zero or a power of two in [8, 128]"
+        )
+    if variant != "f16" and (
+        decode_shapes or prefill_shapes or vlen or width or silu
+    ):
+        raise ValueError("K3 FP16 optimization options require variant=f16")
+    if kernel == "gemv" and (
+        not decode_shapes
+        or spec.get("decode_pack_vector_size") != 32
+        or any(
+            int(shape.split("x")[0]) % 16 or int(shape.split("x")[1]) % 32
+            for shape in decode_shapes
+        )
+    ):
+        raise ValueError(
+            "A100 GEMV needs selected K%16=0, N%32=0 shapes and packed width 32"
+        )
+    if prefill_shapes and (
+        vlen != 1024
+        or any(
+            int(shape.split("x")[0]) % 8 or int(shape.split("x")[1]) % 32
+            for shape in prefill_shapes
+        )
+    ):
+        raise ValueError(
+            "A100 IME Prefill requires VLEN=1024, K%8=0 and N%32=0"
+        )
+    result = {}
+    if decode_shapes:
+        result["ime"] = {"decode_shapes": decode_shapes, "kernel": kernel}
+    if prefill_shapes or vlen or width or silu:
+        result["prefill"] = {
+            "vlen_bits": vlen,
+            "vector_size": width,
+            "ime_shapes": prefill_shapes,
+            "optimize_silu": silu,
+        }
+    return result
+
+
+def derive_attention_optimizations(hf: dict, spec: dict) -> dict:
+    """Optional attention/Decode tuning on top of the shared FP16 settings."""
+    result = {}
+    head_dim = hf.get(
+        "head_dim", hf["hidden_size"] // hf["num_attention_heads"]
+    )
+    for phase in ("prefill", "decode"):
+        key = f"{phase}_attention_vector_size"
+        width = spec.get(key, 0)
+        if (
+            type(width) is not int
+            or width not in (0, 16, 32, 64, 128)
+            or (width and head_dim % width)
+        ):
+            raise ValueError(f"{key} must divide head_dim")
+        if width:
+            result.setdefault(phase, {})["attention_vector_size"] = width
+    splits = spec.get("decode_kv_splits", 0)
+    if type(splits) is not int or splits not in (0, 1, 2, 4, 8):
+        raise ValueError("decode_kv_splits must be 1, 2, 4 or 8")
+    if splits:
+        if spec.get("max_token_len", 1024) % (splits * 16):
+            raise ValueError(
+                "Decode cache length must be divisible by 16 times the KV splits"
+            )
+        result.setdefault("decode", {})["kv_splits"] = splits
+    silu = spec.get("decode_optimize_silu", False)
+    if type(silu) is not bool:
+        raise ValueError("decode_optimize_silu must be a boolean")
+    if silu:
+        result.setdefault("decode", {})["optimize_silu"] = True
+    return result
 
 
 def derive_tokens(hf: dict, spec: dict) -> dict:
@@ -674,6 +787,12 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
 
     variant = spec["variant"]
     model_family = spec.get("model_family", "unknown")
+    fp16_optimizations = derive_fp16_optimizations(spec, variant)
+    for phase, options in derive_attention_optimizations(hf, spec).items():
+        fp16_optimizations.setdefault(phase, {}).update(options)
+    separate_output_embedding = spec.get("separate_output_embedding", False)
+    if type(separate_output_embedding) is not bool:
+        raise ValueError("separate_output_embedding must be a boolean")
 
     shape = derive_shapes(hf, spec)
     tokens = derive_tokens(hf, spec)
@@ -745,6 +864,11 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "variant": variant,
         "model_id": model_id,
         "hf_model_path": spec["hf_model_path"],
+        **(
+            {"separate_output_embedding": True}
+            if separate_output_embedding
+            else {}
+        ),
         "architecture": (
             hf["architectures"][0]
             if "architectures" in hf
@@ -780,6 +904,7 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
             "logits": ELEMENT_TYPE_MLIR[precision["logits_type"]],
         },
         "compilation": {
+            **fp16_optimizations,
             "num_threads": spec.get("num_threads", 48),
             "so_name": f"{model_family}_model.so",
             "pipelines": {
