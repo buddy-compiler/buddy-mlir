@@ -5,6 +5,7 @@ add_mlir_library(TraceInsert
     BuddyTrace
     MLIRArithDialect
     MLIRFuncDialect
+    MLIRGPUDialect
     MLIRMemRefDialect
     MLIRPass
 )

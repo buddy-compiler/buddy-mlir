@@ -15,6 +15,20 @@
 # ===---------------------------------------------------------------------------
 
 from ....trace.config import TraceConfig, normalize_trace_meta
+from .lowering import trace_op_result, trace_op_start
+
+
+def _wrap_registry(ops_registry: dict):
+    wrapped = {}
+    for op_name, lower in ops_registry.items():
+
+        def traced_lower(node, *args, _lower=lower, **kwargs):
+            trace_op_start(node)
+            op_ret = _lower(node, *args, **kwargs)
+            return trace_op_result(node, op_ret)
+
+        wrapped[op_name] = traced_lower
+    return wrapped
 
 
 class TraceInsertionPass:
@@ -29,15 +43,15 @@ class TraceInsertionPass:
             meta = normalize_trace_meta(
                 node.name, self.trace.trace_config[node.name]
             )
-            if meta["cycle"] or meta["tensor"]:
-                if node.__class__.__name__ in {"GetItemOp", "PlaceholderOp"}:
-                    raise TypeError(
-                        f"Trace node {node.name} does not lower to an MLIR op"
-                    )
-                node.trace_meta = meta
-            else:
-                node.trace_meta = None
             matched_nodes.add(node.name)
+            # A node traced neither for cycles nor for tensors stays untraced.
+            if not (meta["cycle"] or meta["tensor"]):
+                continue
+            if node.__class__.__name__ in {"GetItemOp", "PlaceholderOp"}:
+                raise TypeError(
+                    f"Trace node {node.name} does not lower to an MLIR op"
+                )
+            node.trace_meta = meta
 
         missing = set(self.trace.trace_config) - matched_nodes
         if missing:
@@ -47,6 +61,7 @@ class TraceInsertionPass:
             )
 
         self.trace.matched_nodes = matched_nodes
+        graph._ops_registry = _wrap_registry(graph._ops_registry)
 
 
 def trace_insertion(trace: TraceConfig):

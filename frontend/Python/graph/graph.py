@@ -19,9 +19,11 @@
 # ===---------------------------------------------------------------------------
 
 import contextlib
+import copy
 import ctypes
 import functools
 from enum import Enum, auto
+from math import prod
 from pathlib import Path
 from types import FunctionType
 from typing import TYPE_CHECKING
@@ -597,6 +599,195 @@ class Graph:
 
         return outputs
 
+    def sort_parameters(self, names):
+        """Order captured parameters by their external names for a stable ABI."""
+        from .transform.quantization.quantize import sort_graph
+
+        ordered = sorted(
+            zip(names, self.params, self._params_ref, strict=True),
+            key=lambda item: item[0],
+        )
+        values = {node.name: value for _, node, value in ordered}
+        self._fake_params = [self._body.index(node) for _, node, _ in ordered]
+        sort_graph(self)
+        self._params_ref[:] = [values[node.name] for node in self.params]
+
+    def order_inputs(self, values):
+        """Use the runtime's explicit argument order without changing the graph."""
+        from .transform.quantization.quantize import sort_graph
+
+        values = list(values)
+        positions = {
+            value.data_ptr(): index
+            for value, index in zip(
+                self._runtime_inputs_ref, self._inputs, strict=True
+            )
+        }
+        order = [positions[value.data_ptr()] for value in values]
+        if len(order) != len(self._inputs) or set(order) != set(self._inputs):
+            raise ValueError(
+                "Input order must preserve every captured argument"
+            )
+        parameters = dict(
+            zip(
+                (node.name for node in self.params),
+                self._params_ref,
+                strict=True,
+            )
+        )
+        self._inputs = order
+        self._runtime_inputs_ref = values
+        sort_graph(self)
+        self._params_ref[:] = [parameters[node.name] for node in self.params]
+
+    def specialize_shapes(self, dimensions: dict[str, int], func_name: str):
+        """Instantiate symbolic shapes without tracing or changing the source graph."""
+
+        def value(item):
+            if isinstance(item, torch.SymInt):
+                expression = item.node.expr
+                expression = expression.subs(
+                    {
+                        symbol: dimensions[str(symbol)]
+                        for symbol in expression.free_symbols
+                    }
+                )
+                if not expression.is_Integer:
+                    raise ValueError(
+                        f"Shape expression is not an integer: {expression}"
+                    )
+                return int(expression)
+            if isinstance(item, torch.Size):
+                return torch.Size(value(dimension) for dimension in item)
+            if isinstance(item, list):
+                return [value(element) for element in item]
+            if isinstance(item, tuple):
+                return tuple(value(element) for element in item)
+            if isinstance(item, dict):
+                return {key: value(element) for key, element in item.items()}
+            return item
+
+        scalars = {
+            node.name: value(node._symbolic_value)
+            for node in self.body
+            if node._symbolic_value is not None
+        }
+
+        def argument(item):
+            if isinstance(item, str) and item in scalars:
+                return scalars[item]
+            if isinstance(item, (list, tuple)):
+                return type(item)(argument(element) for element in item)
+            if isinstance(item, dict):
+                return {key: argument(element) for key, element in item.items()}
+            return value(item)
+
+        result = Graph(
+            dict(self._ops_registry),
+            func_name,
+            self.device,
+            verbose=self._verbose,
+            verbose_path=self._verbose_path,
+            enable_external_calls=self._enable_external_calls,
+        )
+        parameters = {node.name for node in self.params}
+        inputs = {node.name for node in self.inputs}
+        for node in self.body:
+            if node.name in scalars:
+                clone = TensorConstantOp()
+                clone.name = node.name
+                clone.add_argument(scalars[node.name])
+                clone.tensor_meta = {"shape": [], "dtype": TensorDType.Int64}
+            else:
+                clone = copy.copy(node)
+                clone._arguments = (
+                    list(node.args)
+                    if isinstance(node, OutputOp)
+                    else argument(node.args)
+                )
+                clone._keyword_arguments = argument(node.kwargs)
+                clone._tensor_meta = value(node.tensor_meta)
+                clone._args_index = list(node._args_index)
+                clone._parents = [
+                    parent
+                    for parent in node.parents
+                    if isinstance(node, OutputOp) or parent not in scalars
+                ]
+            clone._children = []
+            clone._source_meta = node._source_meta
+            clone.trace_meta = copy.deepcopy(node.trace_meta)
+            kind = (
+                NodeType.FakeNode
+                if node.name in parameters
+                else NodeType.InputNode
+                if node.name in inputs
+                else NodeType.OtherNode
+            )
+            result.add_node(clone, kind)
+        for node in result.body:
+            for parent in node.parents:
+                children = result.node_table[parent]._children
+                if node.name not in children:
+                    children.append(node.name)
+        result.op_groups = {
+            name: [result.node_table[node.name] for node in nodes]
+            for name, nodes in self.op_groups.items()
+        }
+        result.group_map_device = dict(self.group_map_device)
+        result._params_ref = list(self._params_ref)
+        return result
+
+    def dump_parameters(self, path: str | Path):
+        """Export parameter arrays and their layout in packed dtype buffers."""
+        import json
+
+        import numpy as np
+
+        path = Path(path)
+        arrays = {}
+        metadata = []
+        offsets = {}
+        for node, value in zip(self.params, self._params_ref, strict=True):
+            array = value.detach().cpu().numpy()
+            arrays[node.name] = array
+            dtype = str(array.dtype)
+            offset = offsets.get(dtype, 0)
+            metadata.append(
+                {
+                    "name": node.name,
+                    "dtype": dtype,
+                    "shape": list(array.shape),
+                    "strides_bytes": list(array.strides),
+                    "buffer_dtype": dtype,
+                    "offset_bytes": offset,
+                    "size_bytes": array.nbytes,
+                    "preview_flat_first_16": array.reshape(-1)[:16].tolist(),
+                }
+            )
+            offsets[dtype] = offset + array.nbytes
+        np.savez(str(path) + ".npz", **arrays)
+        Path(str(path) + ".json").write_text(
+            json.dumps(metadata, indent=2) + "\n"
+        )
+
+    def dump(self, path: str | Path):
+        """Write the current graph without running transformations or lowering."""
+        with Path(path).open("w") as stream:
+            for node in self.body:
+                print(f"Node: {node.name} ({type(node).__name__})", file=stream)
+                print(f"  Arguments: {node.args}", file=stream)
+                print(f"  Keyword arguments: {node.kwargs}", file=stream)
+                print(f"  Parents: {node.parents}", file=stream)
+                print(f"  Tensor: {node.tensor_meta}", file=stream)
+                print(f"  Trace: {node.trace_meta}", file=stream)
+            print("Groups:", file=stream)
+            for name, nodes in self.op_groups.items():
+                print(
+                    f"  {name} ({self.group_map_device[name]}): "
+                    + ", ".join(node.name for node in nodes),
+                    file=stream,
+                )
+
     def fuse_ops(self, pattern_list: list[FunctionType]):
         """
         Fuse operations in the graph based on provided fusion patterns.
@@ -631,13 +822,14 @@ class Graph:
         for transform_func in func_list:
             transform_func(self)
 
-    def lower_to_top_level_ir(self):
+    def lower_to_top_level_ir(self, *, buffer_layout=None, writable=None):
         """
         Lowers the graph to top-level MLIR dialects.
 
         Parameters:
-        - do_params_pack: bool, optional (default=False)
-            Flag indicating whether to perform parameters packing to one memref.
+        - buffer_layout: optional argument ABI policy. "contiguous" uses row-major
+          strides; "packed" only fixes unit strides on byte vectors.
+        - writable: optional bufferization annotation for the selected policy.
 
         Returns:
         None
@@ -661,6 +853,41 @@ class Graph:
                 enable_external_calls=self._enable_external_calls,
             )
             self._imported_module = fx_importer.import_graph()
+            if buffer_layout is not None:
+                if buffer_layout not in {"contiguous", "packed"}:
+                    raise ValueError("Unknown function argument buffer layout")
+                function = next(
+                    op
+                    for op in self._imported_module.body.operations
+                    if op.operation.name == "func.func"
+                    and ir.StringAttr(op.attributes["sym_name"]).value
+                    == self._func_name
+                )
+                attributes = []
+                for argument in function.regions[0].blocks[0].arguments:
+                    tensor = ir.RankedTensorType(argument.type)
+                    shape = list(tensor.shape)
+                    if buffer_layout == "packed" and not (
+                        str(tensor.element_type) == "i8" and tensor.rank == 1
+                    ):
+                        strides = [
+                            ir.ShapedType.get_dynamic_size()
+                        ] * tensor.rank
+                    else:
+                        strides = [
+                            prod(shape[i + 1 :]) for i in range(len(shape))
+                        ]
+                    attrs = {
+                        "bufferization.buffer_layout": ir.StridedLayoutAttr.get(
+                            ir.ShapedType.get_dynamic_size(), strides
+                        )
+                    }
+                    if writable is not None:
+                        attrs["bufferization.writable"] = ir.BoolAttr.get(
+                            writable
+                        )
+                    attributes.append(ir.DictAttr.get(attrs))
+                function.attributes["arg_attrs"] = ir.ArrayAttr.get(attributes)
             outputs = fx_importer.get_output_nodes()
             self._outputs = outputs
         self._output_memref = []
@@ -770,6 +997,8 @@ class Graph:
             pm.add("canonicalize")
             pm.add("func.func(optimize-allocation-liveness)")
             pm.add("func.func(eliminate-memref-copy)")
+            pm.add("func.func(assume-tight-memref-layout)")
+            pm.add("func.func(staticize-memref-layout)")
             pm.add("matmul-vectorization")
             pm.add("convert-linalg-to-affine-loops")
             pm.add("convert-vector-to-scf")
@@ -1262,13 +1491,9 @@ class GraphImporter:
             node (Op): The buddy node representing the operation.
 
         """
-        from .transform.trace.lowering import trace_op_result, trace_op_start
-
         op_name = node.__class__.__name__
         with ir.Location.name(node.name):
-            trace_op_start(node)
             op_ret = self._ops_registry[op_name](node, self._symbol_table)
-            op_ret = trace_op_result(node, op_ret)
         if op_ret is None:
             raise ValueError(
                 f"lowering returned no value for {node.name} ({op_name})"

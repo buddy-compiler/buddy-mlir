@@ -18,9 +18,7 @@ import buddy_mlir.ir as ir
 
 
 def has_trace(node) -> bool:
-    return node.trace_meta is not None and (
-        node.trace_meta["cycle"] or node.trace_meta["tensor"]
-    )
+    return node.trace_meta is not None
 
 
 def _trace_attrs(node) -> dict:
@@ -40,6 +38,14 @@ def _trace_attrs(node) -> dict:
         )
     if "tag" in trace_meta:
         attrs["tag"] = ir.StringAttr.get(trace_meta["tag"])
+    for extend in trace_meta.get("extend", []):
+        dialect = extend["dialect"]
+        attrs[f"trace_extend_{dialect}"] = ir.BoolAttr.get(True)
+        include = extend.get("include", [])
+        if include:
+            attrs[f"trace_{dialect}_include"] = ir.ArrayAttr.get(
+                [ir.StringAttr.get(name) for name in include]
+            )
     return attrs
 
 
@@ -76,9 +82,12 @@ def trace_op_result(node, op_ret):
     if not has_trace(node):
         return op_ret
 
-    if isinstance(op_ret, tuple | list | ir.OpResultList):
-        if len(op_ret) != 1:
-            raise ValueError(f"Trace node {node.name} must lower to one result")
+    multiple = isinstance(op_ret, tuple | list | ir.OpResultList)
+    if multiple:
+        if not len(op_ret) or (len(op_ret) != 1 and node.trace_meta["tensor"]):
+            raise ValueError(
+                f"Tensor trace node {node.name} requires one result"
+            )
         value = _as_value(op_ret[0])
     else:
         value = _as_value(op_ret)
@@ -94,4 +103,7 @@ def trace_op_result(node, op_ret):
             attributes=_trace_attrs(node),
         )
     )
+    if multiple and len(op_ret) > 1:
+        # Cycle tracing observes completion without changing secondary results.
+        return (op.result, *op_ret[1:])
     return op.result

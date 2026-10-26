@@ -964,50 +964,26 @@ public:
     MemRefType bArrayType = dyn_cast<MemRefType>(bArray.getType());
     MemRefType cArrayType = dyn_cast<MemRefType>(cArray.getType());
     MemRefType dArrayType = dyn_cast<MemRefType>(dArray.getType());
-    StridedLayoutAttr aArrayLayout =
-        dyn_cast<StridedLayoutAttr>(aArrayType.getLayout());
-    StridedLayoutAttr bArrayLayout =
-        dyn_cast<StridedLayoutAttr>(bArrayType.getLayout());
-    StridedLayoutAttr cArrayLayout =
-        dyn_cast<StridedLayoutAttr>(cArrayType.getLayout());
-    SmallVector<Type> resultType = {rewriter.getIndexType()};
-    TypeRange typeRange(resultType);
     Location loc = tileMatMulOp.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
-    Value aArrayExtractOp = memref::ExtractAlignedPointerAsIndexOp::create(
-        rewriter, loc, typeRange, aArray);
-    if (aArrayLayout) {
-      Value offset = arith::ConstantIndexOp::create(
-          rewriter, loc, aArrayLayout.getOffset() * sizeOfElemT);
-      aArrayExtractOp =
-          arith::AddIOp::create(rewriter, loc, aArrayExtractOp, offset);
-    }
-    Value aArrayindexCastOp =
-        arith::IndexCastOp::create(rewriter, loc, i64Type, aArrayExtractOp);
-    Value bArrayExtractOp = memref::ExtractAlignedPointerAsIndexOp::create(
-        rewriter, loc, typeRange, bArray);
-    if (bArrayLayout) {
-      Value offset = arith::ConstantIndexOp::create(
-          rewriter, loc, bArrayLayout.getOffset() * sizeOfElemT);
-      bArrayExtractOp =
-          arith::AddIOp::create(rewriter, loc, bArrayExtractOp, offset);
-    }
-    Value bArrayindexCastOp =
-        arith::IndexCastOp::create(rewriter, loc, i64Type, bArrayExtractOp);
-    Value cArrayExtractOp = memref::ExtractAlignedPointerAsIndexOp::create(
-        rewriter, loc, typeRange, cArray);
-    if (cArrayLayout) {
-      Value offset = arith::ConstantIndexOp::create(
-          rewriter, loc, cArrayLayout.getOffset() * sizeOfElemT);
-      cArrayExtractOp =
-          arith::AddIOp::create(rewriter, loc, cArrayExtractOp, offset);
-    }
+    // Packed parameter views carry runtime offsets in their memref descriptors.
+    auto address = [&](Value array, size_t elementBytes) -> Value {
+      Value base =
+          memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, array);
+      auto metadata =
+          memref::ExtractStridedMetadataOp::create(rewriter, loc, array);
+      Value bytes = arith::ConstantIndexOp::create(rewriter, loc, elementBytes);
+      Value offset =
+          arith::MulIOp::create(rewriter, loc, metadata.getOffset(), bytes);
+      Value pointer = arith::AddIOp::create(rewriter, loc, base, offset);
+      return arith::IndexCastOp::create(rewriter, loc, i64Type, pointer);
+    };
+    Value aArrayindexCastOp = address(aArray, sizeOfElemT);
+    Value bArrayindexCastOp = address(bArray, sizeOfElemT);
     Value cArrayindexCastOp =
-        arith::IndexCastOp::create(rewriter, loc, i64Type, cArrayExtractOp);
-    Value dArrayExtractOp = memref::ExtractAlignedPointerAsIndexOp::create(
-        rewriter, loc, typeRange, dArray);
+        address(cArray, tileMatMulOp.getFullC() ? sizeOfAccT : sizeOfElemT);
     Value dArrayindexCastOp =
-        arith::IndexCastOp::create(rewriter, loc, i64Type, dArrayExtractOp);
+        address(dArray, tileMatMulOp.getLowD() ? sizeOfElemT : sizeOfAccT);
     llvm::ArrayRef<int64_t> aArrayShape = aArrayType.getShape();
     llvm::ArrayRef<int64_t> bArrayShape = bArrayType.getShape();
     llvm::ArrayRef<int64_t> cArrayShape = cArrayType.getShape();

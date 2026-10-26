@@ -52,6 +52,11 @@ public:
     MemRefType outputType = dyn_cast<MemRefType>(output0.getType());
     if (!input0Type || !input1Type || !outputType)
       return failure();
+    // The INT8 hardware contract does not accept floating-point attention.
+    if (accType == "i32" && (!input0Type.getElementType().isInteger(8) ||
+                             !input1Type.getElementType().isInteger(8) ||
+                             !outputType.getElementType().isInteger(32)))
+      return failure();
     bool needCollapse = false;
     SmallVector<int64_t, 3> aShape;
     SmallVector<int64_t, 3> bShape;
@@ -64,11 +69,11 @@ public:
         oShape[0] == 1)
       needCollapse = true;
     MemRefType biasType =
-        MemRefType::get(input0Type.getShape(), rewriter.getI32Type());
+        MemRefType::get(outputType.getShape(), rewriter.getI32Type());
     TypedAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
     Type fillOpInsType = rewriter.getI32Type();
     if (accType == "f32") {
-      biasType = MemRefType::get(input0Type.getShape(), rewriter.getF32Type());
+      biasType = MemRefType::get(outputType.getShape(), rewriter.getF32Type());
       fillOpInputAttr = rewriter.getF32FloatAttr(0);
       fillOpInsType = rewriter.getF32Type();
     }
@@ -91,10 +96,12 @@ public:
       biasVal = memref::CollapseShapeOp::create(rewriter, loc, bias, reassoc);
     }
 
-    rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
+    auto tiled = rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
         matMulOp, aVal, bVal, oVal, biasVal, /*aScaleFactor = */ scale1,
         /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */ 0,
         /*accScale = */ scale1, /*bertScale = */ scale0);
+    tiled.setFullCAttr(
+        rewriter.getBoolAttr(outputType.getElementType().isInteger(32)));
     memref::DeallocOp::create(rewriter, loc, bias);
     return success();
   }

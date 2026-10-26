@@ -264,7 +264,6 @@ from ..graph import (
     ZerosLikeOp,
     ZerosOp,
 )
-from ..graph.transform.layout.provenance import has_nhwc_layout
 from .utils import *
 
 
@@ -328,39 +327,6 @@ def _normalize_binary_operator_shape(shp1, shp2):
         shp2.insert(0, 1)
 
     return shp1, shp2
-
-
-def _to_nhwc(val, channels, elem_ty, nchw_meta=None):
-    """Transpose NCHW->NHWC only when SSA is still NCHW. Fail if layout unknown."""
-    shp = [int(x) for x in ir.RankedTensorType(val.type).shape]
-    if len(shp) != 4:
-        raise RuntimeError(f"expected rank-4 activation, got {shp}")
-    if nchw_meta is not None:
-        n, c, h, w = [int(x) for x in nchw_meta]
-        if shp == [n, c, h, w]:
-            out_ty = ir.RankedTensorType.get([n, h, w, c], elem_ty)
-            val = tosa.TransposeOp(
-                out_ty, val, _create_permutation_attr([0, 2, 3, 1])
-            ).result
-            return val, n, h, w, c
-        if shp == [n, h, w, c]:
-            return val, n, h, w, c
-        raise RuntimeError(
-            f"cannot infer NCHW/NHWC for ssa={shp} meta_nchw={[n, c, h, w]}"
-        )
-    if shp[3] == channels:
-        n, h, w, c = shp
-        return val, n, h, w, c
-    if shp[1] == channels:
-        n, c, h, w = shp
-        out_ty = ir.RankedTensorType.get([n, h, w, c], elem_ty)
-        val = tosa.TransposeOp(
-            out_ty, val, _create_permutation_attr([0, 2, 3, 1])
-        ).result
-        return val, n, h, w, c
-    raise RuntimeError(
-        f"cannot infer NCHW/NHWC for shape {shp} with channels={channels}"
-    )
 
 
 def _gen_arith_binary_op(input1, input2, op_func):
@@ -501,58 +467,6 @@ def _create_shape_operand(shape: Sequence[int]) -> ir.Value:
         shape=[rank],
     )
     return tosa.ConstShapeOp(shape_type, shape_attr).result
-
-
-def _nhwc_to_nchw(value: ir.Value) -> ir.Value:
-    shape = [int(x) for x in ir.RankedTensorType(value.type).shape]
-    if len(shape) != 4:
-        raise RuntimeError(f"_nhwc_to_nchw expects rank-4, got {shape}")
-    n, h, w, c = shape
-    elem = ir.RankedTensorType(value.type).element_type
-    out_ty = ir.RankedTensorType.get([n, c, h, w], elem)
-    return tosa.TransposeOp(
-        out_ty, value, _create_permutation_attr([0, 3, 1, 2])
-    ).result
-
-
-def _nchw_to_nhwc(value: ir.Value) -> ir.Value:
-    shape = [int(x) for x in ir.RankedTensorType(value.type).shape]
-    if len(shape) != 4:
-        raise RuntimeError(f"_nchw_to_nhwc expects rank-4, got {shape}")
-    n, c, h, w = shape
-    elem = ir.RankedTensorType(value.type).element_type
-    out_ty = ir.RankedTensorType.get([n, h, w, c], elem)
-    return tosa.TransposeOp(
-        out_ty, value, _create_permutation_attr([0, 2, 3, 1])
-    ).result
-
-
-def _split_via_tosa_slice(
-    input_tensor: ir.Value,
-    input_shape: list[int],
-    dim: int,
-    split_sizes: list[int],
-) -> list[ir.Value]:
-    rank = len(input_shape)
-    elem = ir.RankedTensorType(input_tensor.type).element_type
-    results = []
-    offset = 0
-    for size in split_sizes:
-        start = [0] * rank
-        start[dim] = offset
-        out_shape = list(input_shape)
-        out_shape[dim] = size
-        out_ty = ir.RankedTensorType.get(out_shape, elem)
-        results.append(
-            tosa.SliceOp(
-                out_ty,
-                input_tensor,
-                _create_shape_operand(start),
-                _create_shape_operand(out_shape),
-            ).result
-        )
-        offset += size
-    return results
 
 
 def _normalize_reduce_dims(dim_arg, rank: int) -> list[int]:
@@ -959,16 +873,41 @@ def div_op(node: DivOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        shift = _create_mul_shift_operand()
-        reciprocal = tosa.ReciprocalOp(input2.type, input2).result
-        return tosa.MulOp(result_type, input1, reciprocal, shift)
+        shape = list(result_type.shape)
+        rank = len(shape)
+        maps = []
+        for value in (input1, input2):
+            dims = [
+                ir.AffineExpr.get_constant(0)
+                if extent == 1
+                else ir.AffineExpr.get_dim(i)
+                for i, extent in enumerate(
+                    ir.RankedTensorType(value.type).shape
+                )
+            ]
+            maps.append(ir.AffineMapAttr.get(ir.AffineMap.get(rank, 0, dims)))
+        maps.append(ir.AffineMapAttr.get(ir.AffineMap.get_identity(rank)))
+        empty = tensor.EmptyOp(shape, result_type.element_type)
+        division = linalg.GenericOp(
+            [result_type],
+            [input1, input2],
+            [empty.result],
+            ir.ArrayAttr.get(maps),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * rank
+            ),
+        )
+        block = ir.Block.create_at_start(
+            division.region, [result_type.element_type] * 3
+        )
+        with ir.InsertionPoint(block):
+            value = arith.DivFOp(block.arguments[0], block.arguments[1]).result
+            linalg.YieldOp([value])
+        return division
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
 
-    # PyTorch integer division returns float32. Cast any integer tensor inputs to
-    # float32 so tosa.reciprocal is legalizable and the result type matches Torch
-    # semantics (true division).
     def _is_int_tensor(value: object) -> bool:
         if not isinstance(value, ir.Value):
             return False
@@ -991,7 +930,6 @@ def div_op(node: DivOp, symbol_table):
             input2 = tosa.CastOp(in2_ty, input2).result
         elif isinstance(input2, int):
             input2 = float(input2)
-
     return _gen_arith_binary_op(input1, input2, _inner_op)
 
 
@@ -1161,22 +1099,28 @@ def clamp_op(node: ClampOp, symbol_table):
     result_element_type = ir.RankedTensorType(input1.type).element_type
     result_tensor_type = ir.RankedTensorType.get(sizes, result_element_type)
 
-    # TOSA ClampOp requires min/max as attributes
-    min_fp = ir.FloatAttr.get(ir.F32Type.get(), float(min_val))
-    max_fp = ir.FloatAttr.get(ir.F32Type.get(), float(max_val))
-    min_int = ir.IntegerAttr.get(
-        ir.IntegerType.get_signless(64),
-        int(min_val) if min_val != float("-inf") else -(2**63 - 1),
-    )
-    max_int = ir.IntegerAttr.get(
-        ir.IntegerType.get_signless(64),
-        int(max_val) if max_val != float("inf") else 2**63 - 1,
-    )
-
-    op = tosa.ClampOp(
-        result_tensor_type, input1, min_int, max_int, min_fp, max_fp
-    )
-    return op
+    if isinstance(result_element_type, (ir.FloatType, ir.BF16Type)):
+        min_attr = ir.FloatAttr.get(result_element_type, float(min_val))
+        max_attr = ir.FloatAttr.get(result_element_type, float(max_val))
+    else:
+        bitwidth = result_element_type.width
+        min_attr = ir.IntegerAttr.get(
+            result_element_type,
+            (
+                -(1 << (bitwidth - 1))
+                if min_val == float("-inf")
+                else int(min_val)
+            ),
+        )
+        max_attr = ir.IntegerAttr.get(
+            result_element_type,
+            (
+                (1 << (bitwidth - 1)) - 1
+                if max_val == float("inf")
+                else int(max_val)
+            ),
+        )
+    return tosa.ClampOp(result_tensor_type, input1, min_attr, max_attr)
 
 
 def logical_and_op(node: LogicalAndOp, symbol_table):
@@ -1379,18 +1323,26 @@ def avg_pool2d_op(node: AvgPool2dOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
     acc_type = ir.TypeAttr.get(result_element_type)
 
-    meta = list(node.tensor_meta["shape"])
-    channels = int(meta[1])
-    src = node.args[0]
-    nchw_meta = (
-        list(src.tensor_meta["shape"])
-        if hasattr(src, "tensor_meta") and "shape" in src.tensor_meta
-        else None
-    )
-    input1, N, H, W, C = _to_nhwc(
-        input1, channels, result_element_type, nchw_meta
-    )
-    input_shape_nhwc = [N, H, W, C]
+    # Convert NCHW to NHWC if needed
+    is_nchw = node._layout.find("NCHW") != -1
+    if is_nchw:
+        perm_list = [0, 2, 3, 1]
+        perm_attr = _create_permutation_attr(perm_list)
+        input_shape = list(ir.RankedTensorType(input1.type).shape)
+        nhwc_shape = [
+            input_shape[0],
+            input_shape[2],
+            input_shape[3],
+            input_shape[1],
+        ]
+        permute_result_type = ir.RankedTensorType.get(
+            nhwc_shape, result_element_type
+        )
+        input1 = tosa.TransposeOp(permute_result_type, input1, perm_attr).result
+
+    # Get input shape in NHWC format (after transpose if needed)
+    input_shape_nhwc = list(ir.RankedTensorType(input1.type).shape)
+    N, H, W, C = input_shape_nhwc
 
     # Expand pad to 4 elements if needed
     if len(pad) == 1:
@@ -1422,6 +1374,21 @@ def avg_pool2d_op(node: AvgPool2dOp, symbol_table):
         pad=pad_attr,
         acc_type=acc_type,
     )
+
+    # Convert back from NHWC to NCHW if needed
+    if is_nchw:
+        perm_list = [0, 3, 1, 2]
+        perm_attr = _create_permutation_attr(perm_list)
+        nchw_shape = [
+            output_shape_nhwc[0],
+            output_shape_nhwc[3],
+            output_shape_nhwc[1],
+            output_shape_nhwc[2],
+        ]
+        permute_result_type = ir.RankedTensorType.get(
+            nchw_shape, result_element_type
+        )
+        op = tosa.TransposeOp(permute_result_type, op.result, perm_attr)
     return op
 
 
@@ -2056,17 +2023,9 @@ def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
     acc_type = ir.TypeAttr.get(result_element_type)
 
-    # Get input shape; sticky NHWC after conv keeps channels last.
-    channels = int(list(node.tensor_meta["shape"])[1])
-    src = node.args[0]
-    nchw_meta = (
-        list(src.tensor_meta["shape"])
-        if hasattr(src, "tensor_meta") and "shape" in src.tensor_meta
-        else None
-    )
-    input1, N, H, W, C = _to_nhwc(
-        input1, channels, result_element_type, nchw_meta
-    )
+    # Get input shape: NCHW
+    input_shape = list(ir.RankedTensorType(input1.type).shape)
+    N, C, H, W = input_shape
     out_h, out_w = output_size
 
     # Calculate kernel and stride for adaptive pooling
@@ -2075,6 +2034,13 @@ def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
     stride_h = H // out_h
     stride_w = W // out_w
 
+    # Convert NCHW to NHWC for TOSA
+    perm_list = [0, 2, 3, 1]
+    perm_attr = _create_permutation_attr(perm_list)
+    nhwc_shape = [N, H, W, C]
+    nhwc_type = ir.RankedTensorType.get(nhwc_shape, result_element_type)
+    nhwc_input = tosa.TransposeOp(nhwc_type, input1, perm_attr)
+
     # Apply avg_pool2d
     kernel_attr = ir._denseI64ArrayAttr([kernel_h, kernel_w], None)
     stride_attr = ir._denseI64ArrayAttr([stride_h, stride_w], None)
@@ -2082,11 +2048,11 @@ def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
 
     pool_nhwc_shape = [N, out_h, out_w, C]
     pool_type = ir.RankedTensorType.get(pool_nhwc_shape, result_element_type)
-    input_zp = _create_zero_point_tensor(input1)
-    output_zp = _create_zero_point_tensor(input1)
+    input_zp = _create_zero_point_tensor(nhwc_input.result)
+    output_zp = _create_zero_point_tensor(nhwc_input.result)
     pooled = tosa.AvgPool2dOp(
         pool_type,
-        input1,
+        nhwc_input.result,
         input_zp,
         output_zp,
         kernel=kernel_attr,
@@ -2094,7 +2060,13 @@ def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
         pad=pad_attr,
         acc_type=acc_type,
     )
-    return pooled
+
+    # Convert back NHWC to NCHW
+    perm_list2 = [0, 3, 1, 2]
+    perm_attr2 = _create_permutation_attr(perm_list2)
+    out_shape = [N, C, out_h, out_w]
+    result_type = ir.RankedTensorType.get(out_shape, result_element_type)
+    return tosa.TransposeOp(result_type, pooled.result, perm_attr2)
 
 
 def adaptive_avg_pool3d_op(node: AdaptiveAvgPool3dOp, symbol_table):
@@ -2561,24 +2533,6 @@ def masked_fill_op(node: MaskedFillOp, symbol_table):
     return tosa.SelectOp(output_type, mask, fill_tensor, input1)
 
 
-def _reshape_input_nchw_meta(node, symbol_table):
-    """PyTorch NCHW shape of reshape/view input. args[0] is often a name str."""
-    src = node.args[0]
-    if hasattr(src, "tensor_meta") and "shape" in src.tensor_meta:
-        return [int(x) for x in src.tensor_meta["shape"]]
-    if isinstance(src, str):
-        ops = symbol_table.get(("__buddy_ops_by_name__", 0))
-        if ops is None:
-            return None
-        pred = ops.get(src)
-        if pred is None or not (
-            hasattr(pred, "tensor_meta") and "shape" in pred.tensor_meta
-        ):
-            return None
-        return [int(x) for x in pred.tensor_meta["shape"]]
-    return None
-
-
 def reshape_op(node: ReshapeOp, symbol_table):
     """
     Import the reshape operation.
@@ -2624,40 +2578,11 @@ def reshape_op(node: ReshapeOp, symbol_table):
             if new_shape[i] == -1:
                 new_shape[i] = infer_dim_size
 
-    producer = input1.owner
-    if isinstance(producer, ir.OpView):
-        producer = producer.operation
-    if len(now_shape) == 4 and isinstance(producer, ir.Operation):
-        attrs = producer.attributes
-        if (
-            (
-                "buckyball.mega_conv2d" in attrs
-                or "buckyball.mega_conv2d_depthwise" in attrs
-            )
-            and "final_output" in attrs
-            and ir.BoolAttr(attrs["final_output"]).value
-            and ir.RankedTensorType(input1.type).element_type
-            == ir.F32Type.get()
-        ):
-            return _reshape_or_extract_for_complex(input1, new_shape)
-
-    if len(now_shape) == 4 and has_nhwc_layout(input1):
-        input_meta = _reshape_input_nchw_meta(node, symbol_table)
-        if input_meta is None or len(input_meta) != 4:
-            raise RuntimeError(
-                "reshape of NHWC activation requires Torch input shape"
-            )
-        n, c, h, w = input_meta
-        if list(now_shape) != [n, h, w, c]:
-            raise RuntimeError(
-                f"reshape NHWC layout mismatch: ssa={list(now_shape)} torch={input_meta}"
-            )
-        element_type = ir.RankedTensorType(input1.type).element_type
-        input1 = tosa.TransposeOp(
-            ir.RankedTensorType.get(input_meta, element_type),
-            input1,
-            _create_permutation_attr([0, 3, 1, 2]),
-        ).result
+    if len(new_shape) == len(now_shape) and all(
+        int(new_dim) == int(old_dim)
+        for new_dim, old_dim in zip(new_shape, now_shape)
+    ):
+        return input1
 
     return _reshape_or_extract_for_complex(input1, new_shape)
 
@@ -2906,7 +2831,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
             node.tensor_meta.get("dtype"), ir.F32Type.get()
         )
     input_type = ir.RankedTensorType(input_tensor.type).element_type
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = list(ir.RankedTensorType(input_tensor.type).shape)
 
     if isinstance(to_cast_type, ir.ComplexType):
         complex_elem_type = ir.ComplexType(to_cast_type).element_type
@@ -3496,16 +3421,18 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
 
     original_shape = list(ir.RankedTensorType(input1.type).shape)
-    channels = int(list(node.tensor_meta["shape"])[1])
-    src = node.args[0]
-    nchw_meta = (
-        list(src.tensor_meta["shape"])
-        if hasattr(src, "tensor_meta") and "shape" in src.tensor_meta
-        else None
-    )
-    input1, n, h, w, c = _to_nhwc(
-        input1, channels, result_element_type, nchw_meta
-    )
+    if node._layout.find("NCHW") != -1:
+        n, c, h, w = original_shape
+        perm_list = [0, 2, 3, 1]
+        perms_attr = _create_permutation_attr(perm_list)
+        permute_result_type = ir.RankedTensorType.get(
+            [n, h, w, c], result_element_type
+        )
+        input1 = tosa.TransposeOp(
+            permute_result_type, input1, perms_attr
+        ).result
+    else:
+        n, h, w, c = original_shape
     in_n, in_c, in_h, in_w = n, c, h, w
 
     out_shape = node.tensor_meta["shape"]
@@ -3538,11 +3465,30 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
     kernel_attr = ir._denseI64ArrayAttr(kernel, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
     pad_attr = ir._denseI64ArrayAttr([pt, pb, pl, pr], None)
+    if node._layout.find("NCHW") != -1:
+        perm_shape = []
+        perm_shape.append(out_shape[0])
+        perm_shape.append(out_shape[2])
+        perm_shape.append(out_shape[3])
+        perm_shape.append(out_shape[1])
+        out_shape = perm_shape
     out_h = (in_h + pt + pb - k_h) // s_h + 1
     out_w = (in_w + pl + pr - k_w) // s_w + 1
     out_shape_nhwc = [in_n, out_h, out_w, in_c]
     output = ir.RankedTensorType.get(out_shape_nhwc, result_element_type)
     op = tosa.MaxPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr)
+    if node._layout.find("NCHW") != -1:
+        perm_list = [0, 3, 1, 2]
+        perms_attr = _create_permutation_attr(perm_list)
+        perm_shape = []
+        perm_shape.append(out_shape_nhwc[0])
+        perm_shape.append(out_shape_nhwc[3])
+        perm_shape.append(out_shape_nhwc[1])
+        perm_shape.append(out_shape_nhwc[2])
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        op = tosa.TransposeOp(permute_result_type, op.result, perms_attr)
     return op
 
 
@@ -3628,17 +3574,12 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
 
         extra_out_h = 0
         extra_out_w = 0
-        src = node.args[0]
-        nchw_meta = (
-            list(src.tensor_meta["shape"])
-            if hasattr(src, "tensor_meta") and "shape" in src.tensor_meta
-            else None
-        )
-        input_val, _, input_h, input_w, _ = _to_nhwc(
-            input_val, in_channels, result_element_type, nchw_meta
-        )
-        input_h = int(input_h)
-        input_w = int(input_w)
+        if node._layout.find("NCHW") != -1:
+            input_h = int(input_shape[2])
+            input_w = int(input_shape[3])
+        else:
+            input_h = int(input_shape[1])
+            input_w = int(input_shape[2])
 
         def _adjust_padding(input_size, kernel, dil, stride_val, pad0, pad1):
             """Ensure stride divisibility by adding pad to the second side."""
@@ -3664,13 +3605,29 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
 
         # Prepare input_padding attributes.
         input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
-        # TOSA conv2d is NHWC; keep output in NHWC (no convert-back).
-        out_shape = [
-            out_shape[0],
-            out_shape[2],
-            out_shape[3],
-            out_shape[1],
-        ]
+        # If the input layout is NCHW, then convert to NHWC.
+        if node._layout.find("NCHW") != -1:
+            perm_list = [0, 2, 3, 1]
+            perms_attr = _create_permutation_attr(perm_list)
+            perm_shape = []
+            perm_shape.append(input_shape[0])
+            perm_shape.append(input_shape[2])
+            perm_shape.append(input_shape[3])
+            perm_shape.append(input_shape[1])
+            permute_result_type = ir.RankedTensorType.get(
+                perm_shape, result_element_type
+            )
+            input_val = tosa.TransposeOp(
+                permute_result_type, input_val, perms_attr
+            ).result
+        # If the output layout is NCHW, then convert to NHWC
+        if node._layout.find("NCHW") != -1:
+            perm_shape = []
+            perm_shape.append(out_shape[0])
+            perm_shape.append(out_shape[2])
+            perm_shape.append(out_shape[3])
+            perm_shape.append(out_shape[1])
+            out_shape = perm_shape
         conv_out_shape = list(out_shape)
         if extra_out_h:
             conv_out_shape[1] += extra_out_h
@@ -3679,107 +3636,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         output_type = ir.RankedTensorType.get(
             conv_out_shape, result_element_type
         )
-
-        if (
-            str(ir.RankedTensorType(weight_val.type).element_type) == "i8"
-            and not is_depthwise
-        ):
-            if is_kernel_transposed:
-                raise ValueError(
-                    "quantized transpose convolution is unsupported"
-                )
-            if stride[0] != stride[1]:
-                raise ValueError("quantized convolution requires equal strides")
-            pad_constant = _create_shape_operand(
-                [0, 0, int(t), int(b), int(l), int(r), 0, 0]
-            )
-            pad_value = _create_zero_point_tensor(input_val)
-            padded_type = ir.RankedTensorType.get(
-                [
-                    conv_out_shape[0],
-                    input_h + int(t) + int(b),
-                    input_w + int(l) + int(r),
-                    in_channels,
-                ],
-                result_element_type,
-            )
-            padded_input = tosa.PadOp(
-                padded_type, input_val, pad_constant, pad_value
-            ).result
-            quant_weight = weight_val
-            if node._layout.find("FCHW") != -1:
-                perm_shape = [
-                    weight_shape[0],
-                    weight_shape[2],
-                    weight_shape[3],
-                    weight_shape[1],
-                ]
-                quant_weight = tosa.TransposeOp(
-                    ir.RankedTensorType.get(
-                        perm_shape, ir.IntegerType.get_signless(8)
-                    ),
-                    weight_val,
-                    _create_permutation_attr([0, 2, 3, 1]),
-                ).result
-            bias_output = tensor.EmptyOp(conv_out_shape, result_element_type)
-            generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
-            bias_init = linalg.GenericOp(
-                [output_type],
-                [bias_tensor],
-                [bias_output],
-                ir.ArrayAttr.get(
-                    [
-                        ir.AffineMapAttr.get(generic_map.get_submap([3])),
-                        ir.AffineMapAttr.get(generic_map),
-                    ]
-                ),
-                ir.ArrayAttr.get(
-                    [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
-                ),
-            )
-            bias_block = ir.Block.create_at_start(
-                bias_init.region, [result_element_type, result_element_type]
-            )
-            bias_init.region.blocks[0].append(
-                linalg.YieldOp([bias_block.arguments[0]])
-            )
-            quant_conv = linalg.Conv2DNhwcFhwcOp(
-                [output_type],
-                [padded_input, quant_weight],
-                [bias_init.result],
-                strides=stride_attr,
-                dilations=dilation_attr,
-            )
-            linalg.fill_builtin_region(quant_conv.operation)
-            i64 = ir.IntegerType.get_signless(64)
-            quant_conv.operation.attributes["dw_addr"] = ir.IntegerAttr.get(
-                i64, node._dw_addr
-            )
-            quant_conv.operation.attributes["dw_bytes"] = ir.IntegerAttr.get(
-                i64, node._dw_bytes
-            )
-            quant_conv.operation.attributes["per_channel"] = ir.BoolAttr.get(
-                node._per_channel
-            )
-            quant_conv.operation.attributes["strides"] = (
-                ir.DenseElementsAttr.get(
-                    numpy.array(
-                        [int(stride[0]), int(stride[1])], dtype=numpy.int64
-                    ),
-                    type=ir.VectorType.get([2], i64),
-                )
-            )
-            op = quant_conv
-            if extra_out_h or extra_out_w:
-                slice_start = _create_shape_operand([0, 0, 0, 0])
-                slice_size = _create_shape_operand(out_shape)
-                slice_type = ir.RankedTensorType.get(
-                    out_shape, result_element_type
-                )
-                op = tosa.SliceOp(
-                    slice_type, op.result, slice_start, slice_size
-                )
-            return op
 
         # Depthwise Conv2D Operation.
         if is_depthwise is True:
@@ -3794,101 +3650,11 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 perm_shape.append(weight_shape[0])
                 perm_shape.append(weight_shape[1])
                 permute_result_type = ir.RankedTensorType.get(
-                    perm_shape,
-                    ir.RankedTensorType(weight_val.type).element_type,
+                    perm_shape, result_element_type
                 )
                 weight_depthwise = tosa.TransposeOp(
                     permute_result_type, weight_val, perms_attr
                 ).result
-            if (
-                str(ir.RankedTensorType(weight_depthwise.type).element_type)
-                == "i8"
-            ):
-                pad_constant = _create_shape_operand(
-                    [0, 0, int(t), int(b), int(l), int(r), 0, 0]
-                )
-                pad_value = _create_zero_point_tensor(input_val)
-                padded_shape = [
-                    conv_out_shape[0],
-                    input_h + int(t) + int(b),
-                    input_w + int(l) + int(r),
-                    conv_out_shape[3],
-                ]
-                padded_type = ir.RankedTensorType.get(
-                    padded_shape, result_element_type
-                )
-                input_val = tosa.PadOp(
-                    padded_type, input_val, pad_constant, pad_value
-                ).result
-                depth_shape = [
-                    conv_out_shape[0],
-                    conv_out_shape[1],
-                    conv_out_shape[2],
-                    conv_out_shape[3],
-                    1,
-                ]
-                depth_type = ir.RankedTensorType.get(
-                    depth_shape, result_element_type
-                )
-                depth_init = tensor.EmptyOp(depth_shape, result_element_type)
-                identity = ir.AffineMap.get_permutation([0, 1, 2, 3, 4])
-                bias_init = linalg.GenericOp(
-                    [depth_type],
-                    [bias_tensor],
-                    [depth_init],
-                    ir.ArrayAttr.get(
-                        [
-                            ir.AffineMapAttr.get(identity.get_submap([3])),
-                            ir.AffineMapAttr.get(identity),
-                        ]
-                    ),
-                    ir.ArrayAttr.get(
-                        [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                        * 5
-                    ),
-                )
-                bias_block = ir.Block.create_at_start(
-                    bias_init.region, [result_element_type, result_element_type]
-                )
-                bias_init.region.blocks[0].append(
-                    linalg.YieldOp([bias_block.arguments[0]])
-                )
-                depthwise_op = linalg.DepthwiseConv2DNhwcHwcmOp(
-                    [depth_type],
-                    [input_val, weight_depthwise],
-                    [bias_init.result],
-                    strides=stride_attr,
-                    dilations=dilation_attr,
-                )
-                linalg.fill_builtin_region(depthwise_op.operation)
-                depthwise_op.operation.attributes["dw_addr"] = (
-                    ir.IntegerAttr.get(
-                        ir.IntegerType.get_signless(64), node._dw_addr
-                    )
-                )
-                depthwise_op.operation.attributes["dw_bytes"] = (
-                    ir.IntegerAttr.get(
-                        ir.IntegerType.get_signless(64), node._dw_bytes
-                    )
-                )
-                depthwise_op.operation.attributes["per_channel"] = (
-                    ir.BoolAttr.get(node._per_channel)
-                )
-                collapse = tensor.CollapseShapeOp(
-                    output_type,
-                    depthwise_op.result,
-                    _build_reassociation_attr([[0], [1], [2], [3, 4]]),
-                ).result
-                if extra_out_h or extra_out_w:
-                    slice_start = _create_shape_operand([0, 0, 0, 0])
-                    slice_size = _create_shape_operand(out_shape)
-                    slice_type = ir.RankedTensorType.get(
-                        out_shape, result_element_type
-                    )
-                    return tosa.SliceOp(
-                        slice_type, collapse, slice_start, slice_size
-                    )
-                return collapse
             input_zp = _create_zero_point_tensor(input_val)
             weight_zp = _create_zero_point_tensor(weight_depthwise)
             depthwise_op = tosa.DepthwiseConv2DOp(
@@ -3903,17 +3669,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 dilation_attr,
                 acc_type,
             )
-            if hasattr(node, "_dw_addr"):
-                i64 = ir.IntegerType.get_signless(64)
-                depthwise_op.operation.attributes["dw_addr"] = (
-                    ir.IntegerAttr.get(i64, node._dw_addr)
-                )
-                depthwise_op.operation.attributes["dw_bytes"] = (
-                    ir.IntegerAttr.get(i64, node._dw_bytes)
-                )
-                depthwise_op.operation.attributes["per_channel"] = (
-                    ir.BoolAttr.get(node._per_channel)
-                )
             op = depthwise_op
         else:
             # Transpose Conv2D Operation.
@@ -3947,8 +3702,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     perm_shape.append(weight_shape[3])
                     perm_shape.append(weight_shape[1])
                     permute_result_type = ir.RankedTensorType.get(
-                        perm_shape,
-                        ir.RankedTensorType(weight_val.type).element_type,
+                        perm_shape, result_element_type
                     )
                     weight_val = tosa.TransposeOp(
                         permute_result_type,
@@ -3969,17 +3723,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     dilation_attr,
                     acc_type,
                 )
-                if hasattr(node, "_dw_addr"):
-                    i64 = ir.IntegerType.get_signless(64)
-                    conv_op.operation.attributes["dw_addr"] = (
-                        ir.IntegerAttr.get(i64, node._dw_addr)
-                    )
-                    conv_op.operation.attributes["dw_bytes"] = (
-                        ir.IntegerAttr.get(i64, node._dw_bytes)
-                    )
-                    conv_op.operation.attributes["per_channel"] = (
-                        ir.BoolAttr.get(node._per_channel)
-                    )
                 op = conv_op
 
         if extra_out_h or extra_out_w:
@@ -3991,6 +3734,19 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 slice_type, op.result, slice_start, slice_size
             )
             op = slice_op
+        # Output transpose
+        if node._layout.find("NCHW") != -1:
+            perm_list = [0, 3, 1, 2]
+            perms_attr = _create_permutation_attr(perm_list)
+            perm_shape = []
+            perm_shape.append(out_shape[0])
+            perm_shape.append(out_shape[3])
+            perm_shape.append(out_shape[1])
+            perm_shape.append(out_shape[2])
+            permute_result_type = ir.RankedTensorType.get(
+                perm_shape, result_element_type
+            )
+            op = tosa.TransposeOp(permute_result_type, op.result, perms_attr)
     # Convolution 1D
     elif len(weight_shape) == 3:
         # Prepare input with padding.
@@ -4216,34 +3972,15 @@ def mean_op(node: MeanOp, symbol_table):
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     keepdim = node.args[2]
-    dims = [int(x) for x in node.args[1]]
+    dims = [x for x in node.args[1]]
     if isinstance(dims, int):
         dims = [dims]
 
-    act = [int(x) for x in ir.RankedTensorType(input_tensor.type).shape]
-    for i, d in enumerate(dims):
-        if d < 0:
-            dims[i] = d + len(act)
-
-    # PyTorch dims are NCHW; remap when SSA stuck in NHWC.
-    out_meta = [int(x) for x in node.tensor_meta["shape"]]
-    if len(out_meta) == 4 or len(out_meta) == 2:
-        c_meta = out_meta[1]
-    elif len(out_meta) == 1:
-        c_meta = out_meta[0]
-    else:
-        c_meta = None
-    if (
-        c_meta is not None
-        and len(act) == 4
-        and act[3] == c_meta
-        and act[1] != c_meta
-    ):
-        dims = [{0: 0, 1: 3, 2: 1, 3: 2}[d] for d in dims]
-    elif c_meta is not None and len(act) == 4 and act[1] != c_meta:
-        raise RuntimeError(
-            f"mean layout mismatch: ssa={act} out_meta={out_meta}"
-        )
+    for dim_item_idx, _ in enumerate(dims):
+        if dims[dim_item_idx] < 0:
+            dims[dim_item_idx] += len(
+                ir.RankedTensorType(input_tensor.type).shape
+            )
 
     reduce_sum_result = input_tensor
     for dim_item in dims:
@@ -5919,10 +5656,8 @@ def hardswish_op(node: HardswishOp, symbol_table):
     relu6_result = tosa.ClampOp(
         result_type,
         x_plus_3.result,
-        min_fp=ir.FloatAttr.get(input_dtype, 0.0),
-        max_fp=ir.FloatAttr.get(input_dtype, 6.0),
-        min_int=ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 0),
-        max_int=ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 6),
+        ir.FloatAttr.get(input_dtype, 0.0),
+        ir.FloatAttr.get(input_dtype, 6.0),
     )
 
     # x * relu6(x + 3)
@@ -6024,7 +5759,7 @@ def stack_op(node: StackOp, symbol_table):
     output_shape = new_shape[:dim] + [len(input_list)] + new_shape[dim + 1 :]
     result_type = ir.RankedTensorType.get(output_shape, input_dtype)
 
-    return tosa.ConcatOp(result_type, unsqueezed_list, dim)
+    return tosa.ConcatOp(unsqueezed_list, dim)
 
 
 def lerp_op(node: LerpOp, symbol_table):
@@ -6991,21 +6726,9 @@ def alias_op(node: AliasOp, symbol_table):
     if input_shape == output_shape and input_dtype == output_dtype:
         return input1
 
-    # Sticky NHWC: alias must not invent NCHW type via identity.
-    if len(input_shape) == 4 and len(output_shape) == 4:
-        ns = [int(x) for x in input_shape]
-        nw = [int(x) for x in output_shape]
-        if ns == [nw[0], nw[2], nw[3], nw[1]]:
-            return input1
-        if nw == [ns[0], ns[2], ns[3], ns[1]]:
-            out_ty = ir.RankedTensorType.get(nw, output_dtype)
-            return tosa.TransposeOp(
-                out_ty, input1, _create_permutation_attr([0, 2, 3, 1])
-            ).result
-
-    raise RuntimeError(
-        f"alias shape/layout mismatch: ssa={input_shape} meta={output_shape}"
-    )
+    return tosa.IdentityOp(
+        ir.RankedTensorType.get(output_shape, output_dtype), input1
+    ).result
 
 
 def max_dim_op(node: MaxDimOp, symbol_table):
@@ -7844,23 +7567,6 @@ def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
     return output, mean_output, rstd_output
 
 
-def _bn_channel_and_broadcast(input_shape, channel_param):
-    shape = [int(x) for x in input_shape]
-    c = int(list(ir.RankedTensorType(channel_param.type).shape)[0])
-    if len(shape) == 4:
-        if shape[1] == c:
-            return c, [1, c, 1, 1]
-        if shape[3] == c:
-            return c, [1, 1, 1, c]
-        raise RuntimeError(f"BN channel {c} mismatch with 4D shape {shape}")
-    if len(shape) >= 2:
-        if shape[1] == c:
-            return c, [1, c] + [1] * (len(shape) - 2)
-        if shape[-1] == c:
-            return c, [1] * (len(shape) - 1) + [c]
-    raise RuntimeError(f"BN channel {c} mismatch with shape {shape}")
-
-
 def native_batch_norm_legit_op(node, symbol_table):
     """
     Import the native batch norm legit operation.
@@ -7907,12 +7613,9 @@ def native_batch_norm_legit_op(node, symbol_table):
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
 
-    channel_ref = running_mean or weight or bias
-    if channel_ref is None:
-        raise RuntimeError("batch norm needs running_mean, weight, or bias")
-    C, broadcast_shape = _bn_channel_and_broadcast(input_shape, channel_ref)
-    N = input_shape[0]
-    spatial_dims = input_shape[2:]
+    N = input_shape[0]  # batch size
+    C = input_shape[1]  # channels
+    spatial_dims = input_shape[2:]  # H, W, D, etc.
     spatial_size = 1
     for d in spatial_dims:
         spatial_size *= d
@@ -7922,6 +7625,8 @@ def native_batch_norm_legit_op(node, symbol_table):
         mean = running_mean
         var = running_var
 
+        # Create appropriate broadcast shape for mean/var: (1, C, 1, 1, ...)
+        broadcast_shape = [1, C] + [1] * len(spatial_dims)
         scalar_broadcast_shape = [1] * len(input_shape)  # for scalars like eps
 
         mean_broadcast = tosa.ReshapeOp(
@@ -7997,26 +7702,9 @@ def native_batch_norm_legit_op(node, symbol_table):
         return output, save_mean, save_invstd
 
     # Training mode: compute batch statistics
-    train_input = input_tensor
-    train_shape = list(input_shape)
-    if len(train_shape) == 4 and train_shape[3] == C:
-        nchw_shape = [train_shape[0], C, train_shape[1], train_shape[2]]
-        train_input = tosa.TransposeOp(
-            ir.RankedTensorType.get(nchw_shape, input_dtype),
-            input_tensor,
-            _create_permutation_attr([0, 3, 1, 2]),
-        ).result
-        train_shape = nchw_shape
-    elif not (len(train_shape) >= 2 and train_shape[1] == C):
-        raise RuntimeError(
-            f"BN training layout mismatch: shape={input_shape} C={C}"
-        )
-    N = train_shape[0]
-    spatial_size = 1
-    for d in train_shape[2:]:
-        spatial_size *= d
+    # Reshape to (N, C, spatial_size) for easier reduction
     reshaped_input = tosa.ReshapeOp(
-        train_input, _create_shape_operand([N, C, spatial_size])
+        input_tensor, _create_shape_operand([N, C, spatial_size])
     ).result
 
     # Compute mean: reduce over N and spatial dimensions
@@ -8102,17 +7790,12 @@ def native_batch_norm_legit_op(node, symbol_table):
     ).result
 
     # Reshape back to original shape
-    train_shape_operand = _create_shape_operand(train_shape)
-    output = tosa.ReshapeOp(normalized_3d, train_shape_operand).result
-    if list(input_shape) != train_shape:
-        output = tosa.TransposeOp(
-            ir.RankedTensorType.get(input_shape, input_dtype),
-            output,
-            _create_permutation_attr([0, 2, 3, 1]),
-        ).result
+    input_shape_operand = _create_shape_operand(input_shape)
+    output = tosa.ReshapeOp(normalized_3d, input_shape_operand).result
 
     # Apply weight (gamma)
     if weight is not None:
+        broadcast_shape = [1, C] + [1] * len(spatial_dims)
         broadcast_shape_operand = _create_shape_operand(broadcast_shape)
         weight_broadcast = tosa.ReshapeOp(
             weight, broadcast_shape_operand
@@ -8126,6 +7809,7 @@ def native_batch_norm_legit_op(node, symbol_table):
 
     # Apply bias (beta)
     if bias is not None:
+        broadcast_shape = [1, C] + [1] * len(spatial_dims)
         broadcast_shape_operand = _create_shape_operand(broadcast_shape)
         bias_broadcast = tosa.ReshapeOp(bias, broadcast_shape_operand).result
         output = tosa.AddOp(
@@ -8170,32 +7854,17 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
 
-    channel_ref = weight or bias
-    if channel_ref is None:
-        raise RuntimeError("batch norm no_stats needs weight or bias")
-    C, broadcast_shape = _bn_channel_and_broadcast(input_shape, channel_ref)
-
-    train_input = input_tensor
-    train_shape = list(input_shape)
-    if len(train_shape) == 4 and train_shape[3] == C:
-        nchw_shape = [train_shape[0], C, train_shape[1], train_shape[2]]
-        train_input = tosa.TransposeOp(
-            ir.RankedTensorType.get(nchw_shape, input_dtype),
-            input_tensor,
-            _create_permutation_attr([0, 3, 1, 2]),
-        ).result
-        train_shape = nchw_shape
-    elif not (len(train_shape) >= 2 and train_shape[1] == C):
-        raise RuntimeError(
-            f"BN no_stats layout mismatch: shape={input_shape} C={C}"
-        )
-    N = train_shape[0]
+    N = input_shape[0]  # batch size
+    C = input_shape[1]  # channels
+    spatial_dims = input_shape[2:]  # H, W, D, etc.
     spatial_size = 1
-    for d in train_shape[2:]:
+    for d in spatial_dims:
         spatial_size *= d
 
+    # Always compute batch statistics (no running stats)
+    # Reshape to (N, C, spatial_size) for easier reduction
     reshaped_shape_operand = _create_shape_operand([N, C, spatial_size])
-    reshaped_input = tosa.ReshapeOp(train_input, reshaped_shape_operand).result
+    reshaped_input = tosa.ReshapeOp(input_tensor, reshaped_shape_operand).result
 
     # Compute mean: reduce over N and spatial dimensions
     axis_attr_2 = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 2)
@@ -8283,17 +7952,12 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
     ).result
 
     # Reshape back to original shape
-    train_shape_operand = _create_shape_operand(train_shape)
-    output = tosa.ReshapeOp(normalized_3d, train_shape_operand).result
-    if list(input_shape) != train_shape:
-        output = tosa.TransposeOp(
-            ir.RankedTensorType.get(input_shape, input_dtype),
-            output,
-            _create_permutation_attr([0, 2, 3, 1]),
-        ).result
+    input_shape_operand = _create_shape_operand(input_shape)
+    output = tosa.ReshapeOp(normalized_3d, input_shape_operand).result
 
     # Apply weight (gamma)
     if weight is not None:
+        broadcast_shape = [1, C] + [1] * len(spatial_dims)
         broadcast_shape_operand = _create_shape_operand(broadcast_shape)
         weight_broadcast = tosa.ReshapeOp(
             weight, broadcast_shape_operand
@@ -8307,6 +7971,7 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
 
     # Apply bias (beta)
     if bias is not None:
+        broadcast_shape = [1, C] + [1] * len(spatial_dims)
         broadcast_shape_operand = _create_shape_operand(broadcast_shape)
         bias_broadcast = tosa.ReshapeOp(bias, broadcast_shape_operand).result
         output = tosa.AddOp(
@@ -8352,12 +8017,12 @@ def native_batch_norm_legit_no_training_op(node, symbol_table):
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
 
-    channel_ref = running_mean or weight or bias
-    if channel_ref is None:
-        raise RuntimeError("batch norm needs running_mean, weight, or bias")
-    C, broadcast_shape = _bn_channel_and_broadcast(input_shape, channel_ref)
+    N = input_shape[0]  # batch size
+    C = input_shape[1]  # channels
+    spatial_dims = input_shape[2:]  # H, W, D, etc.
 
     # Inference mode: use running statistics
+    broadcast_shape = [1, C] + [1] * len(spatial_dims)
     scalar_broadcast_shape = [1] * len(input_shape)  # for scalars like eps
 
     broadcast_shape_operand = _create_shape_operand(broadcast_shape)
@@ -8584,16 +8249,7 @@ def upsample_bilinear2d_vec_op(node, symbol_table):
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
 
-    channels = int(list(node.tensor_meta["shape"])[1])
-    src = node.args[0]
-    nchw_meta = (
-        list(src.tensor_meta["shape"])
-        if hasattr(src, "tensor_meta") and "shape" in src.tensor_meta
-        else None
-    )
-    input_tensor, N, H_in, W_in, C = _to_nhwc(
-        input_tensor, channels, input_dtype, nchw_meta
-    )
+    N, C, H_in, W_in = input_shape
 
     # Determine output size
     if output_size is not None:
@@ -8603,6 +8259,12 @@ def upsample_bilinear2d_vec_op(node, symbol_table):
         W_out = int(W_in * scale_factors[1])
     else:
         raise ValueError("Either output_size or scale_factors must be provided")
+
+    # Convert NCHW to NHWC for TOSA
+    perm_to_nhwc = [0, 2, 3, 1]
+    perm_attr_nhwc = _create_permutation_attr(perm_to_nhwc)
+    nhwc_type = ir.RankedTensorType.get([N, H_in, W_in, C], input_dtype)
+    nhwc_input = tosa.TransposeOp(nhwc_type, input_tensor, perm_attr_nhwc)
 
     # Calculate scale for TOSA resize
     # TOSA scale format: [scale_y_n, scale_y_d, scale_x_n, scale_x_d]
@@ -8619,18 +8281,25 @@ def upsample_bilinear2d_vec_op(node, symbol_table):
     border_attr = ir._denseI64ArrayAttr([0, 0], None)
     mode_attr = ir.StringAttr.get("BILINEAR")
 
-    # Apply resize in NHWC format; keep NHWC output.
+    # Apply resize in NHWC format
     nhwc_out_type = ir.RankedTensorType.get([N, H_out, W_out, C], input_dtype)
     resized = tosa.ResizeOp(
         nhwc_out_type,
-        input_tensor,
+        nhwc_input.result,
         scale_attr,
         offset_attr,
         border_attr,
         mode_attr,
     )
 
-    return resized
+    # Convert back to NCHW
+    perm_to_nchw = [0, 3, 1, 2]
+    perm_attr_nchw = _create_permutation_attr(perm_to_nchw)
+    out_shape = [N, C, H_out, W_out]
+    result_type = ir.RankedTensorType.get(out_shape, input_dtype)
+    output = tosa.TransposeOp(result_type, resized.result, perm_attr_nchw)
+
+    return output
 
 
 def upsample_nearest2d_vec_op(node, symbol_table):
@@ -8647,18 +8316,10 @@ def upsample_nearest2d_vec_op(node, symbol_table):
         node.args[2] if len(node.args) > 2 else None
     )  # [scale_h, scale_w] or None
 
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
 
-    channels = int(list(node.tensor_meta["shape"])[1])
-    src = node.args[0]
-    nchw_meta = (
-        list(src.tensor_meta["shape"])
-        if hasattr(src, "tensor_meta") and "shape" in src.tensor_meta
-        else None
-    )
-    input_tensor, N, H_in, W_in, C = _to_nhwc(
-        input_tensor, channels, input_dtype, nchw_meta
-    )
+    N, C, H_in, W_in = input_shape
 
     # Determine output size
     if output_size is not None:
@@ -8669,20 +8330,44 @@ def upsample_nearest2d_vec_op(node, symbol_table):
     else:
         raise ValueError("Either output_size or scale_factors must be provided")
 
-    scale_attr = ir._denseI64ArrayAttr([H_out, H_in, W_out, W_in], None)
+    # Convert NCHW to NHWC for TOSA
+    perm_to_nhwc = [0, 2, 3, 1]
+    perm_attr_nhwc = _create_permutation_attr(perm_to_nhwc)
+    nhwc_type = ir.RankedTensorType.get([N, H_in, W_in, C], input_dtype)
+    nhwc_input = tosa.TransposeOp(nhwc_type, input_tensor, perm_attr_nhwc)
+
+    # Calculate scale for TOSA resize
+    scale_y_n = H_out
+    scale_y_d = H_in
+    scale_x_n = W_out
+    scale_x_d = W_in
+
+    scale_attr = ir._denseI64ArrayAttr(
+        [scale_y_n, scale_y_d, scale_x_n, scale_x_d], None
+    )
     offset_attr = ir._denseI64ArrayAttr([0, 0], None)
     border_attr = ir._denseI64ArrayAttr([0, 0], None)
     mode_attr = ir.StringAttr.get("NEAREST")
 
+    # Apply resize in NHWC format
     nhwc_out_type = ir.RankedTensorType.get([N, H_out, W_out, C], input_dtype)
-    return tosa.ResizeOp(
+    resized = tosa.ResizeOp(
         nhwc_out_type,
-        input_tensor,
+        nhwc_input.result,
         scale_attr,
         offset_attr,
         border_attr,
         mode_attr,
     )
+
+    # Convert back to NCHW
+    perm_to_nchw = [0, 3, 1, 2]
+    perm_attr_nchw = _create_permutation_attr(perm_to_nchw)
+    out_shape = [N, C, H_out, W_out]
+    result_type = ir.RankedTensorType.get(out_shape, input_dtype)
+    output = tosa.TransposeOp(result_type, resized.result, perm_attr_nchw)
+
+    return output
 
 
 def upsample_trilinear3d_op(node, symbol_table):
@@ -14988,6 +14673,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
 # Import func ops registry for CallOp support
 
 ops_registry = {
+    "WhereOp": where_op,
     "AddOp": add_op,
     "AddCMulOp": addcmul_op,
     "MulOp": mul_op,

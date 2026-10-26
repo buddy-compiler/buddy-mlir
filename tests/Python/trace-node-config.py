@@ -35,7 +35,7 @@ tensor = false
         SimpleNamespace(name=name, trace_meta=None)
         for name in trace.trace_config
     ]
-    trace_insertion(trace)(SimpleNamespace(body=nodes))
+    trace_insertion(trace)(SimpleNamespace(body=nodes, _ops_registry={}))
     for node in nodes:
         print(node.name, node.trace_meta)
     # CHECK: conv {{.*}}'cycle': True, 'tensor': False
@@ -49,7 +49,7 @@ tensor = false
         print(error)
     else:
         raise AssertionError("missing tensor choice accepted")
-    # CHECK: trace node requires node, id, tag, cycle and tensor
+    # CHECK: trace tensor for conv must be a boolean
 
     trace.trace_config["unknown"] = {
         "id": 3,
@@ -58,7 +58,7 @@ tensor = false
         "tensor": False,
     }
     try:
-        trace_insertion(trace)(SimpleNamespace(body=nodes))
+        trace_insertion(trace)(SimpleNamespace(body=nodes, _ops_registry={}))
     except KeyError as error:
         print(error)
     else:

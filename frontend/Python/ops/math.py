@@ -194,69 +194,14 @@ def floor_op(node, symbol_table):
 
 
 def round_op(node, symbol_table):
-    """torch.round(x) with half-to-even (banker's rounding).
-
-    Note: MLIR's math.round semantics may differ for half values, so implement
-    PyTorch behavior while keeping a math.round op for IR checks.
-    """
+    """Round to nearest with ties to even, matching torch.round."""
     import buddy_mlir.ir as ir
-    import buddy_mlir.dialects.arith as arith
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
-    input_type = ir.RankedTensorType(input_tensor.type)
-    element_type = input_type.element_type
-    if not str(element_type).startswith("f"):
+    element_type = ir.RankedTensorType(input_tensor.type).element_type
+    if isinstance(element_type, ir.IntegerType):
         return input_tensor
-
-    # Keep an unused math.round op so existing FileCheck patterns still match.
-    _unused = math.RoundOp(input_tensor)
-
-    shape = list(input_type.shape)
-    tensor_type = ir.RankedTensorType.get(shape, element_type)
-    zero = arith.ConstantOp(
-        tensor_type,
-        ir.DenseElementsAttr.get_splat(
-            tensor_type, ir.FloatAttr.get(element_type, 0.0)
-        ),
-    ).result
-    half = arith.ConstantOp(
-        tensor_type,
-        ir.DenseElementsAttr.get_splat(
-            tensor_type, ir.FloatAttr.get(element_type, 0.5)
-        ),
-    ).result
-    one = arith.ConstantOp(
-        tensor_type,
-        ir.DenseElementsAttr.get_splat(
-            tensor_type, ir.FloatAttr.get(element_type, 1.0)
-        ),
-    ).result
-
-    y = math.FloorOp(input_tensor).result
-    frac = arith.SubFOp(input_tensor, y).result
-
-    gt_half = arith.CmpFOp(arith.CmpFPredicate.OGT, frac, half).result
-    lt_half = arith.CmpFOp(arith.CmpFPredicate.OLT, frac, half).result
-    y_plus1 = arith.AddFOp(y, one).result
-
-    # Half case: choose y if y is even else y+1.
-    i64 = ir.IntegerType.get_signless(64)
-    i64_tensor = ir.RankedTensorType.get(shape, i64)
-    y_int = arith.FPToSIOp(i64_tensor, y).result
-    one_i64 = arith.ConstantOp(
-        i64_tensor,
-        ir.DenseElementsAttr.get_splat(i64_tensor, ir.IntegerAttr.get(i64, 1)),
-    ).result
-    zero_i64 = arith.ConstantOp(
-        i64_tensor,
-        ir.DenseElementsAttr.get_splat(i64_tensor, ir.IntegerAttr.get(i64, 0)),
-    ).result
-    lsb = arith.AndIOp(y_int, one_i64).result
-    is_even = arith.CmpIOp(arith.CmpIPredicate.eq, lsb, zero_i64).result
-    half_case = arith.SelectOp(is_even, y, y_plus1).result
-
-    tmp = arith.SelectOp(lt_half, y, half_case).result
-    return arith.SelectOp(gt_half, y_plus1, tmp).result
+    return math.RoundEvenOp(input_tensor)
 
 
 def trunc_op(node, symbol_table):

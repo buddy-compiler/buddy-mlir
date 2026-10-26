@@ -124,6 +124,7 @@ def RHAL_CodeobjOp : RHAL_Op<"codeobj", [SymbolName, SymbolVisibility, Symbol]> 
     - `kind`:    "host_shared_lib" — dlopen-able shared library
     - `backend`: "cpu", "cuda", etc.
     - `uri`:     "file:X" → X resolved relative to the .rax file
+    - `entry_symbol`: exported entry point; omitted for dependency libraries
   }];
 
   let arguments = (ins
@@ -132,7 +133,8 @@ def RHAL_CodeobjOp : RHAL_Op<"codeobj", [SymbolName, SymbolVisibility, Symbol]> 
     I32Attr:$id,
     StrAttr:$kind,
     StrAttr:$backend,
-    StrAttr:$uri
+    StrAttr:$uri,
+    OptionalAttr<StrAttr>:$entry_symbol
   );
 
   let assemblyFormat = [{
@@ -183,8 +185,8 @@ def RHAL_FuncOp : RHAL_Op<"func", [SymbolName, SymbolVisibility, Symbol]> {
     - `inputs`:   buffer names that are function inputs
     - `outputs`:  buffer names that are function outputs
     - `dispatch`: name of the code object that provides this function
-    - `args`:     all buffer names passed as arguments to the kernel,
-                  in ABI order (inputs + state + outputs)
+    - `args`:     buffer or constant names passed as arguments to the kernel,
+                  in the code object's ABI order
   }];
 
   let arguments = (ins

@@ -34,9 +34,12 @@ from typing import Any
 import numpy as np
 import torch
 import torch._dynamo as dynamo
-from buddy_mlir import ir
 from buddy_mlir import runtime as rt
 from buddy_mlir.execution_engine import ExecutionEngine
+from torch._dynamo.source import (
+    ParamBufferSource,
+    UnspecializedParamBufferSource,
+)
 from torch._functorch.aot_autograd import aot_module_simplified
 from torch.fx.experimental.proxy_tensor import make_fx
 
@@ -761,6 +764,10 @@ class DynamoCompiler:
     def _resolve_call_function_node_name(self, target):
         """Map Python call_function targets to Buddy op names."""
         node_name = str(target.__name__)
+        # Custom operators keep their namespace; the caller registers them.
+        namespace = getattr(target, "namespace", None)
+        if namespace not in (None, "aten", "prims"):
+            return f"{namespace}.{node_name}"
         scalar_candidate = f"{node_name}.Scalar"
         if scalar_candidate in self._ops_map:
             return scalar_candidate
@@ -940,15 +947,27 @@ class DynamoCompiler:
         for i, node in enumerate(gm.graph.nodes):
             if i >= len(inputs):
                 break
-            if not str(node).startswith("l_self"):
-                inputs_pos.append(i)
-            elif "buffer" in str(node):
-                buffers_pos.append(i)
+            graph_arg = node.meta.get("grapharg")
+            source = graph_arg.source if graph_arg is not None else None
+            while source is not None:
+                if isinstance(
+                    source, (ParamBufferSource, UnspecializedParamBufferSource)
+                ):
+                    if source.member == "_buffers":
+                        buffers_pos.append(i)
+                    else:
+                        params_pos.append(i)
+                    break
+                source = getattr(source, "base", None)
             else:
-                params_pos.append(i)
+                inputs_pos.append(i)
 
         params_flat = [inputs[i] for i in params_pos + buffers_pos]
-        runtime_inputs_flat = [inputs[i] for i in inputs_pos]
+        runtime_inputs_flat = [
+            inputs[i]
+            for i in inputs_pos
+            if not isinstance(inputs[i], torch.SymInt)
+        ]
 
         if self._verbose:
             if self._verbose_path is None:
@@ -980,12 +999,34 @@ class DynamoCompiler:
             input_nodes = []
             other_nodes = []
             all_nodes = list(_gm.graph.nodes)
+            symbolic_sources = {}
+            for node in all_nodes:
+                value = node.meta.get("val")
+                if node.op != "placeholder" or not isinstance(
+                    value, torch.Tensor
+                ):
+                    continue
+                for operation, dimensions in (
+                    ("sym_stride.int", value.stride()),
+                    ("sym_size.int", value.shape),
+                ):
+                    for axis, dimension in enumerate(dimensions):
+                        if isinstance(dimension, torch.SymInt):
+                            symbolic_sources[dimension.node.expr] = (
+                                operation,
+                                node,
+                                axis,
+                            )
             # ===--------------------------------------------------
             # 2. Second traverse the graph
             # collect each type of nodes into the corresponding list.
             # ===--------------------------------------------------
             for i, node in enumerate(all_nodes):
-                if i in params_pos:
+                if node.op == "placeholder" and isinstance(
+                    node.meta.get("val"), torch.SymInt
+                ):
+                    other_nodes.append(node)
+                elif i in params_pos:
                     param_nodes.append(node)
                 elif i in buffers_pos:
                     buffers_nodes.append(node)
@@ -1021,17 +1062,34 @@ class DynamoCompiler:
                         ):
                             continue
                     if gm_node.op == "placeholder":
-                        node_dtype = self._torch_dtype_translate(
-                            str(gm_node.meta["tensor_meta"].dtype)
-                        )
-                        buddy_node = self._create_node(
-                            gm_node.op,
-                            gm_node.name,
-                            gm_node.args,
-                            node_users,
-                            gm_node.meta["tensor_meta"].shape,
-                            node_dtype,
-                        )
+                        value = gm_node.meta.get("val")
+                        if isinstance(value, torch.SymInt):
+                            operation, source, axis = symbolic_sources[
+                                value.node.expr
+                            ]
+                            buddy_node = self._create_node(
+                                operation,
+                                gm_node.name,
+                                (source, axis),
+                                node_users,
+                                [],
+                                TensorDType.Int64,
+                            )
+                            graph.node_table[source.name].add_children(
+                                buddy_node.name
+                            )
+                        else:
+                            node_dtype = self._torch_dtype_translate(
+                                str(gm_node.meta["tensor_meta"].dtype)
+                            )
+                            buddy_node = self._create_node(
+                                gm_node.op,
+                                gm_node.name,
+                                gm_node.args,
+                                node_users,
+                                gm_node.meta["tensor_meta"].shape,
+                                node_dtype,
+                            )
 
                     elif gm_node.op == "output":
                         buddy_node = self._create_node(
@@ -1160,6 +1218,8 @@ class DynamoCompiler:
                             self._extract_tensor_out_kwarg_names(gm_node.target)
                         )
                     buddy_node._source_meta = source_meta
+                    if isinstance(gm_node.meta.get("val"), torch.SymInt):
+                        buddy_node._symbolic_value = gm_node.meta["val"]
                     graph.add_node(node=buddy_node, node_type=node_type)
             # ===--------------------------------------------------
             # 5. Fifth traverse the graph
@@ -1373,32 +1433,7 @@ class DynamoCompiler:
 
             return os.path.join(lib_base_path, "libomp" + lib_extension)
 
-        graph.lower_to_top_level_ir()
-        module = graph._imported_module
-        with module.context:
-            function = next(
-                op
-                for op in module.body.operations
-                if op.operation.name == "func.func"
-            )
-            attributes = []
-            for argument in function.regions[0].blocks[0].arguments:
-                shape = list(ir.RankedTensorType(argument.type).shape)
-                strides = [
-                    int(np.prod(shape[index + 1 :]))
-                    for index in range(len(shape))
-                ]
-                attributes.append(
-                    ir.DictAttr.get(
-                        {
-                            "bufferization.buffer_layout": ir.Attribute.parse(
-                                f"strided<{strides}, offset: ?>"
-                            )
-                        }
-                    )
-                )
-            function.attributes["arg_attrs"] = ir.ArrayAttr.get(attributes)
-        graph.lower_to_llvm_ir()
+        graph.compile()
 
         # Collect dependency libraries.
         lib_extension = get_lib_extension()
@@ -1455,6 +1490,12 @@ class DynamoCompiler:
                 The result of executing the graph, represented as a list of
                 output tensors.
             """
+            expected_args = len(graph.params_shapes) + len(graph.inputs_shapes)
+            if len(args) != expected_args:
+                raise ValueError(
+                    f"Graph {graph._func_name} expects {expected_args} inputs, "
+                    f"got {len(args)}"
+                )
 
             def _bf16_tensor_to_numpy_uint16(
                 tensor: torch.Tensor,

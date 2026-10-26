@@ -27,7 +27,9 @@
 #include <cctype>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 namespace buddy {
 
@@ -292,6 +294,8 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, size_t length) {
 template <typename T, size_t N>
 void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
                               bool lower, bool affix) {
+  if (length < 2)
+    throw std::invalid_argument("BERT input requires space for CLS and SEP");
   // Initialize MemRef container members.
   this->offset = 0;
   this->sizes[0] = 1;
@@ -300,7 +304,7 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   size_t size = this->product(this->sizes);
   this->allocated = (T *)malloc(sizeof(T) * size);
   this->aligned = this->allocated;
-  this->pad = 102;
+  this->pad = 0;
   this->unk = 100;
   this->cls = 101;
   this->sep = 102;
@@ -310,17 +314,18 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   this->aligned[0] = cls;
   tokenCnt = 1;
   std::string token;
-  for (size_t i = 0; i < str.size(); i++) {
+  for (size_t i = 0; i < str.size() && tokenCnt < length - 1; i++) {
     char s = str[i];
     if (lower) {
-      s = tolower(s);
+      s = tolower(static_cast<unsigned char>(s));
     }
-    if (isspace(s) || ispunct(s) || isMutiBytesChar(s)) {
+    if (isspace(static_cast<unsigned char>(s)) ||
+        ispunct(static_cast<unsigned char>(s)) || isMutiBytesChar(s)) {
       if (!token.empty()) {
         processToken(token, tokenCnt, affix);
         token.clear();
       }
-      if (ispunct(s)) {
+      if (ispunct(static_cast<unsigned char>(s))) {
         token = s;
         processToken(token, tokenCnt, false);
         token.clear();
@@ -1092,6 +1097,8 @@ void Text<T, N>::loadVocab(const std::string &vocab) {
 template <typename T, size_t N>
 void Text<T, N>::processToken(const std::string &token, size_t &tokenCnt,
                               bool affix) {
+  if (tokenCnt >= static_cast<size_t>(this->sizes[1]) - 1)
+    return;
   if (affix) {
     tokenizeWithAffix(token, tokenCnt);
   } else {
@@ -1105,6 +1112,7 @@ void Text<T, N>::tokenizeWithAffix(const std::string &token, size_t &tokenCnt) {
     this->aligned[tokenCnt++] = unk;
     return;
   }
+  std::vector<T> pieces;
   size_t start = 0;
   while (start < token.size()) {
     std::string subToken = findLongestSubToken(token, start);
@@ -1112,8 +1120,13 @@ void Text<T, N>::tokenizeWithAffix(const std::string &token, size_t &tokenCnt) {
       this->aligned[tokenCnt++] = unk;
       return;
     }
-    this->aligned[tokenCnt++] = tokenToIdMap[subToken];
-    start += subToken.size();
+    pieces.push_back(tokenToIdMap[subToken]);
+    start += subToken.size() - (start > 0 ? 2 : 0);
+  }
+  for (T piece : pieces) {
+    if (tokenCnt >= static_cast<size_t>(this->sizes[1]) - 1)
+      break;
+    this->aligned[tokenCnt++] = piece;
   }
 }
 

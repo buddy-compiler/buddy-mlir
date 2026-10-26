@@ -22,6 +22,7 @@
 
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
+#include <cassert>
 #include <cstdlib>
 #include <string>
 
@@ -64,11 +65,11 @@ int main() {
   fprintf(stderr, "%ld\n", pureStrBertContainer.getData()[7]);
   // CHECK: 102
   fprintf(stderr, "%ld\n", pureStrBertContainer.getData()[8]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", pureStrBertContainer.getData()[9]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", pureStrBertContainer.getData()[10]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", pureStrBertContainer.getData()[11]);
 
   //===--------------------------------------------------------------------===//
@@ -97,9 +98,9 @@ int main() {
   fprintf(stderr, "%ld\n", puncStrBertContainer.getData()[8]);
   // CHECK: 102
   fprintf(stderr, "%ld\n", puncStrBertContainer.getData()[9]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", puncStrBertContainer.getData()[10]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", puncStrBertContainer.getData()[11]);
 
   //===--------------------------------------------------------------------===//
@@ -130,7 +131,7 @@ int main() {
   fprintf(stderr, "%ld\n", cornerStrContainer.getData()[9]);
   // CHECK: 102
   fprintf(stderr, "%ld\n", cornerStrContainer.getData()[10]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", cornerStrContainer.getData()[11]);
 
   //===--------------------------------------------------------------------===//
@@ -161,9 +162,9 @@ int main() {
   fprintf(stderr, "%ld\n", chineseStrBertContainer.getData()[8]);
   // CHECK: 102
   fprintf(stderr, "%ld\n", chineseStrBertContainer.getData()[9]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", chineseStrBertContainer.getData()[10]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", chineseStrBertContainer.getData()[11]);
   //===--------------------------------------------------------------------===//
   // Test text constructor for lower cases.
@@ -189,11 +190,11 @@ int main() {
   fprintf(stderr, "%ld\n", toLowerStrBertContainer.getData()[7]);
   // CHECK: 102
   fprintf(stderr, "%ld\n", toLowerStrBertContainer.getData()[8]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", toLowerStrBertContainer.getData()[9]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", toLowerStrBertContainer.getData()[10]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", toLowerStrBertContainer.getData()[11]);
   //===--------------------------------------------------------------------===//
   // Test text constructor for root and affix process.
@@ -213,23 +214,49 @@ int main() {
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[4]);
   // CHECK: 102
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[5]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[6]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[7]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[8]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[9]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[10]);
-  // CHECK: 102
+  // CHECK: 0
   fprintf(stderr, "%ld\n", affixStrBertContainer.getData()[11]);
   // The map of string-to-id used in the test cases:
   // bud: 8619, dy:4518, compiler: 6516, is: 338, a: 263, domain: 5354
   // specific: 2702, ":": 29901, "!": 29991
   //
   // Lit sets BUDDY_SRC_ROOT to the source tree root.
+  // WordPiece continuation prefixes do not consume input characters.
+  Text<size_t, 2> multiplePieces("colourlessless");
+  multiplePieces.tokenizeBert(vocabDir, 8, true, true);
+  assert(multiplePieces.getTokenCnt() == 5);
+  assert(multiplePieces.getData()[1] == 6120);
+  assert(multiplePieces.getData()[2] == 3238);
+  assert(multiplePieces.getData()[3] == 3238);
+  assert(multiplePieces.getData()[4] == 102);
+  assert(multiplePieces.getData()[5] == 0);
+  // An unmatched suffix makes the entire word unknown.
+  Text<size_t, 2> unknownPiece("colourless\x01");
+  unknownPiece.tokenizeBert(vocabDir, 8, true, true);
+  assert(unknownPiece.getTokenCnt() == 3);
+  assert(unknownPiece.getData()[1] == 100);
+  // Truncation reserves the final position for SEP.
+  Text<size_t, 2> truncated("buddy compiler is a domain");
+  truncated.tokenizeBert(vocabDir, 4, true, true);
+  assert(truncated.getTokenCnt() == 4);
+  assert(truncated.getData()[1] == 8937);
+  assert(truncated.getData()[2] == 21624);
+  assert(truncated.getData()[3] == 102);
+  Text<size_t, 2> truncatedWord("colourlessless");
+  truncatedWord.tokenizeBert(vocabDir, 3, true, true);
+  assert(truncatedWord.getTokenCnt() == 3);
+  assert(truncatedWord.getData()[1] == 6120);
+  assert(truncatedWord.getData()[2] == 102);
   vocabDir = testDir + "vocab_llama.txt";
   //===--------------------------------------------------------------------===//
   // Test text constructor for pure string using Llama tokenizer.

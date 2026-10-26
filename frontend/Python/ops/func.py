@@ -23,7 +23,7 @@ import functools
 from buddy_mlir import ir
 from buddy_mlir.dialects import func, memref
 
-from ..graph import CallExternalOp, CallOp, FuncOp, PlaceholderOp, TensorDType
+from ..graph import CallExternalOp, CallOp, FuncOp, PlaceholderOp
 from .utils import mlir_element_type_get
 
 
@@ -38,7 +38,9 @@ def func_op(node: FuncOp, symbol_table: dict[tuple[str, int], ir.Operation]):
         mlir_dtype = mlir_element_type_get(arg.dtype)
         stride = []
         for dim, _dim_size in enumerate(shape):
-            stride.append(functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1]))
+            stride.append(
+                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+            )
         memref_attr = ir.Attribute.parse(f"strided<{stride}, offset: ?>")
         arguments.append(ir.MemRefType.get(shape, mlir_dtype, memref_attr))
     results = []
@@ -98,7 +100,9 @@ def call_op(node: CallOp, symbol_table: dict[tuple[str, int], ir.Operation]):
         stride = []
         shape = memref_type.shape
         for dim, _dim_size in enumerate(shape):
-            stride.append(functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1]))
+            stride.append(
+                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+            )
         memref_attr = ir.Attribute.parse(f"strided<{stride}, offset: ?>")
         dest = ir.MemRefType.get(shape, memref_type.element_type, memref_attr)
         cast_op = memref.CastOp(dest, input_node)
@@ -112,7 +116,9 @@ def call_op(node: CallOp, symbol_table: dict[tuple[str, int], ir.Operation]):
     return op
 
 
-def call_external_op(node: CallExternalOp, symbol_table: dict[tuple[str, int], ir.Operation]):
+def call_external_op(
+    node: CallExternalOp, symbol_table: dict[tuple[str, int], ir.Operation]
+):
     """
     Import the buddy CallExternalOp for external library calls (e.g., oneDNN).
     From Buddy CallExternalOp to MLIR FUNC call operation.
@@ -130,7 +136,11 @@ def call_external_op(node: CallExternalOp, symbol_table: dict[tuple[str, int], i
         shape = node.tensor_meta["shape"]
         dtype = node.tensor_meta["dtype"]
 
-        if isinstance(shape, (list, tuple)) and len(shape) > 0 and isinstance(shape[0], (list, tuple)):
+        if (
+            isinstance(shape, (list, tuple))
+            and len(shape) > 0
+            and isinstance(shape[0], (list, tuple))
+        ):
             # Multiple outputs: shape is [[...], [...], ...]
             for i, s in enumerate(shape):
                 mlir_dtype = mlir_element_type_get(dtype[i])
@@ -165,14 +175,7 @@ def param_extract(
     Returns:
         op: The operation return the memref.expand_shape op.
     """
-    dtype_mapping = {
-        TensorDType.Float16: ir.F16Type.get(),
-        TensorDType.BFloat16: ir.BF16Type.get(),
-        TensorDType.Float32: ir.F32Type.get(),
-        TensorDType.Int8: ir.IntegerType.get_signless(8),
-        TensorDType.Int64: ir.IntegerType.get_signless(64),
-    }
-    memref_element_type = dtype_mapping[node.tensor_meta["dtype"]]
+    memref_element_type = mlir_element_type_get(node.tensor_meta["dtype"])
     is_scalar = len(node.tensor_meta["shape"]) == 0
     output_shape = [1] if is_scalar else list(node.tensor_meta["shape"])
     static_output_shape = ir.DenseI64ArrayAttr.get(output_shape)
@@ -185,7 +188,9 @@ def param_extract(
     if offset == 0:
         memref_type = ir.MemRefType.get([subview_size], memref_element_type)
     else:
-        memref_type = ir.MemRefType.get([subview_size], memref_element_type, memref_attr)
+        memref_type = ir.MemRefType.get(
+            [subview_size], memref_element_type, memref_attr
+        )
     memref_subview_op = memref.SubViewOp(
         memref_type,
         params_mlir_node,
@@ -197,8 +202,12 @@ def param_extract(
         stride_attr,
     )
     if is_scalar:
-        scalar_memref_attr = ir.Attribute.parse(f"strided<[], offset: {offset}>")
-        scalar_memref_type = ir.MemRefType.get([], memref_element_type, scalar_memref_attr if offset != 0 else None)
+        scalar_memref_attr = ir.Attribute.parse(
+            f"strided<[], offset: {offset}>"
+        )
+        scalar_memref_type = ir.MemRefType.get(
+            [], memref_element_type, scalar_memref_attr if offset != 0 else None
+        )
         scalar_subview_op = memref.SubViewOp(
             scalar_memref_type,
             params_mlir_node,
@@ -214,19 +223,28 @@ def param_extract(
         return memref_subview_op
     stride = []
     for dim, _dim_size in enumerate(output_shape):
-        stride.append(functools.reduce(lambda x, y: x * y, output_shape[dim + 1 :] + [1]))
+        stride.append(
+            functools.reduce(lambda x, y: x * y, output_shape[dim + 1 :] + [1])
+        )
     memref_attr = ir.Attribute.parse(f"strided<{stride}, offset: {offset}>")
     if offset == 0:
         memref_type = ir.MemRefType.get(output_shape, memref_element_type)
     else:
-        memref_type = ir.MemRefType.get(output_shape, memref_element_type, memref_attr)
+        memref_type = ir.MemRefType.get(
+            output_shape, memref_element_type, memref_attr
+        )
 
     axis = ir.ArrayAttr.get(
-        [ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i) for i in range(len(output_shape))],
+        [
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i)
+            for i in range(len(output_shape))
+        ],
         None,
     )
     axis = ir.ArrayAttr.get([axis], None)
-    expand_shape_op = memref.ExpandShapeOp(memref_type, memref_subview_op.result, axis, [], static_output_shape)
+    expand_shape_op = memref.ExpandShapeOp(
+        memref_type, memref_subview_op.result, axis, [], static_output_shape
+    )
     return expand_shape_op
 
 

@@ -104,6 +104,16 @@ struct RunConfig {
   int perplexityContext = 512;
   /// At most this many chunks (0: all).
   int perplexityChunks = 0;
+
+  /// Dataset directory for runners that support evaluation.
+  std::string datasetPath;
+
+  /// Output file or directory for image/video generation runners.
+  std::string outputPath;
+  /// Optional ending image for video generation.
+  std::string lastImagePath;
+  /// Number of denoising steps for generation runners.
+  int inferenceSteps = 30;
 };
 
 /// Abstract base class for model inference runners.

@@ -279,6 +279,10 @@ int main(int argc, char **argv) {
   int promptLength = 0;
   std::string audioPath;
   std::string imagePath;
+  std::string datasetPath;
+  std::string outputPath;
+  std::string lastImagePath;
+  int inferenceSteps = 30;
   int maxTokens = 4096;
   int batchSize = 0;
 
@@ -342,6 +346,20 @@ int main(int argc, char **argv) {
                  "Audio file for speech models (e.g. Whisper)")
       ->group("Inference");
   app.add_option("--image", imagePath, "Image file for vision-language models")
+      ->group("Inference");
+  app.add_option("--dataset", datasetPath, "Dataset directory for evaluation")
+      ->check(CLI::ExistingDirectory)
+      ->excludes("--image")
+      ->group("Inference");
+  app.add_option("--output", outputPath,
+                 "Output file or directory for generation")
+      ->group("Inference");
+  app.add_option("--last-image", lastImagePath,
+                 "Ending image for video generation")
+      ->check(CLI::ExistingFile)
+      ->group("Inference");
+  app.add_option("--steps", inferenceSteps, "Denoising steps for generation")
+      ->check(CLI::Range(1, 1000))
       ->group("Inference");
   app.add_option("--max-tokens", maxTokens, "Max generated tokens")
       ->group("Inference")
@@ -475,7 +493,8 @@ int main(int argc, char **argv) {
 
   // Speech and vision-language runs are driven by media inputs.
   if (prompt.empty() && prompts.empty() && audioPath.empty() &&
-      imagePath.empty() && !interactive && perplexityIdsPath.empty()) {
+      imagePath.empty() && datasetPath.empty() && !interactive &&
+      perplexityIdsPath.empty()) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
@@ -520,6 +539,10 @@ int main(int argc, char **argv) {
   cfg.audioPath = audioPath;
   cfg.promptLength = promptLength;
   cfg.imagePath = imagePath;
+  cfg.datasetPath = datasetPath;
+  cfg.outputPath = outputPath;
+  cfg.lastImagePath = lastImagePath;
+  cfg.inferenceSteps = inferenceSteps;
   cfg.maxNewTokens = maxTokens;
   cfg.batchSize = batchSize;
   cfg.samplerConfig.temperature = temperature;

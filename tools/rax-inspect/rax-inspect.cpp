@@ -233,7 +233,10 @@ int main(int argc, char **argv) {
       std::cout << "  [" << co->id() << "] @"
                 << (co->name() ? co->name()->c_str() : "?")
                 << "  kind=" << rhal::rax::EnumNameCodeObjectKind(co->kind())
-                << "  uri=" << (co->uri() ? co->uri()->c_str() : "") << "\n";
+                << "  uri=" << (co->uri() ? co->uri()->c_str() : "");
+      if (co->entry_symbol() && co->entry_symbol()->size())
+        std::cout << "  entry=" << co->entry_symbol()->c_str();
+      std::cout << "\n";
     }
 
     // Functions
@@ -242,6 +245,31 @@ int main(int argc, char **argv) {
     for (uint32_t i = 0; i < nFunc; ++i) {
       auto f = m->functions()->Get(i);
       std::cout << "  @" << (f->name() ? f->name()->c_str() : "?") << "\n";
+      if (!f->ops())
+        continue;
+      for (auto op : *f->ops()) {
+        auto dispatch = op->dispatch();
+        if (!dispatch)
+          continue;
+        std::cout << "    dispatch code_object=" << dispatch->code_object_id()
+                  << " args=[";
+        if (dispatch->args()) {
+          for (uint32_t j = 0; j < dispatch->args()->size(); ++j) {
+            if (j)
+              std::cout << ", ";
+            auto arg = dispatch->args()->Get(j);
+            if (arg->buffer_id())
+              std::cout << "buffer:" << arg->buffer_id();
+            else if (arg->constant_id())
+              std::cout << "constant:" << arg->constant_id();
+            else if (arg->scalar())
+              std::cout << "scalar";
+            else
+              std::cout << "unbound";
+          }
+        }
+        std::cout << "]\n";
+      }
     }
 
     if (hasPayload) {

@@ -38,13 +38,14 @@ def BuddyTrace_Dialect : Dialect {
 class BuddyTrace_Op<string mnemonic, list<Trait> traits = []> :
     Op<BuddyTrace_Dialect, mnemonic, traits>;
 
-def BuddyTrace_StartOp : BuddyTrace_Op<"start"> {
+def BuddyTrace_StartOp : BuddyTrace_Op<"start", [MemoryEffects<[MemWrite]>]> {
   let summary = "Start a traced region";
   let arguments = (ins I64Attr:$id, BoolAttr:$cycle, BoolAttr:$tensor, OptionalAttr<StrAttr>:$tag);
   let assemblyFormat = "attr-dict";
 }
 
-def BuddyTrace_EndOp : BuddyTrace_Op<"end", [SameOperandsAndResultType]> {
+def BuddyTrace_EndOp : BuddyTrace_Op<"end", [SameOperandsAndResultType,
+                                           MemoryEffects<[MemRead, MemWrite]>]> {
   let summary = "End a traced region and forward the traced value";
   let arguments = (ins AnyType:$input, I64Attr:$id, BoolAttr:$cycle, BoolAttr:$tensor,
                        OptionalAttr<StrAttr>:$tag);

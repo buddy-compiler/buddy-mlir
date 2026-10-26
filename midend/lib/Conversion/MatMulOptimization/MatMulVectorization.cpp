@@ -53,6 +53,8 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
+    if (cast<linalg::MatmulOp>(op).hasUserDefinedMaps())
+      return rewriter.notifyMatchFailure(op, "requires default indexing maps");
 
     // Create constant 0-7 values.
     const Value c0 =
@@ -328,6 +330,8 @@ void MatMulVectorizationPass::runOnOperation() {
                        scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
+  target.addDynamicallyLegalOp<linalg::MatmulOp>(
+      [](linalg::MatmulOp op) { return op.hasUserDefinedMaps(); });
 
   // Determine if scalable vectors are requested
   bool isScalable = (vectorType == "scalable");

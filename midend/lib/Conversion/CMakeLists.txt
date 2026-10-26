@@ -9,8 +9,6 @@ add_subdirectory(MatMulOptimization)
 add_subdirectory(TransposeOptimization)
 add_subdirectory(ConvOptimization)
 add_subdirectory(LowerVectorExp)
-add_subdirectory(LowerLinalgToTile)
-# Buckyball conversion passes moved to external dialects
 add_subdirectory(LowerGemmini)
 add_subdirectory(LowerLinalgToBOSCAME)
 add_subdirectory(LowerLinalgToGemmini)

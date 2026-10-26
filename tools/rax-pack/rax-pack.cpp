@@ -430,6 +430,7 @@ int main(int argc, char **argv) {
       CodeObjectKind kind;
       std::string backend;
       std::string uri;
+      std::string entrySymbol;
     };
     struct FuncRec {
       std::string name;
@@ -447,6 +448,7 @@ int main(int argc, char **argv) {
     // Walk the rhal.module body (single block)
     uint32_t nextBufId = 1;
     std::unordered_map<std::string, uint32_t> bufNameToId;
+    std::unordered_map<std::string, uint32_t> constNameToId;
 
     for (auto &op : rhalMod.getBody().front()) {
       if (auto co = mlir::dyn_cast<buddy::rhal::ConstantOp>(&op)) {
@@ -458,6 +460,7 @@ int main(int argc, char **argv) {
         r.storage = (co.getStorage() == "inline") ? ConstantStorage_Inline
                                                   : ConstantStorage_External;
         r.uri = co.getUri().str();
+        constNameToId[r.name] = r.id;
         constants.push_back(std::move(r));
 
       } else if (auto co = mlir::dyn_cast<buddy::rhal::CodeobjOp>(&op)) {
@@ -467,6 +470,8 @@ int main(int argc, char **argv) {
         r.kind = parseCodeKind(co.getKind());
         r.backend = co.getBackend().str();
         r.uri = co.getUri().str();
+        if (auto entry = co.getEntrySymbolAttr())
+          r.entrySymbol = entry.getValue().str();
         codeobjs.push_back(std::move(r));
 
       } else if (auto bo = mlir::dyn_cast<buddy::rhal::BufferOp>(&op)) {
@@ -607,12 +612,11 @@ int main(int argc, char **argv) {
     std::unordered_map<std::string, uint32_t> codeNameToId;
     for (auto &r : codeobjs) {
       codeNameToId[r.name] = r.id;
-      fbCodes.push_back(CreateCodeObject(b, r.id, b.CreateString(r.name),
-                                         r.kind,
-                                         0, // inline data
-                                         b.CreateString(r.uri),
-                                         b.CreateString(""), // entry
-                                         b.CreateString(r.backend), 0));
+      fbCodes.push_back(
+          CreateCodeObject(b, r.id, b.CreateString(r.name), r.kind,
+                           0, // inline data
+                           b.CreateString(r.uri), b.CreateString(r.entrySymbol),
+                           b.CreateString(r.backend), 0));
     }
 
     // Functions
@@ -625,14 +629,22 @@ int main(int argc, char **argv) {
                                  "'");
       uint32_t codeId = codeIt->second;
 
-      // Build dispatch arg list (buffer name → id)
+      // Preserve ABI order while binding buffers and constants to their IDs.
       std::vector<flatbuffers::Offset<Arg>> dispArgs;
       for (auto &name : fr.args) {
-        auto it = bufNameToId.find(name);
-        if (it == bufNameToId.end())
+        if (auto it = bufNameToId.find(name); it != bufNameToId.end()) {
+          dispArgs.push_back(CreateArg(b, it->second, 0, 0, 0));
+        } else if (auto it = constNameToId.find(name);
+                   it != constNameToId.end()) {
+          if (it->second == 0)
+            throw std::runtime_error("rhal.func @" + fr.name + ": constant '" +
+                                     name + "' uses reserved id 0");
+          dispArgs.push_back(CreateArg(b, 0, it->second, 0, 0));
+        } else {
           throw std::runtime_error("rhal.func @" + fr.name +
-                                   ": unknown buffer '" + name + "' in args");
-        dispArgs.push_back(CreateArg(b, it->second, 0, 0, 0));
+                                   ": unknown buffer or constant '" + name +
+                                   "' in args");
+        }
       }
 
       // grid/block: (1,1,1) for CPU kernels

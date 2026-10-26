@@ -28,6 +28,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Target/LLVMIR/Dialect/All.h"
+#include "mlir/Tools/Plugins/PassPlugin.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
@@ -46,21 +48,15 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
-#include "Tile/TileDialect.h"
-#include "Tile/TileOps.h"
-#include "Trace/TraceDialect.h"
-#include "Trace/TraceOps.h"
-#include "Trace/Transforms/BufferizableOpInterfaceImpl.h"
-#ifdef BUDDY_EXTERNAL_DIALECTS
-#include "Dialect/Buckyball/BuckyballDialect.h"
-#include "Dialect/Buckyball/BuckyballOps.h"
-#endif
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
 #include "IME/IMEDialect.h"
 #include "IME/IMEOps.h"
 #include "RVV/RVVDialect.h"
+#include "Trace/TraceDialect.h"
+#include "Trace/TraceOps.h"
+#include "Trace/Transforms/BufferizableOpInterfaceImpl.h"
 #include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
@@ -105,15 +101,6 @@ void registerConvNhwcFhwcOptimizePass();
 void registerConvNhwcFhwcTileOptimizePass();
 void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
-void registerLowerLinalgToTilePass();
-#ifdef BUDDY_EXTERNAL_DIALECTS
-void registerLowerTileToBuckyballPass();
-void registerLowerBuckyballToBankSSAPass();
-void registerAssignPhysicalBanksPass();
-void registerReportBankUsagePass();
-void registerLowerBuckyballPass();
-void registerLowerBankSSAToIntrinsicsPass();
-#endif
 void registerLowerGemminiPass();
 void registerLowerLinalgToBOSCAMEPass();
 void registerLowerLinalgToGemminiPass();
@@ -143,6 +130,27 @@ void registerConvertTraceToLLVMPass();
 } // namespace mlir
 
 int main(int argc, char **argv) {
+  // Pass plugins register before MlirOptMain builds its pass options, so their
+  // passes can be named on the command line like built-in ones.
+  std::vector<char *> args;
+  for (int i = 0; i < argc; ++i) {
+    llvm::StringRef arg(argv[i]);
+    if (!arg.consume_front("--load-pass-plugin=") &&
+        !arg.consume_front("-load-pass-plugin=")) {
+      args.push_back(argv[i]);
+      continue;
+    }
+    auto plugin = mlir::PassPlugin::load(arg.str());
+    if (!plugin) {
+      llvm::errs() << "Failed to load passes from '" << arg
+                   << "': " << llvm::toString(plugin.takeError()) << "\n";
+      return 1;
+    }
+    plugin->registerPassRegistryCallbacks();
+  }
+  argc = args.size();
+  argv = args.data();
+
   // Register all MLIR passes.
   mlir::registerAllPasses();
   mlir::buddy::registerPointwiseConvToGemmPass();
@@ -160,15 +168,6 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDAPVectorizePass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
-  mlir::buddy::registerLowerLinalgToTilePass();
-#ifdef BUDDY_EXTERNAL_DIALECTS
-  mlir::buddy::registerLowerTileToBuckyballPass();
-  mlir::buddy::registerLowerBuckyballToBankSSAPass();
-  mlir::buddy::registerAssignPhysicalBanksPass();
-  mlir::buddy::registerReportBankUsagePass();
-  mlir::buddy::registerLowerBuckyballPass();
-  mlir::buddy::registerLowerBankSSAToIntrinsicsPass();
-#endif
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToBOSCAMEPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
@@ -226,6 +225,7 @@ int main(int argc, char **argv) {
   // Register all MLIR core dialects.
   registerAllDialects(registry);
   mlir::registerAllExtensions(registry);
+  mlir::registerAllGPUToLLVMIRTranslations(registry);
   buddy::trace::registerBufferizableOpInterfaceExternalModels(registry);
   // Register dialects in buddy-mlir project.
   // clang-format off
@@ -239,13 +239,9 @@ int main(int argc, char **argv) {
                   buddy::boscame::BOSCAMEDialect,
                   buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
-                  buddy::tile::TileDialect,
                   buddy::trace::BuddyTraceDialect,
                   buddy::ime::IMEDialect>();
   // clang-format on
-#ifdef BUDDY_EXTERNAL_DIALECTS
-  registry.insert<buddy::buckyball::BuckyballDialect>();
-#endif
 
   mlir::buddy::registerBuddyGPUTransformOps(registry);
 

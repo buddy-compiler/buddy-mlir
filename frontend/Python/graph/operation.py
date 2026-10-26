@@ -89,6 +89,7 @@ class Op:
         self._args_index = []
         self._trace_meta = None
         self._source_meta: tuple[SourceMeta, ...] = ()
+        self._symbolic_value = None
 
     def add_argument(self, arg, arg_index=0):
         """
@@ -144,6 +145,10 @@ class Op:
     @property
     def parents(self):
         return self._parents
+
+    @property
+    def children(self):
+        return self._children
 
     @property
     def kwargs(self):
@@ -478,72 +483,6 @@ class QuantizedAddMMOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
-
-
-class MegaKernelOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReduceType
-
-
-class MegaMatmulOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReduceType
-
-
-class MegaConv2dOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReduceType
-
-
-class MegaConv2dDepthwiseOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReduceType
-
-
-class MegaMaxPool2dOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReduceType
-
-
-class MegaGlobalAvgPoolOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReduceType
-
-
-class MegaChannelSliceOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReshapeType
-
-
-class MegaChannelConcatOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ConcatType
-
-
-class MegaResizeNearestOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReshapeType
-
-
-class MegaInt8MulOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ElementwiseType
-
-
-class MegaInt8AddOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ElementwiseType
 
 
 class AmaxOp(Op):

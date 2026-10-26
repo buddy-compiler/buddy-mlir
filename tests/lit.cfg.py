@@ -85,6 +85,8 @@ tools = [
     "buddy-opt",
     "buddy-translate",
     "buddy-llc",
+    "rax-pack",
+    "rax-inspect",
     "buddy-container-test",
     "buddy-audio-container-test",
     "buddy-text-container-test",
