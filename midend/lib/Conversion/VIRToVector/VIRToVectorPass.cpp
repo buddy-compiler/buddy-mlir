@@ -1746,6 +1746,26 @@ private:
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
+    // A memref of i1 holds a byte per element, a vector of i1 a bit per
+    // lane: fixed i1 accesses are scalarized per lane, which a scalable
+    // vector (N * vscale lanes) cannot be yet.
+    if (targetVectorType.isScalable()) {
+      WalkResult i1Access = region.walk([](Operation *access) {
+        Value base;
+        if (auto load = dyn_cast<vir::LoadOp>(access))
+          base = load.getBase();
+        else if (auto store = dyn_cast<vir::StoreOp>(access))
+          base = store.getBase();
+        if (!base ||
+            !cast<MemRefType>(base.getType()).getElementType().isInteger(1))
+          return WalkResult::advance();
+        access->emitError("a memref of i1 needs fixed vectors");
+        return WalkResult::interrupt();
+      });
+      if (i1Access.wasInterrupted())
+        return failure();
+    }
+
     //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
     //===------------------------------------------------------------------===//
