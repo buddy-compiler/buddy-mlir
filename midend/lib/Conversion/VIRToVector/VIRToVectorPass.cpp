@@ -139,7 +139,8 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
 /// (Req_Group, the most dynamic vectors live at once) and the vector
 /// registers of the target: with `rvvVlen` (bits, > 0), a RISC-V Vector
 /// target with 32 registers of that VLEN, whatever the host; otherwise the
-/// host's registers.
+/// host's registers. With `useScalable` (RVV only), the vector is scalable
+/// and `rvvVlen` is the minimum VLEN.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose, int rvvVlen) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
@@ -332,6 +333,17 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
     sizeVec = 1;
   }
 
+  if (useScalable) {
+    // RVV: vscale = VLEN / 64, so vector<[N]xT> is the register group of
+    // LMUL = N * SEW / 64 registers whatever the VLEN; at the minimum VLEN
+    // it holds sizeVec = N * rvvVlen / 64 lanes. N >= 1 (a fractional LMUL
+    // for SEW < 64 when sizeVec was clamped below that).
+    int64_t n = std::max<int64_t>(1, sizeVec * 64 / rvvVlen);
+    VERBOSE_ANALYSIS_INFO("Scalable: N = max(1, ("
+                          << sizeVec << " * 64) / " << rvvVlen << ") = " << n
+                          << ", vector<[" << n << "]x" << anchorType << ">\n");
+    return VectorType::get({n}, anchorType, /*scalableDims=*/{true});
+  }
   return VectorType::get({sizeVec}, anchorType);
 #undef VERBOSE_ANALYSIS_INFO
 } // namespace
@@ -1734,6 +1746,26 @@ private:
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
+    // A memref of i1 holds a byte per element, a vector of i1 a bit per
+    // lane: fixed i1 accesses are scalarized per lane, which a scalable
+    // vector (N * vscale lanes) cannot be yet.
+    if (targetVectorType.isScalable()) {
+      WalkResult i1Access = region.walk([](Operation *access) {
+        Value base;
+        if (auto load = dyn_cast<vir::LoadOp>(access))
+          base = load.getBase();
+        else if (auto store = dyn_cast<vir::StoreOp>(access))
+          base = store.getBase();
+        if (!base ||
+            !cast<MemRefType>(base.getType()).getElementType().isInteger(1))
+          return WalkResult::advance();
+        access->emitError("a memref of i1 needs fixed vectors");
+        return WalkResult::interrupt();
+      });
+      if (i1Access.wasInterrupted())
+        return failure();
+    }
+
     //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
     //===------------------------------------------------------------------===//
@@ -1915,7 +1947,8 @@ public:
       *this, "rvv-vlen",
       llvm::cl::desc("VLEN in bits of a RISC-V Vector target: without "
                      "vector-width, the vector size comes from its 32 "
-                     "registers of VLEN bits instead of the host's"),
+                     "registers of VLEN bits instead of the host's; with "
+                     "use-scalable, the minimum VLEN"),
       llvm::cl::init(0)};
 
   Option<bool> verbose{*this, "verbose",
@@ -1953,6 +1986,12 @@ void VIRToVectorPass::runOnOperation() {
   }
   // use custome vector width
   bool useCustomVecWid = vectorWidth.getNumOccurrences() > 0;
+  // vscale depends on the target (VLEN / 64 on RVV, VL / 128 on SVE): the
+  // size of a scalable vector is only chosen for RVV
+  if (useScalable && !useCustomVecWid && rvvVlen == 0) {
+    module.emitError("use-scalable without vector-width needs rvv-vlen");
+    return signalPassFailure();
+  }
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
                                         vectorWidth, verbose, useCustomVecWid,
                                         rvvVlen);
