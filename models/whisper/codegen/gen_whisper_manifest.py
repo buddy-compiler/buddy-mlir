@@ -53,6 +53,9 @@ def gen_manifest(
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = spec["params_size"]
+    precision = spec.get("precision", "f32")
+    if precision not in ("f32", "f16"):
+        raise ValueError(f"Unsupported Whisper precision: {precision}")
     vocab_size = spec["vocab_size"]
     max_token_len = spec["max_token_len"]
     mel_bins = spec["mel_bins"]
@@ -69,6 +72,8 @@ def gen_manifest(
     emit(f'    vocab_uri = "file:{vocab_file}",')
     emit(f'    runner_library = "{runner_library}",')
     emit(f'    model_library = "{model_library}",')
+    if precision == "f16":
+        emit('    precision = "f16",')
     emit(f'    params_size = "{params_size}",')
     emit(f'    vocab_size = "{vocab_size}",')
     emit(f'    max_token_len = "{max_token_len}",')
@@ -82,7 +87,7 @@ def gen_manifest(
     emit("")
 
     emit('  rhal.constant @params {id = 1 : i32, storage = "external",')
-    emit(f"                         type = tensor<{params_size}xf32>,")
+    emit(f"                         type = tensor<{params_size}x{precision}>,")
     emit(f'                         uri = "file:{weight_file}"}}')
     emit("")
 

@@ -35,6 +35,16 @@ Use a local Hugging Face model snapshot through `--local-model` or
 the importer may fetch the model configured by the spec (by default,
 `openai/whisper-base`).
 
+For K3 A100, select `models/whisper/specs/base_f16_k3_a100.json` and pass
+`--is-rvv-crosscompile`, `--cmake-args=-DBUDDY_RISCV_VLEN=1024`,
+`--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`, and
+`--cmake-args=-DBUDDY_WHISPER_K3_IME=ON` to `build_model.py`. Set
+`--cmake-args=-DBUDDY_OPT_ATTR=+m,+d,+v,+zfh,+zvfh` and provide the
+RISC-V toolchain and runtime library arguments. Use a separate build directory
+from the F32 variant: this spec imports FP16 weights and uses FP16 for the main
+matrix path while keeping audio inputs and logits in F32. Run the ASR correctness
+check before comparing its performance with another precision.
+
 The package contains `whisper.rax`, `whisper_model.so`,
 `whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample
 `audio.wav`. The manifest keeps the runner and model plugin entries;

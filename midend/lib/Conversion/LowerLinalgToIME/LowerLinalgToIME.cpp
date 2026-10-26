@@ -274,12 +274,11 @@ public:
     if (packedWidth && (M != 1 || N % packedWidth != 0))
       return rewriter.notifyMatchFailure(
           matmulOp, "packed IME requires M=1 and N divisible by packed width");
-    if (fastGemm &&
-        (!a100 || !isFloatMatmul || !CElemType.isF16() || M < 8 || M % 8 ||
-         K % 8 || N % 32 || !AType.getLayout().isIdentity() ||
-         !CType.getLayout().isIdentity() || packedWidth))
+    if (fastGemm && (!a100 || !isFloatMatmul || !CElemType.isF16() || M < 8 ||
+                     K % 8 || N % 32 || !AType.getLayout().isIdentity() ||
+                     !CType.getLayout().isIdentity() || packedWidth))
       return rewriter.notifyMatchFailure(
-          matmulOp, "A100 GEMM requires contiguous FP16 A/C, M%8=K%8=N%32=0");
+          matmulOp, "A100 GEMM requires contiguous FP16 A/C, M>=8, K%8=N%32=0");
     if (verifyFP16 && isFloatMatmul)
       insertFP16IMECheck(rewriter, loc, matmulOp->getParentOfType<ModuleOp>(),
                          a100, matmulOp->getParentOfType<func::FuncOp>());
@@ -289,7 +288,8 @@ public:
         return arith::ConstantIndexOp::create(rewriter, loc, value);
       };
       Value zero = index(0), eight = index(8), one = index(1);
-      Value boundM = index(M), boundK = index(K), boundN = index(N);
+      const int64_t tiledM = M / 8 * 8;
+      Value boundM = index(tiledM), boundK = index(K), boundN = index(N);
       Value packedA = memref::AllocOp::create(
           rewriter, loc, MemRefType::get({M * K}, AElemType));
       auto packRows =
@@ -334,6 +334,40 @@ public:
       memref::DeallocOp::create(rewriter, loc, packedB);
       rewriter.setInsertionPointAfter(columns);
       memref::DeallocOp::create(rewriter, loc, packedA);
+
+      // The IME kernel handles full eight-row tiles. Compute the remaining
+      // rows with the same FP32 accumulation used by GemmF16Op.
+      if (tiledM != M) {
+        auto tail = scf::ParallelOp::create(
+            rewriter, loc, ValueRange{index(tiledM), zero},
+            ValueRange{index(M), boundN}, ValueRange{one, one});
+        rewriter.setInsertionPointToStart(tail.getBody());
+        Value i = tail.getInductionVars()[0];
+        Value j = tail.getInductionVars()[1];
+        Value current =
+            memref::LoadOp::create(rewriter, loc, C, ValueRange{i, j});
+        Value initial = arith::ExtFOp::create(rewriter, loc,
+                                              rewriter.getF32Type(), current);
+        auto reduction = scf::ForOp::create(rewriter, loc, zero, boundK, one,
+                                            ValueRange{initial});
+        rewriter.setInsertionPointToStart(reduction.getBody());
+        Value k = reduction.getInductionVar();
+        Value lhs = memref::LoadOp::create(rewriter, loc, A, ValueRange{i, k});
+        Value rhs = memref::LoadOp::create(rewriter, loc, B, ValueRange{k, j});
+        Value lhsF32 =
+            arith::ExtFOp::create(rewriter, loc, rewriter.getF32Type(), lhs);
+        Value rhsF32 =
+            arith::ExtFOp::create(rewriter, loc, rewriter.getF32Type(), rhs);
+        Value product = arith::MulFOp::create(rewriter, loc, lhsF32, rhsF32);
+        Value sum = arith::AddFOp::create(
+            rewriter, loc, reduction.getRegionIterArgs()[0], product);
+        scf::YieldOp::create(rewriter, loc, sum);
+        rewriter.setInsertionPointAfter(reduction);
+        Value result = arith::TruncFOp::create(
+            rewriter, loc, rewriter.getF16Type(), reduction.getResult(0));
+        memref::StoreOp::create(rewriter, loc, result, C, ValueRange{i, j});
+        rewriter.setInsertionPointAfter(tail);
+      }
       rewriter.eraseOp(matmulOp);
       return success();
     }

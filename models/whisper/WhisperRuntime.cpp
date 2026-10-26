@@ -65,6 +65,7 @@ struct WhisperShape {
   std::size_t audioFrames = kAudioFrames;
   int sotToken = kSotToken;
   int eotToken = kEotToken;
+  bool f16Weights = false;
 };
 
 std::size_t manifestSize(const ModelManifest &manifest, const char *key,
@@ -92,6 +93,8 @@ int manifestToken(const ModelManifest &manifest, const char *key,
 
 using ForwardFn = void (*)(MemRef<float, 3> *, MemRef<float, 1> *,
                            MemRef<float, 3> *, MemRef<std::size_t, 2> *);
+using ForwardF16Fn = void (*)(MemRef<float, 3> *, MemRef<_Float16, 1> *,
+                              MemRef<float, 3> *, MemRef<std::size_t, 2> *);
 
 double milliseconds(Clock::duration duration) {
   return std::chrono::duration<double, std::milli>(duration).count();
@@ -166,6 +169,12 @@ public:
           manifestToken(manifest, "sot_token", nextShape.sotToken);
       nextShape.eotToken =
           manifestToken(manifest, "eot_token", nextShape.eotToken);
+      auto precision = manifest.moduleAttrs.find("precision");
+      if (precision != manifest.moduleAttrs.end()) {
+        if (precision->second != "f16" && precision->second != "f32")
+          throw std::invalid_argument("WhisperRuntime: unsupported precision");
+        nextShape.f16Weights = precision->second == "f16";
+      }
       if (nextShape.melBins != kMelBins ||
           nextShape.audioFrames != kAudioFrames)
         throw std::invalid_argument(
@@ -208,7 +217,7 @@ public:
 
     const std::uintmax_t requiredWeightBytes =
         std::uintmax_t(nextShape.paramsSize) *
-        static_cast<std::uintmax_t>(sizeof(float));
+        (nextShape.f16Weights ? sizeof(_Float16) : sizeof(float));
     if (std::filesystem::file_size(nextWeightsPath) < requiredWeightBytes)
       throw std::runtime_error("WhisperRuntime: weights file is smaller than " +
                                std::to_string(requiredWeightBytes) + " bytes");
@@ -220,8 +229,7 @@ public:
     std::unique_ptr<void, SharedLibraryCloser> handleGuard(nextHandle);
 
     dlerror();
-    auto nextForward =
-        reinterpret_cast<ForwardFn>(dlsym(nextHandle, "_mlir_ciface_forward"));
+    void *nextForward = dlsym(nextHandle, "_mlir_ciface_forward");
     if (const char *error = dlerror())
       throw std::runtime_error(
           "WhisperRuntime: missing _mlir_ciface_forward in " + nextSoPath +
@@ -231,13 +239,23 @@ public:
     nextVocab->loadVocab(nextVocabPath);
 
     const auto loadStart = Clock::now();
-    auto nextParams = std::make_unique<MemRef<float, 1>>(
-        std::vector<std::size_t>{nextShape.paramsSize});
+    std::unique_ptr<MemRef<float, 1>> nextParams;
+    std::unique_ptr<MemRef<_Float16, 1>> nextParamsF16;
+    void *weightData;
+    if (nextShape.f16Weights) {
+      nextParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
+          std::vector<std::size_t>{nextShape.paramsSize});
+      weightData = nextParamsF16->getData();
+    } else {
+      nextParams = std::make_unique<MemRef<float, 1>>(
+          std::vector<std::size_t>{nextShape.paramsSize});
+      weightData = nextParams->getData();
+    }
     std::ifstream weights(nextWeightsPath, std::ios::binary);
     if (!weights)
       throw std::runtime_error("WhisperRuntime: failed to open weights: " +
                                nextWeightsPath);
-    weights.read(reinterpret_cast<char *>(nextParams->getData()),
+    weights.read(reinterpret_cast<char *>(weightData),
                  static_cast<std::streamsize>(requiredWeightBytes));
     if (weights.gcount() != static_cast<std::streamsize>(requiredWeightBytes))
       throw std::runtime_error("WhisperRuntime: short read from weights: " +
@@ -248,9 +266,14 @@ public:
     weightsPath = std::move(nextWeightsPath);
     vocabPath = std::move(nextVocabPath);
     loadedModelName = std::move(nextModelName);
-    forward = nextForward;
+    forward = nextShape.f16Weights ? nullptr
+                                   : reinterpret_cast<ForwardFn>(nextForward);
+    forwardF16 = nextShape.f16Weights
+                     ? reinterpret_cast<ForwardF16Fn>(nextForward)
+                     : nullptr;
     vocabulary = std::move(nextVocab);
     params = std::move(nextParams);
+    paramsF16 = std::move(nextParamsF16);
     weightLoadSecs = std::chrono::duration<double>(loadEnd - loadStart).count();
     soHandle = handleGuard.release();
     shape = nextShape;
@@ -273,16 +296,14 @@ public:
         std::vector<std::size_t>{1, shape.maxTokenLength},
         static_cast<std::size_t>(shape.sotToken));
 
-    for (int step = 0; step < maxTokens; ++step) {
-      const auto preprocessStart = Clock::now();
-      dap::Audio<double, 1> rawAudio(audio.uri);
-      MemRef<float, 3> audioInput(
-          std::vector<std::size_t>{1, shape.melBins, shape.audioFrames});
-      dap::whisperPreprocess(&rawAudio, &audioInput);
-      const auto preprocessEnd = Clock::now();
-      result.timings.preprocessMs +=
-          milliseconds(preprocessEnd - preprocessStart);
+    const auto preprocessStart = Clock::now();
+    dap::Audio<double, 1> rawAudio(audio.uri);
+    MemRef<float, 3> audioInput(
+        std::vector<std::size_t>{1, shape.melBins, shape.audioFrames});
+    dap::whisperPreprocess(&rawAudio, &audioInput);
+    result.timings.preprocessMs = milliseconds(Clock::now() - preprocessStart);
 
+    for (int step = 0; step < maxTokens; ++step) {
       // The compiled function assigns result buffers. Non-owning clean
       // descriptors ensure each iteration starts empty; MemRef destructors
       // release any buffers assigned by the compiled function.
@@ -296,7 +317,10 @@ public:
       };
 
       const auto inferenceStart = Clock::now();
-      forward(outputs, params.get(), &audioInput, &decoderTokens);
+      if (shape.f16Weights)
+        forwardF16(outputs, paramsF16.get(), &audioInput, &decoderTokens);
+      else
+        forward(outputs, params.get(), &audioInput, &decoderTokens);
       const auto inferenceEnd = Clock::now();
       const double inferenceMs = milliseconds(inferenceEnd - inferenceStart);
       result.timings.inferenceMs += inferenceMs;
@@ -326,7 +350,8 @@ public:
 
   bool isLoaded() const {
     std::lock_guard<std::mutex> lock(mutex);
-    return soHandle && forward && params && vocabulary;
+    return soHandle && vocabulary &&
+           (shape.f16Weights ? forwardF16 && paramsF16 : forward && params);
   }
 
   std::string getModelName() const {
@@ -378,14 +403,17 @@ private:
   }
 
   void ensureLoadedUnlocked() const {
-    if (!soHandle || !forward || !params || !vocabulary)
+    if (!soHandle || !vocabulary ||
+        !(shape.f16Weights ? forwardF16 && paramsF16 : forward && params))
       throw std::runtime_error("WhisperRuntime: model is not loaded");
   }
 
   void resetUnlocked() {
     vocabulary.reset();
     params.reset();
+    paramsF16.reset();
     forward = nullptr;
+    forwardF16 = nullptr;
     if (soHandle) {
       dlclose(soHandle);
       soHandle = nullptr;
@@ -401,7 +429,9 @@ private:
   mutable std::mutex mutex;
   void *soHandle = nullptr;
   ForwardFn forward = nullptr;
+  ForwardF16Fn forwardF16 = nullptr;
   std::unique_ptr<MemRef<float, 1>> params;
+  std::unique_ptr<MemRef<_Float16, 1>> paramsF16;
   std::unique_ptr<buddy::Text<std::size_t, 2>> vocabulary;
   std::string soPath;
   std::string weightsPath;

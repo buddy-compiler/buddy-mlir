@@ -150,6 +150,10 @@ function(_buddy_rvv_cross_plugins)
   endforeach()
 
   set(_files)
+  set(_cross_link_libs)
+  foreach(_lib ${MDL_RISCV_RUNTIME_LINK_LIBS})
+    list(APPEND _cross_link_libs "$<TARGET_FILE:${_lib}>")
+  endforeach()
   foreach(_plugin ${ARGN})
     get_target_property(_out ${_plugin} OUTPUT_NAME)
     get_target_property(_plugin_srcs ${_plugin} SOURCES)
@@ -171,10 +175,11 @@ function(_buddy_rvv_cross_plugins)
       OUTPUT "${_so}"
       COMMAND "${_cxx}" ${_target_opts} -shared -fPIC -o "${_so}"
               "${_obj}" ${_objs}
+              ${_cross_link_libs}
               "${RISCV_LLVM_BUILD_DIR}/lib/libLLVMSupport.a"
               "${RISCV_LLVM_BUILD_DIR}/lib/libLLVMDemangle.a"
-              -ldl -lpthread
-      DEPENDS "${_obj}" ${_objs}
+              -ldl -lpthread -lm
+      DEPENDS "${_obj}" ${_objs} ${MDL_RISCV_RUNTIME_LINK_LIBS}
       COMMENT "[${MDL_NAME}] riscv64: linking ${_out}${CMAKE_SHARED_LIBRARY_SUFFIX}"
       VERBATIM)
     list(APPEND _files "${_so}")
@@ -216,7 +221,9 @@ endfunction()
 #   [TIERED_CACHE_SIZES <list>]             e.g. "32;64;128;256;512;1024"
 #   [ASSET_FILES <list>]                    files copied next to the .rax
 #   [RUNTIME_LINK_LIBS <list>]              extra libraries for runner static lib
+#   [RISCV_RUNTIME_LINK_LIBS <list>]        cross-plugin-only static library targets
 #   [TEMPLATE_PARTITION_CAPABLE ON|OFF]     supports template partitioning
+#   [SINGLE_FORWARD_IME ON|OFF]            select K3 FP16 IME GEMM lowering
 # )
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -381,8 +388,8 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
-    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME"
+    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;RISCV_RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
 
@@ -406,7 +413,9 @@ function(buddy_add_model)
     string(APPEND _MDL_RISCV_MATTR ",+zfh,+zvfh")
   endif()
   if(IS_RVV_CROSSCOMPILE)
-    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
+    if(NOT MDL_LLC_ATTRS)
+      set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
+    endif()
   elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
       set(MDL_LLC_ATTRS "-march=riscv64 -mcpu=native -mattr=${_MDL_RISCV_MATTR}")
@@ -1184,6 +1193,25 @@ function(buddy_add_model)
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o (${MDL_LOWER_SCRIPT})"
         VERBATIM)
     else()
+      if(MDL_SINGLE_FORWARD_IME)
+        get_filename_component(
+          _SINGLE_FORWARD_CODEGEN_DIR "${MDL_IMPORT_SCRIPT}" DIRECTORY)
+        set(_SINGLE_FORWARD_LOWER_SCRIPT
+          "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh")
+        add_custom_command(
+          OUTPUT "${BIN}/subgraph0.o"
+          COMMAND bash "${_SINGLE_FORWARD_LOWER_SCRIPT}"
+                  "${BUDDY_BINARY_DIR}/buddy-opt"
+                  "${LLVM_TOOLS_BINARY_DIR}"
+                  "${BIN}/subgraph0.mlir"
+                  "${BIN}/subgraph0.o"
+                  "${MDL_SINGLE_FORWARD_IME}"
+                  ${MDL_LLC_ATTRS_LIST}
+          DEPENDS "${IMPORT_STAMP}" "${_SINGLE_FORWARD_LOWER_SCRIPT}"
+                  buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
+          COMMENT "[${MDL_NAME}] Stage 2: checked single-forward lowering"
+          VERBATIM)
+      else()
       add_custom_command(
         OUTPUT "${BIN}/subgraph0.o"
         COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt "${BIN}/subgraph0.mlir"
@@ -1232,6 +1260,7 @@ function(buddy_add_model)
           ${LLVM_TOOLS_BINARY_DIR}/llc
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o"
         VERBATIM)
+      endif()
     endif()
 
   elseif(MDL_BUILD_DIR)
@@ -1614,11 +1643,14 @@ function(buddy_add_model)
     rax-pack
     "${GEN_RHAL}"
     "${MODEL_SO}"
-    ${RUNNER_PLUGIN_TARGET}
-    ${MODEL_PLUGIN_TARGET}
     ${MDL_ASSET_DSTS})
+  if(NOT IS_RVV_CROSSCOMPILE OR NOT MDL_RISCV_RUNTIME_LINK_LIBS)
+    list(APPEND MDL_STAGE4_DEPS ${RUNNER_PLUGIN_TARGET} ${MODEL_PLUGIN_TARGET})
+  endif()
   if(MDL_MODEL_KIND STREQUAL "single_forward")
-    list(APPEND MDL_STAGE4_DEPS "${BIN}/arg0.data")
+    # The import stamp produces arg0.data as a byproduct. Make does not
+    # create a standalone rule for that byproduct in a fresh build.
+    list(APPEND MDL_STAGE4_DEPS "${IMPORT_STAMP}")
   endif()
   list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
 

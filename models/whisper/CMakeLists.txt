@@ -11,14 +11,45 @@ set(BUDDY_WHISPER_SPEC
   CACHE FILEPATH "Whisper variant spec JSON, e.g. specs/base.json")
 set(BUDDY_WHISPER_MODEL_PATH "" CACHE PATH
   "Local HuggingFace whisper snapshot dir")
+option(BUDDY_WHISPER_K3_IME
+  "Use shared A100 FP16 IME GEMM and batch-matmul passes for Whisper"
+  OFF)
+
+set(WHISPER_LLC_ATTRS "")
+if(BUDDY_WHISPER_K3_IME)
+  if(NOT IS_RVV_CROSSCOMPILE OR NOT BUDDY_RISCV_VLEN STREQUAL "1024")
+    message(FATAL_ERROR
+      "BUDDY_WHISPER_K3_IME requires RISC-V cross compilation and VLEN=1024")
+  endif()
+  file(READ "${BUDDY_WHISPER_SPEC}" _whisper_spec_json)
+  string(JSON _whisper_precision GET "${_whisper_spec_json}" precision)
+  if(NOT _whisper_precision STREQUAL "f16")
+    message(FATAL_ERROR "BUDDY_WHISPER_K3_IME requires precision=f16")
+  endif()
+  # VLEN options (+zvl1024b, -riscv-v-vector-bits-max=1024) are appended by
+  # buddy_rvv_vlen_llc_attrs() in buddy_model.cmake from BUDDY_RISCV_VLEN.
+  set(WHISPER_LLC_ATTRS
+    "-march=riscv64 -mcpu=spacemit-a100 -mattr=+m,+d,+v,+zfh,+zvfh,+xsmtvdotii -mtriple=riscv64-unknown-linux-gnu")
+endif()
 
 set(WHISPER_EXAMPLE "${CMAKE_SOURCE_DIR}/examples/BuddyWhisper")
+if(IS_RVV_CROSSCOMPILE)
+  # BuddyLibDAP's MLIR objects are compiled for BUDDY_TARGET_TRIPLE. Link
+  # them only into the RISC-V plugins; the host plugin targets are not used.
+  set(WHISPER_RUNTIME_LINK_LIBS)
+  set(WHISPER_RISCV_RUNTIME_LINK_LIBS BuddyLibDAP)
+else()
+  set(WHISPER_RUNTIME_LINK_LIBS BuddyLibDAP mlir_c_runner_utils)
+  set(WHISPER_RISCV_RUNTIME_LINK_LIBS)
+endif()
 
 buddy_add_model(
   NAME whisper
   TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
+  SINGLE_FORWARD_IME "${BUDDY_WHISPER_K3_IME}"
   SPEC "${BUDDY_WHISPER_SPEC}"
+  LLC_ATTRS "${WHISPER_LLC_ATTRS}"
   RUNNER_SRC WhisperRunner.cpp
   RUNNER_PLUGIN_SRC WhisperRunnerPlugin.cpp
   MODEL_PLUGIN_SRC WhisperAudioTranscriptionModelPlugin.cpp
@@ -33,9 +64,8 @@ buddy_add_model(
   ASSET_FILES
     "${WHISPER_EXAMPLE}/vocab.txt"
     "${WHISPER_EXAMPLE}/audio.wav"
-  RUNTIME_LINK_LIBS
-    BuddyLibDAP
-    mlir_c_runner_utils
+  RUNTIME_LINK_LIBS ${WHISPER_RUNTIME_LINK_LIBS}
+  RISCV_RUNTIME_LINK_LIBS ${WHISPER_RISCV_RUNTIME_LINK_LIBS}
 )
 
 if(BUDDY_ENABLE_TESTS)

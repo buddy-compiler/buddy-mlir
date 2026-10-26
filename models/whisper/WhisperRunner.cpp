@@ -80,6 +80,16 @@ void WhisperRunner::run(const RunConfig &config) {
                     << " | Time: " << progress.inferenceSeconds << "s\n";
       });
 
+  printLog("Audio preprocessing: " +
+               std::to_string(result.timings.preprocessMs) + " ms",
+           suppress);
+  printLog("Core model forwards: " +
+               std::to_string(result.timings.inferenceMs) + " ms",
+           suppress);
+  printLog("End-to-end transcription: " +
+               std::to_string(result.timings.totalMs) + " ms",
+           suppress);
+
   std::cout << "\033[33;1m[Output]\033[0m " << result.text << std::endl;
 }
 

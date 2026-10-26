@@ -19,7 +19,7 @@
 # Produces three artifacts in --output-dir:
 #   forward.mlir    main graph (calls into subgraph0)
 #   subgraph0.mlir  lowered top-level IR for the compute subgraph
-#   arg0.data       concatenated model parameters (f32)
+#   arg0.data       concatenated model parameters (f32 or f16 from the spec)
 #
 # The model is resolved in this order:
 #   1. $WHISPER_MODEL_PATH        (local HF snapshot, set by CMake)
@@ -69,11 +69,15 @@ args = parser.parse_args()
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
-# Resolve the Whisper model path.
-model_path = os.environ.get("WHISPER_MODEL_PATH")
-if not model_path and args.spec:
+# Resolve the Whisper model path and selected precision.
+spec = {}
+if args.spec:
     with open(args.spec) as f:
-        model_path = json.load(f).get("hf_model_path")
+        spec = json.load(f)
+precision = spec.get("precision", "f32")
+if precision not in ("f32", "f16"):
+    raise ValueError(f"Unsupported Whisper precision: {precision}")
+model_path = os.environ.get("WHISPER_MODEL_PATH") or spec.get("hf_model_path")
 if not model_path:
     model_path = "openai/whisper-base"
 
@@ -82,6 +86,27 @@ print(f"[import_whisper] Loading model from: {model_path}")
 # Initialize the model from the specified model path.
 model = WhisperForConditionalGeneration.from_pretrained(model_path)
 model.config.use_cache = False
+
+if precision == "f16":
+    # Keep the runtime's audio and logits descriptors in f32. Only the model
+    # weights and internal activations use f16, so the existing ASR API works
+    # for both precisions.
+    class WhisperF16Core(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner.half()
+
+        def forward(self, input_features, decoder_input_ids):
+            result = self.inner(
+                input_features=input_features.half(),
+                decoder_input_ids=decoder_input_ids,
+            )
+            return (
+                result.encoder_last_hidden_state.float(),
+                result.logits.float(),
+            )
+
+    model = WhisperF16Core(model)
 
 # Generate placeholder for inputs.
 input_features = torch.zeros(size=(1, 80, 3000), dtype=torch.float32)
