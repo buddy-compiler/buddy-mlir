@@ -446,6 +446,33 @@ private:
       }
       return srcValue;
     };
+    // The memref indices of an access of `vecType` at `indices` (none: all
+    // 0), as for vector.load: the lanes are along the last dim of the
+    // memref, from the main loop IV on, and the rows of a multi-dimensional
+    // dynamic vector along the dims before it, from the leading IVs on.
+    auto accessIndices = [&](Value base, ValueRange indices, Type vecType) {
+      int64_t rank = cast<MemRefType>(base.getType()).getRank();
+      int64_t rows =
+          cast<vir::DynamicVectorType>(vecType).getShape().size() - 1;
+      // (checked before the lowering: the dynamic vectors are of the region,
+      // their rows those of the leading IVs)
+      assert(rows == 0 || rows == int64_t(leadingIVs.size()));
+      SmallVector<Value> out;
+      for (int64_t i = 0; i < rank; ++i) {
+        Value iv = i == rank - 1          ? mainLoopIV
+                   : i >= rank - 1 - rows ? leadingIVs[i - (rank - 1 - rows)]
+                                          : Value();
+        if (indices.empty())
+          out.push_back(
+              iv ? iv : Value(arith::ConstantIndexOp::create(builder, loc, 0)));
+        else if (iv)
+          out.push_back(
+              arith::AddIOp::create(builder, loc, iv, findValue(indices[i])));
+        else
+          out.push_back(findValue(indices[i]));
+      }
+      return out;
+    };
     auto deriveVectorTypeFor = [&](Type virTy) -> FailureOr<VectorType> {
       auto dynVecTy = dyn_cast<vir::DynamicVectorType>(virTy);
       if (!dynVecTy)
@@ -498,43 +525,8 @@ private:
               [&](Operation *op) { cloneMappedOp(op); })
           .Case<vir::LoadOp>([&](vir::LoadOp op) {
             Value base = findValue(op.getBase());
-            SmallVector<Value> destIndices{};
-            auto sourceIndices = op.getIndices();
-
-            // Indices convention:
-            // - If indices are provided, treat the last index as the dynamic
-            //   "vectorized" dimension offset and add mainLoopIV.
-            // - If indices are empty, assume all leading indices are 0 and the
-            //   last index is implicitly 0 (i.e. base of the vectorized dim).
-            if (sourceIndices.empty()) {
-              auto memrefTy = dyn_cast<MemRefType>(base.getType());
-              if (!memrefTy || memrefTy.getRank() == 0) {
-                op.emitError(
-                    "expected ranked memref base for implicit indices");
-                return;
-              }
-              int64_t rank = memrefTy.getRank();
-              for (int64_t i = 0; i < rank - 1; ++i) {
-                if (static_cast<size_t>(i) < leadingIVs.size()) {
-                  destIndices.push_back(leadingIVs[i]);
-                } else {
-                  destIndices.push_back(
-                      arith::ConstantIndexOp::create(builder, loc, 0));
-                }
-              }
-              destIndices.push_back(mainLoopIV);
-            } else {
-              // the last index is dynamic and global
-              Value lastIndex = findValue(sourceIndices.back());
-              Value baseOffset =
-                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
-              // collect indices for load op
-              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-                Value destOp = findValue(sourceIndices[i]);
-                destIndices.push_back(destOp);
-              }
-              destIndices.push_back(baseOffset);
-            }
+            SmallVector<Value> destIndices =
+                accessIndices(base, op.getIndices(), op.getType());
 
             if (isTailLoop) {
               auto memrefLoadOp =
@@ -572,36 +564,8 @@ private:
               return;
             }
             Value base = findValue(op.getBase());
-            SmallVector<Value> destIndices{};
-            auto sourceIndices = op.getIndices();
-            if (sourceIndices.empty()) {
-              auto memrefTy = dyn_cast<MemRefType>(base.getType());
-              if (!memrefTy || memrefTy.getRank() == 0) {
-                op.emitError(
-                    "expected ranked memref base for implicit indices");
-                return;
-              }
-              int64_t rank = memrefTy.getRank();
-              for (int64_t i = 0; i < rank - 1; ++i) {
-                if (static_cast<size_t>(i) < leadingIVs.size()) {
-                  destIndices.push_back(leadingIVs[i]);
-                } else {
-                  destIndices.push_back(
-                      arith::ConstantIndexOp::create(builder, loc, 0));
-                }
-              }
-              destIndices.push_back(mainLoopIV);
-            } else {
-              Value lastIndex = findValue(sourceIndices.back());
-              Value baseOffset =
-                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
-              // collect indices for store op
-              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-                Value destOp = findValue(sourceIndices[i]);
-                destIndices.push_back(destOp);
-              }
-              destIndices.push_back(baseOffset);
-            }
+            SmallVector<Value> destIndices =
+                accessIndices(base, op.getIndices(), op.getValue().getType());
 
             if (isTailLoop) {
               memref::StoreOp::create(builder, loc, valueToStore, base,
@@ -1426,12 +1390,6 @@ private:
         -> FailureOr<std::pair<Value, SmallVector<Value>>> {
       auto type = cast<MemRefType>(base.getType());
       int64_t rank = type.getRank(), k = pieces.layout.size();
-      // the lanes are along the last dim
-      if (rank == 0)
-        return op->emitError(
-            "a dynamic vector memory access needs a non-zero-rank memref");
-      if (!indices.empty() && int64_t(indices.size()) != rank)
-        return op->emitError("expected no index or one per memref dim");
       SmallVector<Value> idx;
       for (int64_t i = 0; i < rank; ++i)
         idx.push_back(indices.empty()
@@ -2009,6 +1967,32 @@ private:
       if (!leadingStaticDims.empty())
         break;
     }
+    // The dynamic vectors are the values of the region (each lowered to a
+    // vector of the main loop and a scalar of the tail loop), and the loops
+    // over the rows are those of one static layout.
+    auto badLayout = [&](Type t) {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+      return dyn && dyn.getShape().size() > 1 &&
+             dyn.getShape().drop_back() != ArrayRef(leadingStaticDims);
+    };
+    WalkResult layouts = region.walk([&](Operation *inner) {
+      for (Value v : inner->getOperands())
+        if (isa<vir::DynamicVectorType>(v.getType()) &&
+            !region.isAncestor(v.getParentRegion())) {
+          inner->emitError("a dynamic vector used in a vir.set_vl must be "
+                           "defined in its region");
+          return WalkResult::interrupt();
+        }
+      // (a loop-carried value has the type of the loop result)
+      if (llvm::any_of(inner->getResultTypes(), badLayout)) {
+        inner->emitError("the multi-dimensional dynamic vectors of a "
+                         "vir.set_vl must have the same static layout");
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+    if (layouts.wasInterrupted())
+      return failure();
 
     int vectorWid = vectorWidth; // Dynamic defined vector width
     VectorType targetVectorType;

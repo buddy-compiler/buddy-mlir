@@ -74,6 +74,8 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
   // TODO: Determine the region limitation.
   let regions = (region AnyRegion:$region);
+  // the lowering maps the values of the region, not entry block arguments
+  let hasVerifier = 1;
 
   let assemblyFormat = "$vl attr-dict `:` type($vl)"
       "$region (`->` type($results)^)?";
@@ -86,14 +88,20 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
 def VIR_LoadOp : VIR_Op<"load"> {
   let summary = "Load operation for dynamic vector IR.";
   let description = [{
-    The `load` operation loads data from memory into a vector register.
-    This operation supports dynamic vector lengths and can load various data types.
+    The `load` operation loads a dynamic vector from memory, as
+    `vector.load` does: its lanes (vl of them) are along the last dim of
+    the memref, and the rows of a multi-dimensional dynamic vector (e.g.
+    `!vir.vec<2x?xf32>`) along the dims before it. For a memref of rank n
+    and the indices `[i0, ..., i(n-1)]` (one per dim, or all 0 when none
+    are given), lane `c` of row `(r1, ..., rk)` is at
+    `[i0, ..., i(n-k-1) + r1, ..., i(n-2) + rk, i(n-1) + c]`.
   }];
   let arguments = (ins
-    Arg<AnyMemRef, "the reference to load from", [MemRead]>:$base,
+    Arg<AnyNon0RankedMemRef, "the reference to load from", [MemRead]>:$base,
     Variadic<Index>:$indices
   );
   let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
 
   let assemblyFormat = "$base `[`$indices`]` attr-dict"
                        "`:` type($base) `->` qualified(type($result))";
@@ -102,14 +110,15 @@ def VIR_LoadOp : VIR_Op<"load"> {
 def VIR_StoreOp : VIR_Op<"store"> {
   let summary = "Store operation for dynamic vector IR.";
   let description = [{
-    The `store` operation stores data from a vector register to memory.
-    This operation supports dynamic vector lengths and can store various data types.
+    The `store` operation stores a dynamic vector to memory, at the
+    elements a `vir.load` of the same memref and indices reads.
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$value,
-    Arg<AnyMemRef, "the reference to store to", [MemWrite]>:$base,
+    Arg<AnyNon0RankedMemRef, "the reference to store to", [MemWrite]>:$base,
     Variadic<Index>:$indices
   );
+  let hasVerifier = 1;
 
   let assemblyFormat = "$value `,` $base `[` $indices `]` attr-dict "
                        "`:` qualified(type($value)) `->` type($base)";
