@@ -158,6 +158,31 @@ def VIR_FromVectorOp : VIR_Op<"from_vector",
   let assemblyFormat = "$source attr-dict `:` type($source) `->` qualified(type($result))";
 }
 
+def VIR_ShuffleOp : VIR_Op<"shuffle",
+    [Pure, AllTypesMatch<["v1", "v2", "result"]>]> {
+  let summary = "Shuffle the rows of two dynamic vectors.";
+  let description = [{
+    The `shuffle` operation picks the rows (along the leading static dim)
+    of its result from the rows of `v1` followed by those of `v2`, as
+    `vector.shuffle` does with fixed indices. Row `i` of the result is row
+    `mask[i]` of the concatenation of `v1` and `v2`. The mask has one index
+    per row. RoPE's rotate_half of a head as two rows `x` is
+    `vir.shuffle %neg_x, %x [1, 2]`, i.e. `[-x[1], x[0]]`.
+
+    It is only supported in a `vir.set_vl` with results, whose dynamic
+    vectors must lower to one vector each.
+  }];
+  let arguments = (ins
+    VIR_DynamicVectorType:$v1,
+    VIR_DynamicVectorType:$v2,
+    DenseI64ArrayAttr:$mask
+  );
+  let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$v1 `,` $v2 $mask attr-dict `:` qualified(type($v1))";
+}
+
 //===----------------------------------------------------------------------===//
 // Arithmetic Operations
 //===----------------------------------------------------------------------===//

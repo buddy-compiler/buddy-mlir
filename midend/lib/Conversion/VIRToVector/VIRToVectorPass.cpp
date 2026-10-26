@@ -1569,6 +1569,71 @@ private:
           else
             vector::TransferWriteOp::create(b, loc, values[p], base, idx);
         }
+      } else if (auto shuffle = dyn_cast<vir::ShuffleOp>(op)) {
+        // Row r of the result is row s = mask[r] of v1 then v2: within the
+        // one vector of the rows, a slide of v1 or v2 by (s mod rows - r)
+        // rows.
+        if (pieces.size() != 1 || !pieces.isVector(0))
+          return op->emitError("vir.shuffle needs a dynamic vector in one "
+                               "vector of the target");
+        Value v1 = get(shuffle.getV1()).front(),
+              v2 = get(shuffle.getV2()).front();
+        ArrayRef<int64_t> mask = shuffle.getMask();
+        int64_t rows = pieces.layout.front();
+        int64_t rowLanes =
+            pieces.vl * llvm::product_of(ArrayRef(pieces.layout).drop_front());
+        auto vecTy = cast<VectorType>(v1.getType());
+        Value out;
+        if (!pieces.scalable) {
+          SmallVector<int64_t> lanes;
+          for (int64_t s : mask)
+            for (int64_t c = 0; c < rowLanes; ++c)
+              lanes.push_back(s < rows
+                                  ? s * rowLanes + c
+                                  : pieces.width + (s - rows) * rowLanes + c);
+          out = vector::ShuffleOp::create(b, loc, v1, v2, lanes);
+        } else {
+          for (auto [r, s] : llvm::enumerate(mask)) {
+            Value src = s < rows ? v1 : v2;
+            int64_t shift = (s % rows - int64_t(r)) * rowLanes;
+            Value row = src;
+            if (shift != 0) {
+              // a slide down (left) or up (right); the lanes it shifts in
+              // are of other rows
+              Value by = arith::ConstantOp::create(
+                  b, loc, b.getI32IntegerAttr(std::abs(shift)));
+              // the intrinsic takes LLVM types: index as an integer
+              VectorType llvmTy = vecTy;
+              if (vecTy.getElementType().isIndex()) {
+                llvmTy = vecTy.clone(b.getIntegerType(
+                    getTypeConverter()->getIndexTypeBitwidth()));
+                src = arith::IndexCastOp::create(b, loc, llvmTy, src);
+              }
+              Value none = ub::PoisonOp::create(b, loc, llvmTy);
+              row = LLVM::CallIntrinsicOp::create(
+                        b, loc, llvmTy,
+                        b.getStringAttr(shift > 0 ? "llvm.vector.splice.left"
+                                                  : "llvm.vector.splice.right"),
+                        shift > 0 ? ValueRange{src, none, by}
+                                  : ValueRange{none, src, by})
+                        .getResult(0);
+              if (llvmTy != vecTy)
+                row = arith::IndexCastOp::create(b, loc, vecTy, row);
+            }
+            if (r == 0) {
+              out = row;
+              continue;
+            }
+            // the lanes from row r on
+            Value before = vector::CreateMaskOp::create(
+                b, loc,
+                VectorType::get(vecTy.getShape(), b.getI1Type(), {true}),
+                ValueRange{
+                    arith::ConstantIndexOp::create(b, loc, r * rowLanes)});
+            out = arith::SelectOp::create(b, loc, before, out, row);
+          }
+        }
+        map[shuffle.getResult()] = {out};
       } else if (auto from = dyn_cast<vir::FromVectorOp>(op)) {
         Value src = one(from.getSource());
         auto srcTy = cast<VectorType>(src.getType());
@@ -1800,6 +1865,38 @@ private:
             : vectorTypeHelper(op.getRegion(), anchorType, useScalable, verbose,
                                rvvVlen, llvm::product_of(layout))
                   .getShape()[0];
+    // A vir.shuffle moves lanes between rows within one vector: each
+    // dynamic vector is one vector of all its lanes, whatever the register
+    // pressure (a scalable one in a register group of at most 8).
+    SmallVector<vir::ShuffleOp> shuffles;
+    op.getRegion().walk([&](vir::ShuffleOp s) { shuffles.push_back(s); });
+    if (!shuffles.empty()) {
+      if (lanes <= 0)
+        return op.emitError("vir.shuffle needs a dynamic vector with a "
+                            "positive number of lanes");
+      // fixed: lanes; scalable: N * vscale >= lanes at the minimum vscale
+      // (use-scalable without vector-width has rvv-vlen)
+      if (!useCustomVecWid)
+        width = useScalable ? int64_t(llvm::bit_ceil(uint64_t(
+                                  llvm::divideCeil(lanes * 64, rvvVlen))))
+                            : lanes;
+      // RVV: vector<[N]xT> is a group of N * SEW / 64 registers, whatever
+      // the VLEN, of at most 8; each shuffle has its element type (vir.extf
+      // / truncf; index as the LLVM lowering has it)
+      if (useScalable && rvvVlen > 0)
+        for (vir::ShuffleOp s : shuffles) {
+          Type elem = s.getType().getElementType();
+          int64_t sew = elem.isIndex()
+                            ? getTypeConverter()->getIndexTypeBitwidth()
+                            : elem.getIntOrFloatBitWidth();
+          if (width * sew > 8 * 64)
+            return s.emitError("vir.shuffle needs a dynamic vector of ")
+                   << lanes << " lanes in one register group of at most 8";
+        }
+      if (verbose && !useCustomVecWid)
+        llvm::outs() << "vir.shuffle: one vector of " << lanes
+                     << " lanes, width " << width << "\n";
+    }
     Pieces pieces{width, lanes / width, lanes % width};
     // Vectors of width * vscale lanes cover the lanes: as many as at the
     // minimum vscale (rvv-vlen / 64 on RVV, else 1), each masked from the
@@ -1867,6 +1964,12 @@ private:
       return WalkResult::interrupt();
     });
     if (fromVector.wasInterrupted())
+      return failure();
+    WalkResult shuffle = region.walk([](vir::ShuffleOp op) {
+      op.emitError("vir.shuffle needs a vir.set_vl with results");
+      return WalkResult::interrupt();
+    });
+    if (shuffle.wasInterrupted())
       return failure();
 
     //===------------------------------------------------------------------===//

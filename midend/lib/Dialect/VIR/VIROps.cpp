@@ -30,3 +30,20 @@
 
 #define GET_OP_CLASSES
 #include "VIR/VIR.cpp.inc"
+
+using namespace mlir;
+using namespace buddy::vir;
+
+LogicalResult ShuffleOp::verify() {
+  ArrayRef<int64_t> shape = getV1().getType().getShape();
+  if (shape.size() < 2)
+    return emitOpError("needs a dynamic vector with a leading static dim");
+  int64_t rows = shape.front();
+  if (int64_t(getMask().size()) != rows)
+    return emitOpError("needs one mask index per row, ") << rows;
+  for (int64_t index : getMask())
+    if (index < 0 || index >= 2 * rows)
+      return emitOpError("mask index ")
+             << index << " is out of the " << 2 * rows << " rows";
+  return success();
+}
