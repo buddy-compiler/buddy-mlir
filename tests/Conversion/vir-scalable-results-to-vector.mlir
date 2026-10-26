@@ -98,3 +98,32 @@ func.func @loop(%k: memref<3x128xf32>) -> f32 {
 // V256: scf.for {{.*}} iter_args(%{{.*}} = %{{.*}}, %{{.*}} = %{{.*}}) -> (vector<[16]xf32>, vector<[16]xf32>) {
 // V1024: scf.for {{.*}} iter_args(%{{.*}} = %{{.*}}) -> (vector<[8]xf32>) {
 // CHECK: vector.maskedload
+
+// A vl of 3 leaves lanes off in the piece (vector<[1]xi32> of 4 lanes at
+// VLEN 256). An integer division by a lane that is off (poison) would be
+// undefined behavior: the divisor is 1 there.
+func.func @div(%num: memref<3xi32>, %den: memref<3xi32>, %out: memref<3xi32>) -> i32 {
+  %vl = arith.constant 3 : index
+  %c0 = arith.constant 0 : i32
+  %r = vir.set_vl %vl : index {
+    %n = vir.load %num[] : memref<3xi32> -> !vir.vec<?xi32>
+    %d = vir.load %den[] : memref<3xi32> -> !vir.vec<?xi32>
+    %q = arith.divui %n, %d : !vir.vec<?xi32>
+    %m = arith.remsi %q, %d : !vir.vec<?xi32>
+    %s = arith.addi %m, %d : !vir.vec<?xi32>
+    vir.store %s, %out[] : !vir.vec<?xi32> -> memref<3xi32>
+    vector.yield %c0 : i32
+  } -> i32
+  return %r : i32
+}
+
+// CHECK-LABEL: func.func @div
+// CHECK: %[[MASK:.*]] = vector.create_mask %{{.*}} : vector<[1]xi1>
+// CHECK: %[[N:.*]] = vector.maskedload %{{.*}}, %[[MASK]]
+// CHECK: %[[D:.*]] = vector.maskedload %{{.*}}, %[[MASK]]
+// CHECK: %[[ONES:.*]] = arith.constant dense<1> : vector<[1]xi32>
+// CHECK: %[[D1:.*]] = arith.select %[[MASK]], %[[D]], %[[ONES]]
+// CHECK: %[[Q:.*]] = arith.divui %[[N]], %[[D1]] : vector<[1]xi32>
+// CHECK: %[[D2:.*]] = arith.select %[[MASK]], %[[D]], %{{.*}}
+// CHECK: %[[M:.*]] = arith.remsi %[[Q]], %[[D2]] : vector<[1]xi32>
+// CHECK: arith.addi %[[M]], %[[D]] : vector<[1]xi32>

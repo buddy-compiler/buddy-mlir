@@ -1673,11 +1673,33 @@ private:
                                "vir.set_vl with results");
         // an elementwise op on every piece, or any other op once
         int64_t n = onDyn ? pieces.size() : 1;
+        // An integer division by a lane that is off (poison) is undefined
+        // behavior, even if the lane is not used: divide by 1 there.
+        bool guardDivisor =
+            pieces.scalable &&
+            isa<arith::DivUIOp, arith::DivSIOp, arith::RemUIOp, arith::RemSIOp,
+                arith::CeilDivUIOp, arith::CeilDivSIOp, arith::FloorDivSIOp>(
+                op);
         SmallVector<SmallVector<Value, 4>> results(op->getNumResults());
         for (int64_t p = 0; p < n; ++p) {
           OperationState state(loc, op->getName());
-          for (Value v : op->getOperands())
-            state.addOperands(isDyn(v.getType()) ? get(v)[p] : one(v));
+          for (auto [i, v] : llvm::enumerate(op->getOperands())) {
+            if (!isDyn(v.getType())) {
+              state.addOperands(one(v));
+              continue;
+            }
+            Value piece = get(v)[p];
+            if (guardDivisor && i == 1) {
+              auto vecTy = cast<VectorType>(piece.getType());
+              Value ones = arith::ConstantOp::create(
+                  b, loc, vecTy,
+                  DenseElementsAttr::get(
+                      vecTy, b.getIntegerAttr(vecTy.getElementType(), 1)));
+              piece =
+                  arith::SelectOp::create(b, loc, pieces.masks[p], piece, ones);
+            }
+            state.addOperands(piece);
+          }
           for (Type t : op->getResultTypes())
             state.addTypes(isDyn(t) ? pieces.type(elemOf(t), p) : t);
           state.addAttributes(op->getAttrs());
@@ -2054,6 +2076,12 @@ void VIRToVectorPass::runOnOperation() {
   if (rvvVlen != 0 &&
       (rvvVlen < 32 || !llvm::has_single_bit(unsigned(rvvVlen)))) {
     module.emitError("rvv-vlen must be a power of two >= 32, got ")
+        << int(rvvVlen);
+    return signalPassFailure();
+  }
+  // RVV: vscale = VLEN / 64, at least 1 for scalable vectors
+  if (useScalable && rvvVlen != 0 && rvvVlen < 64) {
+    module.emitError("rvv-vlen must be at least 64 with use-scalable, got ")
         << int(rvvVlen);
     return signalPassFailure();
   }

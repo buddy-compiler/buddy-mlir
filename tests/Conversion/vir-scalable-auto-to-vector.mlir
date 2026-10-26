@@ -4,6 +4,8 @@
 // RUN: | FileCheck %s --check-prefixes=CHECK,V1024
 // RUN: not buddy-opt %s -lower-vir-to-vector='use-scalable=true' 2>&1 \
 // RUN: | FileCheck %s --check-prefix=ERR
+// RUN: not buddy-opt %s -lower-vir-to-vector='use-scalable=true rvv-vlen=32' 2>&1 \
+// RUN: | FileCheck %s --check-prefix=ERR32
 
 // On RVV, vscale = VLEN / 64: vector<[N]xT> is a group of LMUL = N * SEW / 64
 // registers whatever the VLEN, so the scalable vector size only depends on
@@ -11,6 +13,8 @@
 // constant vl.
 
 // ERR: use-scalable without vector-width needs rvv-vlen
+// vscale = VLEN / 64 must be at least 1.
+// ERR32: rvv-vlen must be at least 64 with use-scalable, got 32
 
 // One vector live: LMUL 8.
 func.func @low_pressure(%a: memref<?xf32>, %n: index) {
