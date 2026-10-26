@@ -160,10 +160,11 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
 /// registers of the target: with `rvvVlen` (bits, > 0), a RISC-V Vector
 /// target with 32 registers of that VLEN, whatever the host; otherwise the
 /// host's registers. With `useScalable` (RVV only), the vector is scalable
-/// and `rvvVlen` is the minimum VLEN.
+/// and `rvvVlen` is the minimum VLEN. An index element has `indexBitWidth`
+/// bits.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose, int rvvVlen,
-                            int64_t rows = 1) {
+                            unsigned indexBitWidth, int64_t rows = 1) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
@@ -298,7 +299,9 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
 
   VERBOSE_ANALYSIS_INFO("\n--- Calculating Final Vector Type ---\n");
 
-  unsigned elementBitWidth = anchorType.getIntOrFloatBitWidth();
+  // index as the LLVM lowering has it
+  unsigned elementBitWidth =
+      anchorType.isIndex() ? indexBitWidth : anchorType.getIntOrFloatBitWidth();
   if (elementBitWidth == 0) {
     srcRegion.getParentOp()->emitError(
         "Anchor type is not a valid integer or float type.");
@@ -1821,7 +1824,9 @@ private:
         useCustomVecWid
             ? vectorWidth
             : vectorTypeHelper(op.getRegion(), anchorType, useScalable, verbose,
-                               rvvVlen, llvm::product_of(layout))
+                               rvvVlen,
+                               getTypeConverter()->getIndexTypeBitwidth(),
+                               llvm::product_of(layout))
                   .getShape()[0];
     // A vir.shuffle moves lanes between rows within one vector: each
     // dynamic vector is one vector of all its lanes, whatever the register
@@ -2012,7 +2017,8 @@ private:
       }
     } else {
       targetVectorType =
-          vectorTypeHelper(region, anchorType, useScalable, verbose, rvvVlen);
+          vectorTypeHelper(region, anchorType, useScalable, verbose, rvvVlen,
+                           getTypeConverter()->getIndexTypeBitwidth());
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
