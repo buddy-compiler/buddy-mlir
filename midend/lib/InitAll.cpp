@@ -74,6 +74,8 @@ void registerInt4DequantMatMulVectorizationDecodePass();
 void registerBatchMatMulVectorizationDecodePass();
 void registerTransposeOptimizationPass();
 void registerSiLUFusionPass();
+void registerVectorExpApproximationPass();
+void registerPrefillElementwiseFusionPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerSimplifyTosaReshapePass();
@@ -138,6 +140,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerSiLUFusionPass();
+  mlir::buddy::registerVectorExpApproximationPass();
+  mlir::buddy::registerPrefillElementwiseFusionPass();
   mlir::buddy::registerAssumeTightMemRefLayoutPass();
   mlir::buddy::registerStaticizeMemRefLayoutPass();
   mlir::buddy::registerSimplifyTosaReshapePass();
