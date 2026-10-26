@@ -162,7 +162,8 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
 /// host's registers. With `useScalable` (RVV only), the vector is scalable
 /// and `rvvVlen` is the minimum VLEN.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
-                            bool useScalable, bool verbose, int rvvVlen) {
+                            bool useScalable, bool verbose, int rvvVlen,
+                            int64_t rows = 1) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
@@ -337,13 +338,17 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                           << elementBitWidth << ")) = " << sizeVec << "\n");
   }
 
-  // no wider than a constant vl: the lanes past it would compute nothing
+  // no wider than a dynamic vector of a constant vl (`rows` rows of vl
+  // lanes): the lanes past it would compute nothing
   if (std::optional<int64_t> vl =
           getConstantIntValue(cast<vir::SetVLOp>(setVL).getVl());
-      vl && *vl > 0 && sizeVec > *vl) {
-    sizeVec = llvm::bit_floor(uint64_t(*vl));
-    VERBOSE_ANALYSIS_INFO("Clamped to the constant vl "
-                          << *vl << ": Size_vec = " << sizeVec << "\n");
+      vl && *vl > 0 && sizeVec > *vl * rows) {
+    sizeVec = llvm::bit_floor(uint64_t(*vl * rows));
+    VERBOSE_ANALYSIS_INFO(
+        "Clamped to the constant vl "
+        << *vl
+        << (rows > 1 ? " x " + std::to_string(rows) + " rows" : std::string())
+        << ": Size_vec = " << sizeVec << "\n");
   }
 
   if (sizeVec < 1) {
@@ -1357,17 +1362,22 @@ private:
   }
 
   /// The pieces a dynamic vector of a set_vl with results is lowered to:
-  /// `numVectors` vectors of `width` lanes, then `numScalars` scalars. With
+  /// `numVectors` vectors of `width` lanes, then `numScalars` scalars. A
+  /// dynamic vector of static layout `layout` (e.g. [2] for
+  /// !vir.vec<2x?xT>) has its rows of vl lanes one after the other, row
+  /// major, in rows * vl lanes. With
   /// `scalable`, the vectors have width * vscale lanes (`lanes`, a runtime
   /// value), there are no scalars, and the lanes of vector p from vl on are
   /// off in `masks[p]`.
   struct Pieces {
     int64_t width, numVectors, numScalars;
     bool scalable = false;
+    SmallVector<int64_t> layout;
+    int64_t vl = 0;
     Value lanes;
     SmallVector<Value> masks;
     int64_t size() const { return numVectors + numScalars; }
-    // the number of lanes, vl (fixed pieces)
+    // the number of lanes, rows * vl (fixed pieces)
     int64_t length() const { return numVectors * width + numScalars; }
     bool isVector(int64_t p) const { return p < numVectors; }
     // the first lane of piece p of fixed pieces
@@ -1408,20 +1418,60 @@ private:
       return {v};
     };
     auto one = [&](Value v) { return get(v).front(); };
-    // the memref indices of piece p of the access at `indices`
-    auto pieceIndices = [&](Value base, ValueRange indices, int64_t p) {
-      SmallVector<Value> out;
-      Value off = pieces.offset(b, loc, p);
-      if (indices.empty()) {
-        int64_t rank = cast<MemRefType>(base.getType()).getRank();
-        for (int64_t i = 0; i + 1 < rank; ++i)
-          out.push_back(arith::ConstantIndexOp::create(b, loc, 0));
-        out.push_back(off);
-        return out;
+    // The memref and indices of the first lane of an access at `indices`
+    // (none: all 0). The rows of a dynamic vector are the dims before the
+    // last one of the memref, as for vector.load: the memref must hold them
+    // one after the other, and these dims are collapsed into the last one.
+    auto access = [&](Operation *op, Value base, ValueRange indices)
+        -> FailureOr<std::pair<Value, SmallVector<Value>>> {
+      auto type = cast<MemRefType>(base.getType());
+      int64_t rank = type.getRank(), k = pieces.layout.size();
+      // the lanes are along the last dim
+      if (rank == 0)
+        return op->emitError(
+            "a dynamic vector memory access needs a non-zero-rank memref");
+      if (!indices.empty() && int64_t(indices.size()) != rank)
+        return op->emitError("expected no index or one per memref dim");
+      SmallVector<Value> idx;
+      for (int64_t i = 0; i < rank; ++i)
+        idx.push_back(indices.empty()
+                          ? Value(arith::ConstantIndexOp::create(b, loc, 0))
+                          : one(indices[i]));
+      if (k == 0)
+        return std::make_pair(base, idx);
+      SmallVector<ReassociationIndices> groups;
+      for (int64_t i = 0; i + k + 1 < rank; ++i)
+        groups.push_back({i});
+      ReassociationIndices rows;
+      for (int64_t i = std::max<int64_t>(0, rank - k - 1); i < rank; ++i)
+        rows.push_back(i);
+      groups.push_back(rows);
+      // the rows from the first one on: the dims after the first one of the
+      // layout match it, the last dim has vl elements
+      ArrayRef<int64_t> shape = type.getShape();
+      SmallVector<int64_t> inner(ArrayRef(pieces.layout).drop_front());
+      inner.push_back(pieces.vl);
+      if (rank < k + 1 || shape.take_back(k) != ArrayRef(inner) ||
+          !memref::CollapseShapeOp::isGuaranteedCollapsible(type, groups))
+        return op->emitError("the rows of a multi-dimensional dynamic vector "
+                             "must be one after the other in memory");
+      Value flat = memref::CollapseShapeOp::create(b, loc, base, groups);
+      // the index of the first lane in the collapsed dim
+      Value index = idx[rows.front()];
+      for (int64_t i : ArrayRef(rows).drop_front()) {
+        index = arith::MulIOp::create(
+            b, loc, index, arith::ConstantIndexOp::create(b, loc, shape[i]));
+        index = arith::AddIOp::create(b, loc, index, idx[i]);
       }
-      for (Value index : indices.drop_back())
-        out.push_back(one(index));
-      out.push_back(arith::AddIOp::create(b, loc, one(indices.back()), off));
+      idx.resize(rows.front());
+      idx.push_back(index);
+      return std::make_pair(flat, idx);
+    };
+    // the memref indices of piece p of an access at `start`
+    auto pieceIndices = [&](ArrayRef<Value> start, int64_t p) {
+      SmallVector<Value> out(start.drop_back());
+      out.push_back(arith::AddIOp::create(b, loc, start.back(),
+                                          pieces.offset(b, loc, p)));
       return out;
     };
     // flattens the pieces of `values`; `counts` gets the number of each
@@ -1454,17 +1504,22 @@ private:
       }
       for (Type t : op->getResultTypes()) {
         auto dyn = dyn_cast<vir::DynamicVectorType>(t);
-        if (dyn && (dyn.getShape().size() != 1 || dyn.getScalingFactor()))
-          return op->emitError("a vir.set_vl with results supports only "
-                               "!vir.vec<?xT> vectors");
+        if (dyn && (dyn.getShape().drop_back() != ArrayRef(pieces.layout) ||
+                    dyn.getScalingFactor()))
+          return op->emitError("the dynamic vectors of a vir.set_vl with "
+                               "results must have the same static layout and "
+                               "no scaling factor");
       }
 
       if (auto load = dyn_cast<vir::LoadOp>(op)) {
-        Value base = one(load.getBase());
+        auto at = access(op, one(load.getBase()), load.getIndices());
+        if (failed(at))
+          return failure();
+        Value base = at->first;
         Type elem = elemOf(load.getType());
         SmallVector<Value, 4> out;
         for (int64_t p = 0; p < pieces.size(); ++p) {
-          SmallVector<Value> idx = pieceIndices(base, load.getIndices(), p);
+          SmallVector<Value> idx = pieceIndices(at->second, p);
           if (!pieces.isVector(p)) {
             out.push_back(memref::LoadOp::create(b, loc, base, idx));
             continue;
@@ -1491,10 +1546,13 @@ private:
         }
         map[load.getResult()] = out;
       } else if (auto store = dyn_cast<vir::StoreOp>(op)) {
-        Value base = one(store.getBase());
+        auto at = access(op, one(store.getBase()), store.getIndices());
+        if (failed(at))
+          return failure();
+        Value base = at->first;
         SmallVector<Value, 4> values = get(store.getValue());
         for (int64_t p = 0; p < pieces.size(); ++p) {
-          SmallVector<Value> idx = pieceIndices(base, store.getIndices(), p);
+          SmallVector<Value> idx = pieceIndices(at->second, p);
           if (!pieces.isVector(p))
             memref::StoreOp::create(b, loc, values[p], base, idx);
           else if (pieces.scalable) {
@@ -1724,19 +1782,35 @@ private:
     std::optional<int64_t> vl = getConstantIntValue(op.getVl());
     if (!vl)
       return op.emitError("a vir.set_vl with results needs a constant vl");
-    int64_t width = useCustomVecWid
-                        ? vectorWidth
-                        : vectorTypeHelper(op.getRegion(), anchorType,
-                                           useScalable, verbose, rvvVlen)
-                              .getShape()[0];
-    Pieces pieces{width, *vl / width, *vl % width};
-    // Vectors of width * vscale lanes cover vl: as many as at the minimum
-    // vscale (rvv-vlen / 64 on RVV, else 1), each masked from vl on. At a
-    // larger vscale, the last ones are all off.
+    // the static layout of the dynamic vectors (checked on each op)
+    SmallVector<int64_t> layout;
+    op.getRegion().walk([&](Operation *inner) {
+      for (Type t : inner->getResultTypes())
+        if (auto dyn = dyn_cast<vir::DynamicVectorType>(t)) {
+          layout.assign(dyn.getShape().begin(), dyn.getShape().end() - 1);
+          return WalkResult::interrupt();
+        }
+      return WalkResult::advance();
+    });
+    // a dynamic vector holds its rows one after the other
+    int64_t lanes = *vl * llvm::product_of(layout);
+    int64_t width =
+        useCustomVecWid
+            ? vectorWidth
+            : vectorTypeHelper(op.getRegion(), anchorType, useScalable, verbose,
+                               rvvVlen, llvm::product_of(layout))
+                  .getShape()[0];
+    Pieces pieces{width, lanes / width, lanes % width};
+    // Vectors of width * vscale lanes cover the lanes: as many as at the
+    // minimum vscale (rvv-vlen / 64 on RVV, else 1), each masked from the
+    // lanes on. At a larger vscale, the last ones are all off.
     if (useScalable)
-      pieces = {width,
-                llvm::divideCeil(*vl, width * (rvvVlen > 0 ? rvvVlen / 64 : 1)),
-                0, true};
+      pieces = {
+          width,
+          llvm::divideCeil(lanes, width * (rvvVlen > 0 ? rvvVlen / 64 : 1)), 0,
+          true};
+    pieces.layout = layout;
+    pieces.vl = *vl;
     // keep the lowered code small: vl over a few vectors
     if (pieces.size() > 64)
       return op.emitError("a vir.set_vl with results lowers to more than 64 "
@@ -1749,9 +1823,9 @@ private:
           rewriter, loc, arith::ConstantIndexOp::create(rewriter, loc, width),
           vector::VectorScaleOp::create(rewriter, loc));
       auto maskTy = VectorType::get({width}, rewriter.getI1Type(), {true});
-      Value vlValue = arith::ConstantIndexOp::create(rewriter, loc, *vl);
+      Value lanesValue = arith::ConstantIndexOp::create(rewriter, loc, lanes);
       for (int64_t p = 0; p < pieces.numVectors; ++p) {
-        Value rest = arith::SubIOp::create(rewriter, loc, vlValue,
+        Value rest = arith::SubIOp::create(rewriter, loc, lanesValue,
                                            pieces.offset(rewriter, loc, p));
         pieces.masks.push_back(
             vector::CreateMaskOp::create(rewriter, loc, maskTy, rest));
