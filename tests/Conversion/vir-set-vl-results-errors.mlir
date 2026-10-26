@@ -125,3 +125,33 @@ func.func @rank0(%a: memref<f32>) -> f32 {
   } -> f32
   return %r : f32
 }
+
+// -----
+
+func.func @shuffle_strip_mined(%a: memref<2x8xf32>) {
+  %vl = arith.constant 8 : index
+  vir.set_vl %vl : index {
+    %x = vir.load %a[] : memref<2x8xf32> -> !vir.vec<2x?xf32>
+    // expected-error @below {{vir.shuffle needs a vir.set_vl with results}}
+    %y = vir.shuffle %x, %x [1, 0] : !vir.vec<2x?xf32>
+    vir.store %y, %a[] : !vir.vec<2x?xf32> -> memref<2x8xf32>
+    vector.yield
+  }
+  return
+}
+
+// -----
+
+// At vector-width 4, the 16 lanes are four vectors.
+func.func @shuffle_pieces(%a: memref<2x8xf32>) -> f32 {
+  %vl = arith.constant 8 : index
+  %z = arith.constant 0.0 : f32
+  %r = vir.set_vl %vl : index {
+    %x = vir.load %a[] : memref<2x8xf32> -> !vir.vec<2x?xf32>
+    // expected-error @below {{vir.shuffle needs a dynamic vector in one vector of the target}}
+    %y = vir.shuffle %x, %x [1, 0] : !vir.vec<2x?xf32>
+    %s = vir.reduce %y, %z {kind = "add"} : !vir.vec<2x?xf32>, f32 -> f32
+    vector.yield %s : f32
+  } -> f32
+  return %r : f32
+}
