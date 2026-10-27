@@ -273,15 +273,18 @@ public:
         std::vector<std::size_t>{1, shape.maxTokenLength},
         static_cast<std::size_t>(shape.sotToken));
 
+    const auto preprocessStart = Clock::now();
+    dap::Audio<double, 1> rawAudio(audio.uri);
+    MemRef<float, 3> audioFeatures(
+        std::vector<std::size_t>{1, shape.melBins, shape.audioFrames}, false,
+        0);
+    dap::whisperPreprocess(&rawAudio, &audioFeatures);
+    result.timings.preprocessMs = milliseconds(Clock::now() - preprocessStart);
+
     for (int step = 0; step < maxTokens; ++step) {
-      const auto preprocessStart = Clock::now();
-      dap::Audio<double, 1> rawAudio(audio.uri);
-      MemRef<float, 3> audioInput(
-          std::vector<std::size_t>{1, shape.melBins, shape.audioFrames});
-      dap::whisperPreprocess(&rawAudio, &audioInput);
-      const auto preprocessEnd = Clock::now();
-      result.timings.preprocessMs +=
-          milliseconds(preprocessEnd - preprocessStart);
+      // Reuse preprocessing while isolating each call from kernels that
+      // mutate their input features.
+      MemRef<float, 3> audioInput(audioFeatures);
 
       // The compiled function assigns result buffers. Non-owning clean
       // descriptors ensure each iteration starts empty; MemRef destructors

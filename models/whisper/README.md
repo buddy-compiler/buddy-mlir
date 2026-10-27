@@ -35,10 +35,11 @@ Use a local Hugging Face model snapshot through `--local-model` or
 the importer may fetch the model configured by the spec (by default,
 `openai/whisper-base`).
 
-The package contains `whisper.rax`, `whisper_model.so`,
-`whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample
-`audio.wav`. The manifest keeps the runner and model plugin entries;
-the default payload mode embeds all of them in the `.rax`.
+The build directory contains `whisper.rax`, the compiled model and runtime
+libraries, `vocab.txt`, and the sample `audio.wav`. The default payload mode
+embeds the weights, model kernels, runtime libraries, vocabulary, runner, and
+server plugin in the `.rax`. The sample `audio.wav` remains a separate input
+file; copy it alongside the package when running the bundled example.
 
 ## buddy-cli
 
@@ -46,7 +47,7 @@ the default payload mode embeds all of them in the `.rax`.
 ./build/bin/buddy-cli \
   --model ./build/models/whisper/whisper.rax \
   --audio ./build/models/whisper/audio.wav \
-  --max-tokens 16
+  --max-tokens 64
 ```
 
 `--audio` accepts a local WAV file and defaults to `audio.wav` beside
@@ -79,3 +80,19 @@ The initial API supports only local WAV paths (`file` or the compatibility
 alias `audio_path`). It rejects multipart uploads, inline bytes/base64, remote
 URLs, data URIs, non-WAV files, and streaming requests. One model owns one
 runtime/session; inference is serialized while weights remain resident.
+
+## Runtime tests
+
+With `BUDDY_ENABLE_TESTS=ON` and `BUDDY_BUILD_WHISPER_MODEL=ON`, run:
+
+```bash
+cmake --build build --target buddy-whisper-runtime-test buddy-whisper-preprocess-test
+ctest --test-dir build -R '^whisper-(runtime|preprocess)$' --output-on-failure
+```
+
+These tests use a tiny model kernel and do not download model weights.
+`whisper-runtime` exercises the runtime with real audio preprocessing.
+`whisper-preprocess` substitutes a counting preprocessing function to check
+that each request preprocesses its audio once, while each decoding step
+receives a fresh copy of the features. Both tests exercise repeated requests
+and a kernel that overwrites its input features.

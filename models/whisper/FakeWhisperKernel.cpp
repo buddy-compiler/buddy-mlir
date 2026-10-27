@@ -33,6 +33,7 @@ extern "C" void _mlir_ciface_forward(MemRef<float, 3> *outputs,
                                      MemRef<float, 3> *audio,
                                      MemRef<std::size_t, 2> *tokens) {
   const bool freshAudio = audio->getData()[0] != kMutatedAudioMarker;
+  const bool emptyOutputs = !outputs[0].getData() && !outputs[1].getData();
   const bool firstStep = tokens->getData()[1] == 0;
 
   outputs[0] = MemRef<float, 3>(std::vector<std::size_t>{1, 1, 1}, 0.0F);
@@ -40,9 +41,11 @@ extern "C" void _mlir_ciface_forward(MemRef<float, 3> *outputs,
       std::vector<std::size_t>{1, kMaxTokenLength, kVocabSize}, -10.0F);
 
   const std::size_t step = firstStep ? 0 : 1;
-  const std::size_t token = !freshAudio ? 0 : (firstStep ? 1 : 2);
+  const std::size_t token =
+      !freshAudio || !emptyOutputs ? 0 : (firstStep ? 1 : 2);
   outputs[1].getData()[step * kVocabSize + token] = 10.0F;
 
-  // A second decode step only succeeds if the runtime reruns preprocessing.
+  // A second decode step only succeeds if the runtime provides fresh features.
+  // The generated model also expects empty result descriptors to fill in.
   audio->getData()[0] = kMutatedAudioMarker;
 }

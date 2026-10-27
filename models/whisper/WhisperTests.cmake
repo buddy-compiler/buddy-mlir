@@ -57,3 +57,13 @@ add_test(NAME whisper-runtime COMMAND buddy-whisper-runtime-test
   "${CMAKE_CURRENT_SOURCE_DIR}/WhisperRuntimeTestShortVocab.txt")
 set_tests_properties(whisper-runtime PROPERTIES
   PASS_REGULAR_EXPRESSION "WhisperRuntime tests passed")
+
+add_executable(buddy-whisper-preprocess-test WhisperPreprocessTest.cpp)
+target_compile_features(buddy-whisper-preprocess-test PRIVATE cxx_std_17)
+target_link_libraries(buddy-whisper-preprocess-test PRIVATE buddy_models_whisper)
+add_dependencies(buddy-whisper-preprocess-test
+  buddy-whisper-runtime-test-fixture)
+
+add_test(NAME whisper-preprocess COMMAND buddy-whisper-preprocess-test
+  "${_WHISPER_RUNTIME_TEST_RAX}"
+  "${CMAKE_SOURCE_DIR}/examples/BuddyWhisper/audio.wav")
