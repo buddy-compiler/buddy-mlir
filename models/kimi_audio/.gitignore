@@ -1,0 +1,24 @@
+# Kimi-Audio-generated artifacts and staged HF snapshot files.
+# `buddy_add_model` re-imports / re-stages these from the local HF snapshot
+# (BUDDY_KIMI_AUDIO_MODEL_PATH) at build time, so nothing here is committed.
+
+# Import output
+arg0.data
+layer_partitioned/
+
+# Python caches
+__pycache__/
+
+# HuggingFace snapshot files (staged / patched during import)
+config.json
+tokenizer.json
+tokenizer_config.json
+vocab.txt
+special_tokens_map.json
+artifact.metadata
+model.safetensors
+pytorch_model.bin
+
+# Root-level compiled IR (build/ contains the real generated outputs)
+forward.mlir
+subgraph0.mlir
