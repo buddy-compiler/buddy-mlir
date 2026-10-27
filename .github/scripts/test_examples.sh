@@ -50,6 +50,11 @@ else
   ccache -s
 fi
 
+if [ "$arch" = "x64" ]; then
+  cmake -S . -B build -DBUDDY_WHISPER_EXAMPLES=ON
+  ninja -C build buddy-whisper-run
+fi
+
 ctest --test-dir "$PWD/build" \
   -L example \
   --output-on-failure \

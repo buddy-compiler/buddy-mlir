@@ -111,13 +111,13 @@ target_link_libraries(buddy-whisper-run ${BUDDY_WHISPER_LIBS})
 
 add_test(
   NAME example.buddy-whisper-run
-  COMMAND $<TARGET_FILE:buddy-whisper-run>
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check-output.py
+          $<TARGET_FILE:buddy-whisper-run>
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 )
 set_tests_properties(
   example.buddy-whisper-run
   PROPERTIES
     LABELS "example"
-    PASS_REGULAR_EXPRESSION "www"
     TIMEOUT 1800
 )

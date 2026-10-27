@@ -83,4 +83,28 @@ $ cd bin
 $ ./buddy-whisper-run
 ```
 
-5. Enjoy it!
+5. Run the example test.
+
+From the repository root, after building `buddy-whisper-run`:
+
+```bash
+ctest --test-dir build -R '^example.buddy-whisper-run$' --output-on-failure
+```
+
+The test runs the compiled model on the bundled `audio.wav`, checks that the
+program exits successfully and generates an end token, and compares the final
+`[Output]` text with:
+
+```text
+Nor is Mr. Quilter's manner less interesting than his matter.
+```
+
+The checker ignores terminal color codes and leading or trailing whitespace in
+the transcription. Empty, missing, duplicate or incorrect transcriptions fail
+the test, as does a nonzero exit status. The test has a 30-minute timeout.
+
+The example CI enables Whisper on Linux x64. The other platform configurations
+are unchanged. Model files must be available through `WHISPER_MODEL_PATH` or
+downloadable from Hugging Face when the model is imported. Allow several minutes
+and enough memory for full-sequence CPU inference; the model is evaluated again
+for each generated token.
