@@ -43,7 +43,8 @@ def VIR_ScalingFactorAttr : AttrDef<VIR_Dialect, "ScalingFactor"> {
   }];
 
   let parameters = (ins
-    "llvm::StringRef":$ratio,   // "m" or "f"
+    // (copied into the attribute storage)
+    StringRefParameter<"\"m\" or \"f\"">:$ratio,
     "int64_t":$value      // 2, 4, 8, 16, 32, 64
   );
 

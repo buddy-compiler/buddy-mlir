@@ -55,6 +55,8 @@ void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerRVVPass();
 void registerLowerVectorExpPass();
+void registerLinalgToVIRPass();
+void registerVIRToVectorPass();
 void registerLowerLinalgToTilePass();
 #ifdef BUDDY_EXTERNAL_DIALECTS
 void registerLowerTileToBuckyballPass();
@@ -129,6 +131,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
+  mlir::buddy::registerLinalgToVIRPass();
+  mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerMatMulParallelVectorizationPass();

@@ -80,6 +80,10 @@ def VIR_DynamicVectorType : TypeDef<VIR_Dialect, "DynamicVector",
       "Type":$elementType,
       CArg<"ScalingFactorAttr", "{}">:$scalingFactor
     ), [{
+      assert((!scalingFactor ||
+              scalingFactor.getContext() == elementType.getContext()) &&
+             "the scaling factor and the element type must be in the same "
+             "context");
       return $_get(elementType.getContext(), shape, elementType, scalingFactor);
     }]>
   ];

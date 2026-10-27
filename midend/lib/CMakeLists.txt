@@ -34,6 +34,8 @@ set(LinkedLibs
   LowerIMEPass
   LowerRVVPass
   LowerVectorExpPass
+  LinalgToVIRPass
+  VIRToVectorPass
   MatMulOptimization
   BatchMatMulOptimization
   MatMulParallelVectorization
