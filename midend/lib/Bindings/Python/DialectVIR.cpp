@@ -110,6 +110,11 @@ struct DynamicVectorType : PyConcreteType<DynamicVectorType, PyShapedType> {
           if (scalingFactor) {
             if (!mlirAttributeIsAVIRScalingFactorAttr(*scalingFactor))
               throw nb::value_error("expected a ScalingFactorAttr");
+            // the type keeps only the context of its element type alive
+            if (!mlirContextEqual(mlirAttributeGetContext(*scalingFactor),
+                                  mlirTypeGetContext(elementType)))
+              throw nb::value_error("the scaling factor and the element type "
+                                    "must be in the same context");
             factor = *scalingFactor;
           }
           return DynamicVectorType(

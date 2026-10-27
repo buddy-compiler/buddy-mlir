@@ -64,6 +64,12 @@ def testDynamicVectorType():
         except ValueError as e:
             # CHECK: the value of a scaling factor is 2, 4, 8, 16, 32 or 64
             print(e)
+        try:
+            other = vir.ScalingFactorAttr.get("m", 2, context=ir.Context())
+            vir.DynamicVectorType.get([dyn], f32, scaling_factor=other)
+        except ValueError as e:
+            # CHECK: the scaling factor and the element type must be in the same context
+            print(e)
 
 
 # The query of a head of 128 as two rows: RoPE (rotate_half is a shuffle of

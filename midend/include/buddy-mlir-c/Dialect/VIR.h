@@ -59,7 +59,7 @@ MLIR_CAPI_EXPORTED MlirTypeID mlirVIRDynamicVectorTypeGetTypeID(void);
 
 /// A dynamic vector of `shape` (static dims, then the dynamic one,
 /// mlirShapedTypeGetDynamicSize()), `elementType` and an optional scaling
-/// factor (a null attribute for none).
+/// factor (a null attribute for none) in the context of `elementType`.
 MLIR_CAPI_EXPORTED MlirType
 mlirVIRDynamicVectorTypeGet(intptr_t rank, const int64_t *shape,
                             MlirType elementType, MlirAttribute scalingFactor);
