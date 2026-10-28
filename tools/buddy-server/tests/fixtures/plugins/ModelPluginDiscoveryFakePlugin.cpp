@@ -15,9 +15,31 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/core/ModelPlugin.h"
+#include "buddy/runtime/core/ServerModelABI.h"
 
 #if defined(BUDDY_DISCOVERY_REQUIRED_GLOBAL_SYMBOL)
 #include <dlfcn.h>
+#endif
+
+#if defined(BUDDY_DISCOVERY_REQUIRED_GLOBAL_SYMBOL)
+extern "C" const BuddyServerModelDescriptorV1 *
+buddy_server_model_descriptor_v1() {
+  if (!dlsym(RTLD_DEFAULT, "buddyRaxDependencyTestValue"))
+    return nullptr;
+  static const BuddyServerModelDescriptorV1 descriptor = {
+      sizeof(descriptor),
+      BUDDY_SERVER_MODEL_ABI_VERSION_V1,
+      BUDDY_SERVER_SERVICE_RESIDENT,
+      (1ull << BUDDY_SERVER_OPERATION_COMPLETION),
+      0,
+      BUDDY_SERVER_MODALITY_TEXT,
+      BUDDY_SERVER_RESULT_TEXT,
+      1,
+      "dependency_test",
+      nullptr,
+      0};
+  return &descriptor;
+}
 #endif
 
 #if !defined(BUDDY_DISCOVERY_MISSING_DESCRIPTOR)

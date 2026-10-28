@@ -14,24 +14,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/core/ModelPlugin.h"
+#include "buddy/runtime/core/ServerModelPluginAdapters.h"
 #include "buddy/runtime/models/BgeM3EmbeddingModel.h"
 
-extern "C" buddy::runtime::EmbeddingModel *buddy_create_embedding_model_v1() {
-  return new buddy::runtime::BgeM3EmbeddingModel();
-}
+namespace {
+struct Factory {
+  static std::unique_ptr<buddy::runtime::EmbeddingModel> create() {
+    return std::make_unique<buddy::runtime::BgeM3EmbeddingModel>();
+  }
+};
+using Adapter =
+    buddy::runtime::server_abi::EmbeddingServerModelAdapter<Factory>;
+} // namespace
 
-extern "C" void
-buddy_destroy_embedding_model_v1(buddy::runtime::EmbeddingModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_embedding_model_type_v1() { return "bge_m3"; }
-
-extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
-buddy_model_plugin_descriptor_v1() {
-  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
-      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
-      buddy::runtime::ModelServiceKind::Embedding, 0};
+extern "C" const BuddyServerModelDescriptorV1 *
+buddy_server_model_descriptor_v1() {
+  static const BuddyServerModelDescriptorV1 descriptor = {
+      sizeof(descriptor),
+      BUDDY_SERVER_MODEL_ABI_VERSION_V1,
+      BUDDY_SERVER_SERVICE_EMBEDDING,
+      (1ull << BUDDY_SERVER_OPERATION_EMBEDDING),
+      0,
+      BUDDY_SERVER_MODALITY_TEXT,
+      BUDDY_SERVER_RESULT_EMBEDDING_VECTOR,
+      1,
+      "bge_m3",
+      Adapter::ops(),
+      0};
   return &descriptor;
 }

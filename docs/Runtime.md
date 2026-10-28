@@ -216,9 +216,12 @@ Paths live in the `.rax` FlatBuffer; C++ reads them at runtime via `ModelManifes
 
 Server packages use one optional `model_library` module attribute for the model
 HTTP adapter. `buddy-server --model <file.rax>` resolves that URI, validates the
-adapter's `buddy_model_plugin_descriptor_v1` descriptor, and then selects the
-existing typed model factory for the declared service. `runner_library` remains
-the independent `buddy-cli` runner ABI.
+adapter's `buddy_server_model_descriptor_v1` descriptor, and invokes every
+service through the unified Server Model ABI operation table. Service type,
+operations, input modalities, result kind, and execution capabilities are
+declared separately. `runner_library` remains the independent `buddy-cli`
+runner ABI. Packages that only export the legacy server ABI are rejected with
+an instruction to use a newly generated `.rax`.
 
 **Q: Do I need to prepare `vocab.txt` manually?**
 

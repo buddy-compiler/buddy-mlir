@@ -14,25 +14,33 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/core/ModelPlugin.h"
-#include "buddy/runtime/core/ResidentModelPlugin.h"
+#include "buddy/runtime/core/ServerModelPluginAdapters.h"
 #include "buddy/runtime/models/Qwen3VLResidentModel.h"
 
-extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
-  return new buddy::runtime::Qwen3VLResidentModel();
-}
+namespace {
+struct Factory {
+  static std::unique_ptr<buddy::runtime::ResidentModel> create() {
+    return std::make_unique<buddy::runtime::Qwen3VLResidentModel>();
+  }
+};
+using Adapter = buddy::runtime::server_abi::ResidentServerModelAdapter<Factory>;
+} // namespace
 
-extern "C" void
-buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_resident_model_type_v1() { return "qwen3_vl"; }
-
-extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
-buddy_model_plugin_descriptor_v1() {
-  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
-      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
-      buddy::runtime::ModelServiceKind::Resident, 0};
+extern "C" const BuddyServerModelDescriptorV1 *
+buddy_server_model_descriptor_v1() {
+  static const BuddyServerModelDescriptorV1 descriptor = {
+      sizeof(descriptor),
+      BUDDY_SERVER_MODEL_ABI_VERSION_V1,
+      BUDDY_SERVER_SERVICE_RESIDENT,
+      (1ull << BUDDY_SERVER_OPERATION_COMPLETION) |
+          (1ull << BUDDY_SERVER_OPERATION_CHAT) |
+          (1ull << BUDDY_SERVER_OPERATION_TOKENIZE),
+      BUDDY_SERVER_CAPABILITY_STREAMING,
+      BUDDY_SERVER_MODALITY_TEXT | BUDDY_SERVER_MODALITY_IMAGE,
+      BUDDY_SERVER_RESULT_TEXT,
+      1,
+      "qwen3_vl",
+      Adapter::ops(),
+      0};
   return &descriptor;
 }

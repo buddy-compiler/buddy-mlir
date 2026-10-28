@@ -67,7 +67,7 @@ def main() -> int:
         Path(missing),
         work,
         "missing-descriptor",
-        "is missing buddy_model_plugin_descriptor_v1",
+        "is missing buddy_server_model_descriptor_v1",
     )
     plugin_case(
         server,
@@ -75,7 +75,7 @@ def main() -> int:
         Path(mismatch),
         work,
         "factory-mismatch",
-        "missing buddy_create_resident_model_v1",
+        "legacy server ABI; please use a .rax package produced with the latest",
     )
 
     print("buddy-server startup failure tests passed")

@@ -14,8 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/core/ModelPlugin.h"
-#include "buddy/runtime/core/ResidentModelPlugin.h"
+#include "buddy/runtime/core/ServerModelPluginAdapters.h"
 #include "buddy/runtime/models/Llama31TTNNBackend.h"
 #include "buddy/runtime/models/Llama31TTResidentModel.h"
 
@@ -40,30 +39,40 @@ bool fakeExecutionRequested() {
 
 } // namespace
 
-extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
-  auto execution = std::make_shared<buddy::runtime::Llama31TTExecution>();
-  // Fake execution is an explicit test mode. Production plugin instances
-  // always construct the hardware session during ResidentModel::load().
-  if (!fakeExecutionRequested()) {
-    execution->setBackendFactory(
-        [](const buddy::runtime::Llama31TTExecution::Metadata &metadata) {
-          return buddy::runtime::createLlama31TTNNBackend(metadata);
-        });
+namespace {
+struct Factory {
+  static std::unique_ptr<buddy::runtime::ResidentModel> create() {
+    auto execution = std::make_shared<buddy::runtime::Llama31TTExecution>();
+    // Fake execution is an explicit test mode. Production plugin instances
+    // always construct the hardware session during ResidentModel::load().
+    if (!fakeExecutionRequested()) {
+      execution->setBackendFactory(
+          [](const buddy::runtime::Llama31TTExecution::Metadata &metadata) {
+            return buddy::runtime::createLlama31TTNNBackend(metadata);
+          });
+    }
+    return std::make_unique<buddy::runtime::Llama31TTResidentModel>(
+        std::move(execution));
   }
-  return new buddy::runtime::Llama31TTResidentModel(std::move(execution));
-}
+};
+using Adapter = buddy::runtime::server_abi::ResidentServerModelAdapter<Factory>;
+} // namespace
 
-extern "C" void
-buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_resident_model_type_v1() { return "llama31_tt"; }
-
-extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
-buddy_model_plugin_descriptor_v1() {
-  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
-      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
-      buddy::runtime::ModelServiceKind::Resident, 0};
+extern "C" const BuddyServerModelDescriptorV1 *
+buddy_server_model_descriptor_v1() {
+  static const BuddyServerModelDescriptorV1 descriptor = {
+      sizeof(descriptor),
+      BUDDY_SERVER_MODEL_ABI_VERSION_V1,
+      BUDDY_SERVER_SERVICE_RESIDENT,
+      (1ull << BUDDY_SERVER_OPERATION_COMPLETION) |
+          (1ull << BUDDY_SERVER_OPERATION_CHAT) |
+          (1ull << BUDDY_SERVER_OPERATION_TOKENIZE),
+      BUDDY_SERVER_CAPABILITY_STREAMING,
+      BUDDY_SERVER_MODALITY_TEXT,
+      BUDDY_SERVER_RESULT_TEXT,
+      1,
+      "llama31_tt",
+      Adapter::ops(),
+      0};
   return &descriptor;
 }

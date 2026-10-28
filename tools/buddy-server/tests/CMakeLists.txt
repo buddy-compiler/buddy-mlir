@@ -81,6 +81,15 @@ target_compile_definitions(buddy-server-embedding-fake-plugin PRIVATE
 target_compile_definitions(buddy-server-masked-lm-fake-plugin PRIVATE
   BUDDY_FAKE_SERVICE_KIND=3)
 
+add_buddy_server_unit_test(
+  buddy-server-model-plugin-handle-test
+  buddy-server-model-plugin-handle
+  unit/ServerModelPluginHandleTest.cpp)
+target_compile_definitions(
+  buddy-server-model-plugin-handle-test PRIVATE
+  BUDDY_TEST_SERVER_PLUGIN="$<TARGET_FILE:buddy-server-resident-fake-plugin>"
+  BUDDY_TEST_LEGACY_SERVER_PLUGIN="$<TARGET_FILE:buddy-server-discovery-resident-plugin>")
+
 set(_buddy_discovery_plugins
   buddy-server-discovery-resident-plugin
   buddy-server-discovery-embedding-plugin
@@ -144,6 +153,9 @@ target_compile_definitions(buddy-server-model-plugin-discovery-test PRIVATE
   BUDDY_DISCOVERY_UNKNOWN_PLUGIN="$<TARGET_FILE:buddy-server-discovery-unknown-plugin>")
 add_dependencies(buddy-server-model-plugin-discovery-test
   ${_buddy_discovery_plugins})
+add_dependencies(buddy-server-model-plugin-handle-test
+  buddy-server-resident-fake-plugin
+  buddy-server-discovery-resident-plugin)
 set_tests_properties(buddy-server-model-plugin-discovery PROPERTIES
   PASS_REGULAR_EXPRESSION "ModelPluginDiscovery tests passed")
 
@@ -158,5 +170,6 @@ add_custom_target(check-buddy-server
     buddy-server-masked-lm-plugin-handle-test
     buddy-server-audio-transcription-plugin-handle-test
     buddy-server-model-plugin-discovery-test
+    buddy-server-model-plugin-handle-test
     ${BUDDY_SERVER_FIXTURE_TARGETS}
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})

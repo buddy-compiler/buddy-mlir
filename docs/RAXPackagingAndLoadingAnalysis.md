@@ -72,7 +72,7 @@ The two library attributes serve different hosts:
 | Attribute | Consumer | Purpose |
 | --- | --- | --- |
 | `runner_library` | `buddy-cli` | Provides the `InferenceRunner` C ABI. |
-| `model_library` | `buddy-server` | Provides the model plugin descriptor and the service-specific factory ABI. |
+| `model_library` | `buddy-server` | Provides the unified Server Model ABI descriptor and operation table. |
 
 Both are module attributes stored as generic key-value entries. Adding
 `model_library` did not require a change to `rax.fbs`.
@@ -355,7 +355,7 @@ buddy-server --model model.rax
   -> require modelLibraryPath
   -> discoverModelPlugin(path)
        -> dlopen(path, RTLD_NOW | RTLD_LOCAL)
-       -> resolve buddy_model_plugin_descriptor_v1
+       -> resolve buddy_server_model_descriptor_v1
        -> validate descriptor size, ABI version, reserved field,
           and service kind
        -> close discovery handle

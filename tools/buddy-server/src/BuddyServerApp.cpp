@@ -16,23 +16,14 @@
 
 #include "BuddyServerApp.h"
 
-#include "AudioTranscriptionModelPluginHandle.h"
-#include "EmbeddingModelPluginHandle.h"
 #include "JsonCodec.h"
-#include "MaskedLMModelPluginHandle.h"
-#include "ModelPluginDiscovery.h"
-#include "ResidentModelPluginHandle.h"
+#include "ServerModelPluginHandle.h"
+#include "ServerModelRequest.h"
 #include "SimpleHttpServer.h"
 
-#include "buddy/runtime/core/AudioTranscriptionModel.h"
-#include "buddy/runtime/core/AudioTranscriptionTypes.h"
-#include "buddy/runtime/core/EmbeddingModel.h"
-#include "buddy/runtime/core/EmbeddingTypes.h"
-#include "buddy/runtime/core/MaskedLMModel.h"
-#include "buddy/runtime/core/MaskedLMTypes.h"
 #include "buddy/runtime/core/ModelManifest.h"
 #include "buddy/runtime/core/RaxDependenciesHandle.h"
-#include "buddy/runtime/core/ResidentModel.h"
+#include "buddy/runtime/core/ServerModelABI.h"
 #include "buddy/runtime/core/ServingTypes.h"
 
 #include <atomic>
@@ -44,20 +35,21 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
-using buddy::runtime::AudioTranscriptionModel;
-using buddy::runtime::AudioTranscriptionModelConfig;
-using buddy::runtime::EmbeddingModel;
-using buddy::runtime::EmbeddingModelConfig;
-using buddy::runtime::MaskedLMModel;
-using buddy::runtime::MaskedLMModelConfig;
+using buddy::runtime::AudioTranscriptionResult;
+using buddy::runtime::CompletionChunk;
+using buddy::runtime::CompletionResult;
+using buddy::runtime::EmbeddingResult;
+using buddy::runtime::FinishReason;
+using buddy::runtime::MaskedLMResult;
 using buddy::runtime::ModelLoadState;
-using buddy::runtime::ModelServiceKind;
 using buddy::runtime::ModelStatus;
-using buddy::runtime::ResidentModel;
-using buddy::runtime::ResidentModelConfig;
+using buddy::runtime::TokenizeResult;
 using buddy::server::HttpRequest;
 using buddy::server::ResponseWriter;
+using buddy::server::ServerModelPluginHandle;
+using buddy::server::ServerModelRequest;
 using buddy::server::SimpleHttpServer;
 
 namespace {
@@ -66,6 +58,22 @@ enum ServerLoadState { Loading = 0, Ready = 1, Error = 2 };
 
 bool isReady(const std::atomic<int> &state) {
   return state.load(std::memory_order_acquire) == Ready;
+}
+
+std::string copyView(BuddyServerStringViewV1 value) {
+  if (!value.data || value.size == 0)
+    return {};
+  return {value.data, static_cast<size_t>(value.size)};
+}
+
+ModelStatus statusFromAbi(const BuddyServerStatusV1 &source) {
+  ModelStatus result;
+  result.state = static_cast<ModelLoadState>(source.state);
+  result.modelName = copyView(source.modelName);
+  result.backend = copyView(source.backend);
+  result.message = copyView(source.message);
+  result.contextLength = source.contextLength;
+  return result;
 }
 
 void sendError(ResponseWriter &writer, int status, const std::string &message,
@@ -94,146 +102,411 @@ bool requireReady(const std::atomic<int> &state, ResponseWriter &writer) {
   return false;
 }
 
+uint64_t operationBit(uint32_t operation) { return uint64_t{1} << operation; }
+
+bool supports(const ServerModelPluginHandle &model, uint32_t operation) {
+  return (model.operationMask() & operationBit(operation)) != 0;
+}
+
 void unsupported(ResponseWriter &writer, const char *endpoint) {
   sendError(writer, 400,
             std::string(endpoint) + " is not supported by the selected backend",
             "unsupported_endpoint");
 }
 
-EmbeddingModelConfig embeddingConfig(const ResidentModelConfig &config) {
-  return {config.raxPath, config.modelSoPath, config.weightPaths,
-          config.vocabPath, config.modelName};
+struct LoadArgsStorage {
+  LoadArgsStorage(const buddy::runtime::ModelManifest &manifest,
+                  const std::string &raxPath, const std::string &modelName,
+                  const std::string &chatTemplatePath)
+      : manifestPath(raxPath), modelName(modelName) {
+    weightViews.reserve(manifest.weightPaths.size());
+    for (const auto &path : manifest.weightPaths)
+      weightViews.push_back({path.data(), static_cast<uint64_t>(path.size())});
+
+    attributeValues.reserve(manifest.moduleAttrs.size());
+    for (const auto &attribute : manifest.moduleAttrs)
+      attributeValues.emplace_back(attribute.first, attribute.second);
+    attributeViews.reserve(attributeValues.size());
+    for (const auto &attribute : attributeValues) {
+      attributeViews.push_back(
+          {{attribute.first.data(),
+            static_cast<uint64_t>(attribute.first.size())},
+           {attribute.second.data(),
+            static_cast<uint64_t>(attribute.second.size())}});
+    }
+
+    args.structSize = sizeof(args);
+    args.raxPath = view(manifestPath);
+    args.modelName = view(modelName);
+    args.modelSoPath = view(manifest.soPath);
+    args.weightPaths = weightViews.data();
+    args.weightPathCount = weightViews.size();
+    args.vocabPath = view(manifest.vocabPath);
+    args.chatTemplatePath = view(chatTemplatePath);
+    args.attributes = attributeViews.data();
+    args.attributeCount = attributeViews.size();
+  }
+
+  const BuddyServerLoadArgsV1 &get() const { return args; }
+
+private:
+  static BuddyServerStringViewV1 view(const std::string &value) {
+    return {value.data(), static_cast<uint64_t>(value.size())};
+  }
+
+  std::string manifestPath;
+  const std::string &modelName;
+  BuddyServerLoadArgsV1 args{};
+  std::vector<BuddyServerStringViewV1> weightViews;
+  std::vector<std::pair<std::string, std::string>> attributeValues;
+  std::vector<BuddyServerStringPairV1> attributeViews;
+};
+
+struct CompletionEmitContext {
+  ResponseWriter *writer = nullptr;
+  bool chat = false;
+  CompletionResult result;
+  bool gotResult = false;
+};
+
+CompletionChunk
+completionChunkFromAbi(const BuddyServerCompletionChunkV1 &source) {
+  CompletionChunk result;
+  result.id = copyView(source.id);
+  result.model = copyView(source.model);
+  result.delta = copyView(source.delta);
+  result.tokenId = source.tokenId;
+  result.done = source.done != 0;
+  result.finishReason = static_cast<FinishReason>(source.finishReason);
+  result.usage = {source.usage.promptTokens, source.usage.completionTokens,
+                  source.usage.totalTokens};
+  result.timings = {source.timings.prefillMs, source.timings.decodeMs,
+                    source.timings.tokensPerSecond};
+  return result;
 }
 
-MaskedLMModelConfig maskedLMConfig(const ResidentModelConfig &config) {
-  MaskedLMModelConfig value;
-  value.raxPath = config.raxPath;
-  value.modelSoPath = config.modelSoPath;
-  value.weightPaths = config.weightPaths;
-  value.vocabPath = config.vocabPath;
-  value.modelName = config.modelName;
-  return value;
+CompletionResult
+completionResultFromAbi(const BuddyServerCompletionResultV1 &source) {
+  CompletionResult result;
+  result.id = copyView(source.id);
+  result.model = copyView(source.model);
+  result.content = copyView(source.content);
+  result.finishReason = static_cast<FinishReason>(source.finishReason);
+  result.usage = {source.usage.promptTokens, source.usage.completionTokens,
+                  source.usage.totalTokens};
+  result.timings = {source.timings.prefillMs, source.timings.decodeMs,
+                    source.timings.tokensPerSecond};
+  return result;
 }
 
-AudioTranscriptionModelConfig
-transcriptionConfig(const ResidentModelConfig &config) {
-  return {config.raxPath, config.modelSoPath, config.weightPaths,
-          config.vocabPath, config.modelName};
+BuddyServerEmitResultV1 emitCompletion(void *userData,
+                                       const BuddyServerEventV1 *event) {
+  auto &context = *static_cast<CompletionEmitContext *>(userData);
+  if (!event)
+    return BUDDY_SERVER_EMIT_ERROR;
+  if (event->kind == BUDDY_SERVER_EVENT_FINAL) {
+    context.result = completionResultFromAbi(event->completion);
+    context.gotResult = true;
+    return BUDDY_SERVER_EMIT_CONTINUE;
+  }
+  if (event->kind != BUDDY_SERVER_EVENT_CHUNK || !context.writer)
+    return BUDDY_SERVER_EMIT_ERROR;
+  const CompletionChunk chunk = completionChunkFromAbi(event->completionChunk);
+  const std::string json = context.chat
+                               ? buddy::server::toOpenAIChatChunkJson(chunk)
+                               : buddy::server::toCompletionChunkJson(chunk);
+  if (!context.writer->writeSseData(json))
+    return BUDDY_SERVER_EMIT_CANCEL;
+  if (chunk.done && !context.writer->writeSseData("[DONE]"))
+    return BUDDY_SERVER_EMIT_CANCEL;
+  return BUDDY_SERVER_EMIT_CONTINUE;
 }
 
-void handleCompletion(ResidentModel &model, const std::atomic<int> &state,
-                      const HttpRequest &request, ResponseWriter &writer) {
+struct TokenizeEmitContext {
+  TokenizeResult result;
+  bool gotResult = false;
+};
+
+BuddyServerEmitResultV1 emitTokenize(void *userData,
+                                     const BuddyServerEventV1 *event) {
+  auto &context = *static_cast<TokenizeEmitContext *>(userData);
+  if (!event || event->kind != BUDDY_SERVER_EVENT_FINAL)
+    return BUDDY_SERVER_EMIT_ERROR;
+  context.result.tokens.clear();
+  if (event->tokenize.tokens && event->tokenize.tokenCount)
+    context.result.tokens.assign(event->tokenize.tokens,
+                                 event->tokenize.tokens +
+                                     event->tokenize.tokenCount);
+  context.result.count = static_cast<size_t>(event->tokenize.count);
+  context.gotResult = true;
+  return BUDDY_SERVER_EMIT_CONTINUE;
+}
+
+struct EmbeddingEmitContext {
+  EmbeddingResult result;
+  bool gotResult = false;
+};
+
+BuddyServerEmitResultV1 emitEmbedding(void *userData,
+                                      const BuddyServerEventV1 *event) {
+  auto &context = *static_cast<EmbeddingEmitContext *>(userData);
+  if (!event || event->kind != BUDDY_SERVER_EVENT_FINAL)
+    return BUDDY_SERVER_EMIT_ERROR;
+  context.result.model = copyView(event->embedding.model);
+  if (event->embedding.embedding && event->embedding.embeddingCount)
+    context.result.embedding.assign(event->embedding.embedding,
+                                    event->embedding.embedding +
+                                        event->embedding.embeddingCount);
+  context.result.promptTokens =
+      static_cast<size_t>(event->embedding.promptTokens);
+  context.result.totalTokens =
+      static_cast<size_t>(event->embedding.totalTokens);
+  context.gotResult = true;
+  return BUDDY_SERVER_EMIT_CONTINUE;
+}
+
+struct MaskedLMEmitContext {
+  MaskedLMResult result;
+  bool gotResult = false;
+};
+
+BuddyServerEmitResultV1 emitMaskedLM(void *userData,
+                                     const BuddyServerEventV1 *event) {
+  auto &context = *static_cast<MaskedLMEmitContext *>(userData);
+  if (!event || event->kind != BUDDY_SERVER_EVENT_FINAL)
+    return BUDDY_SERVER_EMIT_ERROR;
+  context.result.model = copyView(event->maskedLM.model);
+  context.result.sequenceLength =
+      static_cast<size_t>(event->maskedLM.sequenceLength);
+  context.result.promptTokens =
+      static_cast<size_t>(event->maskedLM.promptTokens);
+  context.result.predictions.clear();
+  for (uint64_t i = 0; i < event->maskedLM.predictionCount; ++i) {
+    const auto &source = event->maskedLM.predictions[i];
+    buddy::runtime::MaskedLMPrediction prediction;
+    prediction.position = static_cast<size_t>(source.position);
+    for (uint64_t j = 0; j < source.tokenCount; ++j) {
+      const auto &token = source.tokens[j];
+      prediction.tokens.push_back(
+          {token.tokenId, copyView(token.token), token.score});
+    }
+    context.result.predictions.push_back(std::move(prediction));
+  }
+  context.gotResult = true;
+  return BUDDY_SERVER_EMIT_CONTINUE;
+}
+
+struct TranscriptionEmitContext {
+  AudioTranscriptionResult result;
+  bool gotResult = false;
+};
+
+BuddyServerEmitResultV1 emitTranscription(void *userData,
+                                          const BuddyServerEventV1 *event) {
+  auto &context = *static_cast<TranscriptionEmitContext *>(userData);
+  if (!event || event->kind != BUDDY_SERVER_EVENT_FINAL)
+    return BUDDY_SERVER_EMIT_ERROR;
+  context.result.model = copyView(event->transcription.model);
+  context.result.text = copyView(event->transcription.text);
+  context.result.generatedTokens =
+      static_cast<size_t>(event->transcription.generatedTokens);
+  context.result.timings = {event->transcription.timings.preprocessMs,
+                            event->transcription.timings.inferenceMs,
+                            event->transcription.timings.totalMs};
+  context.gotResult = true;
+  return BUDDY_SERVER_EMIT_CONTINUE;
+}
+
+BuddyServerCallV1 makeCall(ServerModelRequest &request, uint64_t requestId) {
+  request.setRequestId(requestId);
+  BuddyServerCallV1 call{};
+  call.structSize = sizeof(call);
+  call.requestId = requestId;
+  call.request = &request.request();
+  return call;
+}
+
+void handleCompletion(ServerModelPluginHandle &model,
+                      const std::atomic<int> &state, const HttpRequest &request,
+                      ResponseWriter &writer,
+                      std::atomic<uint64_t> &requestIds) {
   if (!requireReady(state, writer))
     return;
   withJsonErrors(writer, [&] {
-    auto decoded = buddy::server::parseCompletionRequest(request.body);
-    if (!decoded.stream) {
-      writer.sendResponse(buddy::server::jsonResponse(
-          200, buddy::server::toJson(model.complete(decoded.request))));
+    if (!supports(model, BUDDY_SERVER_OPERATION_COMPLETION)) {
+      unsupported(writer, "/completion");
       return;
     }
-    writer.startSse();
-    (void)model.completeStream(
-        decoded.request, [&](const buddy::runtime::CompletionChunk &chunk) {
-          if (!writer.writeSseData(buddy::server::toCompletionChunkJson(chunk)))
-            return false;
-          return !chunk.done || writer.writeSseData("[DONE]");
-        });
+    const auto decoded = buddy::server::parseCompletionRequest(request.body);
+    ServerModelRequest serverRequest;
+    serverRequest.setCompletion(decoded.request, decoded.stream);
+    CompletionEmitContext context{decoded.stream ? &writer : nullptr, false};
+    if (decoded.stream)
+      writer.startSse();
+    BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
+    if (model.invoke(call, &emitCompletion, &context) != BUDDY_SERVER_STATUS_OK)
+      return;
+    if (!decoded.stream) {
+      if (!context.gotResult)
+        throw std::runtime_error("server model returned no completion result");
+      writer.sendResponse(buddy::server::jsonResponse(
+          200, buddy::server::toJson(context.result)));
+    }
   });
 }
 
-void handleChat(ResidentModel &model, const std::atomic<int> &state,
-                const HttpRequest &request, ResponseWriter &writer) {
+void handleChat(ServerModelPluginHandle &model, const std::atomic<int> &state,
+                const HttpRequest &request, ResponseWriter &writer,
+                std::atomic<uint64_t> &requestIds) {
   if (!requireReady(state, writer))
     return;
   withJsonErrors(writer, [&] {
-    auto decoded = buddy::server::parseChatCompletionRequest(request.body);
-    if (!decoded.stream) {
-      writer.sendResponse(buddy::server::jsonResponse(
-          200, buddy::server::toOpenAIChatJson(model.chat(decoded.request))));
+    if (!supports(model, BUDDY_SERVER_OPERATION_CHAT)) {
+      unsupported(writer, "/v1/chat/completions");
       return;
     }
-    writer.startSse();
-    (void)model.chatStream(
-        decoded.request, [&](const buddy::runtime::CompletionChunk &chunk) {
-          if (!writer.writeSseData(buddy::server::toOpenAIChatChunkJson(chunk)))
-            return false;
-          return !chunk.done || writer.writeSseData("[DONE]");
-        });
+    const auto decoded =
+        buddy::server::parseChatCompletionRequest(request.body);
+    ServerModelRequest serverRequest;
+    serverRequest.setChat(decoded.request, decoded.stream);
+    CompletionEmitContext context{decoded.stream ? &writer : nullptr, true};
+    if (decoded.stream)
+      writer.startSse();
+    BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
+    if (model.invoke(call, &emitCompletion, &context) != BUDDY_SERVER_STATUS_OK)
+      return;
+    if (!decoded.stream) {
+      if (!context.gotResult)
+        throw std::runtime_error("server model returned no chat result");
+      writer.sendResponse(buddy::server::jsonResponse(
+          200, buddy::server::toOpenAIChatJson(context.result)));
+    }
   });
 }
 
-void handleTokenize(ResidentModel &model, const std::atomic<int> &state,
-                    const HttpRequest &request, ResponseWriter &writer) {
+void handleTokenize(ServerModelPluginHandle &model,
+                    const std::atomic<int> &state, const HttpRequest &request,
+                    ResponseWriter &writer, std::atomic<uint64_t> &requestIds) {
   if (!requireReady(state, writer))
     return;
   withJsonErrors(writer, [&] {
-    auto decoded = buddy::server::parseTokenizeRequest(request.body);
+    if (!supports(model, BUDDY_SERVER_OPERATION_TOKENIZE)) {
+      unsupported(writer, "/tokenize");
+      return;
+    }
+    const auto decoded = buddy::server::parseTokenizeRequest(request.body);
+    ServerModelRequest serverRequest;
+    serverRequest.setTokenize(decoded);
+    TokenizeEmitContext context;
+    BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
+    if (model.invoke(call, &emitTokenize, &context) != BUDDY_SERVER_STATUS_OK)
+      return;
+    if (!context.gotResult)
+      throw std::runtime_error("server model returned no tokenize result");
     writer.sendResponse(buddy::server::jsonResponse(
-        200,
-        buddy::server::toJson(model.tokenize(decoded), decoded.countOnly)));
+        200, buddy::server::toJson(context.result, decoded.countOnly)));
   });
 }
 
-void handleEmbedding(EmbeddingModel &model, const std::atomic<int> &state,
-                     const HttpRequest &request, ResponseWriter &writer) {
+void handleEmbedding(ServerModelPluginHandle &model,
+                     const std::atomic<int> &state, const HttpRequest &request,
+                     ResponseWriter &writer,
+                     std::atomic<uint64_t> &requestIds) {
   if (!requireReady(state, writer))
     return;
   withJsonErrors(writer, [&] {
-    auto decoded = buddy::server::parseEmbeddingRequest(request.body);
-    const ModelStatus status = model.status();
+    if (!supports(model, BUDDY_SERVER_OPERATION_EMBEDDING)) {
+      unsupported(writer, "/v1/embeddings");
+      return;
+    }
+    const auto decoded = buddy::server::parseEmbeddingRequest(request.body);
+    const ModelStatus status = statusFromAbi(model.status());
     if (!decoded.request.model.empty() &&
         decoded.request.model != status.modelName) {
       sendError(writer, 400, "requested model does not match loaded model",
                 "model_not_found");
       return;
     }
+    ServerModelRequest serverRequest;
+    serverRequest.setEmbedding(decoded.request);
+    EmbeddingEmitContext context;
+    BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
+    if (model.invoke(call, &emitEmbedding, &context) != BUDDY_SERVER_STATUS_OK)
+      return;
+    if (!context.gotResult)
+      throw std::runtime_error("server model returned no embedding result");
     writer.sendResponse(buddy::server::jsonResponse(
-        200,
-        buddy::server::toOpenAIEmbeddingJson(model.embed(decoded.request))));
+        200, buddy::server::toOpenAIEmbeddingJson(context.result)));
   });
 }
 
-void handleMaskedLM(MaskedLMModel &model, const std::atomic<int> &state,
-                    const HttpRequest &request, ResponseWriter &writer) {
+void handleMaskedLM(ServerModelPluginHandle &model,
+                    const std::atomic<int> &state, const HttpRequest &request,
+                    ResponseWriter &writer, std::atomic<uint64_t> &requestIds) {
   if (!requireReady(state, writer))
     return;
   withJsonErrors(writer, [&] {
-    auto decoded = buddy::server::parseMaskedLMRequest(request.body);
-    const ModelStatus status = model.status();
+    if (!supports(model, BUDDY_SERVER_OPERATION_MASKED_LM)) {
+      unsupported(writer, "/v1/masked-lm");
+      return;
+    }
+    const auto decoded = buddy::server::parseMaskedLMRequest(request.body);
+    const ModelStatus status = statusFromAbi(model.status());
     if (!decoded.request.model.empty() &&
         decoded.request.model != status.modelName) {
       sendError(writer, 400, "requested model does not match loaded model",
                 "model_not_found");
       return;
     }
+    ServerModelRequest serverRequest;
+    serverRequest.setMaskedLM(decoded.request);
+    MaskedLMEmitContext context;
+    BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
+    if (model.invoke(call, &emitMaskedLM, &context) != BUDDY_SERVER_STATUS_OK)
+      return;
+    if (!context.gotResult)
+      throw std::runtime_error("server model returned no masked-LM result");
     writer.sendResponse(buddy::server::jsonResponse(
-        200, buddy::server::toJson(model.predict(decoded.request))));
+        200, buddy::server::toJson(context.result)));
   });
 }
 
-void handleTranscription(AudioTranscriptionModel &model,
+void handleTranscription(ServerModelPluginHandle &model,
                          const std::atomic<int> &state,
-                         const HttpRequest &request, ResponseWriter &writer) {
+                         const HttpRequest &request, ResponseWriter &writer,
+                         std::atomic<uint64_t> &requestIds) {
   if (!requireReady(state, writer))
     return;
   withJsonErrors(writer, [&] {
-    auto contentType = request.headers.find("content-type");
+    if (!supports(model, BUDDY_SERVER_OPERATION_TRANSCRIPTION)) {
+      unsupported(writer, "/v1/audio/transcriptions");
+      return;
+    }
+    const auto contentType = request.headers.find("content-type");
     if (contentType != request.headers.end() &&
         contentType->second.rfind("multipart/", 0) == 0)
       throw buddy::server::JsonCodecError(
           "multipart audio uploads are not supported");
-    auto decoded = buddy::server::parseAudioTranscriptionRequest(request.body);
-    const ModelStatus status = model.status();
+    const auto decoded =
+        buddy::server::parseAudioTranscriptionRequest(request.body);
+    const ModelStatus status = statusFromAbi(model.status());
     if (!decoded.request.model.empty() &&
         decoded.request.model != status.modelName) {
       sendError(writer, 400, "requested model does not match loaded model",
                 "model_not_found");
       return;
     }
+    ServerModelRequest serverRequest;
+    serverRequest.setTranscription(decoded.request);
+    TranscriptionEmitContext context;
+    BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
+    if (model.invoke(call, &emitTranscription, &context) !=
+        BUDDY_SERVER_STATUS_OK)
+      return;
+    if (!context.gotResult)
+      throw std::runtime_error("server model returned no transcription result");
     writer.sendResponse(buddy::server::jsonResponse(
-        200, buddy::server::toOpenAIAudioTranscriptionJson(
-                 model.transcribe(decoded.request))));
+        200, buddy::server::toOpenAIAudioTranscriptionJson(context.result)));
   });
 }
 
@@ -243,130 +516,60 @@ buddy::server::BuddyServerApp::BuddyServerApp(BuddyServerOptions options)
     : options(std::move(options)) {}
 
 int buddy::server::BuddyServerApp::run() {
-  ResidentModelConfig modelConfig;
-  modelConfig.raxPath = options.modelPath;
-  modelConfig.chatTemplatePath = options.chatTemplatePath;
-  std::string modelType = options.modelType;
-  if (!modelType.empty())
-    modelConfig.modelName = modelType;
+  buddy::runtime::ModelManifest manifest;
+  std::string modelName;
   std::unique_ptr<buddy::runtime::RaxDependenciesHandle> raxDependencies;
-  buddy::server::ModelPluginDiscoveryResult selection;
+  std::unique_ptr<ServerModelPluginHandle> model;
+
   try {
-    const auto manifest =
-        buddy::runtime::ModelManifest::loadFromRax(modelConfig.raxPath);
+    manifest = buddy::runtime::ModelManifest::loadFromRax(options.modelPath);
     if (manifest.modelLibraryPath.empty())
       throw std::runtime_error("model manifest is missing model_library");
-    if (modelConfig.modelName.empty())
-      modelConfig.modelName = manifest.modelName;
+    modelName =
+        options.modelType.empty() ? manifest.modelName : options.modelType;
     raxDependencies = std::make_unique<buddy::runtime::RaxDependenciesHandle>(
-        manifest.dependentSoPaths, "");
-    selection = buddy::server::discoverModelPlugin(manifest.modelLibraryPath);
+        manifest.dependentSoPaths, "buddy-server");
+    model =
+        std::make_unique<ServerModelPluginHandle>(manifest.modelLibraryPath);
+    if (modelName.empty())
+      modelName = model->modelType();
+    if (modelName.empty())
+      modelName = "unknown";
+    if (!model->modelType().empty() && modelName != model->modelType() &&
+        modelName.rfind(model->modelType() + "_", 0) != 0) {
+      throw std::runtime_error("server plugin type '" + model->modelType() +
+                               "' does not match manifest model '" + modelName +
+                               "'");
+    }
+    model->create(modelName);
   } catch (const std::exception &error) {
     std::cerr << "buddy-server: " << error.what() << "\n";
     return 1;
   }
 
-  std::unique_ptr<buddy::server::ResidentModelPluginHandle> residentPlugin;
-  std::unique_ptr<buddy::server::EmbeddingModelPluginHandle> embeddingPlugin;
-  std::unique_ptr<buddy::server::MaskedLMModelPluginHandle> maskedLMPlugin;
-  std::unique_ptr<buddy::server::AudioTranscriptionModelPluginHandle>
-      transcriptionPlugin;
-  buddy::server::ResidentModelPluginHandle::ModelPtr residentModel(
-      nullptr, [](ResidentModel *) {});
-  buddy::server::EmbeddingModelPluginHandle::ModelPtr embeddingModel(
-      nullptr, [](EmbeddingModel *) {});
-  buddy::server::MaskedLMModelPluginHandle::ModelPtr maskedLMModel(
-      nullptr, [](MaskedLMModel *) {});
-  buddy::server::AudioTranscriptionModelPluginHandle::ModelPtr
-      transcriptionModel(nullptr, [](AudioTranscriptionModel *) {});
-
-  try {
-    switch (selection.serviceKind) {
-    case ModelServiceKind::Resident:
-      residentPlugin =
-          std::make_unique<buddy::server::ResidentModelPluginHandle>(
-              selection.pluginPath);
-      if (!modelConfig.modelName.empty() &&
-          !residentPlugin->modelType().empty() &&
-          modelConfig.modelName != residentPlugin->modelType() &&
-          modelConfig.modelName.rfind(residentPlugin->modelType() + "_", 0) !=
-              0) {
-        std::cerr << "buddy-server: resident plugin type '"
-                  << residentPlugin->modelType()
-                  << "' does not match manifest model '"
-                  << modelConfig.modelName << "'\n";
-        return 2;
-      }
-      modelType = modelType.empty() ? residentPlugin->modelType() : modelType;
-      residentModel = residentPlugin->createModel();
-      break;
-    case ModelServiceKind::Embedding:
-      embeddingPlugin =
-          std::make_unique<buddy::server::EmbeddingModelPluginHandle>(
-              selection.pluginPath);
-      modelType = modelType.empty() ? embeddingPlugin->modelType() : modelType;
-      embeddingModel = embeddingPlugin->createModel();
-      break;
-    case ModelServiceKind::MaskedLM:
-      maskedLMPlugin =
-          std::make_unique<buddy::server::MaskedLMModelPluginHandle>(
-              selection.pluginPath);
-      modelType = modelType.empty() ? maskedLMPlugin->modelType() : modelType;
-      maskedLMModel = maskedLMPlugin->createModel();
-      break;
-    case ModelServiceKind::Transcription:
-      transcriptionPlugin =
-          std::make_unique<buddy::server::AudioTranscriptionModelPluginHandle>(
-              selection.pluginPath);
-      modelType =
-          modelType.empty() ? transcriptionPlugin->modelType() : modelType;
-      transcriptionModel = transcriptionPlugin->createModel();
-      break;
-    case ModelServiceKind::Invalid:
-      throw std::runtime_error("buddy-server: invalid model service kind");
-    }
-  } catch (const std::exception &error) {
-    std::cerr << error.what() << "\n";
-    return 1;
-  }
-
-  const EmbeddingModelConfig embeddingCfg = embeddingConfig(modelConfig);
-  const MaskedLMModelConfig maskedCfg = maskedLMConfig(modelConfig);
-  const AudioTranscriptionModelConfig transcriptionCfg =
-      transcriptionConfig(modelConfig);
-
+  LoadArgsStorage loadArgs(manifest, options.modelPath, modelName,
+                           options.chatTemplatePath);
   std::atomic<int> loadState{Loading};
   std::mutex loadErrorMutex;
   std::string loadError;
+  std::atomic<uint64_t> requestIds{1};
   SimpleHttpServer server;
 
   server.get("/health", [&](const HttpRequest &, ResponseWriter &writer) {
     ModelStatus status;
     const int state = loadState.load(std::memory_order_acquire);
     if (state == Ready) {
-      switch (selection.serviceKind) {
-      case ModelServiceKind::Resident:
-        status = residentModel->status();
-        break;
-      case ModelServiceKind::Embedding:
-        status = embeddingModel->status();
-        break;
-      case ModelServiceKind::MaskedLM:
-        status = maskedLMModel->status();
-        break;
-      case ModelServiceKind::Transcription:
-        status = transcriptionModel->status();
-        break;
-      case ModelServiceKind::Invalid:
-        throw std::runtime_error("invalid model service kind");
+      try {
+        status = statusFromAbi(model->status());
+      } catch (const std::exception &error) {
+        status.state = ModelLoadState::Error;
+        status.modelName = modelName;
+        status.message = error.what();
       }
     } else {
       status.state =
           state == Error ? ModelLoadState::Error : ModelLoadState::Loading;
-      status.modelName =
-          modelConfig.modelName.empty() ? modelType : modelConfig.modelName;
-      status.backend =
-          selection.serviceKind == ModelServiceKind::Resident ? "" : "cpu";
+      status.modelName = modelName;
       if (state == Error) {
         std::lock_guard<std::mutex> lock(loadErrorMutex);
         status.message = loadError;
@@ -378,45 +581,33 @@ int buddy::server::BuddyServerApp::run() {
         buddy::server::jsonResponse(200, buddy::server::toJson(status)));
   });
 
-  server.post("/completion",
-              [&](const HttpRequest &request, ResponseWriter &writer) {
-                if (selection.serviceKind != ModelServiceKind::Resident)
-                  return unsupported(writer, "/completion");
-                handleCompletion(*residentModel, loadState, request, writer);
-              });
+  server.post(
+      "/completion", [&](const HttpRequest &request, ResponseWriter &writer) {
+        handleCompletion(*model, loadState, request, writer, requestIds);
+      });
   server.post("/v1/chat/completions",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                if (selection.serviceKind != ModelServiceKind::Resident)
-                  return unsupported(writer, "/v1/chat/completions");
-                handleChat(*residentModel, loadState, request, writer);
+                handleChat(*model, loadState, request, writer, requestIds);
               });
   server.post("/tokenize",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                if (selection.serviceKind != ModelServiceKind::Resident)
-                  return unsupported(writer, "/tokenize");
-                handleTokenize(*residentModel, loadState, request, writer);
+                handleTokenize(*model, loadState, request, writer, requestIds);
               });
 
   auto embeddings = [&](const HttpRequest &request, ResponseWriter &writer) {
-    if (selection.serviceKind != ModelServiceKind::Embedding)
-      return unsupported(writer, "/v1/embeddings");
-    handleEmbedding(*embeddingModel, loadState, request, writer);
+    handleEmbedding(*model, loadState, request, writer, requestIds);
   };
   server.post("/v1/embeddings", embeddings);
   server.post("/embeddings", embeddings);
 
   auto maskedLM = [&](const HttpRequest &request, ResponseWriter &writer) {
-    if (selection.serviceKind != ModelServiceKind::MaskedLM)
-      return unsupported(writer, "/v1/masked-lm");
-    handleMaskedLM(*maskedLMModel, loadState, request, writer);
+    handleMaskedLM(*model, loadState, request, writer, requestIds);
   };
   server.post("/v1/masked-lm", maskedLM);
   server.post("/masked-lm", maskedLM);
 
   auto transcription = [&](const HttpRequest &request, ResponseWriter &writer) {
-    if (selection.serviceKind != ModelServiceKind::Transcription)
-      return unsupported(writer, "/v1/audio/transcriptions");
-    handleTranscription(*transcriptionModel, loadState, request, writer);
+    handleTranscription(*model, loadState, request, writer, requestIds);
   };
   server.post("/v1/audio/transcriptions", transcription);
   server.post("/audio/transcriptions", transcription);
@@ -424,24 +615,9 @@ int buddy::server::BuddyServerApp::run() {
   std::thread loadThread([&] {
     try {
       std::cerr << "[buddy-server] loading "
-                << buddy::server::modelServiceKindName(selection.serviceKind)
+                << buddy::server::serverServiceKindName(model->serviceKind())
                 << " model...\n";
-      switch (selection.serviceKind) {
-      case ModelServiceKind::Resident:
-        residentModel->load(modelConfig);
-        break;
-      case ModelServiceKind::Embedding:
-        embeddingModel->load(embeddingCfg);
-        break;
-      case ModelServiceKind::MaskedLM:
-        maskedLMModel->load(maskedCfg);
-        break;
-      case ModelServiceKind::Transcription:
-        transcriptionModel->load(transcriptionCfg);
-        break;
-      case ModelServiceKind::Invalid:
-        throw std::runtime_error("invalid model service kind");
-      }
+      model->load(loadArgs.get());
       loadState.store(Ready, std::memory_order_release);
       std::cerr << "[buddy-server] model loaded\n";
     } catch (const std::exception &error) {

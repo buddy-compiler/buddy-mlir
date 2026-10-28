@@ -10,6 +10,7 @@ add_library(buddy-server-core STATIC
   src/plugin/MaskedLMModelPluginHandle.cpp
   src/plugin/ModelPluginDiscovery.cpp
   src/plugin/ResidentModelPluginHandle.cpp
+  src/plugin/ServerModelPluginHandle.cpp
   src/protocol/AudioTranscriptionJsonCodec.cpp
   src/protocol/JsonCodec.cpp
 )
