@@ -97,7 +97,7 @@ excludes SDK compilation and actual model inference, as detailed below.
 | `buddy-server-llama31-tt-resident-portable-link-check` | TT execution, resident model, plugin, and NN backend with `BUDDY_LLAMA31_TT_HAS_TTNN=0`. |
 
 DeepSeek uses the production f32 spec and a
-[fixed local HF config](testdata/README.md) with `gen_config.py` and
+[fixed local HF config](tests/fixtures/data/README.md) with `gen_config.py` and
 `gen_session.py`; generated files stay in the build directory. These checks
 do not import weights, generate model kernels, or require a model directory.
 Linux links reject undefined symbols with `-z defs`. Each loading test uses the
@@ -181,9 +181,9 @@ artifacts. Test IDs identify executable contract scenarios.
 | `GET /v1/models` | Single loaded-model entry outside router mode. | Route absent (404). | Single configured-model entry; ID agrees with health and generation. | All service kinds; no model switching. | M01, P13. No router, cache inventory, or upstream metadata parity. |
 | `POST /v1/embeddings` | OpenAI-shaped embedding API includes more input shapes. | Embedding service only; one nonempty string; float output; input arrays/streaming rejected; `encoding_format` ignored. | Keep one-text float vectors; explicitly reject unsupported input shapes and encodings. | Embedding service only; resident models do not acquire embedding support. | E01–E03. Batches, token arrays, multimodal input, and base64 remain unsupported. |
 
-Current behavior can be checked in [buddy-server.cpp](buddy-server.cpp),
-[JsonCodec.cpp](JsonCodec.cpp),
-[SimpleHttpServer.cpp](SimpleHttpServer.cpp), and
+Current behavior can be checked in [BuddyServerApp.cpp](src/BuddyServerApp.cpp),
+[JsonCodec.cpp](src/protocol/JsonCodec.cpp),
+[SimpleHttpServer.cpp](src/http/SimpleHttpServer.cpp), and
 [ServingTypes.h](../../runtime/include/buddy/runtime/core/ServingTypes.h).
 Existing executable coverage includes `buddy-server-json-codec`,
 `buddy-server-model-service-http-integration`, startup-failure, plugin discovery, and

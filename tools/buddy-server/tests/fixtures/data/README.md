@@ -14,4 +14,4 @@ state and empty capabilities, check that raw decoding rejects unloaded use,
 and destroy it. They do not load weights or execute model kernels. The portable
 Tenstorrent check explicitly compiles with `BUDDY_LLAMA31_TT_HAS_TTNN=0`; it does
 not validate the TTNN SDK branch or inference on a device. See the
-[build checks and validation boundaries](../README.md#build-checks).
+[build checks and validation boundaries](../../../README.md#build-checks).
