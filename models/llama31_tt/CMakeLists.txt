@@ -165,6 +165,9 @@ set_target_properties(buddy_models_llama31_tt_server PROPERTIES
 target_link_libraries(buddy_models_llama31_tt_server
   PRIVATE buddy_models_llama31_tt_server_runtime)
 target_compile_features(buddy_models_llama31_tt_server PRIVATE cxx_std_20)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_options(buddy_models_llama31_tt_server PRIVATE "LINKER:-z,defs")
+endif()
 set_property(TARGET buddy_models_llama31_tt_server APPEND PROPERTY BUILD_RPATH
   "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
   "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
@@ -228,7 +231,7 @@ if(BUDDY_ENABLE_TESTS)
             "${_BUDDY_LLAMA31_BATCH_TEST_RAX}")
 
   add_executable(llama31-tt-execution-test
-    Llama31TTExecutionTest.cpp Llama31TTExecution.cpp)
+    Llama31TTExecutionTest.cpp Llama31TTExecution.cpp Llama31TTResidentModel.cpp)
   target_compile_features(llama31-tt-execution-test PRIVATE cxx_std_20)
   target_include_directories(llama31-tt-execution-test PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include")

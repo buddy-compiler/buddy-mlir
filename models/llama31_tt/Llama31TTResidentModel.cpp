@@ -58,17 +58,13 @@ public:
   std::string renderChat(const ChatCompletionRequest &request) {
     std::lock_guard<std::mutex> lock(mutex);
     ensureReady();
-    validateModel(request.model);
     return execution->renderChat(request);
   }
 
   TokenizeResult tokenize(const TokenizeRequest &request) {
     std::lock_guard<std::mutex> lock(mutex);
     ensureReady();
-    if (request.content.empty())
-      throw std::invalid_argument("llama31_tt: tokenize content is empty");
-    return execution->tokenize(request.content, request.countOnly,
-                               request.addSpecial);
+    return execution->tokenizeRaw(request);
   }
 
   CompletionResult complete(const CompletionRequest &request) {
@@ -81,25 +77,21 @@ public:
     ensureReady();
     if (!request.images.empty())
       throw std::invalid_argument("llama31_tt: image inputs are not supported");
-    CompletionResult result = execution->generate(
-        request.prompt, request.sampling, [&](const CompletionChunk &source) {
-          if (!callback)
-            return true;
-          CompletionChunk chunk = source;
-          chunk.model = statusValue.modelName;
-          return callback(chunk);
-        });
-    if (callback) {
-      CompletionChunk done;
-      done.id = result.id;
-      done.model = result.model;
-      done.done = true;
-      done.finishReason = result.finishReason;
-      done.usage = result.usage;
-      done.timings = result.timings;
-      (void)callback(done);
-    }
-    return result;
+    return execution->generateServing(request.prompt, request.sampling,
+                                      callback);
+  }
+
+  ResidentModelCapabilities capabilities() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (statusValue.state != ModelLoadState::Ready)
+      return {};
+    return execution->capabilities();
+  }
+
+  DetokenizeResult detokenize(const DetokenizeRequest &request) {
+    std::lock_guard<std::mutex> lock(mutex);
+    ensureReady();
+    return execution->detokenize(request);
   }
 
   CompletionResult chat(const ChatCompletionRequest &request) {
@@ -110,43 +102,15 @@ public:
                               const CompletionStreamCallback &callback) {
     std::lock_guard<std::mutex> lock(mutex);
     ensureReady();
-    validateModel(request.model);
-    CompletionRequest completion;
-    completion.prompt = execution->renderChat(request);
-    completion.sampling = request.sampling;
-    CompletionResult result =
-        execution->generate(completion.prompt, completion.sampling,
-                            [&](const CompletionChunk &source) {
-                              if (!callback)
-                                return true;
-                              CompletionChunk chunk = source;
-                              chunk.model = statusValue.modelName;
-                              return callback(chunk);
-                            });
-    if (callback) {
-      CompletionChunk done;
-      done.id = result.id;
-      done.model = result.model;
-      done.done = true;
-      done.finishReason = result.finishReason;
-      done.usage = result.usage;
-      done.timings = result.timings;
-      (void)callback(done);
-    }
-    return result;
+    const auto prompt = execution->renderChat(request);
+    return execution->generateServing(prompt, request.sampling, callback,
+                                      false);
   }
 
 private:
   void ensureReady() const {
     if (statusValue.state != ModelLoadState::Ready || !execution->isLoaded())
       throw std::runtime_error("llama31_tt: model is not loaded");
-  }
-
-  void validateModel(const std::string &requested) const {
-    if (!requested.empty() && requested != statusValue.modelName)
-      throw std::invalid_argument(
-          "llama31_tt: requested model does not match loaded model '" +
-          statusValue.modelName + "'");
   }
 
   mutable std::mutex mutex;
@@ -167,6 +131,11 @@ void Llama31TTResidentModel::load(const ResidentModelConfig &cfg) {
   impl->load(cfg);
 }
 ModelStatus Llama31TTResidentModel::status() const { return impl->status(); }
+
+ResidentModelCapabilities Llama31TTResidentModel::capabilities() const {
+  return impl->capabilities();
+}
+
 std::string
 Llama31TTResidentModel::renderChat(const ChatCompletionRequest &request) {
   return impl->renderChat(request);
@@ -175,6 +144,12 @@ TokenizeResult
 Llama31TTResidentModel::tokenize(const TokenizeRequest &request) {
   return impl->tokenize(request);
 }
+
+DetokenizeResult
+Llama31TTResidentModel::detokenize(const DetokenizeRequest &request) {
+  return impl->detokenize(request);
+}
+
 CompletionResult
 Llama31TTResidentModel::complete(const CompletionRequest &request) {
   return impl->complete(request);

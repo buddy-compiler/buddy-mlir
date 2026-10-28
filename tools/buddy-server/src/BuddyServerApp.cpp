@@ -36,6 +36,7 @@
 #include "buddy/runtime/core/ServingTypes.h"
 
 #include <atomic>
+#include <chrono>
 #include <exception>
 #include <iostream>
 #include <memory>
@@ -70,8 +71,11 @@ bool isReady(const std::atomic<int> &state) {
 
 void sendError(ResponseWriter &writer, int status, const std::string &message,
                const std::string &type) {
-  writer.sendResponse(buddy::server::jsonResponse(
-      status, buddy::server::errorJson(message, type, status)));
+  const auto body = buddy::server::errorJson(message, type, status);
+  if (writer.isSse())
+    writer.writeSseData(body);
+  else
+    writer.sendResponse(buddy::server::jsonResponse(status, body));
 }
 
 template <typename Function>
@@ -89,6 +93,16 @@ void withJsonErrors(ResponseWriter &writer, Function function) {
 
 bool requireReady(const std::atomic<int> &state, ResponseWriter &writer) {
   if (isReady(state))
+    return true;
+  sendError(writer, 503, "model is not loaded", "model_not_ready");
+  return false;
+}
+
+bool requireResidentReady(ResidentModel &model, const std::atomic<int> &state,
+                          ResponseWriter &writer) {
+  if (!requireReady(state, writer))
+    return false;
+  if (model.status().state == ModelLoadState::Ready)
     return true;
   sendError(writer, 503, "model is not loaded", "model_not_ready");
   return false;
@@ -121,57 +135,169 @@ transcriptionConfig(const ResidentModelConfig &config) {
           config.vocabPath, config.modelName};
 }
 
+struct ResponseIdentity {
+  std::string id;
+  std::string model;
+  int64_t created;
+};
+
+ResponseIdentity responseIdentity(const ResidentModel &model, bool chat) {
+  static std::atomic<uint64_t> nextId{0};
+  const auto now = std::chrono::system_clock::now().time_since_epoch();
+  const auto micros =
+      std::chrono::duration_cast<std::chrono::microseconds>(now).count();
+  return {std::string(chat ? "chatcmpl-" : "cmpl-") + std::to_string(micros) +
+              "-" + std::to_string(nextId++),
+          model.status().modelName,
+          std::chrono::duration_cast<std::chrono::seconds>(now).count()};
+}
+
+// Start SSE only when the backend has completed preflight and reports its first
+// event. A preflight failure can still return a normal HTTP error response.
+template <typename Generate>
+void streamGeneration(ResponseWriter &writer, const ResponseIdentity &identity,
+                      bool chat, bool includeUsage, Generate generate) {
+  bool connected = true;
+  bool terminalReceived = false;
+  bool eventReceived = false;
+  buddy::runtime::CompletionChunk terminal;
+  auto start = [&] {
+    if (writer.hasStarted())
+      return connected;
+    connected = writer.startSse();
+    if (connected && chat)
+      connected = writer.writeSseData(buddy::server::toOpenAIChatRoleChunkJson(
+          identity.id, identity.model, identity.created));
+    return connected;
+  };
+  auto result = generate([&](const buddy::runtime::CompletionChunk &event) {
+    if (!connected)
+      return false;
+    if (terminalReceived)
+      return true;
+    eventReceived = true;
+    if (!start())
+      return false;
+    auto chunk = event;
+    chunk.id = identity.id;
+    chunk.model = identity.model;
+    if (chunk.done) {
+      terminalReceived = true;
+      terminal = std::move(chunk);
+      return true;
+    }
+    connected = writer.writeSseData(
+        chat ? buddy::server::toOpenAIChatChunkJson(chunk, identity.created)
+             : buddy::server::toCompletionChunkJson(chunk));
+    return connected;
+  });
+  if (!connected ||
+      result.finishReason == buddy::runtime::FinishReason::Cancelled)
+    return;
+  if (!start())
+    return;
+  result.id = identity.id;
+  result.model = identity.model;
+  if (!eventReceived)
+    terminal.delta = result.content;
+  terminal.id = identity.id;
+  terminal.model = identity.model;
+  terminal.done = true;
+  terminal.finishReason = result.finishReason;
+  terminal.usage = result.usage;
+  terminal.timings = result.timings;
+  if (!chat) {
+    writer.writeSseData(buddy::server::toCompletionChunkJson(terminal));
+    return;
+  }
+  // A backend may attach the last text to its terminal event. Preserve it in a
+  // content chunk before sending the independent finish and usage events.
+  if (!terminal.delta.empty()) {
+    auto content = terminal;
+    content.done = false;
+    content.finishReason = buddy::runtime::FinishReason::None;
+    if (!writer.writeSseData(
+            buddy::server::toOpenAIChatChunkJson(content, identity.created)))
+      return;
+  }
+  terminal.delta.clear();
+  if (!writer.writeSseData(
+          buddy::server::toOpenAIChatChunkJson(terminal, identity.created)))
+    return;
+  if (includeUsage &&
+      !writer.writeSseData(
+          buddy::server::toOpenAIChatUsageChunkJson(result, identity.created)))
+    return;
+  writer.writeSseData("[DONE]");
+}
+
 void handleCompletion(ResidentModel &model, const std::atomic<int> &state,
                       const HttpRequest &request, ResponseWriter &writer) {
-  if (!requireReady(state, writer))
+  if (!requireResidentReady(model, state, writer))
     return;
   withJsonErrors(writer, [&] {
     auto decoded = buddy::server::parseCompletionRequest(request.body);
+    buddy::server::validateCapabilities(decoded, model.capabilities());
+    const auto identity = responseIdentity(model, false);
     if (!decoded.stream) {
-      writer.sendResponse(buddy::server::jsonResponse(
-          200, buddy::server::toJson(model.complete(decoded.request))));
+      auto result = model.complete(decoded.request);
+      result.id = identity.id;
+      result.model = identity.model;
+      writer.sendResponse(
+          buddy::server::jsonResponse(200, buddy::server::toJson(result)));
       return;
     }
-    writer.startSse();
-    (void)model.completeStream(
-        decoded.request, [&](const buddy::runtime::CompletionChunk &chunk) {
-          if (!writer.writeSseData(buddy::server::toCompletionChunkJson(chunk)))
-            return false;
-          return !chunk.done || writer.writeSseData("[DONE]");
-        });
+    streamGeneration(writer, identity, false, false, [&](const auto &callback) {
+      return model.completeStream(decoded.request, callback);
+    });
   });
 }
 
 void handleChat(ResidentModel &model, const std::atomic<int> &state,
                 const HttpRequest &request, ResponseWriter &writer) {
-  if (!requireReady(state, writer))
+  if (!requireResidentReady(model, state, writer))
     return;
   withJsonErrors(writer, [&] {
     auto decoded = buddy::server::parseChatCompletionRequest(request.body);
+    buddy::server::validateCapabilities(decoded, model.capabilities());
+    const auto identity = responseIdentity(model, true);
     if (!decoded.stream) {
+      auto result = model.chat(decoded.request);
+      result.id = identity.id;
+      result.model = identity.model;
       writer.sendResponse(buddy::server::jsonResponse(
-          200, buddy::server::toOpenAIChatJson(model.chat(decoded.request))));
+          200, buddy::server::toOpenAIChatJson(result, identity.created)));
       return;
     }
-    writer.startSse();
-    (void)model.chatStream(
-        decoded.request, [&](const buddy::runtime::CompletionChunk &chunk) {
-          if (!writer.writeSseData(buddy::server::toOpenAIChatChunkJson(chunk)))
-            return false;
-          return !chunk.done || writer.writeSseData("[DONE]");
-        });
+    streamGeneration(writer, identity, true, decoded.includeUsage,
+                     [&](const auto &callback) {
+                       return model.chatStream(decoded.request, callback);
+                     });
   });
 }
 
 void handleTokenize(ResidentModel &model, const std::atomic<int> &state,
                     const HttpRequest &request, ResponseWriter &writer) {
-  if (!requireReady(state, writer))
+  if (!requireResidentReady(model, state, writer))
     return;
   withJsonErrors(writer, [&] {
     auto decoded = buddy::server::parseTokenizeRequest(request.body);
+    buddy::server::validateCapabilities(decoded, model.capabilities());
     writer.sendResponse(buddy::server::jsonResponse(
-        200,
-        buddy::server::toJson(model.tokenize(decoded), decoded.countOnly)));
+        200, buddy::server::toJson(model.tokenize(decoded), decoded.countOnly,
+                                   decoded.withPieces)));
+  });
+}
+
+void handleDetokenize(ResidentModel &model, const std::atomic<int> &state,
+                      const HttpRequest &request, ResponseWriter &writer) {
+  if (!requireResidentReady(model, state, writer))
+    return;
+  withJsonErrors(writer, [&] {
+    auto decoded = buddy::server::parseDetokenizeRequest(request.body);
+    buddy::server::validateCapabilities(decoded, model.capabilities());
+    writer.sendResponse(buddy::server::jsonResponse(
+        200, buddy::server::toJson(model.detokenize(decoded))));
   });
 }
 
@@ -181,13 +307,6 @@ void handleEmbedding(EmbeddingModel &model, const std::atomic<int> &state,
     return;
   withJsonErrors(writer, [&] {
     auto decoded = buddy::server::parseEmbeddingRequest(request.body);
-    const ModelStatus status = model.status();
-    if (!decoded.request.model.empty() &&
-        decoded.request.model != status.modelName) {
-      sendError(writer, 400, "requested model does not match loaded model",
-                "model_not_found");
-      return;
-    }
     writer.sendResponse(buddy::server::jsonResponse(
         200,
         buddy::server::toOpenAIEmbeddingJson(model.embed(decoded.request))));
@@ -340,7 +459,7 @@ int buddy::server::BuddyServerApp::run() {
   std::string loadError;
   SimpleHttpServer server;
 
-  server.get("/health", [&](const HttpRequest &, ResponseWriter &writer) {
+  auto currentStatus = [&] {
     ModelStatus status;
     const int state = loadState.load(std::memory_order_acquire);
     if (state == Ready) {
@@ -374,8 +493,17 @@ int buddy::server::BuddyServerApp::run() {
         status.message = "model is loading";
       }
     }
-    writer.sendResponse(
-        buddy::server::jsonResponse(200, buddy::server::toJson(status)));
+    return status;
+  };
+  server.get("/health", [&](const HttpRequest &, ResponseWriter &writer) {
+    const auto status = currentStatus();
+    writer.sendResponse(buddy::server::jsonResponse(
+        status.state == ModelLoadState::Ready ? 200 : 503,
+        buddy::server::toJson(status)));
+  });
+  server.get("/v1/models", [&](const HttpRequest &, ResponseWriter &writer) {
+    writer.sendResponse(buddy::server::jsonResponse(
+        200, buddy::server::toModelListJson(currentStatus())));
   });
 
   server.post("/completion",
@@ -395,6 +523,13 @@ int buddy::server::BuddyServerApp::run() {
                 if (selection.serviceKind != ModelServiceKind::Resident)
                   return unsupported(writer, "/tokenize");
                 handleTokenize(*residentModel, loadState, request, writer);
+              });
+
+  server.post("/detokenize",
+              [&](const HttpRequest &request, ResponseWriter &writer) {
+                if (selection.serviceKind != ModelServiceKind::Resident)
+                  return unsupported(writer, "/detokenize");
+                handleDetokenize(*residentModel, loadState, request, writer);
               });
 
   auto embeddings = [&](const HttpRequest &request, ResponseWriter &writer) {
