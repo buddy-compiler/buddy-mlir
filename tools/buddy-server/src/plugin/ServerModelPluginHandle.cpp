@@ -51,6 +51,23 @@ bool isKnownOperation(uint32_t operation) {
          operation <= BUDDY_SERVER_OPERATION_TRANSCRIPTION;
 }
 
+bool requestsStreaming(const BuddyServerRequestV1 &request) {
+  switch (request.operation) {
+  case BUDDY_SERVER_OPERATION_COMPLETION:
+    return request.completion.stream != 0;
+  case BUDDY_SERVER_OPERATION_CHAT:
+    return request.chat.stream != 0;
+  default:
+    return false;
+  }
+}
+
+std::string copyView(BuddyServerStringViewV1 value) {
+  if (!value.data || value.size == 0)
+    return {};
+  return {value.data, static_cast<size_t>(value.size)};
+}
+
 } // namespace
 
 ServerModelPluginHandle::ServerModelPluginHandle(const std::string &path)
@@ -136,9 +153,10 @@ ServerModelPluginHandle::~ServerModelPluginHandle() { close(); }
 
 void ServerModelPluginHandle::close() {
   {
-    std::unique_lock<std::mutex> lock(invocationMutex);
+    std::unique_lock<std::mutex> lock(callMutex);
     closing = true;
-    invocationCondition.wait(lock, [&] { return activeInvocations == 0; });
+    callCondition.notify_all();
+    callCondition.wait(lock, [&] { return liveCalls == 0; });
   }
   if (model && descriptor && descriptor->ops && descriptor->ops->destroy)
     descriptor->ops->destroy(model);
@@ -174,66 +192,92 @@ void ServerModelPluginHandle::load(const BuddyServerLoadArgsV1 &args) {
   checkError(error, status);
 }
 
-BuddyServerStatusV1 ServerModelPluginHandle::status() const {
+ServerModelStatus ServerModelPluginHandle::status() const {
+  acquireCall();
+  struct CallGuard {
+    const ServerModelPluginHandle *owner;
+    ~CallGuard() { owner->releaseCall(); }
+  } guard{this};
+
   if (!model)
     throw std::logic_error("buddy-server: server model was not created");
-  BuddyServerStatusV1 result{};
-  result.structSize = sizeof(result);
+  BuddyServerStatusV1 abiStatus{};
+  abiStatus.structSize = sizeof(abiStatus);
   BuddyServerErrorV1 error{};
   const BuddyServerStatusCodeV1 status =
-      descriptor->ops->getStatus(model, &result, &error);
+      descriptor->ops->getStatus(model, &abiStatus, &error);
   checkError(error, status);
+
+  ServerModelStatus result;
+  result.state = abiStatus.state;
+  result.modelName = copyView(abiStatus.modelName);
+  result.backend = copyView(abiStatus.backend);
+  result.message = copyView(abiStatus.message);
+  result.contextLength = abiStatus.contextLength;
   return result;
 }
 
-BuddyServerStatusCodeV1
-ServerModelPluginHandle::invoke(const BuddyServerCallV1 &call,
-                                BuddyServerEmitFnV1 emit, void *userData) {
+void ServerModelPluginHandle::invoke(const BuddyServerCallV1 &call,
+                                     BuddyServerEmitFnV1 emit, void *userData) {
   if (!call.request)
     throw std::invalid_argument("buddy-server: server model request is null");
   if (!isKnownOperation(call.request->operation))
     throw std::invalid_argument("buddy-server: unknown server model operation");
 
-  std::unique_lock<std::mutex> lock(invocationMutex);
-  if (closing)
-    return BUDDY_SERVER_STATUS_CANCELLED;
+  acquireCall();
+  struct CallGuard {
+    const ServerModelPluginHandle *owner;
+    ~CallGuard() { owner->releaseCall(); }
+  } guard{this};
+
   if (!model)
     throw std::logic_error("buddy-server: server model was not created");
+  if (requestsStreaming(*call.request) &&
+      (descriptor->capabilityMask & BUDDY_SERVER_CAPABILITY_STREAMING) == 0) {
+    static constexpr char message[] =
+        "streaming is not supported by the selected backend";
+    BuddyServerErrorV1 error{BUDDY_SERVER_STATUS_NOT_SUPPORTED, message,
+                             sizeof(message) - 1};
+    checkError(error, BUDDY_SERVER_STATUS_NOT_SUPPORTED);
+  }
+
+  BuddyServerErrorV1 error{};
+  const BuddyServerStatusCodeV1 status =
+      descriptor->ops->invoke(model, &call, emit, userData, &error);
+  checkError(error, status);
+}
+
+void ServerModelPluginHandle::acquireCall() const {
+  std::unique_lock<std::mutex> lock(callMutex);
+  if (closing) {
+    BuddyServerErrorV1 error{};
+    checkError(error, BUDDY_SERVER_STATUS_CANCELLED);
+  }
+
+  ++liveCalls;
   const uint32_t declaredLimit = descriptor->maxConcurrency;
   const uint32_t limit =
       (descriptor->capabilityMask & BUDDY_SERVER_CAPABILITY_THREAD_SAFE) != 0
           ? (declaredLimit == 0 ? 1u : declaredLimit)
           : 1u;
-  invocationCondition.wait(
-      lock, [&] { return closing || activeInvocations < limit; });
-  if (closing)
-    return BUDDY_SERVER_STATUS_CANCELLED;
-  ++activeInvocations;
-  lock.unlock();
-  struct InvocationGuard {
-    ServerModelPluginHandle *owner;
-    ~InvocationGuard() { owner->releaseInvocation(); }
-  } guard{this};
-
-  BuddyServerErrorV1 error{};
-  const BuddyServerStatusCodeV1 status =
-      descriptor->ops->invoke(model, &call, emit, userData, &error);
-  if (status == BUDDY_SERVER_STATUS_OK)
-    return status;
-  if (status == BUDDY_SERVER_STATUS_CANCELLED ||
-      status == BUDDY_SERVER_STATUS_DEADLINE_EXCEEDED)
-    return status;
-  checkError(error, status);
-  return status;
+  callCondition.wait(lock, [&] { return closing || activeCalls < limit; });
+  if (closing) {
+    --liveCalls;
+    lock.unlock();
+    callCondition.notify_all();
+    BuddyServerErrorV1 error{};
+    checkError(error, BUDDY_SERVER_STATUS_CANCELLED);
+  }
+  ++activeCalls;
 }
 
-void ServerModelPluginHandle::releaseInvocation() {
+void ServerModelPluginHandle::releaseCall() const {
   {
-    std::lock_guard<std::mutex> lock(invocationMutex);
-    if (activeInvocations > 0)
-      --activeInvocations;
+    std::lock_guard<std::mutex> lock(callMutex);
+    --activeCalls;
+    --liveCalls;
   }
-  invocationCondition.notify_all();
+  callCondition.notify_all();
 }
 
 std::string
@@ -250,10 +294,41 @@ void ServerModelPluginHandle::checkError(const BuddyServerErrorV1 &error,
   if (status == BUDDY_SERVER_STATUS_OK)
     return;
   std::string message = errorMessage(error);
-  if (message.empty())
-    message = "server model operation failed with status " +
-              std::to_string(static_cast<uint32_t>(status));
-  throw std::runtime_error("buddy-server: " + message);
+  if (message.empty()) {
+    switch (status) {
+    case BUDDY_SERVER_STATUS_INVALID_ARGUMENT:
+      message = "invalid server model request";
+      break;
+    case BUDDY_SERVER_STATUS_NOT_SUPPORTED:
+      message = "server model operation is not supported";
+      break;
+    case BUDDY_SERVER_STATUS_MODEL_NOT_READY:
+      message = "server model is not ready";
+      break;
+    case BUDDY_SERVER_STATUS_RESOURCE_EXHAUSTED:
+      message = "server model resources are exhausted";
+      break;
+    case BUDDY_SERVER_STATUS_CANCELLED:
+      message = "server model request was cancelled";
+      break;
+    case BUDDY_SERVER_STATUS_DEADLINE_EXCEEDED:
+      message = "server model request deadline exceeded";
+      break;
+    case BUDDY_SERVER_STATUS_MODEL_ERROR:
+      message = "server model operation failed";
+      break;
+    case BUDDY_SERVER_STATUS_INTERNAL_ERROR:
+      message = "internal server model error";
+      break;
+    case BUDDY_SERVER_STATUS_OK:
+      return;
+    default:
+      message = "server model operation failed with status " +
+                std::to_string(static_cast<uint32_t>(status));
+      break;
+    }
+  }
+  throw ServerModelError(status, "buddy-server: " + message);
 }
 
 const char *serverServiceKindName(uint32_t kind) {

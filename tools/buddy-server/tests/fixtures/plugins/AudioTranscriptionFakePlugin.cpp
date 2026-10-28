@@ -14,8 +14,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/core/AudioTranscriptionModelPlugin.h"
-#include "buddy/runtime/core/ModelPlugin.h"
 #include "buddy/runtime/core/ServerModelPluginAdapters.h"
 
 #include <chrono>
@@ -87,28 +85,6 @@ struct ServerFactory {
 using ServerAdapter =
     buddy::runtime::server_abi::TranscriptionServerModelAdapter<ServerFactory>;
 } // namespace
-
-extern "C" buddy::runtime::AudioTranscriptionModel *
-buddy_create_audio_transcription_model_v1() {
-  return new FakeModel();
-}
-
-extern "C" void buddy_destroy_audio_transcription_model_v1(
-    buddy::runtime::AudioTranscriptionModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_audio_transcription_model_type_v1() {
-  return "fake_transcription";
-}
-
-extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
-buddy_model_plugin_descriptor_v1() {
-  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
-      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
-      buddy::runtime::ModelServiceKind::Transcription, 0};
-  return &descriptor;
-}
 
 extern "C" const BuddyServerModelDescriptorV1 *
 buddy_server_model_descriptor_v1() {

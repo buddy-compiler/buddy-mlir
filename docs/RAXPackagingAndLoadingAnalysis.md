@@ -353,28 +353,30 @@ current loading sequence is:
 buddy-server --model model.rax
   -> ModelManifest::loadFromRax(model.rax)
   -> require modelLibraryPath
-  -> discoverModelPlugin(path)
+  -> load RAX dependency libraries globally
+  -> ServerModelPluginHandle(path)
        -> dlopen(path, RTLD_NOW | RTLD_LOCAL)
        -> resolve buddy_server_model_descriptor_v1
-       -> validate descriptor size, ABI version, reserved field,
-          and service kind
-       -> close discovery handle
-  -> reopen the plugin through the selected typed PluginHandle
-  -> resolve the service-specific create/destroy factory
-  -> create and load the model with the original RAX path
-  -> register and serve the matching HTTP routes
+       -> if absent, detect buddy_model_plugin_descriptor_v1 and report that
+          the package must be regenerated
+       -> validate the descriptor and unified operation table
+  -> create one model instance through the unified operation table
+  -> asynchronously load the model with resolved RAX resources
+  -> register routes and dispatch the operations declared by operationMask
 ```
 
-The descriptor selects one of four service kinds:
+The descriptor keeps service classification separate from the operations,
+input modalities, execution capabilities, and result representation. The
+service kind remains one of:
 
 - `Resident`
 - `Embedding`
 - `MaskedLM`
 - `Transcription`
 
-Discovery deliberately validates the common descriptor before choosing a
-typed plugin API. This keeps service selection in one place and avoids
-probing unrelated factory symbols.
+All service kinds use the same `create`, `load`, `getStatus`, `invoke`, and
+`destroy` operation table. `buddy-server` no longer probes service-specific
+factory symbols or reopens the plugin through typed handles.
 
 ## Inspection and troubleshooting
 
@@ -399,6 +401,7 @@ Common failures:
 | `payload entry not found` | Compare the rewritten manifest URI with the index shown by `rax-inspect`. |
 | `dlopen` failure | Check the extracted/file URI path, dependent shared libraries, permissions, and executable-mapping policy. |
 | Server reports missing `model_library` | Add the server plugin URI to the `rhal.module` attributes and repack. |
+| Server reports the legacy server ABI | Regenerate or download a current RAX package containing `buddy_server_model_descriptor_v1`. |
 | Descriptor ABI error | Rebuild the server plugin and `buddy-server` from compatible runtime headers. |
 
 ## Compatibility and limitations
@@ -426,5 +429,5 @@ Common failures:
 | Manifest validation, URI resolution, and extraction | `runtime/include/buddy/runtime/core/ModelManifest.h` |
 | CLI runner loading | `tools/buddy-cli/buddy-cli.cpp` |
 | Server entry point | `tools/buddy-server/src/buddy-server.cpp` |
-| Server plugin discovery | `tools/buddy-server/src/plugin/ModelPluginDiscovery.cpp` |
+| Server plugin loading | `tools/buddy-server/src/plugin/ServerModelPluginHandle.cpp` |
 | Package inspection | `tools/rax-inspect/rax-inspect.cpp` |

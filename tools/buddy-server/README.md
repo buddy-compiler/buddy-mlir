@@ -18,8 +18,7 @@ validates the Server Model ABI descriptor before creating a model object.
 
 The descriptor declares the service kind separately from its operations, input
 modalities, result kind, and execution capabilities. All services use the same
-`create`, `load`, `getStatus`, `invoke`, and `destroy` operation table. The
-complete ABI is documented in `docs/BuddyServerModelABI.md`.
+`create`, `load`, `getStatus`, `invoke`, and `destroy` operation table.
 
 Packages containing the legacy `buddy_model_plugin_descriptor_v1` server ABI
 are detected but not executed. `buddy-server` asks the user to install a newly

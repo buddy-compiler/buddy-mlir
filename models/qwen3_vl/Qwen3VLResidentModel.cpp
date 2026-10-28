@@ -17,6 +17,7 @@
 #include "buddy/runtime/models/Qwen3VLResidentModel.h"
 
 #include "Qwen3VLRuntime.h"
+#include "buddy/runtime/core/ModelError.h"
 
 #include <atomic>
 #include <memory>
@@ -49,28 +50,28 @@ std::string renderMessages(const ChatCompletionRequest &request) {
   }
   if (!request.input.empty())
     return request.input;
-  throw std::runtime_error("qwen3_vl: chat request has no text content");
+  throw std::invalid_argument("qwen3_vl: chat request has no text content");
 }
 
 std::vector<ImageInput> imagesForRequest(const ChatCompletionRequest &request) {
   std::vector<ImageInput> images = request.images;
   if (images.size() > 1)
-    throw std::runtime_error("qwen3_vl: only one image is supported");
+    throw std::invalid_argument("qwen3_vl: only one image is supported");
 
   for (const ChatMessage &message : request.messages) {
     if (!message.images.empty() && message.role != "user")
-      throw std::runtime_error(
+      throw std::invalid_argument(
           "qwen3_vl: image content is only supported in user messages");
     for (const ImageInput &image : message.images) {
       if (images.empty())
         images.push_back(image);
       else if (images.front().uri != image.uri ||
                images.front().bytes != image.bytes)
-        throw std::runtime_error("qwen3_vl: only one image is supported");
+        throw std::invalid_argument("qwen3_vl: only one image is supported");
     }
   }
   if (images.size() > 1)
-    throw std::runtime_error("qwen3_vl: only one image is supported");
+    throw std::invalid_argument("qwen3_vl: only one image is supported");
   return images;
 }
 
@@ -91,7 +92,7 @@ public:
 
     try {
       if (config.raxPath.empty())
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "qwen3_vl: --model <path.rax> is required for serving");
 
       auto candidate = std::make_shared<Qwen3VLRuntime>();
@@ -176,7 +177,8 @@ private:
   std::shared_ptr<Qwen3VLRuntime> snapshotRuntime() const {
     std::lock_guard<std::mutex> lock(mutex);
     if (!runtime || !runtime->isLoaded())
-      throw std::runtime_error("qwen3_vl: model is not loaded");
+      throw ModelException(ModelErrorCode::ModelNotReady,
+                           "qwen3_vl: model is not loaded");
     return runtime;
   }
 

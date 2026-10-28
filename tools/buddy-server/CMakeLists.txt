@@ -5,11 +5,6 @@ find_package(Threads REQUIRED)
 add_library(buddy-server-core STATIC
   src/BuddyServerApp.cpp
   src/http/SimpleHttpServer.cpp
-  src/plugin/AudioTranscriptionModelPluginHandle.cpp
-  src/plugin/EmbeddingModelPluginHandle.cpp
-  src/plugin/MaskedLMModelPluginHandle.cpp
-  src/plugin/ModelPluginDiscovery.cpp
-  src/plugin/ResidentModelPluginHandle.cpp
   src/plugin/ServerModelPluginHandle.cpp
   src/protocol/AudioTranscriptionJsonCodec.cpp
   src/protocol/JsonCodec.cpp

@@ -21,12 +21,14 @@
 #include "buddy/runtime/core/AudioTranscriptionModel.h"
 #include "buddy/runtime/core/EmbeddingModel.h"
 #include "buddy/runtime/core/MaskedLMModel.h"
+#include "buddy/runtime/core/ModelError.h"
 #include "buddy/runtime/core/ResidentModel.h"
 #include "buddy/runtime/core/ServerModelABIConversion.h"
 
 #include <algorithm>
 #include <exception>
 #include <memory>
+#include <new>
 #include <string>
 #include <utility>
 #include <vector>
@@ -54,6 +56,49 @@ inline BuddyServerStatusCodeV1 setError(BuddyServerErrorV1 *error,
     error->messageSize = static_cast<uint64_t>(storage.size());
   }
   return code;
+}
+
+inline BuddyServerStatusCodeV1 statusCode(ModelErrorCode code) {
+  switch (code) {
+  case ModelErrorCode::InvalidArgument:
+    return BUDDY_SERVER_STATUS_INVALID_ARGUMENT;
+  case ModelErrorCode::NotSupported:
+    return BUDDY_SERVER_STATUS_NOT_SUPPORTED;
+  case ModelErrorCode::ModelNotReady:
+    return BUDDY_SERVER_STATUS_MODEL_NOT_READY;
+  case ModelErrorCode::ResourceExhausted:
+    return BUDDY_SERVER_STATUS_RESOURCE_EXHAUSTED;
+  case ModelErrorCode::Cancelled:
+    return BUDDY_SERVER_STATUS_CANCELLED;
+  case ModelErrorCode::DeadlineExceeded:
+    return BUDDY_SERVER_STATUS_DEADLINE_EXCEEDED;
+  case ModelErrorCode::ModelError:
+    return BUDDY_SERVER_STATUS_MODEL_ERROR;
+  case ModelErrorCode::InternalError:
+    return BUDDY_SERVER_STATUS_INTERNAL_ERROR;
+  }
+  return BUDDY_SERVER_STATUS_INTERNAL_ERROR;
+}
+
+// This helper must be called from a catch block so it can rethrow and classify
+// the active exception without relying on unstable message text.
+inline BuddyServerStatusCodeV1
+setExceptionError(BuddyServerErrorV1 *error,
+                  BuddyServerStatusCodeV1 fallbackCode,
+                  const char *fallbackMessage) {
+  try {
+    throw;
+  } catch (const ModelException &ex) {
+    return setError(error, statusCode(ex.code()), ex.what());
+  } catch (const std::invalid_argument &ex) {
+    return setError(error, BUDDY_SERVER_STATUS_INVALID_ARGUMENT, ex.what());
+  } catch (const std::bad_alloc &ex) {
+    return setError(error, BUDDY_SERVER_STATUS_RESOURCE_EXHAUSTED, ex.what());
+  } catch (const std::exception &ex) {
+    return setError(error, fallbackCode, ex.what());
+  } catch (...) {
+    return setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR, fallbackMessage);
+  }
 }
 
 inline std::vector<std::string> paths(const BuddyServerStringViewV1 *values,
@@ -221,12 +266,9 @@ template <typename Factory> class ResidentServerModelAdapter {
         return nullptr;
       }
       return result.release();
-    } catch (const std::exception &ex) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR, ex.what());
-      return nullptr;
     } catch (...) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
-               "resident model factory failed");
+      setExceptionError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
+                        "resident model factory failed");
       return nullptr;
     }
   }
@@ -242,11 +284,9 @@ template <typename Factory> class ResidentServerModelAdapter {
       object(value)->model->load(residentConfig(*args));
       object(value)->status = object(value)->model->status();
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "resident model load failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "resident model load failed");
     }
   }
 
@@ -261,11 +301,9 @@ template <typename Factory> class ResidentServerModelAdapter {
       object(value)->status = object(value)->model->status();
       fillStatus(object(value)->status, status);
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "resident status failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "resident status failed");
     }
   }
 
@@ -360,11 +398,9 @@ template <typename Factory> class ResidentServerModelAdapter {
         return setError(error, BUDDY_SERVER_STATUS_NOT_SUPPORTED,
                         "operation is not supported by resident model");
       }
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "resident model invocation failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "resident model invocation failed");
     }
   }
 
@@ -402,12 +438,9 @@ template <typename Factory> class EmbeddingServerModelAdapter {
         return nullptr;
       }
       return result.release();
-    } catch (const std::exception &ex) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR, ex.what());
-      return nullptr;
     } catch (...) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
-               "embedding model factory failed");
+      setExceptionError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
+                        "embedding model factory failed");
       return nullptr;
     }
   }
@@ -422,11 +455,9 @@ template <typename Factory> class EmbeddingServerModelAdapter {
       object(value)->model->load(embeddingConfig(*args));
       object(value)->status = object(value)->model->status();
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "embedding model load failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "embedding model load failed");
     }
   }
   static BuddyServerStatusCodeV1 getStatus(void *value,
@@ -440,11 +471,9 @@ template <typename Factory> class EmbeddingServerModelAdapter {
       object(value)->status = object(value)->model->status();
       fillStatus(object(value)->status, status);
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "embedding status failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "embedding status failed");
     }
   }
   static BuddyServerStatusCodeV1 invoke(void *value,
@@ -467,11 +496,9 @@ template <typename Factory> class EmbeddingServerModelAdapter {
       if (emit(data, &event) != BUDDY_SERVER_EMIT_CONTINUE)
         return BUDDY_SERVER_STATUS_CANCELLED;
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "embedding model invocation failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "embedding model invocation failed");
     }
   }
   static void destroy(void *value) { delete object(value); }
@@ -508,12 +535,9 @@ template <typename Factory> class MaskedLMServerModelAdapter {
         return nullptr;
       }
       return result.release();
-    } catch (const std::exception &ex) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR, ex.what());
-      return nullptr;
     } catch (...) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
-               "masked-LM model factory failed");
+      setExceptionError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
+                        "masked-LM model factory failed");
       return nullptr;
     }
   }
@@ -528,11 +552,9 @@ template <typename Factory> class MaskedLMServerModelAdapter {
       object(value)->model->load(maskedLMConfig(*args));
       object(value)->status = object(value)->model->status();
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "masked-LM model load failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "masked-LM model load failed");
     }
   }
   static BuddyServerStatusCodeV1 getStatus(void *value,
@@ -546,11 +568,9 @@ template <typename Factory> class MaskedLMServerModelAdapter {
       object(value)->status = object(value)->model->status();
       fillStatus(object(value)->status, status);
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "masked-LM status failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "masked-LM status failed");
     }
   }
   static BuddyServerStatusCodeV1 invoke(void *value,
@@ -597,11 +617,9 @@ template <typename Factory> class MaskedLMServerModelAdapter {
       if (emit(data, &event) != BUDDY_SERVER_EMIT_CONTINUE)
         return BUDDY_SERVER_STATUS_CANCELLED;
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "masked-LM model invocation failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "masked-LM model invocation failed");
     }
   }
   static void destroy(void *value) { delete object(value); }
@@ -638,12 +656,9 @@ template <typename Factory> class TranscriptionServerModelAdapter {
         return nullptr;
       }
       return result.release();
-    } catch (const std::exception &ex) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR, ex.what());
-      return nullptr;
     } catch (...) {
-      setError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
-               "transcription model factory failed");
+      setExceptionError(error, BUDDY_SERVER_STATUS_INTERNAL_ERROR,
+                        "transcription model factory failed");
       return nullptr;
     }
   }
@@ -658,11 +673,9 @@ template <typename Factory> class TranscriptionServerModelAdapter {
       object(value)->model->load(transcriptionConfig(*args));
       object(value)->status = object(value)->model->status();
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "transcription model load failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "transcription model load failed");
     }
   }
   static BuddyServerStatusCodeV1 getStatus(void *value,
@@ -676,11 +689,9 @@ template <typename Factory> class TranscriptionServerModelAdapter {
       object(value)->status = object(value)->model->status();
       fillStatus(object(value)->status, status);
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "transcription status failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "transcription status failed");
     }
   }
   static BuddyServerStatusCodeV1 invoke(void *value,
@@ -703,11 +714,9 @@ template <typename Factory> class TranscriptionServerModelAdapter {
       if (emit(data, &event) != BUDDY_SERVER_EMIT_CONTINUE)
         return BUDDY_SERVER_STATUS_CANCELLED;
       return BUDDY_SERVER_STATUS_OK;
-    } catch (const std::exception &ex) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR, ex.what());
     } catch (...) {
-      return setError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
-                      "transcription model invocation failed");
+      return setExceptionError(error, BUDDY_SERVER_STATUS_MODEL_ERROR,
+                               "transcription model invocation failed");
     }
   }
   static void destroy(void *value) { delete object(value); }

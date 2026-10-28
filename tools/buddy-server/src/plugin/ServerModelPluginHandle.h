@@ -22,11 +22,31 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace buddy {
 namespace server {
+
+class ServerModelError : public std::runtime_error {
+public:
+  ServerModelError(BuddyServerStatusCodeV1 status, const std::string &message)
+      : std::runtime_error(message), statusValue(status) {}
+
+  BuddyServerStatusCodeV1 status() const noexcept { return statusValue; }
+
+private:
+  BuddyServerStatusCodeV1 statusValue;
+};
+
+struct ServerModelStatus {
+  uint32_t state = BUDDY_SERVER_MODEL_UNLOADED;
+  std::string modelName;
+  std::string backend;
+  std::string message;
+  int32_t contextLength = 0;
+};
 
 class ServerModelPluginHandle {
 public:
@@ -40,9 +60,9 @@ public:
 
   void create(const std::string &modelName);
   void load(const BuddyServerLoadArgsV1 &args);
-  BuddyServerStatusV1 status() const;
-  BuddyServerStatusCodeV1 invoke(const BuddyServerCallV1 &call,
-                                 BuddyServerEmitFnV1 emit, void *userData);
+  ServerModelStatus status() const;
+  void invoke(const BuddyServerCallV1 &call, BuddyServerEmitFnV1 emit,
+              void *userData);
 
   uint32_t serviceKind() const { return descriptor->serviceKind; }
   uint64_t operationMask() const { return descriptor->operationMask; }
@@ -59,17 +79,19 @@ private:
   void checkError(const BuddyServerErrorV1 &error,
                   BuddyServerStatusCodeV1 status) const;
 
-  void releaseInvocation();
+  void acquireCall() const;
+  void releaseCall() const;
 
   void *library = nullptr;
   const BuddyServerModelDescriptorV1 *descriptor = nullptr;
   void *model = nullptr;
   std::string pluginPath;
   std::string pluginModelType;
-  mutable std::mutex invocationMutex;
-  std::condition_variable invocationCondition;
-  uint32_t activeInvocations = 0;
-  bool closing = false;
+  mutable std::mutex callMutex;
+  mutable std::condition_variable callCondition;
+  mutable uint32_t activeCalls = 0;
+  mutable uint32_t liveCalls = 0;
+  mutable bool closing = false;
 };
 
 const char *serverServiceKindName(uint32_t kind);

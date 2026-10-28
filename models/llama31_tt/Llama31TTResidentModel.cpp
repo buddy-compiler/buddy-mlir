@@ -16,6 +16,8 @@
 
 #include "buddy/runtime/models/Llama31TTResidentModel.h"
 
+#include "buddy/runtime/core/ModelError.h"
+
 #include <mutex>
 #include <stdexcept>
 #include <utility>
@@ -139,7 +141,8 @@ public:
 private:
   void ensureReady() const {
     if (statusValue.state != ModelLoadState::Ready || !execution->isLoaded())
-      throw std::runtime_error("llama31_tt: model is not loaded");
+      throw ModelException(ModelErrorCode::ModelNotReady,
+                           "llama31_tt: model is not loaded");
   }
 
   void validateModel(const std::string &requested) const {

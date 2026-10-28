@@ -62,10 +62,16 @@ std::string reasonPhrase(int status) {
     return "Not Found";
   case 405:
     return "Method Not Allowed";
+  case 429:
+    return "Too Many Requests";
+  case 499:
+    return "Client Closed Request";
   case 500:
     return "Internal Server Error";
   case 503:
     return "Service Unavailable";
+  case 504:
+    return "Gateway Timeout";
   default:
     return "OK";
   }
@@ -153,6 +159,9 @@ bool readHttpRequest(int fd, HttpRequest &request) {
 ResponseWriter::ResponseWriter(int fd) : fd(fd) {}
 
 bool ResponseWriter::sendResponse(const HttpResponse &response) {
+  if (responseStarted)
+    return false;
+  responseStarted = true;
   std::ostringstream os;
   os << "HTTP/1.1 " << response.status << " " << reasonPhrase(response.status)
      << "\r\n";
@@ -167,6 +176,10 @@ bool ResponseWriter::sendResponse(const HttpResponse &response) {
 }
 
 bool ResponseWriter::startSse(int status) {
+  if (responseStarted)
+    return false;
+  responseStarted = true;
+  sseStarted = true;
   std::ostringstream os;
   os << "HTTP/1.1 " << status << " " << reasonPhrase(status) << "\r\n";
   os << "Content-Type: text/event-stream\r\n";
@@ -178,7 +191,16 @@ bool ResponseWriter::startSse(int status) {
 }
 
 bool ResponseWriter::writeSseData(const std::string &data) {
+  if (!sseStarted)
+    return false;
   return writeRaw("data: " + data + "\n\n");
+}
+
+bool ResponseWriter::writeSseEvent(const std::string &event,
+                                   const std::string &data) {
+  if (!sseStarted)
+    return false;
+  return writeRaw("event: " + event + "\ndata: " + data + "\n\n");
 }
 
 bool ResponseWriter::writeRaw(const std::string &data) {
@@ -253,8 +275,9 @@ void SimpleHttpServer::handleClient(int clientFd) {
 
     it->second(request, writer);
   } catch (const std::exception &ex) {
-    writer.sendResponse(
-        jsonResponse(500, std::string("{\"error\":\"") + ex.what() + "\"}\n"));
+    if (!writer.hasStarted())
+      writer.sendResponse(jsonResponse(500, std::string("{\"error\":\"") +
+                                                ex.what() + "\"}\n"));
   }
 
   ::close(clientFd);

@@ -48,8 +48,10 @@ using buddy::runtime::ModelStatus;
 using buddy::runtime::TokenizeResult;
 using buddy::server::HttpRequest;
 using buddy::server::ResponseWriter;
+using buddy::server::ServerModelError;
 using buddy::server::ServerModelPluginHandle;
 using buddy::server::ServerModelRequest;
+using buddy::server::ServerModelStatus;
 using buddy::server::SimpleHttpServer;
 
 namespace {
@@ -66,20 +68,53 @@ std::string copyView(BuddyServerStringViewV1 value) {
   return {value.data, static_cast<size_t>(value.size)};
 }
 
-ModelStatus statusFromAbi(const BuddyServerStatusV1 &source) {
+ModelStatus statusFromPlugin(const ServerModelStatus &source) {
   ModelStatus result;
   result.state = static_cast<ModelLoadState>(source.state);
-  result.modelName = copyView(source.modelName);
-  result.backend = copyView(source.backend);
-  result.message = copyView(source.message);
+  result.modelName = source.modelName;
+  result.backend = source.backend;
+  result.message = source.message;
   result.contextLength = source.contextLength;
   return result;
 }
 
 void sendError(ResponseWriter &writer, int status, const std::string &message,
                const std::string &type) {
-  writer.sendResponse(buddy::server::jsonResponse(
-      status, buddy::server::errorJson(message, type, status)));
+  const std::string body = buddy::server::errorJson(message, type, status);
+  if (writer.isSse()) {
+    (void)writer.writeSseEvent("error", body);
+    return;
+  }
+  if (!writer.hasStarted())
+    (void)writer.sendResponse(buddy::server::jsonResponse(status, body));
+}
+
+struct HttpErrorMapping {
+  int status;
+  const char *type;
+};
+
+HttpErrorMapping mapServerModelError(BuddyServerStatusCodeV1 status) {
+  switch (status) {
+  case BUDDY_SERVER_STATUS_INVALID_ARGUMENT:
+    return {400, "bad_request"};
+  case BUDDY_SERVER_STATUS_NOT_SUPPORTED:
+    return {400, "unsupported_endpoint"};
+  case BUDDY_SERVER_STATUS_MODEL_NOT_READY:
+    return {503, "model_not_ready"};
+  case BUDDY_SERVER_STATUS_RESOURCE_EXHAUSTED:
+    return {429, "resource_exhausted"};
+  case BUDDY_SERVER_STATUS_CANCELLED:
+    return {499, "cancelled"};
+  case BUDDY_SERVER_STATUS_DEADLINE_EXCEEDED:
+    return {504, "deadline_exceeded"};
+  case BUDDY_SERVER_STATUS_MODEL_ERROR:
+    return {500, "model_error"};
+  case BUDDY_SERVER_STATUS_INTERNAL_ERROR:
+  case BUDDY_SERVER_STATUS_OK:
+  default:
+    return {500, "internal_error"};
+  }
 }
 
 template <typename Function>
@@ -90,6 +125,9 @@ void withJsonErrors(ResponseWriter &writer, Function function) {
     sendError(writer, 400, error.what(), "bad_request");
   } catch (const std::invalid_argument &error) {
     sendError(writer, 400, error.what(), "bad_request");
+  } catch (const ServerModelError &error) {
+    const HttpErrorMapping mapping = mapServerModelError(error.status());
+    sendError(writer, mapping.status, error.what(), mapping.type);
   } catch (const std::exception &error) {
     sendError(writer, 500, error.what(), "internal_error");
   }
@@ -106,6 +144,16 @@ uint64_t operationBit(uint32_t operation) { return uint64_t{1} << operation; }
 
 bool supports(const ServerModelPluginHandle &model, uint32_t operation) {
   return (model.operationMask() & operationBit(operation)) != 0;
+}
+
+bool requireStreamingCapability(const ServerModelPluginHandle &model,
+                                bool streaming, ResponseWriter &writer) {
+  if (!streaming ||
+      (model.capabilityMask() & BUDDY_SERVER_CAPABILITY_STREAMING) != 0)
+    return true;
+  sendError(writer, 400, "streaming is not supported by the selected backend",
+            "unsupported_endpoint");
+  return false;
 }
 
 void unsupported(ResponseWriter &writer, const char *endpoint) {
@@ -207,6 +255,8 @@ BuddyServerEmitResultV1 emitCompletion(void *userData,
   if (event->kind == BUDDY_SERVER_EVENT_FINAL) {
     context.result = completionResultFromAbi(event->completion);
     context.gotResult = true;
+    if (context.writer && !context.writer->writeSseData("[DONE]"))
+      return BUDDY_SERVER_EMIT_CANCEL;
     return BUDDY_SERVER_EMIT_CONTINUE;
   }
   if (event->kind != BUDDY_SERVER_EVENT_CHUNK || !context.writer)
@@ -216,8 +266,6 @@ BuddyServerEmitResultV1 emitCompletion(void *userData,
                                ? buddy::server::toOpenAIChatChunkJson(chunk)
                                : buddy::server::toCompletionChunkJson(chunk);
   if (!context.writer->writeSseData(json))
-    return BUDDY_SERVER_EMIT_CANCEL;
-  if (chunk.done && !context.writer->writeSseData("[DONE]"))
     return BUDDY_SERVER_EMIT_CANCEL;
   return BUDDY_SERVER_EMIT_CONTINUE;
 }
@@ -338,14 +386,15 @@ void handleCompletion(ServerModelPluginHandle &model,
       return;
     }
     const auto decoded = buddy::server::parseCompletionRequest(request.body);
+    if (!requireStreamingCapability(model, decoded.stream, writer))
+      return;
     ServerModelRequest serverRequest;
     serverRequest.setCompletion(decoded.request, decoded.stream);
     CompletionEmitContext context{decoded.stream ? &writer : nullptr, false};
     if (decoded.stream)
       writer.startSse();
     BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
-    if (model.invoke(call, &emitCompletion, &context) != BUDDY_SERVER_STATUS_OK)
-      return;
+    model.invoke(call, &emitCompletion, &context);
     if (!decoded.stream) {
       if (!context.gotResult)
         throw std::runtime_error("server model returned no completion result");
@@ -367,14 +416,15 @@ void handleChat(ServerModelPluginHandle &model, const std::atomic<int> &state,
     }
     const auto decoded =
         buddy::server::parseChatCompletionRequest(request.body);
+    if (!requireStreamingCapability(model, decoded.stream, writer))
+      return;
     ServerModelRequest serverRequest;
     serverRequest.setChat(decoded.request, decoded.stream);
     CompletionEmitContext context{decoded.stream ? &writer : nullptr, true};
     if (decoded.stream)
       writer.startSse();
     BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
-    if (model.invoke(call, &emitCompletion, &context) != BUDDY_SERVER_STATUS_OK)
-      return;
+    model.invoke(call, &emitCompletion, &context);
     if (!decoded.stream) {
       if (!context.gotResult)
         throw std::runtime_error("server model returned no chat result");
@@ -399,8 +449,7 @@ void handleTokenize(ServerModelPluginHandle &model,
     serverRequest.setTokenize(decoded);
     TokenizeEmitContext context;
     BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
-    if (model.invoke(call, &emitTokenize, &context) != BUDDY_SERVER_STATUS_OK)
-      return;
+    model.invoke(call, &emitTokenize, &context);
     if (!context.gotResult)
       throw std::runtime_error("server model returned no tokenize result");
     writer.sendResponse(buddy::server::jsonResponse(
@@ -420,7 +469,7 @@ void handleEmbedding(ServerModelPluginHandle &model,
       return;
     }
     const auto decoded = buddy::server::parseEmbeddingRequest(request.body);
-    const ModelStatus status = statusFromAbi(model.status());
+    const ModelStatus status = statusFromPlugin(model.status());
     if (!decoded.request.model.empty() &&
         decoded.request.model != status.modelName) {
       sendError(writer, 400, "requested model does not match loaded model",
@@ -431,8 +480,7 @@ void handleEmbedding(ServerModelPluginHandle &model,
     serverRequest.setEmbedding(decoded.request);
     EmbeddingEmitContext context;
     BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
-    if (model.invoke(call, &emitEmbedding, &context) != BUDDY_SERVER_STATUS_OK)
-      return;
+    model.invoke(call, &emitEmbedding, &context);
     if (!context.gotResult)
       throw std::runtime_error("server model returned no embedding result");
     writer.sendResponse(buddy::server::jsonResponse(
@@ -451,7 +499,7 @@ void handleMaskedLM(ServerModelPluginHandle &model,
       return;
     }
     const auto decoded = buddy::server::parseMaskedLMRequest(request.body);
-    const ModelStatus status = statusFromAbi(model.status());
+    const ModelStatus status = statusFromPlugin(model.status());
     if (!decoded.request.model.empty() &&
         decoded.request.model != status.modelName) {
       sendError(writer, 400, "requested model does not match loaded model",
@@ -462,8 +510,7 @@ void handleMaskedLM(ServerModelPluginHandle &model,
     serverRequest.setMaskedLM(decoded.request);
     MaskedLMEmitContext context;
     BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
-    if (model.invoke(call, &emitMaskedLM, &context) != BUDDY_SERVER_STATUS_OK)
-      return;
+    model.invoke(call, &emitMaskedLM, &context);
     if (!context.gotResult)
       throw std::runtime_error("server model returned no masked-LM result");
     writer.sendResponse(buddy::server::jsonResponse(
@@ -489,7 +536,7 @@ void handleTranscription(ServerModelPluginHandle &model,
           "multipart audio uploads are not supported");
     const auto decoded =
         buddy::server::parseAudioTranscriptionRequest(request.body);
-    const ModelStatus status = statusFromAbi(model.status());
+    const ModelStatus status = statusFromPlugin(model.status());
     if (!decoded.request.model.empty() &&
         decoded.request.model != status.modelName) {
       sendError(writer, 400, "requested model does not match loaded model",
@@ -500,9 +547,7 @@ void handleTranscription(ServerModelPluginHandle &model,
     serverRequest.setTranscription(decoded.request);
     TranscriptionEmitContext context;
     BuddyServerCallV1 call = makeCall(serverRequest, requestIds.fetch_add(1));
-    if (model.invoke(call, &emitTranscription, &context) !=
-        BUDDY_SERVER_STATUS_OK)
-      return;
+    model.invoke(call, &emitTranscription, &context);
     if (!context.gotResult)
       throw std::runtime_error("server model returned no transcription result");
     writer.sendResponse(buddy::server::jsonResponse(
@@ -560,7 +605,7 @@ int buddy::server::BuddyServerApp::run() {
     const int state = loadState.load(std::memory_order_acquire);
     if (state == Ready) {
       try {
-        status = statusFromAbi(model->status());
+        status = statusFromPlugin(model->status());
       } catch (const std::exception &error) {
         status.state = ModelLoadState::Error;
         status.modelName = modelName;
