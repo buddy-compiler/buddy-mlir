@@ -2,6 +2,16 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 # Fake file/payload .rax packages used by manifest and HTTP integration tests.
 
+set(_BUDDY_SERVER_TEST_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}")
+set(_BUDDY_SERVER_MANIFEST_DIR
+  "${_BUDDY_SERVER_TEST_SOURCE_DIR}/fixtures/manifests")
+set(_BUDDY_SERVER_DATA_DIR
+  "${_BUDDY_SERVER_TEST_SOURCE_DIR}/fixtures/data")
+set(_BUDDY_SERVER_INTEGRATION_DIR
+  "${_BUDDY_SERVER_TEST_SOURCE_DIR}/integration")
+set(_BUDDY_SERVER_PACKAGING_DIR
+  "${_BUDDY_SERVER_TEST_SOURCE_DIR}/packaging")
+
 set(_TRANSCRIPTION_FIXTURE_DIR
   "${CMAKE_CURRENT_BINARY_DIR}/transcription-manifest-test")
 set(_TRANSCRIPTION_FILE_RAX "${_TRANSCRIPTION_FIXTURE_DIR}/file.rax")
@@ -34,27 +44,27 @@ add_custom_command(
           "$<TARGET_FILE:buddy-server-transcription-fake-plugin>"
           "${_TRANSCRIPTION_FIXTURE_DIR}/transcription.so"
   COMMAND ${CMAKE_COMMAND} -E copy
-          "${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionManifestVocab.txt"
+          "${_BUDDY_SERVER_DATA_DIR}/TranscriptionManifestVocab.txt"
           "${_TRANSCRIPTION_FIXTURE_DIR}/vocab.txt"
   COMMAND ${CMAKE_COMMAND} -E copy
-          "${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionManifestWeights.bin"
+          "${_BUDDY_SERVER_DATA_DIR}/TranscriptionManifestWeights.bin"
           "${_TRANSCRIPTION_FIXTURE_DIR}/weights.bin"
   COMMAND $<TARGET_FILE:rax-pack>
-          "${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionManifestTest.mlir"
+          "${_BUDDY_SERVER_MANIFEST_DIR}/TranscriptionManifestTest.mlir"
           -o "${_TRANSCRIPTION_FILE_RAX}"
   COMMAND $<TARGET_FILE:rax-pack>
-          "${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionManifestTest.mlir"
+          "${_BUDDY_SERVER_MANIFEST_DIR}/TranscriptionManifestTest.mlir"
           -o "${_TRANSCRIPTION_PAYLOAD_RAX}" --embed-payload
   COMMAND $<TARGET_FILE:rax-pack>
-          "${CMAKE_CURRENT_SOURCE_DIR}/NoModelLibraryManifestTest.mlir"
+          "${_BUDDY_SERVER_MANIFEST_DIR}/NoModelLibraryManifestTest.mlir"
           -o "${_NO_MODEL_LIBRARY_RAX}"
   DEPENDS
     rax-pack
     buddy-server-transcription-fake-plugin
-    "${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionManifestTest.mlir"
-    "${CMAKE_CURRENT_SOURCE_DIR}/NoModelLibraryManifestTest.mlir"
-    "${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionManifestVocab.txt"
-    "${CMAKE_CURRENT_SOURCE_DIR}/TranscriptionManifestWeights.bin"
+    "${_BUDDY_SERVER_MANIFEST_DIR}/TranscriptionManifestTest.mlir"
+    "${_BUDDY_SERVER_MANIFEST_DIR}/NoModelLibraryManifestTest.mlir"
+    "${_BUDDY_SERVER_DATA_DIR}/TranscriptionManifestVocab.txt"
+    "${_BUDDY_SERVER_DATA_DIR}/TranscriptionManifestWeights.bin"
   VERBATIM)
 add_custom_target(buddy-server-transcription-manifest-fixtures
   DEPENDS
@@ -81,18 +91,18 @@ add_custom_command(
           "$<TARGET_FILE:buddy-server-masked-lm-fake-plugin>"
           "${_MODEL_SERVICE_FIXTURE_DIR}/masked-lm/service.so"
   COMMAND $<TARGET_FILE:rax-pack>
-          "${CMAKE_CURRENT_SOURCE_DIR}/ModelServiceManifestTest.mlir"
+          "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
           -o "${_RESIDENT_SERVICE_RAX}"
   COMMAND $<TARGET_FILE:rax-pack>
-          "${CMAKE_CURRENT_SOURCE_DIR}/ModelServiceManifestTest.mlir"
+          "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
           -o "${_EMBEDDING_SERVICE_RAX}"
   COMMAND $<TARGET_FILE:rax-pack>
-          "${CMAKE_CURRENT_SOURCE_DIR}/ModelServiceManifestTest.mlir"
+          "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
           -o "${_MASKED_LM_SERVICE_RAX}"
   DEPENDS
     rax-pack
     ${_buddy_service_fake_plugins}
-    "${CMAKE_CURRENT_SOURCE_DIR}/ModelServiceManifestTest.mlir"
+    "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
   VERBATIM)
 add_custom_target(buddy-server-model-service-fixtures
   DEPENDS
@@ -114,19 +124,19 @@ add_custom_command(
           "$<TARGET_FILE:buddy-server-discovery-dependent-plugin>"
           "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/service.so"
   COMMAND $<TARGET_FILE:rax-pack>
-          "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeDependencyManifestTest.mlir"
+          "${_BUDDY_SERVER_MANIFEST_DIR}/RuntimeDependencyManifestTest.mlir"
           -o "${_RUNTIME_DEPENDENCY_RAX}"
   DEPENDS
     rax-pack
     buddy-server-runtime-dependency-fake
     buddy-server-discovery-dependent-plugin
-    "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeDependencyManifestTest.mlir"
+    "${_BUDDY_SERVER_MANIFEST_DIR}/RuntimeDependencyManifestTest.mlir"
   VERBATIM)
 add_custom_target(buddy-server-runtime-dependency-fixture
   DEPENDS "${_RUNTIME_DEPENDENCY_RAX}")
 
 add_executable(buddy-server-model-manifest-transcription-test
-  ModelManifestTranscriptionTest.cpp)
+  packaging/ModelManifestTranscriptionTest.cpp)
 target_compile_features(buddy-server-model-manifest-transcription-test
   PRIVATE cxx_std_17)
 target_link_libraries(buddy-server-model-manifest-transcription-test PRIVATE
@@ -142,7 +152,7 @@ set_tests_properties(buddy-server-model-manifest-transcription PROPERTIES
   PASS_REGULAR_EXPRESSION "ModelManifest transcription tests passed")
 
 add_executable(buddy-server-model-manifest-duplicate-attribute-test
-  ModelManifestDuplicateAttributeTest.cpp)
+  packaging/ModelManifestDuplicateAttributeTest.cpp)
 target_compile_features(
   buddy-server-model-manifest-duplicate-attribute-test PRIVATE cxx_std_17)
 target_link_libraries(
@@ -157,7 +167,7 @@ set_tests_properties(
 
 add_test(NAME buddy-server-transcription-http-integration
   COMMAND "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/BuddyServerTranscriptionIntegrationTest.py"
+          "${_BUDDY_SERVER_INTEGRATION_DIR}/BuddyServerTranscriptionIntegrationTest.py"
           "$<TARGET_FILE:buddy-server>"
           "${_TRANSCRIPTION_PAYLOAD_RAX}"
           18991
@@ -169,7 +179,7 @@ set_tests_properties(buddy-server-transcription-http-integration PROPERTIES
 
 add_test(NAME buddy-server-model-service-http-integration
   COMMAND "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/BuddyServerServiceIntegrationTest.py"
+          "${_BUDDY_SERVER_INTEGRATION_DIR}/BuddyServerServiceIntegrationTest.py"
           "$<TARGET_FILE:buddy-server>"
           "${_RESIDENT_SERVICE_RAX}"
           "${_EMBEDDING_SERVICE_RAX}"
@@ -181,7 +191,7 @@ set_tests_properties(buddy-server-model-service-http-integration PROPERTIES
 
 add_test(NAME buddy-server-startup-failures
   COMMAND "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/BuddyServerStartupFailureTest.py"
+          "${_BUDDY_SERVER_INTEGRATION_DIR}/BuddyServerStartupFailureTest.py"
           "$<TARGET_FILE:buddy-server>"
           "${_TRANSCRIPTION_FILE_RAX}"
           "${_NO_MODEL_LIBRARY_RAX}"
@@ -194,7 +204,7 @@ set_tests_properties(buddy-server-startup-failures PROPERTIES
 
 add_test(NAME buddy-server-runtime-dependencies
   COMMAND "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/BuddyServerRaxDependencyTest.py"
+          "${_BUDDY_SERVER_INTEGRATION_DIR}/BuddyServerRaxDependencyTest.py"
           "$<TARGET_FILE:buddy-server>"
           "${_RUNTIME_DEPENDENCY_RAX}")
 set_tests_properties(buddy-server-runtime-dependencies PROPERTIES
@@ -204,7 +214,7 @@ set_tests_properties(buddy-server-runtime-dependencies PROPERTIES
 
 add_test(NAME buddy-server-manifest-generators
   COMMAND "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/ManifestGeneratorTest.py"
+          "${_BUDDY_SERVER_PACKAGING_DIR}/ManifestGeneratorTest.py"
           "${CMAKE_SOURCE_DIR}/models/whisper/codegen/gen_whisper_manifest.py"
           "${CMAKE_SOURCE_DIR}/tools/buddy-codegen/gen_manifest.py"
           "${CMAKE_SOURCE_DIR}/models/bge_m3/codegen/gen_bge_m3_manifest.py"
@@ -216,7 +226,7 @@ add_test(NAME buddy-server-manifest-generators
 set_tests_properties(buddy-server-manifest-generators PROPERTIES
   PASS_REGULAR_EXPRESSION "Manifest generator tests passed")
 
-set(BUDDY_SERVER_TRANSCRIPTION_TEST_TARGETS
+set(BUDDY_SERVER_FIXTURE_TARGETS
   buddy-server-transcription-manifest-fixtures
   buddy-server-model-service-fixtures
   buddy-server-runtime-dependency-fixture

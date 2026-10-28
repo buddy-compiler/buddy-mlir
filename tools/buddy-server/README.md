@@ -42,6 +42,19 @@ Routes are selected by the descriptor service kind:
 * MaskedLM: `/v1/masked-lm`
 * Transcription: `/v1/audio/transcriptions`
 
+## Source layout
+
+Production code is grouped by responsibility under `src/`: HTTP transport,
+JSON protocol handling, and model plugin loading. `BuddyServerApp` owns model
+startup and route registration, while `buddy-server.cpp` only handles the CLI.
+
+Tests live under `tests/`, split into unit, integration, packaging, and fixture
+directories. Build all server-specific tests and run them with:
+
+```bash
+cmake --build build --target check-buddy-server
+```
+
 `runner_library`, `rhal.codeobj`, weights, tokenizer resources, and the
 `buddy-cli` loading flow are unchanged. A new model in an existing service kind
 only needs a model plugin exporting the descriptor and its existing typed

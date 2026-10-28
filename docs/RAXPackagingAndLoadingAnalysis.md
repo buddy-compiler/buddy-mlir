@@ -425,6 +425,6 @@ Common failures:
 | RHAL-to-RAX packaging and payload writer | `tools/rax-pack/rax-pack.cpp` |
 | Manifest validation, URI resolution, and extraction | `runtime/include/buddy/runtime/core/ModelManifest.h` |
 | CLI runner loading | `tools/buddy-cli/buddy-cli.cpp` |
-| Server entry point | `tools/buddy-server/buddy-server.cpp` |
-| Server plugin discovery | `tools/buddy-server/ModelPluginDiscovery.cpp` |
+| Server entry point | `tools/buddy-server/src/buddy-server.cpp` |
+| Server plugin discovery | `tools/buddy-server/src/plugin/ModelPluginDiscovery.cpp` |
 | Package inspection | `tools/rax-inspect/rax-inspect.cpp` |
