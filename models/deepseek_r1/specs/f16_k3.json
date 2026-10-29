@@ -1,0 +1,31 @@
+{
+  "hf_model_path": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+  "model_family": "deepseek_r1",
+  "variant": "f16",
+  "max_token_len": 128,
+  "num_threads": 8,
+  "decode_pack_vector_size": 32,
+  "ime_decode_kernel": "gemv",
+  "ime_decode_shapes": [
+    "1536x8960",
+    "8960x1536",
+    "1536x1536",
+    "1536x256"
+  ],
+  "prefill_rvv_vlen_bits": 1024,
+  "prefill_rvv_vector_size": 64,
+  "weights_override": {
+    "total": 1777088064,
+    "linear_elements": 0,
+    "linear_output_channels": 0,
+    "other_elements": 0
+  },
+  "ime_prefill_shapes": [
+    "1536x8960",
+    "8960x1536",
+    "1536x1536",
+    "1536x256",
+    "1536x151936"
+  ],
+  "prefill_optimize_silu": true
+}
