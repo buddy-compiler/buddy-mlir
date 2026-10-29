@@ -1,11 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x, weight, bias):
@@ -36,7 +34,8 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: tosa.reshape
+# CHECK: linalg.generic
+# CHECK: } -> tensor<2x2x3x16xf32>
 # CHECK: tosa.reduce_sum
 # CHECK: tosa.mul
 # CHECK: tosa.sub
