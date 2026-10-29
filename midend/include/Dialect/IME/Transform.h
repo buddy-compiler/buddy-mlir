@@ -29,6 +29,8 @@ void populateIMELegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
                                               RewritePatternSet &patterns);
 void populateIMEK3LegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
                                                 RewritePatternSet &patterns);
+void populateIMEFP16KernelPatterns(LLVMTypeConverter &converter,
+                                   RewritePatternSet &patterns);
 void configureIMELegalizeForExportTarget(LLVMConversionTarget &target);
 
 } // namespace mlir
