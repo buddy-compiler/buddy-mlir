@@ -95,13 +95,33 @@ with `-matmul-vectorization-decode-packed` in place of the plain kernel; and
 `gen_session.py` loads both parameter files and gives each phase the one it
 expects.
 
-Two restrictions are enforced at config time:
+Restrictions are enforced at config time:
 
 - f32, f16 and bf16 only. Quantized variants lay their weights out through the
   dequant kernels and are not in scope.
-- Not supported together with `tiered_kv_cache`. Only `gen_impl` was taught to
-  hand decode a different weight buffer, so `gen_impl_tiered` would give decode
-  the plain weights while compiling it with the packed kernel.
+- Tiered KV cache supports FP32 and FP16. Every tier's decode graph is packed
+  with the same panel width and reads the packed parameter file. Prefill always
+  reads the plain parameters. Cache promotion copies the valid tokens using
+  the configured KV element type; FP16 logits are converted to float for sampling.
+
+Use `f32_packed_decode_tiered_kv_cache.json` or
+`f16_packed_decode_tiered_kv_cache.json` to combine packing with cache tiers:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/deepseek_r1/specs/f16_packed_decode_tiered_kv_cache.json \
+  --build-dir build --cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=OFF
+```
+
+Both specs provide cache sizes 64, 128, 256, 512 and 1024. Short prompts use
+the 64-token prefill tier, so every prefill tier uses fused FlashAttention.
+The actual prompt token count and KV position are unchanged. Packed decode
+uses the spec's panel width (32 by default); unpacked tiered decode retains its
+existing vector width of 128. BF16 and quantized tiered variants remain unsupported.
+
+Attention's unmasked batch matmul uses a vector width that divides every cache
+tier and the KV head dimension. With the provided specs it is 64, avoiding
+out-of-bounds vector accesses in the smallest tiers.
 
 `examples/BuddyDeepSeekR1` has its own packed target, built the usual way:
 
