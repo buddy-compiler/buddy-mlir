@@ -4109,7 +4109,44 @@ def _cumulative_tensor(
             build_outer_loops(dim_idx + 1)
             scf.YieldOp(loop.inner_iter_args)
 
-    build_outer_loops(0)
+    if (
+        op_kind == "cumsum"
+        and rank == 2
+        and dim == 0
+        and input_shape[0] > 0
+        and input_shape[1] >= 64
+        and (str(mlir_dtype) in ("f32", "i64"))
+    ):
+        # Traverse adjacent columns together without reassociating each scan.
+        # Keep the initial addition: copying row zero changes signed-zero results.
+        first = scf.ForOp(c0.result, bounds[1], c1.result)
+        with ir.InsertionPoint(first.body):
+            j = first.induction_variable
+            value = memref.LoadOp(input_memref, [c0.result, j]).result
+            value = (
+                arith.AddFOp(init_val.result, value)
+                if is_float
+                else arith.AddIOp(init_val.result, value)
+            ).result
+            memref.StoreOp(value, output_memref, [c0.result, j])
+            scf.YieldOp([])
+        rows = scf.ForOp(c1.result, bounds[0], c1.result)
+        with ir.InsertionPoint(rows.body):
+            i = rows.induction_variable
+            prev = arith.SubIOp(i, c1.result).result
+            cols = scf.ForOp(c0.result, bounds[1], c1.result)
+            with ir.InsertionPoint(cols.body):
+                j = cols.induction_variable
+                a = memref.LoadOp(output_memref, [prev, j]).result
+                b = memref.LoadOp(input_memref, [i, j]).result
+                value = (
+                    arith.AddFOp(a, b) if is_float else arith.AddIOp(a, b)
+                ).result
+                memref.StoreOp(value, output_memref, [i, j])
+                scf.YieldOp([])
+            scf.YieldOp([])
+    else:
+        build_outer_loops(0)
 
     return bufferization.ToTensorOp(
         output_tensor_type, output_memref, restrict=True
