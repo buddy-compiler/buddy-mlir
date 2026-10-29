@@ -38,6 +38,19 @@ def request(port: int, path: str, body=None):
         return response.status, json.load(response)
 
 
+def stream_request(port: int, path: str, body: dict):
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}",
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=2) as response:
+        assert response.status == 200, response.status
+        assert response.headers.get_content_type() == "text/event-stream"
+        return response.read().decode("utf-8")
+
+
 def wait_until_ready(process: subprocess.Popen, port: int):
     deadline = time.time() + 8
     while time.time() < deadline:
@@ -83,6 +96,28 @@ def run_case(server: str, rax: str, port: int, endpoint: str, body: dict):
         stop(process)
 
 
+def run_stream_case(server: str, rax: str, port: int):
+    process = subprocess.Popen(
+        [server, "--model", rax, "--host", "127.0.0.1", "--port", str(port)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        wait_until_ready(process, port)
+        body = stream_request(
+            port,
+            "/completion",
+            {"prompt": "hello", "max_tokens": 1, "stream": True},
+        )
+        blocks = [block for block in body.split("\n\n") if block]
+        assert len(blocks) == 2, blocks
+        assert json.loads(blocks[0][6:])["content"] == "fake completion", blocks
+        assert blocks[1] == "data: [DONE]", blocks
+    finally:
+        stop(process)
+
+
 def main() -> int:
     if len(sys.argv) != 5:
         raise SystemExit(
@@ -98,6 +133,7 @@ def main() -> int:
         {"prompt": "hello", "max_tokens": 1},
     )
     assert resident["content"] == "fake completion", resident
+    run_stream_case(server, resident_rax, 18998)
 
     embedding = run_case(
         server,

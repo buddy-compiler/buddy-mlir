@@ -16,6 +16,7 @@
 
 #include "buddy/runtime/models/WhisperAudioTranscriptionModel.h"
 
+#include "buddy/runtime/core/ModelError.h"
 #include "buddy/runtime/models/WhisperRuntime.h"
 
 #include <memory>
@@ -63,7 +64,8 @@ public:
   transcribe(const AudioTranscriptionRequest &request) {
     const ModelStatus current = status();
     if (current.state != ModelLoadState::Ready)
-      throw std::runtime_error("Whisper transcription model is not ready");
+      throw ModelException(ModelErrorCode::ModelNotReady,
+                           "Whisper transcription model is not ready");
     if (!request.model.empty() && request.model != current.modelName)
       throw std::invalid_argument("model name does not match loaded model");
     if (request.audio.uri.empty() == request.audio.bytes.empty())

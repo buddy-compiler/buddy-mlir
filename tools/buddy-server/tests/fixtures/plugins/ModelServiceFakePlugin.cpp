@@ -14,15 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/core/ModelPlugin.h"
+#include "buddy/runtime/core/ServerModelPluginAdapters.h"
 
-#if BUDDY_FAKE_SERVICE_KIND == 1
-#include "buddy/runtime/core/ResidentModelPlugin.h"
-#elif BUDDY_FAKE_SERVICE_KIND == 2
-#include "buddy/runtime/core/EmbeddingModelPlugin.h"
-#elif BUDDY_FAKE_SERVICE_KIND == 3
-#include "buddy/runtime/core/MaskedLMModelPlugin.h"
-#else
+#if BUDDY_FAKE_SERVICE_KIND != 1 && BUDDY_FAKE_SERVICE_KIND != 2 &&            \
+    BUDDY_FAKE_SERVICE_KIND != 3
 #error "unsupported BUDDY_FAKE_SERVICE_KIND"
 #endif
 
@@ -143,46 +138,67 @@ private:
 
 } // namespace
 
+namespace {
 #if BUDDY_FAKE_SERVICE_KIND == 1
-extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
-  return new FakeModel();
-}
-
-extern "C" void
-buddy_destroy_resident_model_v1(buddy::runtime::ResidentModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_resident_model_type_v1() { return "fake_model"; }
+struct Factory {
+  static std::unique_ptr<buddy::runtime::ResidentModel> create() {
+    return std::make_unique<FakeModel>();
+  }
+};
+using Adapter = buddy::runtime::server_abi::ResidentServerModelAdapter<Factory>;
 #elif BUDDY_FAKE_SERVICE_KIND == 2
-extern "C" buddy::runtime::EmbeddingModel *buddy_create_embedding_model_v1() {
-  return new FakeModel();
-}
-
-extern "C" void
-buddy_destroy_embedding_model_v1(buddy::runtime::EmbeddingModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_embedding_model_type_v1() { return "fake_model"; }
-#elif BUDDY_FAKE_SERVICE_KIND == 3
-extern "C" buddy::runtime::MaskedLMModel *buddy_create_masked_lm_model_v1() {
-  return new FakeModel();
-}
-
-extern "C" void
-buddy_destroy_masked_lm_model_v1(buddy::runtime::MaskedLMModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_masked_lm_model_type_v1() { return "fake_model"; }
+struct Factory {
+  static std::unique_ptr<buddy::runtime::EmbeddingModel> create() {
+    return std::make_unique<FakeModel>();
+  }
+};
+using Adapter =
+    buddy::runtime::server_abi::EmbeddingServerModelAdapter<Factory>;
+#else
+struct Factory {
+  static std::unique_ptr<buddy::runtime::MaskedLMModel> create() {
+    return std::make_unique<FakeModel>();
+  }
+};
+using Adapter = buddy::runtime::server_abi::MaskedLMServerModelAdapter<Factory>;
 #endif
+} // namespace
 
-extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
-buddy_model_plugin_descriptor_v1() {
-  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
-      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
-      static_cast<buddy::runtime::ModelServiceKind>(BUDDY_FAKE_SERVICE_KIND),
+extern "C" const BuddyServerModelDescriptorV1 *
+buddy_server_model_descriptor_v1() {
+  static const BuddyServerModelDescriptorV1 descriptor = {
+      sizeof(descriptor),
+      BUDDY_SERVER_MODEL_ABI_VERSION_V1,
+#if BUDDY_FAKE_SERVICE_KIND == 1
+      BUDDY_SERVER_SERVICE_RESIDENT,
+      (1ull << BUDDY_SERVER_OPERATION_COMPLETION) |
+          (1ull << BUDDY_SERVER_OPERATION_CHAT) |
+          (1ull << BUDDY_SERVER_OPERATION_TOKENIZE),
+#if defined(BUDDY_FAKE_DISABLE_STREAMING)
+      0,
+#else
+      BUDDY_SERVER_CAPABILITY_STREAMING,
+#endif
+#elif BUDDY_FAKE_SERVICE_KIND == 2
+      BUDDY_SERVER_SERVICE_EMBEDDING,
+      (1ull << BUDDY_SERVER_OPERATION_EMBEDDING),
+      0,
+#else
+      BUDDY_SERVER_SERVICE_MASKED_LM,
+      (1ull << BUDDY_SERVER_OPERATION_MASKED_LM),
+      0,
+#endif
+      BUDDY_SERVER_MODALITY_TEXT,
+#if BUDDY_FAKE_SERVICE_KIND == 1
+      BUDDY_SERVER_RESULT_TEXT,
+#elif BUDDY_FAKE_SERVICE_KIND == 2
+      BUDDY_SERVER_RESULT_EMBEDDING_VECTOR,
+#else
+      BUDDY_SERVER_RESULT_TOKEN_SCORES,
+#endif
+      1,
+      "fake_model",
+      Adapter::ops(),
       0};
   return &descriptor;
 }

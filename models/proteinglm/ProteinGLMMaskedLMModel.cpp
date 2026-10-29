@@ -16,6 +16,7 @@
 
 #include "buddy/runtime/models/ProteinGLMMaskedLMModel.h"
 #include "buddy/Core/Container.h"
+#include "buddy/runtime/core/ModelError.h"
 #include "buddy/runtime/core/ModelManifest.h"
 
 #include <algorithm>
@@ -148,7 +149,7 @@ void ProteinGLMMaskedLMModel::load(const MaskedLMModelConfig &cfg) {
     } else {
       if (cfg.modelSoPath.empty() || cfg.weightPaths.empty() ||
           cfg.vocabPath.empty())
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "masked-LM legacy mode requires model, weights and vocab");
       impl->soPath = cfg.modelSoPath;
       impl->weightsPath = cfg.weightPaths.front();
@@ -208,7 +209,8 @@ ModelStatus ProteinGLMMaskedLMModel::status() const {
 MaskedLMResult ProteinGLMMaskedLMModel::predict(const MaskedLMRequest &req) {
   std::lock_guard<std::mutex> lock(impl->mutex);
   if (impl->status.state != ModelLoadState::Ready)
-    throw std::runtime_error("masked-LM model is not ready");
+    throw ModelException(ModelErrorCode::ModelNotReady,
+                         "masked-LM model is not ready");
   if (req.input.empty())
     throw std::invalid_argument("input must not be empty");
   if (!req.model.empty() && req.model != impl->status.modelName)

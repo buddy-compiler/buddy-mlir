@@ -27,6 +27,12 @@ set(_MASKED_LM_SERVICE_RAX
 set(_RUNTIME_DEPENDENCY_FIXTURE_DIR
   "${CMAKE_CURRENT_BINARY_DIR}/runtime-dependency-test")
 set(_RUNTIME_DEPENDENCY_RAX "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/service.rax")
+set(_ABI_ERROR_FIXTURE_DIR
+  "${CMAKE_CURRENT_BINARY_DIR}/abi-error-test")
+set(_ABI_ERROR_RAX "${_ABI_ERROR_FIXTURE_DIR}/service.rax")
+set(_NON_STREAMING_FIXTURE_DIR
+  "${CMAKE_CURRENT_BINARY_DIR}/non-streaming-test")
+set(_NON_STREAMING_RAX "${_NON_STREAMING_FIXTURE_DIR}/service.rax")
 
 add_custom_command(
   OUTPUT
@@ -121,7 +127,7 @@ add_custom_command(
           "$<TARGET_FILE:buddy-server-runtime-dependency-fake>"
           "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/dependency.so"
   COMMAND ${CMAKE_COMMAND} -E copy
-          "$<TARGET_FILE:buddy-server-discovery-dependent-plugin>"
+          "$<TARGET_FILE:buddy-server-dependency-model-plugin>"
           "${_RUNTIME_DEPENDENCY_FIXTURE_DIR}/service.so"
   COMMAND $<TARGET_FILE:rax-pack>
           "${_BUDDY_SERVER_MANIFEST_DIR}/RuntimeDependencyManifestTest.mlir"
@@ -129,11 +135,45 @@ add_custom_command(
   DEPENDS
     rax-pack
     buddy-server-runtime-dependency-fake
-    buddy-server-discovery-dependent-plugin
+    buddy-server-dependency-model-plugin
     "${_BUDDY_SERVER_MANIFEST_DIR}/RuntimeDependencyManifestTest.mlir"
   VERBATIM)
 add_custom_target(buddy-server-runtime-dependency-fixture
   DEPENDS "${_RUNTIME_DEPENDENCY_RAX}")
+
+add_custom_command(
+  OUTPUT "${_ABI_ERROR_RAX}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${_ABI_ERROR_FIXTURE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E copy
+          "$<TARGET_FILE:buddy-server-abi-error-fake-plugin>"
+          "${_ABI_ERROR_FIXTURE_DIR}/service.so"
+  COMMAND $<TARGET_FILE:rax-pack>
+          "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
+          -o "${_ABI_ERROR_RAX}"
+  DEPENDS
+    rax-pack
+    buddy-server-abi-error-fake-plugin
+    "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
+  VERBATIM)
+add_custom_target(buddy-server-abi-error-fixture
+  DEPENDS "${_ABI_ERROR_RAX}")
+
+add_custom_command(
+  OUTPUT "${_NON_STREAMING_RAX}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${_NON_STREAMING_FIXTURE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E copy
+          "$<TARGET_FILE:buddy-server-non-streaming-fake-plugin>"
+          "${_NON_STREAMING_FIXTURE_DIR}/service.so"
+  COMMAND $<TARGET_FILE:rax-pack>
+          "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
+          -o "${_NON_STREAMING_RAX}"
+  DEPENDS
+    rax-pack
+    buddy-server-non-streaming-fake-plugin
+    "${_BUDDY_SERVER_MANIFEST_DIR}/ModelServiceManifestTest.mlir"
+  VERBATIM)
+add_custom_target(buddy-server-non-streaming-fixture
+  DEPENDS "${_NON_STREAMING_RAX}")
 
 add_executable(buddy-server-model-manifest-transcription-test
   packaging/ModelManifestTranscriptionTest.cpp)
@@ -195,8 +235,8 @@ add_test(NAME buddy-server-startup-failures
           "$<TARGET_FILE:buddy-server>"
           "${_TRANSCRIPTION_FILE_RAX}"
           "${_NO_MODEL_LIBRARY_RAX}"
-          "$<TARGET_FILE:buddy-server-discovery-resident-plugin>"
-          "$<TARGET_FILE:buddy-server-discovery-missing-plugin>"
+          "$<TARGET_FILE:buddy-server-legacy-model-plugin>"
+          "$<TARGET_FILE:buddy-server-runtime-dependency-fake>"
           "${CMAKE_CURRENT_BINARY_DIR}/startup-failure-test")
 set_tests_properties(buddy-server-startup-failures PROPERTIES
   TIMEOUT 20
@@ -211,6 +251,28 @@ set_tests_properties(buddy-server-runtime-dependencies PROPERTIES
   TIMEOUT 20
   PASS_REGULAR_EXPRESSION
     "buddy-server RAX dependency test passed")
+
+add_test(NAME buddy-server-abi-http-errors
+  COMMAND "${Python3_EXECUTABLE}"
+          "${_BUDDY_SERVER_INTEGRATION_DIR}/BuddyServerAbiErrorIntegrationTest.py"
+          "$<TARGET_FILE:buddy-server>"
+          "${_ABI_ERROR_RAX}"
+          18997)
+set_tests_properties(buddy-server-abi-http-errors PROPERTIES
+  TIMEOUT 20
+  PASS_REGULAR_EXPRESSION
+    "buddy-server ABI HTTP error integration tests passed")
+
+add_test(NAME buddy-server-streaming-capability
+  COMMAND "${Python3_EXECUTABLE}"
+          "${_BUDDY_SERVER_INTEGRATION_DIR}/BuddyServerCapabilityIntegrationTest.py"
+          "$<TARGET_FILE:buddy-server>"
+          "${_NON_STREAMING_RAX}"
+          18999)
+set_tests_properties(buddy-server-streaming-capability PROPERTIES
+  TIMEOUT 20
+  PASS_REGULAR_EXPRESSION
+    "buddy-server streaming capability integration tests passed")
 
 add_test(NAME buddy-server-manifest-generators
   COMMAND "${Python3_EXECUTABLE}"
@@ -230,5 +292,7 @@ set(BUDDY_SERVER_FIXTURE_TARGETS
   buddy-server-transcription-manifest-fixtures
   buddy-server-model-service-fixtures
   buddy-server-runtime-dependency-fixture
+  buddy-server-abi-error-fixture
+  buddy-server-non-streaming-fixture
   buddy-server-model-manifest-transcription-test
   buddy-server-model-manifest-duplicate-attribute-test)

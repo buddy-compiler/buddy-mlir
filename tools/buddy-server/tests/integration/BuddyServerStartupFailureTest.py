@@ -53,9 +53,9 @@ def main() -> int:
     if len(sys.argv) != 7:
         raise SystemExit(
             "usage: test.py SERVER FILE_RAX NO_MODEL_RAX "
-            "MISMATCH_PLUGIN MISSING_DESCRIPTOR_PLUGIN WORK_DIR"
+            "LEGACY_PLUGIN MISSING_DESCRIPTOR_PLUGIN WORK_DIR"
         )
-    server, file_rax, no_model_rax, mismatch, missing, work_dir = sys.argv[1:]
+    server, file_rax, no_model_rax, legacy, missing, work_dir = sys.argv[1:]
     source_rax = Path(file_rax)
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
@@ -67,15 +67,15 @@ def main() -> int:
         Path(missing),
         work,
         "missing-descriptor",
-        "is missing buddy_model_plugin_descriptor_v1",
+        "is missing buddy_server_model_descriptor_v1",
     )
     plugin_case(
         server,
         source_rax,
-        Path(mismatch),
+        Path(legacy),
         work,
-        "factory-mismatch",
-        "missing buddy_create_resident_model_v1",
+        "legacy-abi",
+        "legacy server ABI; please use a .rax package produced with the latest",
     )
 
     print("buddy-server startup failure tests passed")

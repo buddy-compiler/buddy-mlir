@@ -46,10 +46,15 @@ public:
   bool sendResponse(const HttpResponse &response);
   bool startSse(int status = 200);
   bool writeSseData(const std::string &data);
+  bool writeSseEvent(const std::string &event, const std::string &data);
   bool writeRaw(const std::string &data);
+  bool hasStarted() const { return responseStarted; }
+  bool isSse() const { return sseStarted; }
 
 private:
   int fd = -1;
+  bool responseStarted = false;
+  bool sseStarted = false;
 };
 
 using HttpHandler = std::function<void(const HttpRequest &, ResponseWriter &)>;

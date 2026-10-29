@@ -1,4 +1,4 @@
-//===- AudioTranscriptionMissingSymbolPlugin.cpp - Invalid test plugin ---===//
+//===- LegacyServerModelPlugin.cpp - Legacy server ABI fixture -----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/core/AudioTranscriptionModelPlugin.h"
 #include "buddy/runtime/core/ModelPlugin.h"
-
-extern "C" buddy::runtime::AudioTranscriptionModel *
-buddy_create_audio_transcription_model_v1() {
-  return nullptr;
-}
 
 extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
 buddy_model_plugin_descriptor_v1() {
   static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
       sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
-      buddy::runtime::ModelServiceKind::Transcription, 0};
+      buddy::runtime::ModelServiceKind::Resident, 0};
   return &descriptor;
 }

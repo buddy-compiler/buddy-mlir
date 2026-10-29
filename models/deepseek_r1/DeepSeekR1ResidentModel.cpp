@@ -19,6 +19,7 @@
 #include "buddy/Core/Container.h"
 #include "buddy/LLM/ChatTemplate.h"
 #include "buddy/LLM/TextContainer.h"
+#include "buddy/runtime/core/ModelError.h"
 #include "buddy/runtime/core/ModelManifest.h"
 #include "buddy/runtime/llm/TextGeneration.h"
 #include "buddy/runtime/models/ModelSession.h"
@@ -173,10 +174,10 @@ private:
         statusValue.modelName = manifest.modelName;
     } else {
       if (cfg.modelSoPath.empty())
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "DeepSeekR1ResidentModel: modelSoPath is empty");
       if (cfg.weightPaths.empty())
-        throw std::runtime_error("DeepSeekR1ResidentModel: no weight paths");
+        throw std::invalid_argument("DeepSeekR1ResidentModel: no weight paths");
 
       ModelSession::Config mcfg;
       mcfg.modelSoPath = cfg.modelSoPath;
@@ -190,7 +191,8 @@ private:
     }
 
     if (vocabPath.empty())
-      throw std::runtime_error("DeepSeekR1ResidentModel: vocab path is empty");
+      throw std::invalid_argument(
+          "DeepSeekR1ResidentModel: vocab path is empty");
 
     session->loadWeights(resolvedWeightPaths);
 
@@ -220,12 +222,14 @@ private:
 
   void ensureLoadedUnlocked() const {
     if (!loaded || !session)
-      throw std::runtime_error("DeepSeekR1ResidentModel: model is not loaded");
+      throw ModelException(ModelErrorCode::ModelNotReady,
+                           "DeepSeekR1ResidentModel: model is not loaded");
   }
 
   std::string renderChatUnlocked(const ChatCompletionRequest &request) const {
     if (!chatTemplate)
-      throw std::runtime_error(
+      throw ModelException(
+          ModelErrorCode::NotSupported,
           "DeepSeekR1ResidentModel: chat template is not configured");
 
     std::vector<buddy::Message> messages;

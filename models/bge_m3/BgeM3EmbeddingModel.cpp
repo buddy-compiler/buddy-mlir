@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/BgeM3EmbeddingModel.h"
+#include "buddy/runtime/core/ModelError.h"
 #include "buddy/runtime/models/BgeM3Runtime.h"
 
 #include <stdexcept>
@@ -38,16 +39,18 @@ void BgeM3EmbeddingModel::load(const EmbeddingModelConfig &cfg) {
       runtime = BgeM3Runtime::loadFromRax(cfg.raxPath);
     } else {
       if (cfg.modelSoPath.empty())
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "BgeM3EmbeddingModel: model shared library path is empty");
       if (cfg.weightPaths.empty())
-        throw std::runtime_error("BgeM3EmbeddingModel: no weights specified");
+        throw std::invalid_argument(
+            "BgeM3EmbeddingModel: no weights specified");
       if (cfg.vocabPath.empty())
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "BgeM3EmbeddingModel: tokenizer path is empty");
       if (cfg.weightPaths.size() != 1)
-        throw std::runtime_error("BgeM3EmbeddingModel: legacy mode accepts "
-                                 "exactly one weights file");
+        throw std::invalid_argument(
+            "BgeM3EmbeddingModel: legacy mode accepts exactly one weights "
+            "file");
       runtime = BgeM3Runtime::loadLegacy(
           cfg.modelSoPath, cfg.weightPaths.front(), cfg.vocabPath, 512, 8194,
           1024, modelStatus.modelName);
@@ -72,13 +75,14 @@ ModelStatus BgeM3EmbeddingModel::status() const {
 EmbeddingResult BgeM3EmbeddingModel::embed(const EmbeddingRequest &request) {
   std::lock_guard<std::mutex> lock(mutex);
   if (!runtime || modelStatus.state != ModelLoadState::Ready)
-    throw std::runtime_error("BgeM3EmbeddingModel: model is not loaded");
+    throw ModelException(ModelErrorCode::ModelNotReady,
+                         "BgeM3EmbeddingModel: model is not loaded");
   if (request.input.empty())
-    throw std::runtime_error("BgeM3EmbeddingModel: input text is empty");
+    throw std::invalid_argument("BgeM3EmbeddingModel: input text is empty");
   if (!request.model.empty() && request.model != modelStatus.modelName)
-    throw std::runtime_error("BgeM3EmbeddingModel: requested model '" +
-                             request.model + "' does not match loaded model '" +
-                             modelStatus.modelName + "'");
+    throw std::invalid_argument(
+        "BgeM3EmbeddingModel: requested model '" + request.model +
+        "' does not match loaded model '" + modelStatus.modelName + "'");
 
   size_t tokenCount = 0;
   EmbeddingResult result;

@@ -14,24 +14,31 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/core/ModelPlugin.h"
+#include "buddy/runtime/core/ServerModelPluginAdapters.h"
 #include "buddy/runtime/models/ProteinGLMMaskedLMModel.h"
 
-extern "C" buddy::runtime::MaskedLMModel *buddy_create_masked_lm_model_v1() {
-  return new buddy::runtime::ProteinGLMMaskedLMModel();
-}
+namespace {
+struct Factory {
+  static std::unique_ptr<buddy::runtime::MaskedLMModel> create() {
+    return std::make_unique<buddy::runtime::ProteinGLMMaskedLMModel>();
+  }
+};
+using Adapter = buddy::runtime::server_abi::MaskedLMServerModelAdapter<Factory>;
+} // namespace
 
-extern "C" void
-buddy_destroy_masked_lm_model_v1(buddy::runtime::MaskedLMModel *model) {
-  delete model;
-}
-
-extern "C" const char *buddy_masked_lm_model_type_v1() { return "proteinglm"; }
-
-extern "C" const buddy::runtime::ModelPluginDescriptorV1 *
-buddy_model_plugin_descriptor_v1() {
-  static constexpr buddy::runtime::ModelPluginDescriptorV1 descriptor = {
-      sizeof(descriptor), buddy::runtime::ModelPluginDescriptorAbiVersionV1,
-      buddy::runtime::ModelServiceKind::MaskedLM, 0};
+extern "C" const BuddyServerModelDescriptorV1 *
+buddy_server_model_descriptor_v1() {
+  static const BuddyServerModelDescriptorV1 descriptor = {
+      sizeof(descriptor),
+      BUDDY_SERVER_MODEL_ABI_VERSION_V1,
+      BUDDY_SERVER_SERVICE_MASKED_LM,
+      (1ull << BUDDY_SERVER_OPERATION_MASKED_LM),
+      0,
+      BUDDY_SERVER_MODALITY_TEXT,
+      BUDDY_SERVER_RESULT_TOKEN_SCORES,
+      1,
+      "proteinglm",
+      Adapter::ops(),
+      0};
   return &descriptor;
 }

@@ -12,14 +12,18 @@ model_library = "payload:<model-server-plugin>"
 ```
 
 `model_library` is resolved by `ModelManifest`, including `file:` and embedded
-`payload:` URIs. The server opens that shared library with `RTLD_NOW | RTLD_LOCAL`,
-calls `buddy_model_plugin_descriptor_v1`, and validates the descriptor before
-creating a model object.
+`payload:` URIs. The server opens that shared library with
+`RTLD_NOW | RTLD_LOCAL`, calls `buddy_server_model_descriptor_v1`, and
+validates the Server Model ABI descriptor before creating a model object.
 
-The descriptor declares one `ModelServiceKind`: `Resident`, `Embedding`,
-`MaskedLM`, or `Transcription`. After discovery, the server loads the existing
-typed factory ABI for that service. The create/destroy symbols and model
-interfaces remain service-specific.
+The descriptor declares the service kind separately from its operations, input
+modalities, result kind, and execution capabilities. All services use the same
+`create`, `load`, `getStatus`, `invoke`, and `destroy` operation table.
+
+Packages containing the legacy `buddy_model_plugin_descriptor_v1` server ABI
+are detected but not executed. `buddy-server` asks the user to install a newly
+generated `.rax`; the independent `runner_library` and `buddy-cli` flow are not
+affected.
 
 ```bash
 cmake --build build --target buddy-server
@@ -56,6 +60,5 @@ cmake --build build --target check-buddy-server
 ```
 
 `runner_library`, `rhal.codeobj`, weights, tokenizer resources, and the
-`buddy-cli` loading flow are unchanged. A new model in an existing service kind
-only needs a model plugin exporting the descriptor and its existing typed
-factory symbols; no new RAX library attribute is required.
+`buddy-cli` loading flow are unchanged. A new server model exports the unified
+Server Model ABI from `model_library`; no new RAX library attribute is required.
