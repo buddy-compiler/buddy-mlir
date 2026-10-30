@@ -94,7 +94,8 @@ def main() -> int:
         help="Local HuggingFace-format model directory for PyTorch import. "
         "For deepseek_r1, this sets BUDDY_DSR1_LOCAL_MODEL and may provide "
         "config.json. For qwen3_vl and bge_m3, this is required and sets "
-        "BUDDY_QWEN3_VL_MODEL_PATH / BUDDY_BGE_M3_MODEL_PATH.",
+        "BUDDY_QWEN3_VL_MODEL_PATH / BUDDY_BGE_M3_MODEL_PATH. "
+        "For mms, it sets BUDDY_MMS_MODEL_PATH.",
     )
     ap.add_argument(
         "--no-configure",
@@ -198,11 +199,12 @@ def main() -> int:
         "qwen3_vl_moe",
         "bge_m3",
         "proteinglm",
+        "mms",
     }:
         print(
             "error: unsupported model_family in spec: "
             f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
-            "qwen3_vl_moe, bge_m3, proteinglm)",
+            "qwen3_vl_moe, bge_m3, proteinglm, mms)",
             file=sys.stderr,
         )
         return 1
@@ -404,6 +406,22 @@ def main() -> int:
         if args.hf_config is not None:
             print(
                 "warning: --hf-config is ignored for model_family=proteinglm",
+                file=sys.stderr,
+            )
+
+    elif model_family == "mms":
+        cmake_args.extend(
+            [
+                f"-DBUDDY_MMS_SPEC={spec}",
+                "-DBUDDY_BUILD_MMS_MODEL=ON",
+            ]
+        )
+        if local_model is not None:
+            cmake_args.append(f"-DBUDDY_MMS_MODEL_PATH={local_model}")
+        if args.hf_config is not None:
+            print(
+                "warning: --hf-config is ignored for mms; the importer "
+                "reads config.json from the model snapshot.",
                 file=sys.stderr,
             )
 
