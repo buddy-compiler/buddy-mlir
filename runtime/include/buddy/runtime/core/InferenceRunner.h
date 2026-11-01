@@ -114,6 +114,8 @@ struct RunConfig {
   std::string lastImagePath;
   /// Number of denoising steps for generation runners.
   int inferenceSteps = 30;
+  /// Preprocessed tensor input in the runner's model-specific layout.
+  std::string inputPath;
 };
 
 /// Abstract base class for model inference runners.

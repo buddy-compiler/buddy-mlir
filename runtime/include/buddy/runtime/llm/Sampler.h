@@ -50,7 +50,7 @@ public:
   explicit Sampler(SamplerConfig config) : config_(config) {
     if (config_.seed != 0) {
       rng_.seed(config_.seed);
-    } else {
+    } else if (config_.temperature != 0.0f) {
       std::random_device rd;
       rng_.seed(rd());
     }

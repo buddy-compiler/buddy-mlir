@@ -47,6 +47,10 @@ int main() {
   std::string pureStr = "buddy compiler is a domain specific compiler";
   Text<size_t, 2> pureStrBertContainer(pureStr);
   pureStrBertContainer.tokenizeBert(vocabDir, 12);
+  assert(pureStrBertContainer.revertQwen3({8937, 151643, 21624}) == "buddy");
+  assert(pureStrBertContainer.revertGemma4({0, 2, 8937, 1, 21624}) == "buddy");
+  assert(pureStrBertContainer.revertQwen3({}).empty());
+  assert(pureStrBertContainer.revertGemma4({}).empty());
   // CHECK: 101
   fprintf(stderr, "%ld\n", pureStrBertContainer.getData()[0]);
   // CHECK: 8937

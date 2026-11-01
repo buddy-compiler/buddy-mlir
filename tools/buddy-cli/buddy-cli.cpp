@@ -279,6 +279,7 @@ int main(int argc, char **argv) {
   int promptLength = 0;
   std::string audioPath;
   std::string imagePath;
+  std::string inputPath;
   std::string datasetPath;
   std::string outputPath;
   std::string lastImagePath;
@@ -346,6 +347,9 @@ int main(int argc, char **argv) {
                  "Audio file for speech models (e.g. Whisper)")
       ->group("Inference");
   app.add_option("--image", imagePath, "Image file for vision-language models")
+      ->group("Inference");
+  app.add_option("--input", inputPath, "Preprocessed tensor input")
+      ->check(CLI::ExistingFile)
       ->group("Inference");
   app.add_option("--dataset", datasetPath, "Dataset directory for evaluation")
       ->check(CLI::ExistingDirectory)
@@ -493,8 +497,8 @@ int main(int argc, char **argv) {
 
   // Speech and vision-language runs are driven by media inputs.
   if (prompt.empty() && prompts.empty() && audioPath.empty() &&
-      imagePath.empty() && datasetPath.empty() && !interactive &&
-      perplexityIdsPath.empty()) {
+      imagePath.empty() && inputPath.empty() && datasetPath.empty() &&
+      !interactive && perplexityIdsPath.empty()) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
@@ -539,6 +543,7 @@ int main(int argc, char **argv) {
   cfg.audioPath = audioPath;
   cfg.promptLength = promptLength;
   cfg.imagePath = imagePath;
+  cfg.inputPath = inputPath;
   cfg.datasetPath = datasetPath;
   cfg.outputPath = outputPath;
   cfg.lastImagePath = lastImagePath;

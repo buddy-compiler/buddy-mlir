@@ -82,6 +82,8 @@ public:
   // DeepSeekR1 Tokenizer
   // This function is designed for tokenizing input text for DeepSeekR1 models.
   void tokenizeDeepSeekR1(const std::string &vocab, size_t length);
+  // Prompt token IDs from the byte vocabulary, without a chat envelope.
+  std::vector<size_t> byteTokenIds(const std::string &vocab);
   // Qwen3 Tokenizer
   // This function is designed for tokenizing input text for Qwen3 models.
   void tokenizeQwen3(const std::string &vocab, size_t length);
@@ -92,6 +94,8 @@ public:
   // <|image_pad|>}<|vision_end|>{prompt}<|im_end|>\n<|im_start|>assistant\n
   void tokenizeQwen3VL(const std::string &vocab, size_t length,
                        size_t numImageTokens);
+  // Prompt token IDs from a SentencePiece-style vocabulary.
+  std::vector<size_t> sentencePieceTokenIds(const std::string &vocab);
   // Gemma4 Tokenizer
   // This function is designed for tokenizing input text for Gemma4 models.
   // Uses SentencePiece-style BPE with '▁' as the space replacement character.
@@ -105,7 +109,9 @@ public:
   std::string revertWhisper();
   std::string revertDeepSeekR1();
   std::string revertQwen3();
+  std::string revertQwen3(const std::vector<int> &tokens);
   std::string revertGemma4();
+  std::string revertGemma4(const std::vector<int> &tokens);
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -529,29 +535,7 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
 
 // Qwen3 Tokenizer
 template <typename T, size_t N>
-void Text<T, N>::tokenizeQwen3(const std::string &vocab, size_t length) {
-  // 1. Initialize container members
-  this->offset = 0;
-  this->sizes[0] = 1;
-  this->sizes[1] = length;
-  this->setStrides();
-  size_t size = this->product(this->sizes);
-  this->allocated = (T *)malloc(sizeof(T) * size);
-  this->aligned = this->allocated;
-
-  // Standard Special Token IDs for the Qwen series
-  this->bos = 151644;
-  this->eos = 151645;
-  this->pad = 151643;
-  const int userToken = 872;
-  const int assistantToken = 77091;
-  const int newlineToken = 198;
-
-  tokenCnt = 0;
-  this->aligned[tokenCnt++] = bos;
-  this->aligned[tokenCnt++] = userToken;
-  this->aligned[tokenCnt++] = newlineToken;
-
+std::vector<size_t> Text<T, N>::byteTokenIds(const std::string &vocab) {
   // 2. Load the vocabulary
   loadVocab(vocab);
 
@@ -598,20 +582,43 @@ void Text<T, N>::tokenizeQwen3(const std::string &vocab, size_t length) {
   int curr = n;
   while (curr > 0) {
     if (score[curr] < -1e9) {
-      // If a section cannot be matched, fall back one byte (to prevent infinite
-      // loops)
-      curr--;
-      continue;
+      throw std::runtime_error("Prompt is not representable by the vocabulary");
     }
     res.push_back(prev_token_id[curr]);
     curr = prev_pos[curr];
   }
 
-  // 6. Fill in results (reverse the backward sequence)
-  for (auto it = res.rbegin(); it != res.rend(); ++it) {
-    if (tokenCnt < length - 5) { // Reserve space for the termination sequence
-      this->aligned[tokenCnt++] = *it;
-    }
+  std::reverse(res.begin(), res.end());
+  return res;
+}
+
+template <typename T, size_t N>
+void Text<T, N>::tokenizeQwen3(const std::string &vocab, size_t length) {
+  // 1. Initialize container members
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+
+  // Standard Special Token IDs for the Qwen series
+  this->bos = 151644;
+  this->eos = 151645;
+  this->pad = 151643;
+  const int userToken = 872;
+  const int assistantToken = 77091;
+  const int newlineToken = 198;
+
+  tokenCnt = 0;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = userToken;
+  this->aligned[tokenCnt++] = newlineToken;
+
+  for (size_t id : byteTokenIds(vocab)) {
+    if (tokenCnt < length - 5)
+      this->aligned[tokenCnt++] = id;
   }
 
   // 7. Append Assistant Prompt tokens
@@ -848,6 +855,12 @@ template <typename T, size_t N> std::string Text<T, N>::revertDeepSeekR1() {
 }
 
 template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
+  return revertQwen3(
+      std::vector<int>(this->aligned, this->aligned + this->tokenCnt));
+}
+
+template <typename T, size_t N>
+std::string Text<T, N>::revertQwen3(const std::vector<int> &tokens) {
   std::vector<unsigned char> byte_buffer;
   const int EOS_ID = 151643;
 
@@ -856,8 +869,7 @@ template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
   // Remapped: 0-32, 127-160, 173 (68 bytes) → code points 256-323.
   constexpr unsigned int kMaxBpeCodePoint = 323;
 
-  for (size_t i = 0; i < this->tokenCnt; i++) {
-    int id = this->aligned[i];
+  for (int id : tokens) {
     if (id == EOS_ID)
       break;
 
@@ -935,24 +947,8 @@ unsigned char Text<T, N>::revert_single_bpe_char(unsigned int code) {
 }
 
 template <typename T, size_t N>
-void Text<T, N>::tokenizeGemma4(const std::string &vocab, size_t length) {
-  this->offset = 0;
-  this->sizes[0] = 1;
-  this->sizes[1] = length;
-  this->setStrides();
-  size_t size = this->product(this->sizes);
-  this->allocated = (T *)malloc(sizeof(T) * size);
-  this->aligned = this->allocated;
-
-  this->bos = 2;
-  this->eos = 1;
-  this->pad = 0;
-
-  const int turnToken = 105;
-  const int userToken = 2364;
-  const int newlineToken = 107;
-  const int modelToken = 4368;
-
+std::vector<size_t>
+Text<T, N>::sentencePieceTokenIds(const std::string &vocab) {
   loadVocab(vocab);
 
   // Unescape newline tokens: vocab.txt stores actual newlines as literal \n
@@ -975,13 +971,6 @@ void Text<T, N>::tokenizeGemma4(const std::string &vocab, size_t length) {
       tok = unescaped;
     }
   }
-
-  // Chat template: <bos><|turn>user\n{message}<|turn>model\n
-  tokenCnt = 0;
-  this->aligned[tokenCnt++] = bos;
-  this->aligned[tokenCnt++] = turnToken;
-  this->aligned[tokenCnt++] = userToken;
-  this->aligned[tokenCnt++] = newlineToken;
 
   // Tokenize user message using DP longest match.
   // Replace internal spaces with '▁' but do NOT prepend '▁' at the start,
@@ -1025,17 +1014,45 @@ void Text<T, N>::tokenizeGemma4(const std::string &vocab, size_t length) {
   int curr = len;
   while (curr > 0) {
     if (score[curr] < -1e9) {
-      curr--;
-      continue;
+      throw std::runtime_error("Prompt is not representable by the vocabulary");
     }
     res.push_back(prev_token_id[curr]);
     curr = prev_pos[curr];
   }
 
-  for (auto it = res.rbegin(); it != res.rend(); ++it) {
-    if (tokenCnt < length - 3) {
-      this->aligned[tokenCnt++] = *it;
-    }
+  std::reverse(res.begin(), res.end());
+  return res;
+}
+
+template <typename T, size_t N>
+void Text<T, N>::tokenizeGemma4(const std::string &vocab, size_t length) {
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+
+  this->bos = 2;
+  this->eos = 1;
+  this->pad = 0;
+
+  const int turnToken = 105;
+  const int userToken = 2364;
+  const int newlineToken = 107;
+  const int modelToken = 4368;
+
+  // Chat template: <bos><|turn>user\n{message}<|turn>model\n
+  tokenCnt = 0;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = turnToken;
+  this->aligned[tokenCnt++] = userToken;
+  this->aligned[tokenCnt++] = newlineToken;
+
+  for (size_t id : sentencePieceTokenIds(vocab)) {
+    if (tokenCnt < length - 3)
+      this->aligned[tokenCnt++] = id;
   }
 
   // Append assistant prompt: <|turn>model\n
@@ -1049,13 +1066,18 @@ void Text<T, N>::tokenizeGemma4(const std::string &vocab, size_t length) {
 }
 
 template <typename T, size_t N> std::string Text<T, N>::revertGemma4() {
+  return revertGemma4(
+      std::vector<int>(this->aligned, this->aligned + this->tokenCnt));
+}
+
+template <typename T, size_t N>
+std::string Text<T, N>::revertGemma4(const std::vector<int> &tokens) {
   std::string dst;
   const int EOS_ID = 1;
   const int BOS_ID = 2;
   const int PAD_ID = 0;
 
-  for (size_t i = 0; i < this->tokenCnt; i++) {
-    int id = this->aligned[i];
+  for (int id : tokens) {
     if (id == PAD_ID || id == BOS_ID)
       continue;
     if (id == EOS_ID)
