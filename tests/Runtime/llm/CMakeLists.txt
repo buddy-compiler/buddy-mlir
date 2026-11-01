@@ -15,3 +15,9 @@ _add_test_executable(buddy-text-generation-test
   LINK_LIBS
     buddy_runtime_llm
 )
+
+_add_test_executable(buddy-legacy-generation-test
+  LegacyGenerationTest.cpp
+  LINK_LIBS
+    buddy_runtime_llm
+)

@@ -92,6 +92,7 @@ tools = [
     "buddy-sampler-test",
     "buddy-perplexity-test",
     "buddy-text-generation-test",
+    "buddy-legacy-generation-test",
     "mlir-runner",
 ]
 
