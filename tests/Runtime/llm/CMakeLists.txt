@@ -21,3 +21,9 @@ _add_test_executable(buddy-legacy-generation-test
   LINK_LIBS
     buddy_runtime_llm
 )
+
+_add_test_executable(buddy-serving-generation-test
+  ServingGenerationTest.cpp
+  LINK_LIBS
+    buddy_runtime_llm
+)

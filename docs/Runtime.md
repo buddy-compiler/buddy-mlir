@@ -168,6 +168,41 @@ build-runtime/bin/rax-inspect <file.rax>
 
 ---
 
+## Shared generation API
+
+`buddy_runtime_llm` provides `runServingGeneration` through
+`buddy/runtime/llm/ServingGeneration.h`. Callers supply either an `LLMSession`
+with host sampling or a `ServingTokenSource` whose callbacks perform execution
+and token selection. A `ServingTextCodec` supplies complete prompt encoding,
+raw token bytes, the context length, and an optional decodable vocabulary prefix.
+Encoding must preserve the prompt; adapters apply templates and merge model
+stop IDs into `SamplingParams::stopTokenIds` before calling the controller.
+Token sources must reject sampling options they cannot implement.
+
+`SamplingParams::maxNewTokens` limits newly selected tokens, including the first
+prediction and EOS/stop tokens. Zero performs prefill without selecting a token;
+`-1` uses the remaining context. Oversized prompts are rejected without
+truncation or context shifting. Usage counts the full prompt and every selected
+token, including stop tokens whose bytes are omitted from the returned content.
+String stops match raw bytes across token boundaries before UTF-8 decoding;
+incomplete trailing text is repaired when output is finished.
+
+`seedPolicy` selects random sampling or an explicit `fixedSeed`, including zero.
+It is independent of the legacy `SamplerConfig::seed` convention; `UINT32_MAX`
+is reserved for random selection. The host sampler uses the existing sampling
+formulas and applies repetition penalties to unique IDs in the requested
+history window. The controller resets the source before each request and after
+cancellation or an exception. Streaming callbacks receive deltas and a terminal
+summary; returning false cancels immediately, and exceptions propagate after
+cleanup.
+
+The existing `runGeneration` API continues to provide the CLI's historical
+total-token budget and stdout/JSONL behavior. Production CLI and server entry
+points retain their existing generation paths; `runServingGeneration` is an
+additional library interface.
+
+---
+
 ## Perplexity
 
 `buddy-cli --perplexity <ids>` reports the perplexity of a model over a file of
