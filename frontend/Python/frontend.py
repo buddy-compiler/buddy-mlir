@@ -41,10 +41,12 @@ from torch._dynamo.source import (
     UnspecializedParamBufferSource,
 )
 from torch._functorch.aot_autograd import aot_module_simplified
+from torch._subclasses.fake_tensor import unset_fake_temporarily
 from torch.fx.experimental.proxy_tensor import make_fx
 
 from .graph import DeviceType, Graph, NodeType, TensorDType
 from .graph.operation import *
+from .graph.sizes import freeze_sizes
 from .graph.source_meta import extract_source_meta
 from .graph.transform import (
     RUNTIME_RNG_TRANSFORMS,
@@ -366,6 +368,7 @@ class DynamoCompiler:
             "grid_sampler_3d.out": GridSampler3dOp,
             "col2im.default": Col2imOp,
             "sym_size.int": SymSizeOp,
+            "sym_int": SymIntOp,
             "sym_stride.int": SymStrideOp,
             "sym_numel.default": SymNumelOp,
             "sym_storage_offset.default": SymStorageOffsetOp,
@@ -431,7 +434,7 @@ class DynamoCompiler:
             "bernoulli.default": BernoulliOp,
             "bernoulli.p": BernoulliOp,
             "topk.default": TopkOp,
-            "moe_experts.default": MoEExpertsOp,
+            "buddy.moe_experts.default": MoEExpertsOp,
             "unbind.int": UnbindOp,
             # Batched matrix operations
             "baddbmm.default": BaddbmmOp,
@@ -1120,32 +1123,39 @@ class DynamoCompiler:
                             value = None
                             if match:
                                 value = float(match.group(1))
-                            val = gm_node.meta.get("val")
-                            if value is None:
-                                if isinstance(val, torch.Tensor):
-                                    if val.numel() == 1:
-                                        value = val.item()
-                                    else:
-                                        # Dense folded tensor constants appear
-                                        # in LLM masks/positions. Preserve the
-                                        # payload so TTIR lowering can emit a
-                                        # real tensor constant instead of a
-                                        # scalar-only placeholder.
-                                        t = val.detach().cpu().contiguous()
-                                        try:
-                                            if t.dtype == torch.bfloat16:
-                                                value = t.float().numpy()
-                                            else:
-                                                value = t.numpy()
-                                        except (TypeError, RuntimeError):
-                                            if t.dtype == torch.bfloat16:
-                                                value = np.asarray(
-                                                    t.tolist(), dtype=np.float32
-                                                )
-                                            else:
-                                                value = np.asarray(t.tolist())
-                                elif isinstance(val, (int, float)):
-                                    value = val
+                            # The meta value is a fake tensor; the payload is
+                            # the constant held by the graph module.
+                            val = getattr(_gm, gm_node.target)
+                            # Reading the payload runs real ops while AOT keeps fake mode on.
+                            with unset_fake_temporarily():
+                                if value is None:
+                                    if isinstance(val, torch.Tensor):
+                                        if val.numel() == 1:
+                                            value = val.item()
+                                        else:
+                                            # Dense folded tensor constants appear
+                                            # in LLM masks/positions. Preserve the
+                                            # payload so TTIR lowering can emit a
+                                            # real tensor constant instead of a
+                                            # scalar-only placeholder.
+                                            t = val.detach().cpu().contiguous()
+                                            try:
+                                                if t.dtype == torch.bfloat16:
+                                                    value = t.float().numpy()
+                                                else:
+                                                    value = t.numpy()
+                                            except (TypeError, RuntimeError):
+                                                if t.dtype == torch.bfloat16:
+                                                    value = np.asarray(
+                                                        t.tolist(),
+                                                        dtype=np.float32,
+                                                    )
+                                                else:
+                                                    value = np.asarray(
+                                                        t.tolist()
+                                                    )
+                                    elif isinstance(val, (int, float)):
+                                        value = val
                             if value is None:
                                 raise NotImplementedError(
                                     "Unsupported _tensor_constant format"
@@ -1204,6 +1214,13 @@ class DynamoCompiler:
                         gm_node_name = self._resolve_call_function_node_name(
                             gm_node.target
                         )
+                        # The arithmetic of symbolic sizes: one integer of
+                        # the trace, whatever the operation.
+                        if (
+                            isinstance(val, torch.SymInt)
+                            and gm_node_name != "sym_size.int"
+                        ):
+                            gm_node_name = "sym_int"
                         buddy_node = self._create_node(
                             gm_node_name,
                             gm_node.name,
@@ -1309,6 +1326,8 @@ class DynamoCompiler:
         try:
             model_opt = dynamo.optimize(self._compile_fx)(model)
             model_opt(*args, **kwargs)
+            for graph in self._imported_graphs:
+                freeze_sizes(graph)
             return self._imported_graphs
         except Exception as e:
             msg = str(e)

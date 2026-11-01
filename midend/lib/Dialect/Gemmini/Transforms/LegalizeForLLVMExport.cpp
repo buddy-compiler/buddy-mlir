@@ -966,16 +966,31 @@ public:
     MemRefType dArrayType = dyn_cast<MemRefType>(dArray.getType());
     Location loc = tileMatMulOp.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
-    // Packed parameter views carry runtime offsets in their memref descriptors.
+    // The address of the first element of a view: the aligned pointer plus
+    // the offset of the view in bytes.
     auto address = [&](Value array, size_t elementBytes) -> Value {
-      Value base =
+      Value pointer =
           memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, array);
-      auto metadata =
-          memref::ExtractStridedMetadataOp::create(rewriter, loc, array);
-      Value bytes = arith::ConstantIndexOp::create(rewriter, loc, elementBytes);
-      Value offset =
-          arith::MulIOp::create(rewriter, loc, metadata.getOffset(), bytes);
-      Value pointer = arith::AddIOp::create(rewriter, loc, base, offset);
+      int64_t offset =
+          cast<MemRefType>(array.getType()).getStridesAndOffset().second;
+      Value offsetBytes;
+      if (ShapedType::isDynamic(offset)) {
+        // Packed parameter views carry runtime offsets in their memref
+        // descriptors. A static offset is not read from the descriptor: the
+        // folder of extract_strided_metadata would materialize it as an
+        // arith.constant the conversion does not see.
+        auto metadata =
+            memref::ExtractStridedMetadataOp::create(rewriter, loc, array);
+        Value bytes =
+            arith::ConstantIndexOp::create(rewriter, loc, elementBytes);
+        offsetBytes =
+            arith::MulIOp::create(rewriter, loc, metadata.getOffset(), bytes);
+      } else if (offset != 0) {
+        offsetBytes = arith::ConstantIndexOp::create(rewriter, loc,
+                                                     offset * elementBytes);
+      }
+      if (offsetBytes)
+        pointer = arith::AddIOp::create(rewriter, loc, pointer, offsetBytes);
       return arith::IndexCastOp::create(rewriter, loc, i64Type, pointer);
     };
     Value aArrayindexCastOp = address(aArray, sizeOfElemT);

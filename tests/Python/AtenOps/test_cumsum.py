@@ -1,12 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from torch._functorch.aot_autograd import aot_autograd_decompositions
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import linalg
+from torch._functorch.aot_autograd import aot_autograd_decompositions
 
 
 def foo(x):
@@ -29,13 +26,16 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = bufferization.to_buffer
-# CHECK: scf.for
-# CHECK: scf.for
-# CHECK: memref.load
+# CHECK: %{{.*}} = tensor.empty
+# CHECK: %{{.*}} = linalg.fill
+# CHECK: linalg.generic
+# CHECK-SAME: iterator_types = ["parallel", "parallel", "reduction"]
+# CHECK: linalg.index 1
+# CHECK: linalg.index 2
+# CHECK: arith.cmpi ule
+# CHECK: arith.select
 # CHECK: arith.addf
-# CHECK: memref.store
-# CHECK: %{{.*}} = bufferization.to_tensor
+# CHECK: linalg.yield
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

@@ -55,6 +55,12 @@ classicfuse_register = {
 # ANCHOR_OP_TYPE = []
 
 
+def _subgraph_name(graph: Graph):
+    """The group of a graph named forward<suffix> is subgraph0<suffix>, so the
+    graphs of one model library do not clash."""
+    return "subgraph0" + graph._func_name.removeprefix("forward")
+
+
 def decompose_addmm_to_mm_add(graph: Graph):
     """
     Decompose:
@@ -275,8 +281,8 @@ def apply_classic_fusion(graph: Graph):
             continue
         new_op_group.append(op)
     graph.op_groups = {}
-    graph.op_groups["subgraph0"] = new_op_group
-    graph.group_map_device = {"subgraph0": device}
+    graph.op_groups[_subgraph_name(graph)] = new_op_group
+    graph.group_map_device = {_subgraph_name(graph): device}
 
 
 def simply_fuse(graph: Graph):
@@ -296,8 +302,8 @@ def simply_fuse(graph: Graph):
             continue
         new_op_group.append(op)
     graph.op_groups = {}
-    graph.op_groups["subgraph0"] = new_op_group
-    graph.group_map_device = {"subgraph0": device}
+    graph.op_groups[_subgraph_name(graph)] = new_op_group
+    graph.group_map_device = {_subgraph_name(graph): device}
 
 
 def flash_attention_prefill(graph: Graph):
@@ -314,8 +320,8 @@ def flash_attention_prefill(graph: Graph):
             continue
         new_op_group.append(op)
 
-    graph.op_groups = {"subgraph0": new_op_group}
-    graph.group_map_device = {"subgraph0": device}
+    graph.op_groups = {_subgraph_name(graph): new_op_group}
+    graph.group_map_device = {_subgraph_name(graph): device}
 
 
 def replace_attention_op(graph: Graph):
@@ -353,8 +359,8 @@ def gqa_attention_fusion(graph: Graph):
             continue
         new_op_group.append(op)
     graph.op_groups = {}
-    graph.op_groups["subgraph0"] = new_op_group
-    graph.group_map_device = {"subgraph0": device}
+    graph.op_groups[_subgraph_name(graph)] = new_op_group
+    graph.group_map_device = {_subgraph_name(graph): device}
 
 
 def gqa_attention_fusion_check(graph: Graph):

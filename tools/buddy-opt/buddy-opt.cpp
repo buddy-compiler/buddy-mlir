@@ -54,9 +54,6 @@
 #include "IME/IMEDialect.h"
 #include "IME/IMEOps.h"
 #include "RVV/RVVDialect.h"
-#include "Trace/TraceDialect.h"
-#include "Trace/TraceOps.h"
-#include "Trace/Transforms/BufferizableOpInterfaceImpl.h"
 #include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
@@ -124,8 +121,8 @@ void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
+void registerOutlineLoopNestsPass();
 void registerEliminateLargeZeroConstantsPass();
-void registerConvertTraceToLLVMPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -211,10 +208,9 @@ int main(int argc, char **argv) {
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
   // Register eliminate redundant memref.copy pass.
   mlir::buddy::registerEliminateMemRefCopyPass();
+  mlir::buddy::registerOutlineLoopNestsPass();
   // Register eliminate large zero constants pass.
   mlir::buddy::registerEliminateLargeZeroConstantsPass();
-  // Register trace conversion pipeline.
-  mlir::buddy::registerConvertTraceToLLVMPass();
   mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
@@ -226,7 +222,6 @@ int main(int argc, char **argv) {
   registerAllDialects(registry);
   mlir::registerAllExtensions(registry);
   mlir::registerAllGPUToLLVMIRTranslations(registry);
-  buddy::trace::registerBufferizableOpInterfaceExternalModels(registry);
   // Register dialects in buddy-mlir project.
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
@@ -239,7 +234,6 @@ int main(int argc, char **argv) {
                   buddy::boscame::BOSCAMEDialect,
                   buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
-                  buddy::trace::BuddyTraceDialect,
                   buddy::ime::IMEDialect>();
   // clang-format on
 

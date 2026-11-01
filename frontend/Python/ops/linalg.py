@@ -32,7 +32,6 @@ from buddy_mlir.dialects import (
     scf,
     tensor,
     tosa,
-    vector,
 )
 from buddy_mlir.dialects import (
     complex as complex_dialect,
@@ -40,6 +39,12 @@ from buddy_mlir.dialects import (
 
 from ..graph import *
 from ..graph.graph import TensorDType
+from ..graph.sizes import (
+    is_symbolic,
+    mixed_sizes,
+    mlir_shape,
+    sizes_of,
+)
 from .utils import *
 
 
@@ -354,6 +359,12 @@ def full_op(
     value = node.args[1]
     dtype = node.tensor_meta["dtype"]
     element = mlir_element_attr_get(dtype, value)
+    shape = node.tensor_meta["shape"]
+    if any(is_symbolic(d) for d in shape):
+        # Dynamic sizes: a fill of an empty tensor of the sizes.
+        return splat_tensor_value(
+            mixed_sizes(shape, symbol_table), element.type, element
+        )
     tensor_type = ir.RankedTensorType.get(output_shape, element.type)
     attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
     op = arith.ConstantOp(tensor_type, attr)
@@ -787,11 +798,28 @@ def to_copy_op(
             block.append(sitofp_op)
             block.append(linalg.YieldOp([sitofp_op.result]))
 
-    # Return op if defined, otherwise return input as identity
     if op is not None:
         return op
-    else:
+    source = ir.RankedTensorType(input1.type).element_type
+    target = mlir_element_type_get(dtype)
+    if source == target:
         return input1
+    # Elementwise arith casts on tensors; float to integer truncates toward
+    # zero like PyTorch.
+    result_type = ir.RankedTensorType.get(output_shape, target)
+    source_float = isinstance(source, (ir.FloatType, ir.BF16Type))
+    target_float = isinstance(target, (ir.FloatType, ir.BF16Type))
+    if source_float and not target_float:
+        return arith.FPToSIOp(result_type, input1)
+    if not source_float and target_float:
+        return arith.SIToFPOp(result_type, input1)
+    if source_float:
+        if target.width > source.width:
+            return arith.ExtFOp(result_type, input1)
+        return arith.TruncFOp(result_type, input1)
+    if target.width > source.width:
+        return arith.ExtSIOp(result_type, input1)
+    return arith.TruncIOp(result_type, input1)
 
 
 def rsub_op(
@@ -927,7 +955,7 @@ def pow_op(
             [i for i in range(len(output_shape))]
         )
         tensor_type = ir.RankedTensorType.get(output_shape, dtype)
-        output = tensor.EmptyOp(output_shape, dtype)
+        output = tensor.EmptyOp(sizes_of(input1), dtype)
         value_const = arith.ConstantOp(
             ir.IntegerType.get_signless(32),
             ir.IntegerAttr.get(ir.IntegerType.get_signless(32), int_value),
@@ -974,7 +1002,7 @@ def pow_op(
             [i for i in range(len(output_shape))]
         )
         tensor_type = ir.RankedTensorType.get(output_shape, dtype)
-        output = tensor.EmptyOp(output_shape, dtype)
+        output = tensor.EmptyOp(sizes_of(input1), dtype)
 
         # Create constant for the exponent
         if isinstance(value, (int, float)):
@@ -1318,7 +1346,9 @@ def matmul_op(
     generic_map = _safe_get_permutation([0, 1, 2])
     element = mlir_element_attr_get(dtype, 0.0)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    matmul_result_buffer = zero_tensor_value(output_shape, mlir_dtype, element)
+    matmul_result_buffer = zero_tensor_value(
+        [sizes_of(input1)[0], sizes_of(input2)[1]], mlir_dtype, element
+    )
     op = linalg.MatmulOp(
         result_tensors=[tensor_type],
         inputs=[input1, input2],
@@ -1360,7 +1390,9 @@ def matmul_transpose_b_op(
     mlir_dtype = mlir_element_type_get(dtype)
     element = mlir_element_attr_get(dtype, 0.0)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    result_buffer = zero_tensor_value(output_shape, mlir_dtype, element)
+    result_buffer = zero_tensor_value(
+        [sizes_of(input1)[0], sizes_of(input2)[0]], mlir_dtype, element
+    )
     generic_map = _safe_get_permutation([0, 1, 2])
     op = linalg.MatmulOp(
         result_tensors=[tensor_type],
@@ -1953,12 +1985,18 @@ def cat_op(
     if dim < 0:
         dim += rank
 
-    output_shape = list(input_shapes[0])
-    output_shape[dim] = sum(s[dim] for s in input_shapes)
-
     # dtype
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
+    if any(is_symbolic(d) for d in node.tensor_meta["shape"]):
+        # Dynamic sizes: tensor.concat computes the offsets.
+        result_type = ir.RankedTensorType.get(
+            mlir_shape(node.tensor_meta["shape"]), mlir_dtype
+        )
+        return tensor.ConcatOp(result_type, dim, input_tensors)
+
+    output_shape = list(input_shapes[0])
+    output_shape[dim] = sum(s[dim] for s in input_shapes)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
 
     offset = [0] * rank
@@ -2757,16 +2795,17 @@ def split_op(node: SplitOp, symbol_table):
         strides = list(default_strides)
         strides_attr = ir._denseI64ArrayAttr(strides, None)
 
-        output_shape = list(node.tensor_meta["shape"][i])
+        output_shape = mlir_shape(node.tensor_meta["shape"][i])
         dtype = node.tensor_meta["dtype"][i]
         mlir_dtype = mlir_element_type_get(dtype)
         tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
 
+        # The dynamic sizes off the split axis are those of the input.
         slice_op = tensor.ExtractSliceOp(
             tensor_type,
             input_tensor,
             [],
-            [],
+            [s for s in sizes_of(input_tensor) if isinstance(s, ir.Value)],
             [],
             offsets_attr,
             sizes_attr,
@@ -2840,7 +2879,11 @@ def gt_op(node: GtOp, symbol_table):
         scalar_val = int(scalar_val)
 
     scalar = arith.ConstantOp(input_dtype, scalar_val)
-    rhs = tensor.SplatOp(tensor_type, scalar, [])
+    rhs = tensor.SplatOp(
+        tensor_type,
+        scalar,
+        [d for d in sizes_of(input_tensor) if isinstance(d, ir.Value)],
+    )
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(4, input_tensor, rhs)
     else:
@@ -2880,7 +2923,11 @@ def ge_op(
         scalar_val = int(scalar_val)
 
     scalar = arith.ConstantOp(input_dtype, scalar_val)
-    rhs = tensor.SplatOp(tensor_type, scalar, [])
+    rhs = tensor.SplatOp(
+        tensor_type,
+        scalar,
+        [d for d in sizes_of(input_tensor) if isinstance(d, ir.Value)],
+    )
 
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(5, input_tensor, rhs)
@@ -3264,7 +3311,11 @@ def equal_op(
             scalar = arith.ConstantOp(input_dtype, float(node.args[1]))
         else:
             scalar = arith.ConstantOp(input_dtype, node.args[1])
-        rhs = tensor.SplatOp(tensor_type, scalar, [])
+        rhs = tensor.SplatOp(
+            tensor_type,
+            scalar,
+            [d for d in sizes_of(input_tensor) if isinstance(d, ir.Value)],
+        )
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(0, input_tensor, rhs)
     else:
@@ -3402,258 +3453,23 @@ def slice_scatter_op(node: SliceScatterOp, symbol_table):
     return insert_op.result
 
 
-def _get_vectorizable_trailing_dims(input2, input3_shape, accumulate):
-    """
-    Check if the trailing dimensions can be vectorized.
-
-    A dimension can be vectorized if:
-    1. It has no index tensor (input2[d] is None or d >= len(input2))
-    2. accumulate is False (or we could support vectorized accumulate later)
-
-    Returns:
-        tuple: (num_vectorizable_dims, vector_length)
-               num_vectorizable_dims: Number of trailing dims that can be vectorized
-               vector_length: Product of those dimensions' sizes
-               Returns (0, 0) if vectorization is not beneficial
-    """
-    if accumulate:
-        return 0, 0
-
-    # Current vectorized lowering only supports vectorizing the last dimension.
-    # Multi-dimension vectorization would require flattening/collapsing memrefs
-    # before transfer_read/write.
-    last_dim = len(input3_shape) - 1
-    if last_dim < 0:
-        return 0, 0
-    if last_dim < len(input2) and input2[last_dim] is not None:
-        return 0, 0
-
-    num_vectorizable_dims = 1
-    vector_length = input3_shape[last_dim]
-
-    # Only vectorize if beneficial (at least 4 elements)
-    if vector_length < 4:
-        return 0, 0
-
-    return num_vectorizable_dims, vector_length
-
-
-def _broadcast_index_tensor_for_vec(value, target_shape):
-    """
-    Broadcast an index tensor to target shape for vectorized index_put.
-
-    This is a simplified version that handles common cases for KV cache patterns.
-    """
-    try:
-        value_type = ir.RankedTensorType(value.type)
-        value_shape = list(value_type.shape)
-        elem_type = value_type.element_type
-    except Exception:
-        # Scalar value - splat to target shape
-        elem_type = value.type
-        target_type = ir.RankedTensorType.get(target_shape, elem_type)
-        return tensor.SplatOp(target_type, value, []).result
-
-    # If shapes match, return as-is
-    if value_shape == list(target_shape):
-        return value
-
-    # Handle rank-1 index tensor (common case: cache_position is 1D)
-    if len(value_shape) == 1 and len(target_shape) >= 1:
-        # Check if the index tensor can broadcast
-        # For KV cache: index is [seq_len], target might be [batch, heads, seq_len]
-        # We need to find which dimension matches
-        for d in range(len(target_shape)):
-            if value_shape[0] == target_shape[d]:
-                # Reshape to match target rank with 1s in other dims
-                new_shape = [1] * len(target_shape)
-                new_shape[d] = value_shape[0]
-                shape_ty = ir.Type.parse(f"!tosa.shape<{len(new_shape)}>")
-                index_ty = ir.IndexType.get()
-                shape_val = tosa.ConstShapeOp(
-                    shape_ty,
-                    ir.DenseElementsAttr.get(
-                        array.array("q", new_shape),
-                        type=index_ty,
-                        shape=[len(new_shape)],
-                    ),
-                ).result
-                reshaped = tosa.ReshapeOp(value, shape_val).result
-
-                # Broadcast to target shape
-                if new_shape != list(target_shape):
-                    if str(elem_type).startswith("f") or str(
-                        elem_type
-                    ).startswith("bf"):
-                        zero_elem = ir.FloatAttr.get(elem_type, 0.0)
-                    else:
-                        zero_elem = ir.IntegerAttr.get(elem_type, 0)
-                    zero_type = ir.RankedTensorType.get(target_shape, elem_type)
-                    zero_attr = ir.DenseElementsAttr.get_splat(
-                        zero_type, zero_elem
-                    )
-                    zero_tensor = tosa.ConstOp(zero_attr).result
-                    return tosa.AddOp(zero_type, reshaped, zero_tensor).result
-                return reshaped
-
-    # Fallback: try direct broadcast via add with zeros
-    if len(value_shape) <= len(target_shape):
-        padded_shape = [1] * (len(target_shape) - len(value_shape))
-        padded_shape.extend(value_shape)
-        shape_ty = ir.Type.parse(f"!tosa.shape<{len(padded_shape)}>")
-        index_ty = ir.IndexType.get()
-        shape_val = tosa.ConstShapeOp(
-            shape_ty,
-            ir.DenseElementsAttr.get(
-                array.array("q", padded_shape),
-                type=index_ty,
-                shape=[len(padded_shape)],
-            ),
-        ).result
-        value = tosa.ReshapeOp(value, shape_val).result
-
-        if padded_shape != list(target_shape):
-            if str(elem_type).startswith("f") or str(elem_type).startswith(
-                "bf"
-            ):
-                zero_elem = ir.FloatAttr.get(elem_type, 0.0)
-            else:
-                zero_elem = ir.IntegerAttr.get(elem_type, 0)
-            zero_type = ir.RankedTensorType.get(target_shape, elem_type)
-            zero_attr = ir.DenseElementsAttr.get_splat(zero_type, zero_elem)
-            zero_tensor = tosa.ConstOp(zero_attr).result
-            return tosa.AddOp(zero_type, value, zero_tensor).result
-        return value
-
-    raise ValueError(f"Cannot broadcast shape {value_shape} to {target_shape}")
-
-
-def _generate_vectorized_index_put(
-    input1_memref,
-    input1_shape,
-    input2,
-    input2_memref_list,
-    input3_memref,
-    input3_shape,
-    mlir_dtype,
-    symbol_table,
-    num_vec_dims,
-    vector_length,
-):
-    """
-    Generate vectorized index_put operation.
-
-    This creates nested loops for the non-vectorized dimensions and uses
-    vector.transfer_read/write for the vectorized trailing dimensions.
-
-    Args:
-        input1_memref: Destination memref (cache)
-        input1_shape: Shape of destination
-        input2: List of index tensors (may contain None)
-        input2_memref_list: List of memref ops for index tensors
-        input3_memref: Source memref (values)
-        input3_shape: Shape of source
-        mlir_dtype: Element type
-        symbol_table: Symbol table for lookups
-        num_vec_dims: Number of trailing dims to vectorize
-        vector_length: Total vector length
-    """
-    rank = len(input3_shape)
-    num_loop_dims = rank - num_vec_dims  # Dimensions that need loops
-
-    lb = arith.ConstantOp(ir.IndexType.get(), 0)
-    step = arith.ConstantOp(ir.IndexType.get(), 1)
-
-    # Create upper bounds for loop dimensions
-    ub_ops = []
-    for d in range(num_loop_dims):
-        ub_ops.append(arith.ConstantOp(ir.IndexType.get(), input3_shape[d]))
-
-    # Vector type for the trailing dimensions
-    vector_type = ir.VectorType.get([vector_length], mlir_dtype)
-
-    # Padding value for transfer_read
-    if isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type)):
-        padding = arith.ConstantOp(
-            mlir_dtype, ir.FloatAttr.get(mlir_dtype, 0.0)
-        )
-    else:
-        padding = arith.ConstantOp(mlir_dtype, 0)
-
-    # AffineMap: map from rank-D memref to 1D vector (last num_vec_dims -> 1)
-    # For a rank-4 memref with 1 vec dim: (d0, d1, d2, d3) -> (d3)
-    identity_map_attr = ir.AffineMapAttr.get(
-        ir.AffineMap.get_minor_identity(rank, 1)
+def _parallel_loops(lower, upper_bounds, step, body):
+    """One scf.parallel over `upper_bounds`; `body` gets the induction
+    variables. Device pipelines map it onto threads, which nested scf.for
+    loops would leave on the host."""
+    loop = scf.ParallelOp(
+        [],
+        [lower] * len(upper_bounds),
+        upper_bounds,
+        [step] * len(upper_bounds),
+        [],
     )
-
-    def create_nested_loops_vectorized(dim, idx_vars):
-        """Recursively create nested loops and perform vectorized operation at innermost level."""
-        if dim >= num_loop_dims:
-            # All loop dimensions processed, now do vectorized read/write
-
-            # Build source indices: [idx_var_0, idx_var_1, ..., idx_var_{num_loop_dims-1}, 0]
-            src_indices = list(idx_vars) + [lb]
-
-            # Build destination indices: use index tensors where available, loop vars otherwise
-            dst_indices = []
-            for d in range(len(input1_shape)):
-                if d < len(input2) and input2[d] is not None:
-                    # Use index tensor value
-                    # Index tensor should be indexed by loop variables
-                    if d < num_loop_dims:
-                        # This dimension has both a loop var and an index tensor
-                        # Load from index tensor using loop vars as indices
-                        idx_load_indices = list(idx_vars)
-                        idx_val = memref.LoadOp(
-                            input2_memref_list[d], idx_load_indices
-                        ).result
-                        idx_cast = arith.IndexCastOp(
-                            ir.IndexType.get(), idx_val
-                        )
-                        dst_indices.append(idx_cast)
-                    else:
-                        # Vectorized dimension with index - this shouldn't happen
-                        # as we don't vectorize dimensions with indices
-                        dst_indices.append(lb)
-                else:
-                    # Vector path only runs on equal-rank source/destination.
-                    # Keep non-index dims aligned by original dimension position.
-                    if d < len(idx_vars):
-                        dst_indices.append(idx_vars[d])
-                    else:
-                        # Vectorized trailing dim starts at 0.
-                        dst_indices.append(lb)
-
-            # Vector read from source
-            vec_val = vector.TransferReadOp(
-                vector_type,
-                input3_memref,
-                src_indices,
-                identity_map_attr,
-                padding,
-                [True],  # in_bounds
-            )
-
-            # Vector write to destination
-            vector.TransferWriteOp(
-                None,
-                vec_val.result,
-                input1_memref,
-                dst_indices,
-                identity_map_attr,
-                [True],
-            )
-            return
-
-        # Create loop for this dimension
-        loop = scf.ForOp(lb, ub_ops[dim], step)
-        with ir.InsertionPoint(loop.body):
-            new_idx_vars = idx_vars + [loop.induction_variable]
-            create_nested_loops_vectorized(dim + 1, new_idx_vars)
-            scf.YieldOp(loop.inner_iter_args)
-
-    # Start creating nested loops
-    create_nested_loops_vectorized(0, [])
+    block = loop.region.blocks.append(
+        *([ir.IndexType.get()] * len(upper_bounds))
+    )
+    with ir.InsertionPoint(block):
+        body(list(block.arguments))
+        scf.ReduceOp([], 0)
 
 
 def index_put_op(
@@ -3719,6 +3535,7 @@ def index_put_op(
         input3 = tensor.SplatOp(splat_type, scalar_val, []).result
         input3_shape = update_shape
 
+    input3_sizes = sizes_of(input3)
     input1_elem_type = input1.type.element_type
     input1_memref_type = ir.MemRefType.get(input1_shape, input1_elem_type)
     input1_source_type = ir.MemRefType.get(
@@ -3735,10 +3552,6 @@ def index_put_op(
     input1_memref = memref.AllocOp(input1_memref_type, [], []).result
     memref.CopyOp(input1_src_memref, input1_memref)
 
-    # Check if we can vectorize trailing dimensions
-    num_vec_dims, vector_length = _get_vectorizable_trailing_dims(
-        input2, input3_shape, accumulate
-    )
     non_index_dims = [
         d
         for d in range(len(output_shape))
@@ -3746,75 +3559,6 @@ def index_put_op(
     ]
     broadcast_rank = len(input3_shape) - len(non_index_dims)
 
-    # Vector path uses a single permutation_map for transfer_read/write.
-    # Keep it on equal-rank source/destination updates only.
-    if len(input1_shape) != len(input3_shape):
-        num_vec_dims = 0
-
-    if num_vec_dims > 0:
-        # Use vectorized path
-        input3_memref_element_type = input3.type.element_type
-        input3_memref_type = ir.MemRefType.get(
-            input3_shape, input3_memref_element_type
-        )
-        input3_memref = bufferization.ToBufferOp(
-            input3_memref_type, input3, read_only=True
-        )
-
-        # Convert index tensors to memrefs (only for non-None ones in loop dims)
-        input2_memref_list = []
-        num_loop_dims = len(input3_shape) - num_vec_dims
-        for i in range(len(input2)):
-            if input2[i] is None:
-                input2_memref_list.append(None)
-                continue
-            input2_ = symbol_table.get((str(input2[i]), 0))
-            if input2_ is None:
-                input2_memref_list.append(None)
-                continue
-            try:
-                index_tensor = _broadcast_index_tensor_for_vec(
-                    input2_, input3_shape[:num_loop_dims]
-                )
-                index_elem_type = ir.RankedTensorType(
-                    index_tensor.type
-                ).element_type
-                memref_type = ir.MemRefType.get(
-                    input3_shape[:num_loop_dims], index_elem_type
-                )
-                input2_memref_list.append(
-                    bufferization.ToBufferOp(
-                        memref_type, index_tensor, read_only=True
-                    )
-                )
-            except Exception:
-                # If broadcasting fails, fall back to scalar path
-                num_vec_dims = 0
-                break
-
-        if num_vec_dims > 0:
-            _generate_vectorized_index_put(
-                input1_memref,
-                input1_shape,
-                input2,
-                input2_memref_list,
-                input3_memref,
-                input3_shape,
-                mlir_dtype,
-                symbol_table,
-                num_vec_dims,
-                vector_length,
-            )
-
-            output_tensor_type = ir.RankedTensorType.get(
-                output_shape, mlir_dtype
-            )
-            op = bufferization.ToTensorOp(
-                output_tensor_type, input1_memref, restrict=True
-            )
-            return op
-
-    # Fallback to scalar path
     def _broadcast_index_tensor(value, target_shape, dim):
         try:
             value_type = ir.RankedTensorType(value.type)
@@ -3841,7 +3585,9 @@ def index_put_op(
                 shape_val = tosa.ConstShapeOp(
                     shape_ty,
                     ir.DenseElementsAttr.get(
-                        array.array("q", reshaped),
+                        array.array(
+                            "q", [-1 if d < 0 else d for d in reshaped]
+                        ),
                         type=index_ty,
                         shape=[len(reshaped)],
                     ),
@@ -3862,7 +3608,9 @@ def index_put_op(
             shape_val = tosa.ConstShapeOp(
                 shape_ty,
                 ir.DenseElementsAttr.get(
-                    array.array("q", padded_shape),
+                    array.array(
+                        "q", [-1 if d < 0 else d for d in padded_shape]
+                    ),
                     type=index_ty,
                     shape=[len(padded_shape)],
                 ),
@@ -3877,7 +3625,7 @@ def index_put_op(
             )
 
         for src_dim, tgt_dim in zip(value_shape, target_shape):
-            if src_dim in (-1,) or tgt_dim in (-1,):
+            if src_dim == tgt_dim:
                 continue
             if src_dim != 1 and src_dim != tgt_dim:
                 raise ValueError(
@@ -3893,6 +3641,14 @@ def index_put_op(
             else:
                 zero_elem = ir.IntegerAttr.get(elem_type, 0)
             zero_type = ir.RankedTensorType.get(target_shape, elem_type)
+            if ir.ShapedType.get_dynamic_size() in target_shape:
+                # The target shape is a prefix of the update shape.
+                zero_tensor = splat_tensor_value(
+                    input3_sizes[: len(target_shape)], elem_type, zero_elem
+                )
+                return dynamic_binary(
+                    zero_type, value, zero_tensor, tosa.AddOp
+                ).result
             zero_attr = ir.DenseElementsAttr.get_splat(zero_type, zero_elem)
             zero_tensor = tosa.ConstOp(zero_attr).result
             value = tosa.AddOp(zero_type, value, zero_tensor).result
@@ -3944,8 +3700,12 @@ def index_put_op(
 
     # Create upper bounds for each dimension of source tensor
     ub = []
-    for i in range(len(input3_shape)):
-        ub.append(arith.ConstantOp(ir.IndexType.get(), input3_shape[i]))
+    for size in input3_sizes:
+        ub.append(
+            size
+            if isinstance(size, ir.Value)
+            else arith.ConstantOp(ir.IndexType.get(), size)
+        )
 
     # Generate nested loops dynamically based on number of dimensions
     def create_nested_loops(dim, loops, idx_vars):
@@ -3999,8 +3759,18 @@ def index_put_op(
             create_nested_loops(dim + 1, loops + [loop], new_idx_vars)
             scf.YieldOp(loop.inner_iter_args)
 
-    # Start creating nested loops
-    create_nested_loops(0, [], [])
+    if accumulate:
+        create_nested_loops(0, [], [])
+    else:
+        # Without accumulation every update writes its own element.
+        _parallel_loops(
+            lb,
+            [ub[dim] for dim in range(len(input3_shape))],
+            step,
+            lambda idx_vars: create_nested_loops(
+                len(input3_shape), [], idx_vars
+            ),
+        )
 
     output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     op = bufferization.ToTensorOp(
@@ -4041,7 +3811,11 @@ def ne_scalar_op(
         scalar_val = int(scalar_val)
 
     scalar = arith.ConstantOp(input_dtype, scalar_val)
-    rhs = tensor.SplatOp(tensor_type, scalar, [])
+    rhs = tensor.SplatOp(
+        tensor_type,
+        scalar,
+        [d for d in sizes_of(input_tensor) if isinstance(d, ir.Value)],
+    )
 
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(1, input_tensor, rhs)
@@ -4076,6 +3850,65 @@ def _cumulative_tensor(
             f"{op_kind} requires matching input/output ranks"
         )
 
+    is_float = isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type))
+    if op_kind == "cumsum" and all(size >= 0 for size in input_shape):
+        # out[.., i, ..] = sum over j <= i of x[.., j, ..]: parallel in i, so
+        # it maps to devices like any reduction instead of a host-side scan.
+        # j runs upwards and adds exact zeros past i, so the result equals the
+        # sequential scan bit for bit.
+        reduction = rank
+        output_map = ir.AffineMap.get(
+            rank + 1, 0, [ir.AffineDimExpr.get(d) for d in range(rank)]
+        )
+        input_map = ir.AffineMap.get(
+            rank + 1,
+            0,
+            [
+                ir.AffineDimExpr.get(reduction if d == dim else d)
+                for d in range(rank)
+            ],
+        )
+        zero_attr = (
+            ir.FloatAttr.get(mlir_dtype, 0.0)
+            if is_float
+            else ir.IntegerAttr.get(mlir_dtype, 0)
+        )
+        zero = arith.ConstantOp(mlir_dtype, zero_attr).result
+        init = linalg.fill(
+            zero, outs=[tensor.EmptyOp(input_shape, mlir_dtype).result]
+        )
+        op = linalg.GenericOp(
+            [output_tensor_type],
+            [input_tensor],
+            [init],
+            ir.ArrayAttr.get(
+                [
+                    ir.AffineMapAttr.get(input_map),
+                    ir.AffineMapAttr.get(output_map),
+                ]
+            ),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * rank
+                + [ir.Attribute.parse("#linalg.iterator_type<reduction>")]
+            ),
+        )
+        block = ir.Block.create_at_start(op.region, [mlir_dtype, mlir_dtype])
+        with ir.InsertionPoint(block):
+            i = linalg.IndexOp(ir._i64Attr(dim, None)).result
+            j = linalg.IndexOp(ir._i64Attr(reduction, None)).result
+            taken = arith.CmpIOp(arith.CmpIPredicate.ule, j, i).result
+            value = arith.SelectOp(
+                taken,
+                block.arguments[0],
+                arith.ConstantOp(mlir_dtype, zero_attr).result,
+            ).result
+            if is_float:
+                total = arith.AddFOp(block.arguments[1], value).result
+            else:
+                total = arith.AddIOp(block.arguments[1], value).result
+            linalg.YieldOp([total])
+        return op.result
+
     input_memref_type = ir.MemRefType.get(input_shape, mlir_dtype)
     input_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
 
@@ -4098,7 +3931,6 @@ def _cumulative_tensor(
 
     c0 = arith.ConstantOp(index_type, 0)
     c1 = arith.ConstantOp(index_type, 1)
-    is_float = isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type))
     init_value = 0.0 if op_kind == "cumsum" else 1.0
     if is_float:
         init_val = arith.ConstantOp(mlir_dtype, float(init_value))
@@ -4836,8 +4668,14 @@ def tensor_constant_op(
     output_shape = list(node.tensor_meta["shape"])
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     value = node.args[0]
-    element = mlir_element_attr_get(dtype, value)
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    # Folded constants such as attention masks carry one value per element.
+    if isinstance(value, numpy.ndarray) and value.size > 1:
+        attr = ir.DenseElementsAttr.get(
+            numpy.ascontiguousarray(value), type=tensor_type
+        )
+    else:
+        element = mlir_element_attr_get(dtype, value)
+        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
     op = arith.ConstantOp(tensor_type, attr)
     return op
 
@@ -5129,6 +4967,29 @@ def as_strided_op(
     element_type = input_type.element_type
     input_shape = list(input_type.shape)
     output_shape = list(node.tensor_meta["shape"])
+
+    # Only the views that read the input from its first element in row-major
+    # order lower here; any other stride or offset selects other elements.
+    # The stride of a dimension of size 1 is never used.
+    contiguous = []
+    stride = 1
+    for size in reversed(output_shape):
+        contiguous.insert(0, stride)
+        stride *= size
+    offset = node.args[3] if len(node.args) > 3 else 0
+    if (
+        any(
+            size != 1 and given != expected
+            for size, given, expected in zip(
+                output_shape, node.args[2], contiguous
+            )
+        )
+        or offset != 0
+    ):
+        raise NotImplementedError(
+            f"as_strided with strides {list(node.args[2])} and offset "
+            f"{offset} is not a row-major prefix of its input"
+        )
 
     input_size = 1
     output_size = 1

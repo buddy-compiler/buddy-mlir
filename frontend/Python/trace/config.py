@@ -54,7 +54,6 @@ def normalize_trace_meta(key: str, meta):
         "id",
         "id_path",
         "tag",
-        "extend",
         "cycle",
         "tensor",
     }
@@ -104,8 +103,6 @@ def normalize_trace_meta(key: str, meta):
         if not isinstance(tag, str):
             raise TypeError(f"trace.nodes[{key!r}]['tag'] must be a string")
         result["tag"] = tag
-    if "extend" in meta:
-        result["extend"] = meta["extend"]
     return result
 
 
@@ -121,55 +118,6 @@ def _parse_id(node: str, trace_id):
     raise ValueError(f"trace id for {node} must be an integer or id path")
 
 
-def _parse_extend(node: str, value):
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        raise ValueError(f"trace.extend for {node} must be a list")
-
-    result = []
-    seen = set()
-    for item in value:
-        if not isinstance(item, dict):
-            raise ValueError(f"trace.extend for {node} must contain tables")
-        extra_keys = set(item) - {"dialect", "granularity", "include"}
-        if extra_keys:
-            names = ", ".join(sorted(extra_keys))
-            raise ValueError(
-                f"unsupported trace.extend fields for {node}: {names}"
-            )
-        dialect = item.get("dialect")
-        granularity = item.get("granularity", "op")
-        include = item.get("include", [])
-        if dialect not in {"linalg", "buckyball"}:
-            raise ValueError(
-                f"unsupported trace.extend dialect for {node}: {dialect}"
-            )
-        if granularity != "op":
-            raise ValueError(
-                f"unsupported trace.extend granularity for {node}: {granularity}"
-            )
-        if not isinstance(include, list) or not all(
-            isinstance(name, str) and name for name in include
-        ):
-            raise ValueError(
-                f"trace.extend include for {node} must be a string list"
-            )
-        if dialect in seen:
-            raise ValueError(
-                f"duplicate trace.extend dialect for {node}: {dialect}"
-            )
-        seen.add(dialect)
-        result.append(
-            {
-                "dialect": dialect,
-                "granularity": granularity,
-                "include": include,
-            }
-        )
-    return result
-
-
 def load_trace_config(path: Path) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"trace config not found: {path}")
@@ -178,7 +126,7 @@ def load_trace_config(path: Path) -> dict:
     if not isinstance(trace_data, dict):
         raise ValueError("trace config must contain [trace] entries")
 
-    extra_keys = set(trace_data) - {"node", "extend"}
+    extra_keys = set(trace_data) - {"node"}
     if extra_keys:
         names = ", ".join(sorted(extra_keys))
         raise ValueError(f"unsupported trace fields: {names}")
@@ -186,7 +134,6 @@ def load_trace_config(path: Path) -> dict:
     items = trace_data.get("node")
     if not isinstance(items, list):
         raise ValueError("trace config must contain [[trace.node]] entries")
-    extend = _parse_extend("trace", trace_data.get("extend"))
 
     result = {}
     ids = set()
@@ -216,6 +163,5 @@ def load_trace_config(path: Path) -> dict:
             "tag": tag,
             "cycle": item["cycle"],
             "tensor": item["tensor"],
-            "extend": extend,
         }
     return result

@@ -23,8 +23,9 @@ func.func @main() -> i8 {
   linalg.fill
     ins(%1 : i8)
   outs(%mem1 : memref<8x8xi8>)
-  // CHECK: gemmini.tile_matmul %alloc %alloc_{{[0-9]+}} %alloc_{{[0-9]+}} %alloc_{{[0-9]+}}
-  // CHECK-SAME: memref<8x8xi8> memref<8x8xi8> memref<8x8xi8> memref<8x8xi32>
+  // The matmul accumulates on its INT8 output: it is both C and D (lowD).
+  // CHECK: gemmini.tile_matmul %alloc %alloc_{{[0-9]+}} %[[C:alloc_[0-9]+]] %[[C]] <lowD = true>
+  // CHECK-SAME: memref<8x8xi8> memref<8x8xi8> memref<8x8xi8> memref<8x8xi8>
   linalg.matmul
     ins(%mem0, %mem1 : memref<8x8xi8>, memref<8x8xi8>)
   outs(%mem2 : memref<8x8xi8>)

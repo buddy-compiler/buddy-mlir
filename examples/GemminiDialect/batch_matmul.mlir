@@ -24,12 +24,13 @@ func.func @main() -> i8 {
   linalg.fill
     ins(%2 : i8)
   outs(%input1 : memref<3x3x3xi8>)
-  // CHECK: gemmini.tile_matmul %{{.+}} %{{.+}} %{{.+}} %alloc_{{[0-9]+}} :
-  // CHECK-SAME: memref<3x3xi8, strided<[3, 1]>> memref<3x3xi8, strided<[3, 1]>> memref<3x3xi8, strided<[3, 1]>> memref<3x3xi32>
-  // CHECK: gemmini.tile_matmul %{{.+}} %{{.+}} %{{.+}} %alloc_{{[0-9]+}} :
-  // CHECK-SAME: memref<3x3xi8, strided<[3, 1], offset: 9>> memref<3x3xi8, strided<[3, 1], offset: 9>> memref<3x3xi8, strided<[3, 1], offset: 9>> memref<3x3xi32>
-  // CHECK: gemmini.tile_matmul %{{.+}} %{{.+}} %{{.+}} %alloc_{{[0-9]+}} :
-  // CHECK-SAME: memref<3x3xi8, strided<[3, 1], offset: 18>> memref<3x3xi8, strided<[3, 1], offset: 18>> memref<3x3xi8, strided<[3, 1], offset: 18>> memref<3x3xi32>
+  // Each batch accumulates on its INT8 output: it is both C and D (lowD).
+  // CHECK: gemmini.tile_matmul %{{.+}} %{{.+}} %[[C0:[a-z_0-9]+]] %[[C0]] <lowD = true> :
+  // CHECK-SAME: memref<3x3xi8, strided<[3, 1]>> memref<3x3xi8, strided<[3, 1]>> memref<3x3xi8, strided<[3, 1]>> memref<3x3xi8, strided<[3, 1]>>
+  // CHECK: gemmini.tile_matmul %{{.+}} %{{.+}} %[[C1:[a-z_0-9]+]] %[[C1]] <lowD = true> :
+  // CHECK-SAME: memref<3x3xi8, strided<[3, 1], offset: 9>> memref<3x3xi8, strided<[3, 1], offset: 9>> memref<3x3xi8, strided<[3, 1], offset: 9>> memref<3x3xi8, strided<[3, 1], offset: 9>>
+  // CHECK: gemmini.tile_matmul %{{.+}} %{{.+}} %[[C2:[a-z_0-9]+]] %[[C2]] <lowD = true> :
+  // CHECK-SAME: memref<3x3xi8, strided<[3, 1], offset: 18>> memref<3x3xi8, strided<[3, 1], offset: 18>> memref<3x3xi8, strided<[3, 1], offset: 18>> memref<3x3xi8, strided<[3, 1], offset: 18>>
   linalg.batch_matmul
     ins(%input0, %input1: memref<3x3x3xi8>, memref<3x3x3xi8>)
   outs(%output : memref<3x3x3xi8>)

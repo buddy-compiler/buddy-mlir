@@ -29,7 +29,6 @@
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
-#include "Dialect/Trace/TraceDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
 #include "Dialect/XTAME/XTAMEDialect.h"
 
@@ -66,7 +65,6 @@ void registerSimplifyTosaReshapePass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
-void registerConvertTraceToLLVMPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -77,7 +75,6 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::bud::BudDialect>();
   registry.insert<::buddy::dap::DAPDialect>();
   registry.insert<::buddy::dip::DIPDialect>();
-  registry.insert<::buddy::trace::BuddyTraceDialect>();
   registry.insert<::buddy::gemmini::GemminiDialect>();
   registry.insert<::buddy::ime::IMEDialect>();
   registry.insert<::buddy::rhal::RHALDialect>();
@@ -117,5 +114,4 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
   mlir::buddy::registerEliminateMemRefCopyPass();
   mlir::buddy::registerEliminateLargeZeroConstantsPass();
-  mlir::buddy::registerConvertTraceToLLVMPass();
 }

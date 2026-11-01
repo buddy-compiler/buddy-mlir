@@ -1,10 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x, y):
@@ -32,7 +31,5 @@ print(graph._imported_module)
 # CHECK: arith.cmpf
 # CHECK: tosa.log
 # CHECK: tosa.mul
-# CHECK: tensor.empty
-# CHECK: linalg.generic
-# CHECK: arith.select
+# CHECK: tosa.select
 # CHECK: return

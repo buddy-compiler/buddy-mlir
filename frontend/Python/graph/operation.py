@@ -1405,6 +1405,7 @@ class NativeBatchNormLegitNoTrainingOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
+        self._layout = "NCHW"
 
 
 class NativeDropoutOp(Op):
@@ -1479,6 +1480,17 @@ class SymSizeOp(Op):
     """
     Symbolic size operation.
     Implements aten.sym_size: Get symbolic size of a tensor dimension.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ShapeType
+
+
+class SymIntOp(Op):
+    """
+    A symbolic integer computed from symbolic sizes (aten.sym_sum, the
+    arithmetic of SymInts): its value is the expression of the trace.
     """
 
     def __init__(self) -> None:

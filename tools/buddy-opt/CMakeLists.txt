@@ -23,7 +23,6 @@ target_link_libraries(buddy-opt
   LowerDIPPass
   BuddyDAP
   LowerDAPPass
-  BuddyTrace
   ExtendDAPPass
   DAPVectorization
   BuddyRVV
@@ -66,8 +65,8 @@ target_link_libraries(buddy-opt
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
+  OutlineLoopNestsPass
   EliminateLargeZeroConstants
-  TraceInsert
   )
 
 # Dialect and pass plugins resolve MLIR symbols against buddy-opt.

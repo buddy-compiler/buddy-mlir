@@ -3,12 +3,11 @@
 This is a unified trace framework for workload profiling and debugging.
 
 **Execution flow Overview**
-In the frontend, a transform pass traverses the Buddy graph and inserts trace start/end operations from a manually written `trace.toml`. Each traced node selects its traces: `tensor` exports the associated tensor to a log file for debugging, while `cycle` reads the hardware cycle counter twice to measure performance, with the concrete implementation provided by the runtime (e.g., `rdtime` or `rdcycle` on RISC-V). In the backend, adding `-convert-trace-to-llvm` to the pipeline lowers the trace nodes into the runtime function calls they select; `-convert-trace-to-llvm="gpu=true"` first copies GPU tensors to host memory.
+In the frontend, a transform pass traverses the Buddy graph and inserts trace start/end operations from a manually written `trace.toml`. Each traced node selects its traces: `tensor` exports the associated tensor to a log file for debugging, while `cycle` reads the hardware cycle counter twice to measure performance, with the concrete implementation provided by the runtime (e.g., `rdtime` or `rdcycle` on RISC-V). The trace start/end operations are `frontend.trace_start` and `frontend.trace_end` of the frontend dialect of Buckyball (`stack/compiler/midend/Dialect/Frontend`); its `-lower-frontend-fake-op` pass lowers them into the runtime function calls they select.
 
 **Extensibility**
 The aim of this framework is to be designed to be sufficiently extensible, so that different traces can be added in the future.
 - At the frontend, the transform design allows developers to modify `lowering.py` to support additional attributes passed through `trace.toml`.
-- At the middleend, custom trace passes can be added for any dialect.
 - At the backend, the runtime interface is device-agnostic and can in principle target any backend.
 
 # How to use trace to profile/debug your workload?
@@ -100,5 +99,3 @@ python3 perfetto.py /path/to/trace_output_dir /path/to/trace.toml
 The default output is `perfetto.json`. You can view it on this [website](https://www.ui.perfetto.dev).
 
 ![demo](./img/trace-demo.png)
-
-> Multi-level trace is an extended feature; for details on how to use it, please refer to [this](https://github.com/buddy-compiler/buddy-examples/blob/buckyball/models/models/LeNet/trace/trace-linalg-buckyball.toml)

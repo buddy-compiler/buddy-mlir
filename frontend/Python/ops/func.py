@@ -24,7 +24,21 @@ from buddy_mlir import ir
 from buddy_mlir.dialects import func, memref
 
 from ..graph import CallExternalOp, CallOp, FuncOp, PlaceholderOp
+from ..graph.sizes import mlir_shape
 from .utils import mlir_element_type_get
+
+
+def _contiguous_layout(shape) -> str:
+    """The row-major strided layout of `shape`, any offset: a stride over a
+    dynamic size is dynamic."""
+    dynamic = ir.ShapedType.get_dynamic_size()
+    strides = [
+        "?"
+        if dynamic in shape[dim + 1 :]
+        else str(functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1]))
+        for dim in range(len(shape))
+    ]
+    return f"strided<[{', '.join(strides)}], offset: ?>"
 
 
 def func_op(node: FuncOp, symbol_table: dict[tuple[str, int], ir.Operation]):
@@ -34,19 +48,14 @@ def func_op(node: FuncOp, symbol_table: dict[tuple[str, int], ir.Operation]):
     """
     arguments = []
     for arg in node.args:
-        shape = list(arg.shape)
+        shape = mlir_shape(arg.shape)
         mlir_dtype = mlir_element_type_get(arg.dtype)
-        stride = []
-        for dim, _dim_size in enumerate(shape):
-            stride.append(
-                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
-            )
-        memref_attr = ir.Attribute.parse(f"strided<{stride}, offset: ?>")
+        memref_attr = ir.Attribute.parse(_contiguous_layout(shape))
         arguments.append(ir.MemRefType.get(shape, mlir_dtype, memref_attr))
     results = []
     for i, shape in enumerate(node.tensor_meta["shape"]):
         mlir_dtype = mlir_element_type_get(node.tensor_meta["dtype"][i])
-        results.append(ir.MemRefType.get(shape, mlir_dtype))
+        results.append(ir.MemRefType.get(mlir_shape(shape), mlir_dtype))
     function_type = ir.FunctionType.get(inputs=arguments, results=results)
     op = func.FuncOp(name=node.name, type=function_type, visibility="private")
     return op
@@ -97,20 +106,15 @@ def call_op(node: CallOp, symbol_table: dict[tuple[str, int], ir.Operation]):
     for i, arg in enumerate(node.args):
         input_node = symbol_table.get((str(arg), node._args_index[i]))
         memref_type = ir.MemRefType(input_node.type)
-        stride = []
         shape = memref_type.shape
-        for dim, _dim_size in enumerate(shape):
-            stride.append(
-                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
-            )
-        memref_attr = ir.Attribute.parse(f"strided<{stride}, offset: ?>")
+        memref_attr = ir.Attribute.parse(_contiguous_layout(shape))
         dest = ir.MemRefType.get(shape, memref_type.element_type, memref_attr)
         cast_op = memref.CastOp(dest, input_node)
         arguments.append(cast_op)
     results = []
     for i, shape in enumerate(node.tensor_meta["shape"]):
         mlir_dtype = mlir_element_type_get(node.tensor_meta["dtype"][i])
-        results.append(ir.MemRefType.get(shape, mlir_dtype))
+        results.append(ir.MemRefType.get(mlir_shape(shape), mlir_dtype))
     func_symbol = ir.FlatSymbolRefAttr.get(node.call_func_name)
     op = func.call(results, func_symbol, arguments)
     return op

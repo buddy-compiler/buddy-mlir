@@ -1,10 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Test threshold activation function
 # threshold(x, threshold, value) = x if x > threshold else value
@@ -30,9 +29,7 @@ def test_threshold():
 # CHECK: func.func
 # CHECK: arith.cmpf
 # CHECK: arith.constant
-# CHECK: tensor.empty
-# CHECK: linalg.generic
-# CHECK: arith.select
+# CHECK: tosa.select
 # CHECK: return
 
 test_threshold()

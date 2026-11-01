@@ -87,6 +87,16 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
 
   std::vector<Value> unDeallocatedValue;
   IRRewriter rewriter(funcOp->getContext());
+  // The dynamic sizes of a memref, read from it, for an allocation of its
+  // shape.
+  auto dynamicSizes = [&](Location loc, Value value) {
+    SmallVector<Value> sizes;
+    auto type = cast<MemRefType>(value.getType());
+    for (int64_t axis = 0; axis < type.getRank(); ++axis)
+      if (type.isDynamicDim(axis))
+        sizes.push_back(memref::DimOp::create(rewriter, loc, value, axis));
+    return sizes;
+  };
 
   // Copy all function arguments to gpu, needs deallocation
   if (processArgs) {
@@ -98,14 +108,20 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       // TODO: Move this out of operation, make the copy process async
       auto memrefType = dyn_cast<MemRefType>(arg.getType());
 
+      SmallVector<Value> sizes = dynamicSizes(rewriter.getUnknownLoc(), arg);
       auto gpuAllocOp = gpu::AllocOp::create(
-          rewriter, rewriter.getUnknownLoc(),
-          TypeRange({stripMemRefLayout(memrefType)}), ValueRange({}));
+          rewriter, rewriter.getUnknownLoc(), stripMemRefLayout(memrefType),
+          /*asyncToken=*/Type(), /*asyncDependencies=*/ValueRange(), sizes,
+          /*symbolOperands=*/ValueRange());
       unDeallocatedValue.push_back(gpuAllocOp->getResult(0));
       auto gpuMemcpyOp =
           gpu::MemcpyOp::create(rewriter, gpuAllocOp.getLoc(), TypeRange(),
                                 ValueRange(), gpuAllocOp.getResult(0), arg);
-      arg.replaceAllUsesExcept(gpuAllocOp->getResult(0), gpuMemcpyOp);
+      // The copy and the sizes of the device buffer read the host argument.
+      SmallPtrSet<Operation *, 4> hostUsers = {gpuMemcpyOp};
+      for (Value size : sizes)
+        hostUsers.insert(size.getDefiningOp());
+      arg.replaceAllUsesExcept(gpuAllocOp->getResult(0), hostUsers);
     }
   }
 
@@ -134,8 +150,9 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       }
 
       auto gpuAllocOp = gpu::AllocOp::create(
-          rewriter, allocOp->getLoc(),
-          TypeRange({stripMemRefLayout(memrefType)}), ValueRange({}));
+          rewriter, allocOp->getLoc(), stripMemRefLayout(memrefType),
+          /*asyncToken=*/Type(), /*asyncDependencies=*/ValueRange(),
+          allocOp.getDynamicSizes(), /*symbolOperands=*/ValueRange());
 
       for (auto user : llvm::make_early_inc_range(result.getUsers())) {
         if (auto deallocOp = dyn_cast<memref::DeallocOp>(user)) {
@@ -201,8 +218,9 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
         auto val = returnOp->getOperand(i);
         if (auto memrefType = dyn_cast<MemRefType>(val.getType())) {
           auto identityMemrefType = stripMemRefLayout(memrefType);
-          auto allocOp = memref::AllocOp::create(rewriter, returnOp->getLoc(),
-                                                 identityMemrefType);
+          auto allocOp = memref::AllocOp::create(
+              rewriter, returnOp->getLoc(), identityMemrefType,
+              dynamicSizes(returnOp->getLoc(), val));
           gpu::MemcpyOp::create(rewriter, allocOp.getLoc(), TypeRange(),
                                 ValueRange(), allocOp->getResult(0), val);
           // FIXME: may be leak memory

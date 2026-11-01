@@ -21,6 +21,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -52,11 +53,29 @@ public:
     MemRefType outputType = dyn_cast<MemRefType>(output0.getType());
     if (!input0Type || !input1Type || !outputType)
       return failure();
-    // The INT8 hardware contract does not accept floating-point attention.
-    if (accType == "i32" && (!input0Type.getElementType().isInteger(8) ||
-                             !input1Type.getElementType().isInteger(8) ||
-                             !outputType.getElementType().isInteger(32)))
+    // The INT8 hardware contract does not accept floating-point attention:
+    // INT8 inputs, and an INT8 (scaled) or INT32 (the whole accumulator)
+    // output.
+    Type outputElemType = outputType.getElementType();
+    if (accType == "i32" &&
+        (!input0Type.getElementType().isInteger(8) ||
+         !input1Type.getElementType().isInteger(8) ||
+         !(outputElemType.isInteger(8) || outputElemType.isInteger(32))))
       return failure();
+    // B read as [N, K] (a Linear weight) is copied to [K, N] first; other maps
+    // stay in loops.
+    bool bTranspose = false;
+    if (matMulOp.hasUserDefinedMaps()) {
+      AffineExpr m, n, k;
+      bindDims(matMulOp.getContext(), m, n, k);
+      SmallVector<AffineMap> transposedB = {
+          AffineMap::get(3, 0, {m, k}, matMulOp.getContext()),
+          AffineMap::get(3, 0, {n, k}, matMulOp.getContext()),
+          AffineMap::get(3, 0, {m, n}, matMulOp.getContext())};
+      if (matMulOp.getIndexingMapsArray() != transposedB)
+        return failure();
+      bTranspose = true;
+    }
     bool needCollapse = false;
     SmallVector<int64_t, 3> aShape;
     SmallVector<int64_t, 3> bShape;
@@ -68,41 +87,57 @@ public:
         outputType.getRank() == 3 && aShape[0] == 1 && bShape[0] == 1 &&
         oShape[0] == 1)
       needCollapse = true;
-    MemRefType biasType =
-        MemRefType::get(outputType.getShape(), rewriter.getI32Type());
-    TypedAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
-    Type fillOpInsType = rewriter.getI32Type();
-    if (accType == "f32") {
-      biasType = MemRefType::get(outputType.getShape(), rewriter.getF32Type());
-      fillOpInputAttr = rewriter.getF32FloatAttr(0);
-      fillOpInsType = rewriter.getF32Type();
-    }
     llvm::APFloat scale1((float)1.0);
     llvm::APFloat scale0((float)0.0);
-    Value bias = memref::AllocOp::create(rewriter, loc, biasType);
-    Value fillOpInputValue = arith::ConstantOp::create(
-        rewriter, loc, fillOpInsType, fillOpInputAttr);
-    linalg::FillOp::create(rewriter, loc, fillOpInputValue, bias);
+    if (bTranspose) {
+      // input1[n, k] -> [k, n]
+      ArrayRef<int64_t> shape = input1Type.getShape();
+      Value transposed = memref::AllocOp::create(
+          rewriter, loc,
+          MemRefType::get({shape[1], shape[0]}, input1Type.getElementType()));
+      Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+      Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
+      auto rows = scf::ForOp::create(
+          rewriter, loc, zero,
+          arith::ConstantIndexOp::create(rewriter, loc, shape[0]), one);
+      rewriter.setInsertionPointToStart(rows.getBody());
+      auto columns = scf::ForOp::create(
+          rewriter, loc, zero,
+          arith::ConstantIndexOp::create(rewriter, loc, shape[1]), one);
+      rewriter.setInsertionPointToStart(columns.getBody());
+      Value value = memref::LoadOp::create(
+          rewriter, loc, input1,
+          ValueRange{rows.getInductionVar(), columns.getInductionVar()});
+      memref::StoreOp::create(
+          rewriter, loc, value, transposed,
+          ValueRange{columns.getInductionVar(), rows.getInductionVar()});
+      rewriter.setInsertionPointAfter(rows);
+      input1 = transposed;
+    }
     // Collapse 3D (1xMxK, 1xKxN, 1xMxN) -> 2D (MxK, KxN, MxN)
     Value aVal = input0;
     Value bVal = input1;
     Value oVal = output0;
-    Value biasVal = bias;
     if (needCollapse) {
       SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
       aVal = memref::CollapseShapeOp::create(rewriter, loc, input0, reassoc);
       bVal = memref::CollapseShapeOp::create(rewriter, loc, input1, reassoc);
       oVal = memref::CollapseShapeOp::create(rewriter, loc, output0, reassoc);
-      biasVal = memref::CollapseShapeOp::create(rewriter, loc, bias, reassoc);
     }
+    // The matmul accumulates on the initial output: it is D, read into the
+    // accumulator tile by tile before the tile is written back.
+    Value biasVal = oVal;
 
     auto tiled = rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
         matMulOp, aVal, bVal, oVal, biasVal, /*aScaleFactor = */ scale1,
         /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */ 0,
         /*accScale = */ scale1, /*bertScale = */ scale0);
-    tiled.setFullCAttr(
-        rewriter.getBoolAttr(outputType.getElementType().isInteger(32)));
-    memref::DeallocOp::create(rewriter, loc, bias);
+    tiled.setFullCAttr(rewriter.getBoolAttr(outputElemType.isInteger(32)));
+    // An INT8 output read as D is an elem_t matrix.
+    if (outputElemType.isInteger(8))
+      tiled.setLowDAttr(rewriter.getBoolAttr(true));
+    if (bTranspose)
+      memref::DeallocOp::create(rewriter, loc, bVal);
     return success();
   }
 
@@ -147,22 +182,6 @@ public:
         kernelShape[1] * kernelShape[2] * kernelShape[3], kernelShape[0]};
     MemRefType kernelMatType = MemRefType::get(kernelMatShape, kernelElemType);
     Value kernelMat = memref::AllocOp::create(rewriter, loc, kernelMatType);
-    SmallVector<int64_t> outputMatShape = {
-        outputShape[0] * outputShape[1] * outputShape[2], outputShape[3]};
-    MemRefType outputMatType = MemRefType::get(outputMatShape, outputElemType);
-    Value outputMat = memref::AllocOp::create(rewriter, loc, outputMatType);
-    MemRefType biasType =
-        MemRefType::get(outputShape[3], rewriter.getI32Type());
-    if (accType == "f32")
-      biasType = MemRefType::get(outputShape[3], rewriter.getF32Type());
-    Value bias = memref::AllocOp::create(rewriter, loc, biasType);
-    TypedAttr attr = rewriter.getI32IntegerAttr(0);
-    if (accType == "f32")
-      attr = rewriter.getF32FloatAttr(0);
-    Value constant0 = arith::ConstantOp::create(rewriter, loc, attr);
-    SmallVector<Value, 1> inputs = {constant0};
-    SmallVector<Value, 1> outputs = {bias};
-    linalg::FillOp::create(rewriter, loc, inputs, outputs);
     Operation *loopOp = nullptr;
     SmallVector<Value, 4> loopIvs;
     for (size_t i = 0; i != kernelShape.size(); i++) {
@@ -192,6 +211,89 @@ public:
     SmallVector<Value, 2> indices = {tmp0, loopIvs[0]};
     memref::StoreOp::create(rewriter, loc, element, kernelMat, indices);
     rewriter.setInsertionPointAfter(loopOp);
+    // The convolution loop of Gemmini writes its outputs back as scaled INT8.
+    // An INT32 output takes im2col and a matmul that writes the whole
+    // accumulator back, on the initial output (the bias) as D.
+    if (outputElemType.isInteger(32)) {
+      SmallVector<int64_t> columnsShape = {
+          outputShape[0] * outputShape[1] * outputShape[2], kernelMatShape[0]};
+      Value columns = memref::AllocOp::create(
+          rewriter, loc, MemRefType::get(columnsShape, kernelElemType));
+      // columns[(n*OH + oh)*OW + ow, (kh*KW + kw)*C + c] =
+      //     input[n, oh*stride + kh*dilation, ow*stride + kw*dilation, c]
+      SmallVector<int64_t> bounds = {outputShape[0], outputShape[1],
+                                     outputShape[2], kernelShape[1],
+                                     kernelShape[2], kernelShape[3]};
+      SmallVector<Value> ivs;
+      Operation *columnsLoop = nullptr;
+      for (int64_t bound : bounds) {
+        Value lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
+        Value upperBound = arith::ConstantIndexOp::create(rewriter, loc, bound);
+        Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
+        auto loop =
+            scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
+        ivs.push_back(loop.getInductionVar());
+        if (!columnsLoop)
+          columnsLoop = loop.getOperation();
+        rewriter.setInsertionPointToStart(loop.getBody());
+      }
+      auto constant = [&](int64_t value) {
+        return arith::ConstantIndexOp::create(rewriter, loc, value);
+      };
+      auto mul = [&](Value a, Value b) {
+        return arith::MulIOp::create(rewriter, loc, a, b);
+      };
+      auto add = [&](Value a, Value b) {
+        return arith::AddIOp::create(rewriter, loc, a, b);
+      };
+      Value row = add(mul(add(mul(ivs[0], constant(outputShape[1])), ivs[1]),
+                          constant(outputShape[2])),
+                      ivs[2]);
+      Value column = add(mul(add(mul(ivs[3], constant(kernelShape[2])), ivs[4]),
+                             constant(kernelShape[3])),
+                         ivs[5]);
+      Value inputRow =
+          add(mul(ivs[1], constant(strides)), mul(ivs[3], constant(dilations)));
+      Value inputColumn =
+          add(mul(ivs[2], constant(strides)), mul(ivs[4], constant(dilations)));
+      Value value = memref::LoadOp::create(
+          rewriter, loc, input,
+          ValueRange{ivs[0], inputRow, inputColumn, ivs[5]});
+      memref::StoreOp::create(rewriter, loc, value, columns,
+                              ValueRange{row, column});
+      rewriter.setInsertionPointAfter(columnsLoop);
+      // The output is both D and C: a matmul split along K accumulates its
+      // later parts on what it wrote back.
+      SmallVector<ReassociationIndices> reassociation = {{0, 1, 2}, {3}};
+      Value result =
+          memref::CollapseShapeOp::create(rewriter, loc, output, reassociation);
+      llvm::APFloat one((float)1.0);
+      llvm::APFloat zero((float)0.0);
+      auto tiled = gemmini::TileMatMulOp::create(
+          rewriter, loc, columns, kernelMat, result, result, one, one, one,
+          /*act=*/0, one, zero);
+      tiled.setFullCAttr(rewriter.getBoolAttr(true));
+      memref::DeallocOp::create(rewriter, loc, kernelMat);
+      memref::DeallocOp::create(rewriter, loc, columns);
+      rewriter.eraseOp(convOp);
+      return success();
+    }
+    SmallVector<int64_t> outputMatShape = {
+        outputShape[0] * outputShape[1] * outputShape[2], outputShape[3]};
+    MemRefType outputMatType = MemRefType::get(outputMatShape, outputElemType);
+    Value outputMat = memref::AllocOp::create(rewriter, loc, outputMatType);
+    MemRefType biasType =
+        MemRefType::get(outputShape[3], rewriter.getI32Type());
+    if (accType == "f32")
+      biasType = MemRefType::get(outputShape[3], rewriter.getF32Type());
+    Value bias = memref::AllocOp::create(rewriter, loc, biasType);
+    TypedAttr attr = rewriter.getI32IntegerAttr(0);
+    if (accType == "f32")
+      attr = rewriter.getF32FloatAttr(0);
+    Value constant0 = arith::ConstantOp::create(rewriter, loc, attr);
+    SmallVector<Value, 1> inputs = {constant0};
+    SmallVector<Value, 1> outputs = {bias};
+    linalg::FillOp::create(rewriter, loc, inputs, outputs);
     attr = rewriter.getI64IntegerAttr(outputShape[1]);
     Value outRowDim = arith::ConstantOp::create(rewriter, loc, attr);
     attr = rewriter.getI64IntegerAttr(outputShape[2]);
@@ -231,6 +333,12 @@ public:
     // The index in the 2D matrix is [n*H*W + h*W + w, c]
     indices.assign({tmp0, loopIvs[3]});
     tmp0 = memref::LoadOp::create(rewriter, loc, outputMat, indices);
+    // The convolution accumulates on the initial output.
+    Value initial = memref::LoadOp::create(rewriter, loc, output, loopIvs);
+    if (isa<FloatType>(outputElemType))
+      tmp0 = arith::AddFOp::create(rewriter, loc, initial, tmp0);
+    else
+      tmp0 = arith::AddIOp::create(rewriter, loc, initial, tmp0);
     memref::StoreOp::create(rewriter, loc, tmp0, output, loopIvs);
     rewriter.setInsertionPointAfter(loopOp);
     memref::DeallocOp::create(rewriter, loc, kernelMat);

@@ -19,9 +19,10 @@
 # ===---------------------------------------------------------------------------
 
 import buddy_mlir.ir as ir
-from buddy_mlir.dialects import arith, linalg, tensor
+from buddy_mlir.dialects import arith, linalg, tensor, tosa
 
 from ..graph import TensorDType
+from ..graph.sizes import broadcast_sizes
 
 LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD = 10_000
 LARGE_ZERO_TENSOR_ELEMENT_THRESHOLD = LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD
@@ -58,7 +59,12 @@ def splat_tensor_value(
     element_attr: ir.Attribute,
     element_threshold: int = LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD,
 ) -> ir.Value:
-    """Create a splat tensor without materializing huge f32 literals."""
+    """Create a splat tensor without materializing huge f32 literals. A size
+    may be an index value (a dynamic size)."""
+    if any(isinstance(d, ir.Value) for d in shape):
+        scalar = arith.ConstantOp(element_type, element_attr).result
+        empty = tensor.EmptyOp(shape, element_type).result
+        return linalg.fill(scalar, outs=[empty])
     tensor_type = ir.RankedTensorType.get(shape, element_type)
     element_count = _static_element_count(shape)
     if (
@@ -141,3 +147,68 @@ def mlir_element_attr_get(type_name, value):
             raise NotImplementedError(
                 f"Unsupported dtype for attribute {type_name}"
             )
+
+
+# The scalar operation of a TOSA elementwise operation, on floats and on
+# integers (bitwise and logical operations: integers only).
+dynamic_elementwise_ops = {
+    tosa.AddOp: (arith.AddFOp, arith.AddIOp),
+    tosa.SubOp: (arith.SubFOp, arith.SubIOp),
+    tosa.MulOp: (arith.MulFOp, arith.MulIOp),
+    tosa.MaximumOp: (arith.MaximumFOp, arith.MaxSIOp),
+    tosa.MinimumOp: (arith.MinimumFOp, arith.MinSIOp),
+    tosa.BitwiseAndOp: (None, arith.AndIOp),
+    tosa.BitwiseOrOp: (None, arith.OrIOp),
+    tosa.BitwiseXorOp: (None, arith.XOrIOp),
+    tosa.LogicalAndOp: (None, arith.AndIOp),
+    tosa.LogicalOrOp: (None, arith.OrIOp),
+    tosa.LogicalXorOp: (None, arith.XOrIOp),
+}
+
+
+def dynamic_elementwise(result_type, operands, scalar):
+    """An elementwise operation over operands that share dynamic sizes, as a
+    linalg.generic computing `scalar` of their elements: a size of the trace
+    is the same symbol in every operand, so only a static size of 1
+    broadcasts. tosa-to-linalg would check every shared dynamic size for 1 at
+    run time instead."""
+    rank = result_type.rank
+    maps = []
+    for value in operands:
+        dims = [
+            ir.AffineExpr.get_constant(0)
+            if extent == 1 and result_type.get_dim_size(i) != 1
+            else ir.AffineExpr.get_dim(i)
+            for i, extent in enumerate(ir.RankedTensorType(value.type).shape)
+        ]
+        maps.append(ir.AffineMapAttr.get(ir.AffineMap.get(rank, 0, dims)))
+    maps.append(ir.AffineMapAttr.get(ir.AffineMap.get_identity(rank)))
+    empty = tensor.EmptyOp(
+        broadcast_sizes(result_type, operands), result_type.element_type
+    )
+    generic = linalg.GenericOp(
+        [result_type],
+        operands,
+        [empty.result],
+        ir.ArrayAttr.get(maps),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * rank
+        ),
+    )
+    types = [ir.RankedTensorType(v.type).element_type for v in operands]
+    block = ir.Block.create_at_start(
+        generic.region, [*types, result_type.element_type]
+    )
+    with ir.InsertionPoint(block):
+        linalg.YieldOp([scalar(*block.arguments[:-1])])
+    return generic
+
+
+def dynamic_binary(result_type, input1, input2, op_func):
+    """dynamic_elementwise of a TOSA elementwise operation."""
+    floating, integer = dynamic_elementwise_ops[op_func]
+    element = result_type.element_type
+    operation = integer if isinstance(element, ir.IntegerType) else floating
+    return dynamic_elementwise(
+        result_type, [input1, input2], lambda a, b: operation(a, b).result
+    )

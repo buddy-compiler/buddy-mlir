@@ -1514,7 +1514,22 @@ class TemplatePartitionedGraphDriver:
             op.kwargs, 0, bindings, local_nodes
         )
         clone._keyword_arguments = rewritten_kwargs
-        clone._parents = list(op.parents)
+        # A parent outside the Region is one of the template placeholders
+        # bound to its values, like the operands rewritten above.
+        local_names = {node.name for node in local_nodes}
+        clone._parents = [
+            name
+            for parent in op.parents
+            for name in (
+                [parent]
+                if parent in local_names
+                else [
+                    placeholder
+                    for ref, placeholder in bindings.items()
+                    if ref.op.name == parent
+                ]
+            )
+        ]
         clone._children = list(op._children)
         clone._tensor_meta = _copy_operand_container(op.tensor_meta)
         return clone

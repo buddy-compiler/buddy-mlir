@@ -47,6 +47,9 @@ def maxpool2d_simplify(graph: Graph):
                     new_node.add_argument(arg)
                 for parent in node._parents:
                     new_node.add_parent(parent)
+                    # The parents now feed the fused node.
+                    children = graph.node_table[parent]._children
+                    children[children.index(node.name)] = new_node.name
                 for child in getitem_node._children:
                     new_node.add_children(child)
                 new_node.tensor_meta["shape"] = getitem_node.tensor_meta[

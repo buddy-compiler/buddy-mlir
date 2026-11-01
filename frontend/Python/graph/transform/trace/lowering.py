@@ -38,14 +38,6 @@ def _trace_attrs(node) -> dict:
         )
     if "tag" in trace_meta:
         attrs["tag"] = ir.StringAttr.get(trace_meta["tag"])
-    for extend in trace_meta.get("extend", []):
-        dialect = extend["dialect"]
-        attrs[f"trace_extend_{dialect}"] = ir.BoolAttr.get(True)
-        include = extend.get("include", [])
-        if include:
-            attrs[f"trace_{dialect}_include"] = ir.ArrayAttr.get(
-                [ir.StringAttr.get(name) for name in include]
-            )
     return attrs
 
 
@@ -72,7 +64,7 @@ def trace_op_start(node):
         return
     _insert_op(
         ir.Operation.create(
-            "buddy_trace.start",
+            "frontend.trace_start",
             attributes=_trace_attrs(node),
         )
     )
@@ -97,7 +89,7 @@ def trace_op_result(node, op_ret):
 
     op = _insert_op(
         ir.Operation.create(
-            "buddy_trace.end",
+            "frontend.trace_end",
             results=[value.type],
             operands=[value],
             attributes=_trace_attrs(node),

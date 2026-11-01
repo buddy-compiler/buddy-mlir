@@ -36,6 +36,7 @@ from buddy_mlir import runtime as rt
 from buddy_mlir.passmanager import PassManager
 
 from .operation import *
+from .sizes import bind_sizes, enter_node, mlir_shape, record_symbols
 from .type import *
 
 if TYPE_CHECKING:
@@ -874,8 +875,15 @@ class Graph:
                             ir.ShapedType.get_dynamic_size()
                         ] * tensor.rank
                     else:
+                        # A stride over a dynamic size is dynamic.
                         strides = [
-                            prod(shape[i + 1 :]) for i in range(len(shape))
+                            (
+                                ir.ShapedType.get_dynamic_size()
+                                if ir.ShapedType.get_dynamic_size()
+                                in shape[i + 1 :]
+                                else prod(shape[i + 1 :])
+                            )
+                            for i in range(len(shape))
                         ]
                     attrs = {
                         "bufferization.buffer_layout": ir.StridedLayoutAttr.get(
@@ -1203,7 +1211,7 @@ class GraphImporter:
             arguments = []
             inputs = self._params_shapes + self._inputs_shapes
             for arg in inputs:
-                shape_list = list(arg.shape)
+                shape_list = mlir_shape(arg.shape)
                 dtype = arg.dtype
                 mlir_dtype = self._str_to_mlir_dtype(dtype)
                 tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
@@ -1217,11 +1225,17 @@ class GraphImporter:
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
+                bind_sizes(
+                    args_list, [arg.shape for arg in inputs], self._symbol_table
+                )
                 func_op = self._module.body.operations[0]
                 for node in self._body:
                     if node in extern_func:
                         continue
-                    old_ops = [op for op in func_op.body.blocks[0].operations]
+                    # Listing the operations costs the whole body; only the
+                    # verbose report needs it.
+                    if self._verbose:
+                        old_ops = list(func_op.body.blocks[0].operations)
                     if isinstance(node, OutputOp):
                         output_node_args = node.args
                         returns = [
@@ -1238,8 +1252,10 @@ class GraphImporter:
                         self._symbol_table[(str(node.name), 0)] = value
                     else:
                         self._import_op(node)
-                    new_ops = [op for op in func_op.body.blocks[0].operations]
+                    if not isinstance(node, OutputOp):
+                        record_symbols(node, self._symbol_table)
                     if self._verbose:
+                        new_ops = list(func_op.body.blocks[0].operations)
                         self._print_verbose_node(node, old_ops, new_ops)
 
                 return self._symbol_table.get(("output", 0))
@@ -1271,7 +1287,7 @@ class GraphImporter:
             else:
                 inputs = self._params_shapes + self._inputs_shapes
             for arg in inputs:
-                shape_list = list(arg.shape)
+                shape_list = mlir_shape(arg.shape)
                 dtype = arg.dtype
                 mlir_dtype = self._str_to_mlir_dtype(dtype)
                 tensor_arg = ir.MemRefType.get(shape_list, mlir_dtype)
@@ -1492,6 +1508,7 @@ class GraphImporter:
 
         """
         op_name = node.__class__.__name__
+        enter_node(node, self._symbol_table[("__buddy_ops_by_name__", 0)])
         with ir.Location.name(node.name):
             op_ret = self._ops_registry[op_name](node, self._symbol_table)
         if op_ret is None:
