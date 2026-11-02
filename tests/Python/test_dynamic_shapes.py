@@ -241,3 +241,17 @@ with torch.no_grad():
 # CHECK-NOT: tosa.sub {{.*}}: (tensor<1x?x64xf32>, tensor<1x?x1xf32>)
 # CHECK-NOT: tosa.mul {{.*}}: (tensor<1x?x64xf32>, tensor<1x?x1xf32>
 # CHECK: return {{.*}} : tensor<1x?x64xf32>
+
+
+# Cache updates preserve the dynamic capacity of their destination.
+def update_cache(cache, positions, updates):
+    return torch.index_put(cache, (positions,), updates)
+
+
+cache = torch.zeros(32, 16)
+torch._dynamo.mark_dynamic(cache, 0)
+lower(update_cache, cache, torch.tensor([2, 5]), torch.ones(2, 16))
+# CHECK-LABEL: func.func @forward
+# CHECK-SAME: tensor<?x16xf32>
+# CHECK: bufferization.to_tensor {{.*}} : memref<?x16xf32>
+# CHECK: return {{.*}} : tensor<?x16xf32>

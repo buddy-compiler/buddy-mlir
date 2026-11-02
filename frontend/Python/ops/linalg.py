@@ -3491,7 +3491,7 @@ def index_put_op(
     Returns:
         op: The MLIR operation representing the converted IndexPutOp.
     """
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = list(symbol_table[(str(node.args[0]), 0)].type.shape)
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     input1 = symbol_table.get((str(node.args[0]), 0))
@@ -3549,7 +3549,11 @@ def index_put_op(
     input1_src_memref = bufferization.ToBufferOp(
         input1_source_type, input1, read_only=True
     ).result
-    input1_memref = memref.AllocOp(input1_memref_type, [], []).result
+    input1_memref = memref.AllocOp(
+        input1_memref_type,
+        [size for size in sizes_of(input1) if isinstance(size, ir.Value)],
+        [],
+    ).result
     memref.CopyOp(input1_src_memref, input1_memref)
 
     non_index_dims = [
