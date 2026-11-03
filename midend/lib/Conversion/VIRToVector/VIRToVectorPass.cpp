@@ -1865,10 +1865,10 @@ private:
     // minimum vscale (rvv-vlen / 64 on RVV, else 1), each masked from the
     // lanes on. At a larger vscale, the last ones are all off.
     if (useScalable)
-      pieces = {
-          width,
-          llvm::divideCeil(lanes, width * (rvvVlen > 0 ? rvvVlen / 64 : 1)), 0,
-          true};
+      pieces = {width,
+                static_cast<int64_t>(llvm::divideCeil(
+                    lanes, width * (rvvVlen > 0 ? rvvVlen / 64 : 1))),
+                0, true};
     pieces.layout = layout;
     pieces.vl = *vl;
     // keep the lowered code small: vl over a few vectors
