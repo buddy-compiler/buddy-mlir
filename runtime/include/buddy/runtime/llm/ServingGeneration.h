@@ -48,6 +48,9 @@ struct ServingTextCodec {
 /// tokens, and must return the next token from the latest execution result.
 /// validToken identifies decodable IDs for prompt, stop, and generated tokens.
 /// The adapter must reject sampling options its selectToken cannot implement.
+/// reset must support repeated attempts, including after a partially failed
+/// reset. Cleanup is best effort; a cleanup failure does not replace the
+/// original exception or guarantee that the source can be reused.
 struct ServingTokenSource {
   std::function<void()> reset;
   std::function<void(const std::vector<int> &)> prefill;
@@ -58,10 +61,14 @@ struct ServingTokenSource {
 
 /// Generate with the serving token budget, stopping, seed, and usage contract.
 /// The adapter merges model/template stop IDs into sampling.stopTokenIds.
-/// Each request resets the source before prefill; cancellation and exceptions
-/// also reset it before returning. No context shifting or prompt truncation is
-/// performed. Empty encoded prompts are rejected because the source requires
-/// an input token to produce the first prediction.
+/// Sampling scalars, stop strings, static codec configuration, and required
+/// callback presence are validated before invoking source or codec callbacks.
+/// The source is then reset before token validation, prompt encoding, and
+/// prefill. After these checks, cancellation or an exception, including an
+/// initial reset failure, triggers a best-effort cleanup reset. No context
+/// shifting or prompt truncation is performed. Empty encoded prompts are
+/// rejected because the source requires an input token for its first
+/// prediction.
 ///
 /// Chunks/results leave id and model empty for the adapter. A callback receives
 /// deltas followed by one done summary, including for prefill-only requests.

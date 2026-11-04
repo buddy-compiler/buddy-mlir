@@ -83,7 +83,7 @@ public:
   explicit ResetOnFailure(const std::function<void()> &reset) : reset(reset) {}
   ~ResetOnFailure() {
     if (!completed) {
-      // Preserve an exception from execution/transport if reset also fails.
+      // Preserve the original exception if the cleanup reset also fails.
       try {
         reset();
       } catch (...) {
@@ -140,8 +140,6 @@ CompletionResult runServingGenerationImpl(
     const std::function<void(const std::vector<int> &)> &preparePrefill = {}) {
   if (!source.reset)
     throw std::invalid_argument("serving token source: missing reset callback");
-  source.reset();
-  ResetOnFailure cleanup(source.reset);
   validateSampling(sampling);
   if (!codec.encode || !codec.tokenBytes || codec.contextLength <= 0)
     throw std::invalid_argument(
@@ -153,6 +151,8 @@ CompletionResult runServingGenerationImpl(
       !source.validToken)
     throw std::invalid_argument(
         "serving token source: incomplete execution configuration");
+  ResetOnFailure cleanup(source.reset);
+  source.reset();
   if (prepare)
     prepare();
   auto validToken = [&](int token) {

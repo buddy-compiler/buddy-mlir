@@ -308,53 +308,55 @@ void checkContextAndValidation() {
           "a prompt filling the context must prefill without sampling");
 
   auto invalid = [&](const SamplingParams &sampling,
-                     const ServingTextCodec &codec, const std::string &field) {
+                     const ServingTextCodec &codec, const std::string &field,
+                     bool staticFailure = false) {
     FakeSession session(script);
     requireFailure([&] { runServingGeneration("", session, sampling, codec); },
                    field);
     require(session.prefills == 0 && session.decodes == 0 &&
-                session.position() == 0,
+                session.resets == (staticFailure ? 0 : 2) &&
+                session.position() == (staticFailure ? 23 : 0),
             "invalid request reached execution or was not cleaned up");
   };
   invalid(params(), codecFor({}, {"A"}), "prompt");
   invalid(params(), codecFor({kPrompt, kPrompt}, {"A"}, 1), "context length");
   invalid(params(), codecFor({-1}), "prompt");
   invalid(params(), codecFor({kVocab}), "prompt");
-  invalid(params(), codecFor({kPrompt}, {"A"}, 0), "codec");
+  invalid(params(), codecFor({kPrompt}, {"A"}, 0), "codec", true);
   auto missingEncoder = codecFor();
   missingEncoder.encode = {};
-  invalid(params(), missingEncoder, "codec");
+  invalid(params(), missingEncoder, "codec", true);
   auto missingDecoder = codecFor();
   missingDecoder.tokenBytes = {};
-  invalid(params(), missingDecoder, "codec");
+  invalid(params(), missingDecoder, "codec", true);
   for (long long token : {-1, kVocab}) {
     auto sampling = params(0);
     sampling.stopTokenIds = {token};
     invalid(sampling, codecFor(), "stop_token_ids");
   }
-  invalid(params(-2), codecFor(), "max_tokens");
+  invalid(params(-2), codecFor(), "max_tokens", true);
   auto sampling = params();
   sampling.samplerConfig.temperature = std::numeric_limits<float>::infinity();
-  invalid(sampling, codecFor(), "temperature");
+  invalid(sampling, codecFor(), "temperature", true);
   sampling = params();
   sampling.samplerConfig.topP = 0;
-  invalid(sampling, codecFor(), "top_p");
+  invalid(sampling, codecFor(), "top_p", true);
   sampling = params();
   sampling.samplerConfig.minP = 2;
-  invalid(sampling, codecFor(), "min_p");
+  invalid(sampling, codecFor(), "min_p", true);
   sampling = params();
   sampling.samplerConfig.repeatPenalty = 0;
-  invalid(sampling, codecFor(), "repeat_penalty");
+  invalid(sampling, codecFor(), "repeat_penalty", true);
   sampling = params();
   sampling.samplerConfig.repeatLastN = -1;
-  invalid(sampling, codecFor(), "repeat_last_n");
+  invalid(sampling, codecFor(), "repeat_last_n", true);
   sampling = params();
   sampling.seedPolicy = SamplingSeedPolicy::Fixed;
   sampling.fixedSeed = std::numeric_limits<uint32_t>::max();
-  invalid(sampling, codecFor(), "seed");
+  invalid(sampling, codecFor(), "seed", true);
   sampling = params();
   sampling.stop = {""};
-  invalid(sampling, codecFor(), "stop");
+  invalid(sampling, codecFor(), "stop", true);
   FakeSession noVocabulary(script);
   noVocabulary.vocabulary = 0;
   requireFailure(
@@ -387,20 +389,22 @@ void checkEffectiveVocabulary() {
 
   auto invalid = [&](const ServingTextCodec &invalidCodec,
                      const SamplingParams &invalidSampling,
-                     const std::string &field) {
+                     const std::string &field, bool staticFailure = false) {
     FakeSession session(script);
     requireFailure(
         [&] {
           runServingGeneration("", session, invalidSampling, invalidCodec);
         },
         field);
-    require(session.prefills == 0 && session.position() == 0,
+    require(session.prefills == 0 &&
+                session.resets == (staticFailure ? 0 : 2) &&
+                session.position() == (staticFailure ? 23 : 0),
             "invalid effective vocabulary request reached prefill");
   };
   for (int size : {-1, kVocab + 1}) {
     auto invalidCodec = codec;
     invalidCodec.vocabSize = size;
-    invalid(invalidCodec, sampling, "codec: vocabulary size");
+    invalid(invalidCodec, sampling, "codec: vocabulary size", size < 0);
   }
   auto invalidSampling = sampling;
   invalidSampling.stopTokenIds = {3};
@@ -640,6 +644,91 @@ void checkSeeds() {
           "serving fixed seed zero is not repeatable across requests");
 }
 
+void checkResetLifecycle() {
+  for (bool cleanupThrows : {false, true}) {
+    FakeTokenSource device({0, kEos});
+    auto source = device.callbacks();
+    const auto resetSource = source.reset;
+    int attempts = 0;
+    int state = 23;
+    source.reset = [&] {
+      ++attempts;
+      if (attempts == 1) {
+        state = -1;
+        throw std::runtime_error("initial reset failure");
+      }
+      if (attempts == 2) {
+        require(state == -1, "cleanup did not see partially reset state");
+        if (cleanupThrows)
+          throw std::runtime_error("cleanup reset failure");
+      }
+      resetSource();
+      state = 0;
+    };
+    int encodes = 0;
+    auto codec = codecFor();
+    codec.encode = [&](const std::string &) {
+      ++encodes;
+      return std::vector<int>{kPrompt};
+    };
+    requireFailure([&] { runServingGeneration("", source, params(), codec); },
+                   "initial reset failure");
+    require(attempts == 2 && encodes == 0 && device.prefills == 0 &&
+                device.histories.empty() && device.decoded.empty(),
+            "initial reset failure skipped cleanup or reached execution");
+    require(state == (cleanupThrows ? -1 : 0),
+            "unexpected state after cleanup reset");
+    if (!cleanupThrows) {
+      auto result = runServingGeneration("", source, params(), codec);
+      require(attempts == 3 && encodes == 1 && result.content == "A" &&
+                  result.finishReason == FinishReason::Stop,
+              "source could not be reused after initial reset cleanup");
+    }
+  }
+
+  // Static preflight errors must not touch an existing source state.
+  for (int failure = 0; failure < 9; ++failure) {
+    FakeTokenSource device({0, kEos});
+    auto source = device.callbacks();
+    auto codec = codecFor();
+    auto sampling = params();
+    int encodes = 0;
+    int validations = 0;
+    codec.encode = [&](const std::string &) {
+      ++encodes;
+      return std::vector<int>{kPrompt};
+    };
+    source.validToken = [&](int) {
+      ++validations;
+      return true;
+    };
+    if (failure == 0)
+      sampling.maxNewTokens = -2;
+    else if (failure == 1)
+      codec.contextLength = 0;
+    else if (failure == 2)
+      codec.vocabSize = -1;
+    else if (failure == 3)
+      codec.tokenBytes = {};
+    else if (failure == 4)
+      source.reset = {};
+    else if (failure == 5)
+      source.prefill = {};
+    else if (failure == 6)
+      source.decode = {};
+    else if (failure == 7)
+      source.selectToken = {};
+    else
+      source.validToken = {};
+    requireFailure([&] { runServingGeneration("", source, sampling, codec); },
+                   failure == 0 ? "max_tokens" : "serving");
+    require(device.resets == 0 && device.prefills == 0 && encodes == 0 &&
+                validations == 0 && device.histories.empty() &&
+                device.decoded.empty(),
+            "static preflight error invoked source or codec callbacks");
+  }
+}
+
 void checkTokenSource() {
   FakeTokenSource device({0, 1, 2, 3, 4, 5});
   auto source = device.callbacks();
@@ -830,6 +919,9 @@ int main() {
     checkSeeds();
     // CHECK: serving explicit seed and legacy sampler: passed
     std::cout << "serving explicit seed and legacy sampler: passed\n";
+    checkResetLifecycle();
+    // CHECK: serving reset lifecycle and static validation: passed
+    std::cout << "serving reset lifecycle and static validation: passed\n";
     checkTokenSource();
     // CHECK: serving direct token source contract: passed
     std::cout << "serving direct token source contract: passed\n";

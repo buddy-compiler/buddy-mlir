@@ -191,11 +191,18 @@ incomplete trailing text is repaired when output is finished.
 It is independent of the legacy `SamplerConfig::seed` convention; `UINT32_MAX`
 is reserved for random selection. The host sampler uses the existing sampling
 formulas and applies repetition penalties to unique IDs in the requested
-history window. The controller resets the source before each request and after
-cancellation or an exception. Streaming callbacks receive deltas and a terminal
-summary. Returning false from a delta cancels immediately without a terminal
-summary. Returning false from the terminal summary resets the source but keeps
-the finalized result and its Stop/Length reason consistent with that summary.
+history window. Sampling scalars, stop strings, static codec configuration, and
+required callback presence are validated before any source or codec callback
+runs. The controller then resets the source before token validation, encoding,
+and prefill. After these checks, cancellation or an exception, including an
+initial reset failure, triggers a best-effort cleanup reset. The source must
+support repeated reset attempts after partial failure. Cleanup failures
+preserve the original exception but do not guarantee source reuse.
+
+Streaming callbacks receive deltas and a terminal summary. Returning false
+from a delta cancels immediately without a terminal summary. Returning false
+from the terminal summary resets the source but keeps the finalized result
+and its Stop/Length reason consistent with that summary.
 Callback exceptions propagate after cleanup.
 
 The existing `runGeneration` API continues to provide the CLI's historical
