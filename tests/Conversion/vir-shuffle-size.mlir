@@ -1,10 +1,11 @@
 // RUN: buddy-opt %s -lower-vir-to-vector='use-scalable=true rvv-vlen=256 verbose=true' \
 // RUN: | FileCheck %s
 
-// With a vir.shuffle, each dynamic vector is one vector of all its lanes,
-// whatever the register pressure: here the pressure gives LMUL 4 (two
-// vector<[8]xf32> of 32 lanes at VLEN 256), the shuffle one vector<[16]xf32>
-// of the 64 lanes (LMUL 8).
+// A region with a vir.shuffle is sized as any: on scalable vectors every
+// lane is known (vscale = rvv-vlen / 64), so the shuffle moves lanes between
+// pieces. Here the pressure gives LMUL 4, two vector<[8]xf32> of 32 lanes at
+// VLEN 256, one per row: rotate_half takes -x from the second piece and x
+// from the first, no instruction.
 func.func @rope(%q: memref<2x32xf32>, %cs: memref<2x32xf32>,
                 %sn: memref<2x32xf32>, %o: memref<2x32xf32>) -> f32 {
   %vl = arith.constant 32 : index
@@ -25,8 +26,16 @@ func.func @rope(%q: memref<2x32xf32>, %cs: memref<2x32xf32>,
 }
 
 // CHECK: Calculated LMUL = 4
-// CHECK: vir.shuffle: one vector of 64 lanes, width 16
 // CHECK-LABEL: func.func @rope
-// CHECK-NOT: vector.create_mask
-// CHECK: vector.load %{{.*}} : memref<64xf32>, vector<[16]xf32>
-// CHECK: vector.scalable.extract %{{.*}}[8] : vector<[8]xf32> from vector<[16]xf32>
+// CHECK-NOT: splice
+// CHECK-NOT: scalable.extract
+// CHECK-NOT: mask
+// CHECK: %[[X0:.*]] = vector.load %{{.*}} : memref<64xf32>, vector<[8]xf32>
+// CHECK: %[[X1:.*]] = vector.load %{{.*}} : memref<64xf32>, vector<[8]xf32>
+// CHECK: vector.load %{{.*}} : memref<64xf32>, vector<[8]xf32>
+// CHECK: vector.load %{{.*}} : memref<64xf32>, vector<[8]xf32>
+// CHECK: %[[S0:.*]] = vector.load %{{.*}} : memref<64xf32>, vector<[8]xf32>
+// CHECK: %[[S1:.*]] = vector.load %{{.*}} : memref<64xf32>, vector<[8]xf32>
+// CHECK: %[[N1:.*]] = arith.negf %[[X1]] : vector<[8]xf32>
+// CHECK: arith.mulf %[[N1]], %[[S0]] : vector<[8]xf32>
+// CHECK: arith.mulf %[[X0]], %[[S1]] : vector<[8]xf32>
