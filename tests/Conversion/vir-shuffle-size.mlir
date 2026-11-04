@@ -28,5 +28,5 @@ func.func @rope(%q: memref<2x32xf32>, %cs: memref<2x32xf32>,
 // CHECK: vir.shuffle: one vector of 64 lanes, width 16
 // CHECK-LABEL: func.func @rope
 // CHECK-NOT: vector.create_mask
-// CHECK: vector.create_mask %{{.*}} : vector<[16]xi1>
-// CHECK: llvm.call_intrinsic "llvm.vector.splice.left"({{.*}}) : (vector<[16]xf32>, vector<[16]xf32>, i32) -> vector<[16]xf32>
+// CHECK: vector.load %{{.*}} : memref<64xf32>, vector<[16]xf32>
+// CHECK: vector.scalable.extract %{{.*}}[8] : vector<[8]xf32> from vector<[16]xf32>

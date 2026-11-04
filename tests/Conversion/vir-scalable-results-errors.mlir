@@ -79,3 +79,19 @@ func.func @shuffle_extf(%a: memref<2x64xf16>) -> f32 {
   } -> f32
   return %r : f32
 }
+
+// -----
+
+// 48 lanes at VLEN 256 (vscale 4): vector<[12]xf32>, not a register group.
+func.func @shuffle_not_a_group(%q: memref<2x24xf32>) -> f32 {
+  %vl = arith.constant 24 : index
+  %z = arith.constant 0.0 : f32
+  // expected-error @below {{vir.shuffle needs a dynamic vector of 48 lanes in one register group (vector<[N]xT>, N a power of two) of VLEN 256}}
+  %r = vir.set_vl %vl : index {
+    %x = vir.load %q[] : memref<2x24xf32> -> !vir.vec<2x?xf32>
+    %y = vir.shuffle %x, %x [1, 0] : !vir.vec<2x?xf32>
+    %s = vir.reduce %y, %z {kind = "add"} : !vir.vec<2x?xf32>, f32 -> f32
+    vector.yield %s : f32
+  } -> f32
+  return %r : f32
+}
