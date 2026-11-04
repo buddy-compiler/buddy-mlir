@@ -155,7 +155,10 @@ if args.experimental_template_partitioned:
 
     with open(os.path.join(partition_dir, "forward.mlir"), "w") as module_file:
         print(
-            driver.construct_template_combined_main_graph(True),
+            # Preserve the existing runtime ABI: (encoder output, decoder logits).
+            driver.construct_template_combined_main_graph(
+                True, output_remap=[1, 0]
+            ),
             file=module_file,
         )
 

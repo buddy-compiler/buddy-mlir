@@ -496,7 +496,7 @@ assert "func.func @forward_decode_128" in str(tiered_combined)
 
 # Output remapping changes only the public forward return order.
 remap_graph, _, _ = five_region_graph(
-    "forward_prefill", output_indices=(0, 2, 4)
+    "forward_prefill", output_indices=(4, 0, 2)
 )
 remap_analysis, remap_plan = materialization_analysis(remap_graph)
 ordered_outputs_before = [
@@ -513,9 +513,9 @@ default_output = next(
     op for op in remap_driver.combined_graph.body if isinstance(op, OutputOp)
 )
 assert default_output.args == [
+    default_calls[4].name,
     default_calls[0].name,
     default_calls[2].name,
-    default_calls[4].name,
 ]
 remap_driver.construct_template_combined_main_graph(output_remap=[2, 0, 1])
 remapped_calls = [
@@ -525,9 +525,9 @@ remapped_output = next(
     op for op in remap_driver.combined_graph.body if isinstance(op, OutputOp)
 )
 assert remapped_output.args == [
+    remapped_calls[2].name,
     remapped_calls[4].name,
     remapped_calls[0].name,
-    remapped_calls[2].name,
 ]
 assert ordered_outputs_before == [
     tuple(region.interface.ordered_outputs)
