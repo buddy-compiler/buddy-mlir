@@ -50,12 +50,20 @@ for name, pipeline_type, llc_attrs in (
     ("RVV host", "kernels", "-mcpu=native -mattr=+m,+d,+v"),
     ("x86", "kernels", "-mcpu=native"),
     ("SVE", "kernels", "-mtriple=aarch64-unknown-linux-gnu -mattr=+sve"),
+    ("RVV max 0", "kernels", RVV + ",+zvl128b -riscv-v-vector-bits-max=0"),
+    (
+        "RVV min 512 max 512",
+        "kernels",
+        RVV + ",+zvl256b -riscv-v-vector-bits-min=512 "
+        "-riscv-v-vector-bits-max=512",
+    ),
+    ("RVV min 512", "kernels", RVV + ",+zvl256b -riscv-v-vector-bits-min=512"),
     ("A100, zvl256b", "kernels_a100", RVV + ",+zvl256b"),
     ("zvl 256 and 512", "kernels", RVV + ",+zvl256b -mattr=+zvl512b"),
     (
-        "min 512, zvl256b",
+        "min 256, zvl512b",
         "kernels",
-        RVV + ",+zvl256b -riscv-v-vector-bits-min=512",
+        RVV + ",+zvl512b -riscv-v-vector-bits-min=256",
     ),
     (
         "max 256, zvl1024b",
@@ -73,10 +81,13 @@ for name, pipeline_type, llc_attrs in (
 # CHECK-NEXT: RVV host: -lower-vir-to-vector=use-scalable=true{{$}}
 # CHECK-NEXT: x86: -lower-vir-to-vector{{$}}
 # CHECK-NEXT: SVE: -lower-vir-to-vector{{$}}
+# CHECK-NEXT: RVV max 0: -lower-vir-to-vector=use-scalable=true{{$}}
+# CHECK-NEXT: RVV min 512 max 512: -lower-vir-to-vector=rvv-vlen=512 use-scalable=true
+# CHECK-NEXT: RVV min 512: -lower-vir-to-vector=use-scalable=true{{$}}
 # CHECK-NEXT: A100, zvl256b: error: llc options of several VLEN: +zvl[256, 1024]b
 # CHECK-NEXT: zvl 256 and 512: error: llc options of several VLEN: +zvl[256, 512]b
-# CHECK-NEXT: min 512, zvl256b: error: llc options of several minimum VLEN: +zvl256b, -riscv-v-vector-bits-min=512
-# CHECK-NEXT: max 256, zvl1024b: error: llc options of a maximum VLEN below the minimum 1024: -riscv-v-vector-bits-max=256
+# CHECK-NEXT: min 256, zvl512b: error: llc options of a -riscv-v-vector-bits-min=256 below the VLEN of +zvl512b
+# CHECK-NEXT: max 256, zvl1024b: error: llc options of a -riscv-v-vector-bits-max=256 below the VLEN of +zvl1024b
 
 # The decode attention of the K3 kernels (DeepSeek-R1: 12 heads, 2 KV heads,
 # head 128, 2 heads per work item), a vir.set_vl with results: on the A100,

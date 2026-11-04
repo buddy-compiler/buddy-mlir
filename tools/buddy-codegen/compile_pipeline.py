@@ -101,9 +101,12 @@ def kernels_lower_vir(llc_args: list[str]) -> str:
     - other targets (x86, Arm NEON; SVE, whose scalable vectors the pass
       does not size yet): fixed vectors sized for the host's registers.
 
-    The VLEN options must agree: several +zvlNb, or a
-    -riscv-v-vector-bits-min / -max that differs from them (max: is less),
-    are an error."""
+    The VLEN options are read as llc reads them: the minimum VLEN is the
+    zvl (+v: 128), or -riscv-v-vector-bits-min when it is positive (-1 and 0
+    leave the zvl); -riscv-v-vector-bits-max is the maximum, 0 none. The VLEN
+    is exact when both are equal. Options that disagree are an error:
+    several +zvlNb, or a -riscv-v-vector-bits-min / -max below the zvl or
+    the max below the min."""
     features = [
         f
         for a in llc_args
@@ -126,22 +129,24 @@ def kernels_lower_vir(llc_args: list[str]) -> str:
     }
     if len(zvl) > 1:
         raise ValueError(f"llc options of several VLEN: +zvl{sorted(zvl)}b")
-    vmin, bits_min = next(iter(zvl), None), option("-riscv-v-vector-bits-min")
-    bits_max = option("-riscv-v-vector-bits-max")
-    if None not in (vmin, bits_min) and vmin != bits_min:
-        raise ValueError(
-            f"llc options of several minimum VLEN: +zvl{vmin}b, "
-            f"-riscv-v-vector-bits-min={bits_min}"
-        )
-    vmin = vmin or bits_min
-    if None not in (vmin, bits_max) and bits_max < vmin:
+    vmin = next(iter(zvl), 128 if "+v" in features else 0)
+    bits_min = option("-riscv-v-vector-bits-min") or -1
+    bits_max = option("-riscv-v-vector-bits-max") or 0
+    for name, bits in (("min", bits_min), ("max", bits_max)):
+        if 0 < bits < vmin:
+            raise ValueError(
+                f"llc options of a -riscv-v-vector-bits-{name}={bits} "
+                f"below the VLEN of +zvl{vmin}b"
+            )
+    vmin = max(vmin, bits_min)
+    if 0 < bits_max < vmin:
         raise ValueError(
             f"llc options of a maximum VLEN below the minimum {vmin}: "
             f"-riscv-v-vector-bits-max={bits_max}"
         )
     if "+v" not in features:
         return "-lower-vir-to-vector"
-    if vmin is not None and vmin == bits_max:
+    if vmin == bits_max:
         return f"-lower-vir-to-vector=rvv-vlen={vmin} use-scalable=true"
     return "-lower-vir-to-vector=use-scalable=true"
 
