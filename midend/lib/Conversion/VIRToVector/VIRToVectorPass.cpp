@@ -2235,6 +2235,10 @@ void VIRToVectorPass::runOnOperation() {
                                         vectorWidth, verbose, useCustomVecWid,
                                         rvvVlen, rvvVlenExact);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    return signalPassFailure();
+  // a vir.set_vl left (its lowering reported why) fails the pass
+  if (module.walk([](vir::SetVLOp) { return WalkResult::interrupt(); })
+          .wasInterrupted())
     signalPassFailure();
 }
 
