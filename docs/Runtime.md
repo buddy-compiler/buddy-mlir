@@ -193,8 +193,10 @@ is reserved for random selection. The host sampler uses the existing sampling
 formulas and applies repetition penalties to unique IDs in the requested
 history window. The controller resets the source before each request and after
 cancellation or an exception. Streaming callbacks receive deltas and a terminal
-summary; returning false cancels immediately, and exceptions propagate after
-cleanup.
+summary. Returning false from a delta cancels immediately without a terminal
+summary. Returning false from the terminal summary resets the source but keeps
+the finalized result and its Stop/Length reason consistent with that summary.
+Callback exceptions propagate after cleanup.
 
 The existing `runGeneration` API continues to provide the CLI's historical
 total-token budget and stdout/JSONL behavior. Production CLI and server entry

@@ -65,8 +65,10 @@ struct ServingTokenSource {
 ///
 /// Chunks/results leave id and model empty for the adapter. A callback receives
 /// deltas followed by one done summary, including for prefill-only requests.
-/// Returning false cancels immediately without further callbacks. Exceptions
-/// propagate to the transport after source cleanup.
+/// Returning false from a delta cancels immediately without further callbacks.
+/// Returning false from the done summary resets the source but preserves the
+/// finalized result, including its Stop/Length reason. Exceptions propagate to
+/// the transport after source cleanup.
 CompletionResult runServingGeneration(
     const std::string &prompt, const ServingTokenSource &source,
     const SamplingParams &sampling, const ServingTextCodec &codec,

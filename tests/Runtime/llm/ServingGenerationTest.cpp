@@ -561,41 +561,50 @@ void checkCancellationAndFailures() {
               tail.position() == 0,
           "tail cancellation emitted a terminal event or did not reset");
 
-  for (bool throwTerminal : {false, true}) {
-    FakeSession terminal(script);
-    int deltas = 0;
-    int terminals = 0;
-    auto callback = [&](const CompletionChunk &chunk) {
-      if (!chunk.done) {
-        ++deltas;
-        return true;
+  for (int budget : {0, 1, 3}) {
+    for (bool throwTerminal : {false, true}) {
+      FakeSession terminal(script);
+      int deltas = 0;
+      Events events;
+      const auto reason =
+          budget == 3 ? FinishReason::Stop : FinishReason::Length;
+      auto callback = [&](const CompletionChunk &chunk) {
+        events(chunk);
+        if (!chunk.done) {
+          ++deltas;
+          return true;
+        }
+        require(events.terminals == 1 && chunk.finishReason == reason &&
+                    chunk.usage.completionTokens == budget,
+                "terminal callback received an incomplete summary");
+        if (throwTerminal)
+          throw std::runtime_error("scripted terminal callback failure");
+        return false;
+      };
+      if (throwTerminal) {
+        requireFailure(
+            [&] {
+              runServingGeneration("", terminal, params(budget), codec,
+                                   callback);
+            },
+            "scripted terminal callback failure");
+      } else {
+        result =
+            runServingGeneration("", terminal, params(budget), codec, callback);
+        events.check(result);
+        require(result.finishReason == reason &&
+                    result.content == std::string("AB").substr(0, budget) &&
+                    result.usage.completionTokens == budget,
+                "terminal rejection changed the finalized result");
       }
-      ++terminals;
-      require(chunk.finishReason == FinishReason::Stop &&
-                  chunk.usage.completionTokens == 3,
-              "terminal callback received an incomplete summary");
-      if (throwTerminal)
-        throw std::runtime_error("scripted terminal callback failure");
-      return false;
-    };
-    if (throwTerminal) {
-      requireFailure(
-          [&] {
-            runServingGeneration("", terminal, params(), codec, callback);
-          },
-          "scripted terminal callback failure");
-    } else {
-      result = runServingGeneration("", terminal, params(), codec, callback);
-      require(result.finishReason == FinishReason::Cancelled &&
-                  result.content == "AB" && result.usage.completionTokens == 3,
-              "terminal cancellation changed generated content or usage");
+      require(deltas == std::min(budget, 2) && events.terminals == 1 &&
+                  terminal.resets == 2 && terminal.position() == 0,
+              "terminal callback failure did not stop and reset the session");
+      result = runServingGeneration("", terminal, params(), codec);
+      require(result.content == "AB" &&
+                  result.finishReason == FinishReason::Stop,
+              "session could not be reused after a terminal callback failure");
     }
-    require(deltas == 2 && terminals == 1 && terminal.resets == 2 &&
-                terminal.position() == 0,
-            "terminal callback failure did not stop and reset the session");
-    result = runServingGeneration("", terminal, params(), codec);
-    require(result.content == "AB" && result.finishReason == FinishReason::Stop,
-            "session could not be reused after a terminal callback failure");
   }
 }
 
@@ -684,6 +693,24 @@ void checkTokenSource() {
               result.usage.completionTokens == 1 &&
               device.resets == resetsBefore + 2 && device.histories.empty(),
           "direct token source cancellation did not reset immediately");
+
+  resetsBefore = device.resets;
+  Events rejectedTerminal;
+  result = runServingGeneration("", source, sampling, codec,
+                                [&](const CompletionChunk &chunk) {
+                                  rejectedTerminal(chunk);
+                                  return !chunk.done;
+                                });
+  rejectedTerminal.check(result);
+  require(result.finishReason == FinishReason::Stop &&
+              device.resets == resetsBefore + 2 && device.histories.empty(),
+          "direct token source terminal rejection changed the reason or "
+          "skipped cleanup");
+  auto reused = runServingGeneration("", source, sampling, codec);
+  require(reused.content == result.content &&
+              reused.finishReason == result.finishReason &&
+              reused.usage.completionTokens == result.usage.completionTokens,
+          "token source could not be reused after terminal rejection");
 
   // Generated IDs must be checked before they reach the text codec.
   bool decodedInvalidToken = false;

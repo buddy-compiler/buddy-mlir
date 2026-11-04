@@ -248,16 +248,17 @@ CompletionResult runServingGenerationImpl(
   if (result.timings.decodeMs > 0)
     result.timings.tokensPerSecond =
         result.usage.completionTokens * 1000.0 / result.timings.decodeMs;
+  bool terminalAccepted = true;
   if (callback && result.finishReason != FinishReason::Cancelled) {
     CompletionChunk done;
     done.done = true;
     done.finishReason = result.finishReason;
     done.usage = result.usage;
     done.timings = result.timings;
-    if (!callback(done))
-      result.finishReason = FinishReason::Cancelled;
+    terminalAccepted = callback(done);
   }
-  cleanup.completed = result.finishReason != FinishReason::Cancelled;
+  cleanup.completed =
+      result.finishReason != FinishReason::Cancelled && terminalAccepted;
   return result;
 }
 
