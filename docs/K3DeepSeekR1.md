@@ -35,8 +35,11 @@ python3 tools/buddy-codegen/build_model.py \
 
 - `BUDDY_RISCV_VLEN=1024` tells llc the exact VLEN (`+zvl1024b`,
   `-riscv-v-vector-bits-max=1024`): a weight tile is then one e8 register and
-  a 512-byte load is one `vl4r`. The kernels are correct for any VLEN, only
-  slower.
+  a 512-byte load is one `vl4r`. The decode attention (VIR dialect, below)
+  is compiled for this VLEN and runs on it only; the A100 code of
+  `prefill_ime` is compiled for VLEN 1024 anyway. Without an exact VLEN (a
+  generic RVV build), the decode attention of the `kernels` pipeline does not
+  compile: no code of it is valid on every VLEN.
 - `BUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`: the weight scales are f16 vectors.
 
 The spec (`models/deepseek_r1/specs/k3_w4g32.json`):
@@ -274,10 +277,20 @@ region of d / 2 = 64 lanes in which a head is its two RoPE halves, a
   halves of each head first, as the vector kernel does.
 
 `-lower-vir-to-vector` sizes the vectors of a `set_vl` with results for the
-target: the kernels pipelines give it `rvv-vlen=1024` (the A100's VLEN,
-`compile_pipeline.KERNELS_LOWER_VIR`) and fixed vectors, so the two rows of a
-head (row-flattened) are one `vector<128xf32>`, LMUL 4 (a region with a
-`vir.shuffle` keeps each dynamic vector in one vector).
+target, whose options `compile_pipeline.kernels_lower_vir` derives from the
+llc options of the kernels pipeline, so that they agree (VLEN options that
+disagree are an error):
+
+| Target (llc options) | VIR lowering |
+| --- | --- |
+| RVV of an exact VLEN (`+zvlVb` and `-riscv-v-vector-bits-max=V`; the A100 pipelines: 1024) | scalable vectors for that VLEN (`rvv-vlen=V use-scalable=true`), valid on it only |
+| RVV of no exact VLEN | scalable vectors for any VLEN (`use-scalable=true`, no `rvv-vlen`): strip-mined regions valid on any VLEN, a `set_vl` with results rejected |
+| x86, Arm NEON, SVE (not sized by the pass yet), the host tests | fixed vectors for the host's registers |
+
+On the A100 the two rows of a head (row-flattened) are one `vector<[8]xf32>`
+of 128 lanes, LMUL 4 (a region with a `vir.shuffle` keeps each dynamic
+vector in one vector), and `rotate_half` takes each row (`vector<[4]xf32>`)
+and puts it in place: register moves.
 
 The results are those of the vector kernel bit for bit, with and without
 q / k norms (host tests). In the parallel body of the DeepSeek-R1 attention
@@ -293,6 +306,16 @@ greedy, three alternating runs, the same text:
 | after 63 tokens | 28.26-28.49 | 28.10-28.58 |
 | after 458 tokens | 26.82-27.13 | 27.02-27.04 |
 | after 900 tokens | 25.37-25.41 | 25.29-25.77 |
+
+With the scalable vectors (VLEN 1024) instead of the fixed ones, the
+kernels are the same instructions but the rotation of q (4 `vmv2r` instead
+of 8 `vmv1r`); decode, three alternating runs, the same text:
+
+| decode, tok/s | fixed vectors | scalable vectors |
+| --- | --- | --- |
+| after 63 tokens | 27.06-27.19 | 27.53-27.66 |
+| after 458 tokens | 25.86-26.03 | 26.18-26.34 |
+| after 900 tokens | 24.37-24.68 | 24.59-25.06 |
 
 Two builds with the same code differ by up to 2% in either direction, so a
 difference below that is not one of the kernels. A first version made of
@@ -310,6 +333,10 @@ keys go through stack buffers and was 2-5% slower (one call at position 900:
   the `prefill_ime` attention with its two matrix loops emulated, against a
   reference rounded to fp16 like it; the decode attention, with and
   without q / k norms, also against the bits of the vector kernel).
+- `tests/Python/test_compile_pipeline_vir.py`: the VIR lowering the kernels
+  pipelines choose for each target, errors for VLEN options that disagree,
+  and the decode attention lowered for the A100 (no masks) and rejected for
+  a generic RVV build.
 - `tests/Python/test_k3_w4_import.py`: a tiny random Qwen2 through the import:
   no Linear or attention op left, the kernels generated, the weight buffers of
   the sizes `gen_config.py` computed; and the same with `prefill_ime`.

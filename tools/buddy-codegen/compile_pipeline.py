@@ -88,13 +88,62 @@ BUFFER_DEALLOCATION = [
 A100_VLEN = 1024
 
 
-# -lower-vir-to-vector of the generated kernels (the decode attention of the
-# K3 kernels, k3_w4._attn_decode_vir_fn): the vectors of a VIR region sized
-# for the 32 registers of the A100's VLEN, fixed vectors (one vector<128xf32>
-# per head of 128 at LMUL 4).
-KERNELS_LOWER_VIR = (
-    f"-lower-vir-to-vector=rvv-vlen={A100_VLEN} use-scalable=false"
-)
+def kernels_lower_vir(llc_args: list[str]) -> str:
+    """-lower-vir-to-vector of the generated kernels (the decode attention of
+    the K3 kernels, k3_w4._attn_decode_vir_fn) for the target of the llc
+    options `llc_args`:
+
+    - RVV (+v) of an exact VLEN V (+zvlVb and -riscv-v-vector-bits-max=V):
+      scalable vectors for it (rvv-vlen=V; the A100: one vector<[8]xf32> of
+      128 lanes per head, LMUL 4), valid on that VLEN only;
+    - RVV of no exact VLEN: use-scalable without rvv-vlen, code valid on
+      any VLEN (a vir.set_vl with results is rejected);
+    - other targets (x86, Arm NEON; SVE, whose scalable vectors the pass
+      does not size yet): fixed vectors sized for the host's registers.
+
+    The VLEN options must agree: several +zvlNb, or a
+    -riscv-v-vector-bits-min / -max that differs from them (max: is less),
+    are an error."""
+    features = [
+        f
+        for a in llc_args
+        if a.startswith("-mattr=")
+        for f in a[len("-mattr=") :].split(",")
+    ]
+
+    def option(name):
+        values = {
+            int(a.split("=", 1)[1])
+            for a in llc_args
+            if a.startswith(name + "=")
+        }
+        if len(values) > 1:
+            raise ValueError(f"llc options of several {name}: {sorted(values)}")
+        return next(iter(values), None)
+
+    zvl = {
+        int(m[1]) for f in features if (m := re.fullmatch(r"\+zvl(\d+)b", f))
+    }
+    if len(zvl) > 1:
+        raise ValueError(f"llc options of several VLEN: +zvl{sorted(zvl)}b")
+    vmin, bits_min = next(iter(zvl), None), option("-riscv-v-vector-bits-min")
+    bits_max = option("-riscv-v-vector-bits-max")
+    if None not in (vmin, bits_min) and vmin != bits_min:
+        raise ValueError(
+            f"llc options of several minimum VLEN: +zvl{vmin}b, "
+            f"-riscv-v-vector-bits-min={bits_min}"
+        )
+    vmin = vmin or bits_min
+    if None not in (vmin, bits_max) and bits_max < vmin:
+        raise ValueError(
+            f"llc options of a maximum VLEN below the minimum {vmin}: "
+            f"-riscv-v-vector-bits-max={bits_max}"
+        )
+    if "+v" not in features:
+        return "-lower-vir-to-vector"
+    if vmin is not None and vmin == bits_max:
+        return f"-lower-vir-to-vector=rvv-vlen={vmin} use-scalable=true"
+    return "-lower-vir-to-vector=use-scalable=true"
 
 
 def a100_llc_args(llc_base_args: list[str]) -> list[str]:
@@ -174,6 +223,9 @@ def build_stages(
         # attention at position 900: 332 -> 284 us); the same results.
         ime = pipeline_type == "kernels_ime"
         a100 = pipeline_type != "kernels"
+        llc_args = llc_base_args + (
+            a100_llc_args(llc_base_args) if a100 else []
+        )
         lower = lower_to_llvm(arena)
         i = lower.index("-convert-vector-to-llvm") + 1
         stages.append(
@@ -181,7 +233,7 @@ def build_stages(
                 "buddy-opt",
                 (["-lower-ime=target=k3"] if ime else [])
                 + [
-                    KERNELS_LOWER_VIR,
+                    kernels_lower_vir(llc_args),
                     f"-convert-scf-to-openmp=num-threads={num_threads}",
                     "-expand-strided-metadata",
                     "-convert-vector-to-scf",
@@ -202,9 +254,7 @@ def build_stages(
         stages.append(
             (
                 "llc",
-                llc_base_args
-                + (a100_llc_args(llc_base_args) if a100 else [])
-                + ["-filetype=obj", "-relocation-model=pic", "-O3"],
+                llc_args + ["-filetype=obj", "-relocation-model=pic", "-O3"],
             )
         )
         return stages

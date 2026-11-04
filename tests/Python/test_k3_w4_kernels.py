@@ -384,8 +384,8 @@ for start in (0, 37, 70):
 # CHECK-NEXT: decode start 70: 4 heads per item, same bits True True
 
 # The decode attention in a VIR region (heads as rows of their RoPE halves,
-# lowered with the pipeline's rvv-vlen=1024): the same bits as the vector
-# kernel it is written after.
+# lowered by the pipeline for the host: fixed vectors, one vector of 128
+# lanes per head): the same bits as the vector kernel it is written after.
 for threads in (None, 2):
     for start in (0, 15, 16, 37, 70):
         base = {
