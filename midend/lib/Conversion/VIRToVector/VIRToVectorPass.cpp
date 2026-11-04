@@ -391,10 +391,11 @@ class VIRSetVLLowering : public ConvertOpToLLVMPattern<vir::SetVLOp> {
 public:
   VIRSetVLLowering(LLVMTypeConverter &converter, bool useScalable,
                    int vectorWidth, bool verbose, bool useCustomVecWid,
-                   int rvvVlen)
+                   int rvvVlen, bool rvvVlenExact)
       : ConvertOpToLLVMPattern<vir::SetVLOp>(converter),
         useScalable(useScalable), vectorWidth(vectorWidth), verbose(verbose),
-        useCustomVecWid(useCustomVecWid), rvvVlen(rvvVlen) {}
+        useCustomVecWid(useCustomVecWid), rvvVlen(rvvVlen),
+        rvvVlenExact(rvvVlenExact) {}
 
 private:
   bool useScalable;
@@ -403,6 +404,9 @@ private:
   bool useCustomVecWid;
   // VLEN of a RISC-V Vector target in bits, 0 for the host
   int rvvVlen;
+  // rvvVlen is the VLEN of the target, not only its minimum (use-scalable
+  // without rvv-vlen)
+  bool rvvVlenExact;
 
   /// Recursively search for anchor type within a given Region and its nested
   Type findAnchorTypeRecursive(Region &region) const {
@@ -1793,10 +1797,12 @@ private:
                                llvm::product_of(layout))
                   .getShape()[0];
     // Scalable vectors have width * vscale lanes at the vscale of the
-    // target, rvv-vlen / 64: the code is for that VLEN only.
-    if (useScalable && rvvVlen == 0)
+    // target, rvv-vlen / 64: the code is for that VLEN only. Without it, a
+    // vector<[N]xT> has more lanes than the ones it is cut for on a larger
+    // VLEN: no code is valid on all of them.
+    if (useScalable && !rvvVlenExact)
       return op.emitError("a vir.set_vl with results on scalable vectors "
-                          "needs rvv-vlen");
+                          "needs rvv-vlen, the exact VLEN");
     int64_t vscale = useScalable ? rvvVlen / 64 : 1;
     // A vir.shuffle moves lanes between rows within one vector: each
     // dynamic vector is one vector of all its lanes, whatever the register
@@ -2105,9 +2111,9 @@ void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
                                            RewritePatternSet &patterns,
                                            bool useScalable, int vectorWidth,
                                            bool verbose, bool useCustomVecWid,
-                                           int rvvVlen) {
+                                           int rvvVlen, bool rvvVlenExact) {
   // clang-format off
-  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen);
+  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact);
   // clang-format on
 }
 
@@ -2164,7 +2170,10 @@ public:
                      "registers of VLEN bits instead of the host's; with "
                      "use-scalable, a vir.set_vl with results is lowered "
                      "for this VLEN (vscale = rvv-vlen / 64) and is only "
-                     "valid on it"),
+                     "valid on it. use-scalable without rvv-vlen (and "
+                     "vector-width) is for any RVV VLEN: the vectors are "
+                     "sized for VLEN 128, strip-mined regions are valid on "
+                     "any VLEN, a vir.set_vl with results is rejected"),
       llvm::cl::init(0)};
 
   Option<bool> verbose{*this, "verbose",
@@ -2209,16 +2218,20 @@ void VIRToVectorPass::runOnOperation() {
   }
   // use custome vector width
   bool useCustomVecWid = vectorWidth.getNumOccurrences() > 0;
-  // vscale depends on the target (VLEN / 64 on RVV, VL / 128 on SVE): the
-  // size of a scalable vector is only chosen for RVV
-  if (useScalable && !useCustomVecWid && rvvVlen == 0) {
-    module.emitError("use-scalable without vector-width needs rvv-vlen");
-    return signalPassFailure();
-  }
+  // rvv-vlen is the exact VLEN; use-scalable without it is for any RVV
+  // VLEN (vscale = VLEN / 64), whose vectors are sized for the least, 128
+  bool exactVlen = rvvVlen != 0;
+  int vlen = rvvVlen;
+  if (useScalable && !useCustomVecWid && !exactVlen)
+    vlen = 128;
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
                                         vectorWidth, verbose, useCustomVecWid,
-                                        rvvVlen);
+                                        vlen, exactVlen);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    return signalPassFailure();
+  // a vir.set_vl left (its lowering reported why) fails the pass
+  if (module.walk([](vir::SetVLOp) { return WalkResult::interrupt(); })
+          .wasInterrupted())
     signalPassFailure();
 }
 
