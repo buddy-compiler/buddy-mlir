@@ -43,6 +43,19 @@ WORKSPACE_LLVM_SRC=/workspace/llvm
 WORKSPACE_BUILD_DIR=/workspace/build-docker
 
 # -----------------------------------------------------------------------------
+# LLVM build configuration
+# -----------------------------------------------------------------------------
+
+# The released LLVM is consumed by downstream projects as well as buddy-mlir, so
+# it must cover every target they need: RISCV for buddy-mlir itself, plus the
+# NVPTX and AMDGPU backends and lld that upstream Triton links against
+# unconditionally. These values participate in the LLVM cache key below, so
+# changing them rebuilds an install cached with different settings.
+LLVM_PROJECTS="mlir;clang;lld"
+LLVM_RUNTIMES="openmp"
+LLVM_TARGETS="host;RISCV;NVPTX;AMDGPU"
+
+# -----------------------------------------------------------------------------
 # Target-specific defaults
 # -----------------------------------------------------------------------------
 
@@ -80,7 +93,7 @@ if [ -z "${IN_DOCKER:-}" ]; then
   # Host side: validate mounts and re-enter inside the manylinux container
   # ---------------------------------------------------------------------------
 
-  # Hash = pinned LLVM submodule commit.
+  # Hash = pinned LLVM submodule commit + LLVM patches + LLVM build config.
   BUDDY_HASH="${BUDDY_HASH:-$(git -C "${REPO_ROOT}" rev-parse HEAD)}"
   LLVM_COMMIT="$(git -C "${REPO_ROOT}" ls-tree HEAD llvm | awk '{print $3}')"
   LLVM_PATCH_HASH=""
@@ -94,7 +107,13 @@ if [ -z "${IN_DOCKER:-}" ]; then
         awk '{print substr($1, 1, 12)}'
     )"
   fi
-  LLVM_HASH="${LLVM_COMMIT}${LLVM_PATCH_HASH:+-${LLVM_PATCH_HASH}}"
+  LLVM_CONFIG_HASH="$(
+    printf 'projects=%s\nruntimes=%s\ntargets=%s\n' \
+      "${LLVM_PROJECTS}" "${LLVM_RUNTIMES}" "${LLVM_TARGETS}" |
+      sha256sum |
+      awk '{print substr($1, 1, 12)}'
+  )"
+  LLVM_HASH="${LLVM_COMMIT}${LLVM_PATCH_HASH:+-${LLVM_PATCH_HASH}}-${LLVM_CONFIG_HASH}"
 
   # Sync git remote and latest commit
   git submodule sync --recursive
@@ -418,10 +437,10 @@ EOF
       LLVM_RUNTIMES_CMAKE_ARGS+=("-DRUNTIMES_CMAKE_ARGS=${LLVM_RUNTIMES_CMAKE_ARGS_VALUE}")
     fi
     cmake -G Ninja -S "${WORKSPACE_LLVM_SRC}/llvm" -B "${LLVM_BUILD_DIR}" \
-      -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-      -DLLVM_ENABLE_RUNTIMES="openmp" \
+      -DLLVM_ENABLE_PROJECTS="${LLVM_PROJECTS}" \
+      -DLLVM_ENABLE_RUNTIMES="${LLVM_RUNTIMES}" \
       "${LLVM_RUNTIMES_CMAKE_ARGS[@]}" \
-      -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+      -DLLVM_TARGETS_TO_BUILD="${LLVM_TARGETS}" \
       -DLLVM_ENABLE_ASSERTIONS=OFF \
       -DCMAKE_BUILD_TYPE=RELEASE \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
