@@ -94,6 +94,23 @@ static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
 // Downstream LLVM lowering may pack vector<...xi1> memory operations, which
 // breaks round-tripping through scalar i1 loads/stores. Keep i1 memref accesses
 // scalarized even inside the vectorized loop.
+/// `scalar` broadcast to `vecTy`. The LLVM lowering of vector.broadcast
+/// takes vector<[1]xT> for one lane (its splat shufflevector of mask [0]
+/// folds away) and leaves the other vscale - 1 lanes poison: a broadcast to
+/// vector<[2]xT> and its first half instead. The fold is
+/// LLVM::ShuffleVectorOp::fold (LLVMDialect.cpp), which takes a vector of
+/// one known-minimum element for a vector of one element; this can go once
+/// it leaves scalable vectors alone.
+static Value broadcastTo(OpBuilder &builder, Location loc, VectorType vecTy,
+                         Value scalar) {
+  if (vecTy.getRank() != 1 || vecTy.getShape()[0] != 1 || !vecTy.isScalable())
+    return vector::BroadcastOp::create(builder, loc, vecTy, scalar);
+  Value wide = vector::BroadcastOp::create(
+      builder, loc, VectorType::get({2}, vecTy.getElementType(), {true}),
+      scalar);
+  return vector::ScalableExtractOp::create(builder, loc, vecTy, wide, 0);
+}
+
 static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
   return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
          vecTy.getElementType().isInteger(1);
@@ -622,9 +639,8 @@ private:
                 op.emitError("failed to derive vector type for vir.broadcast");
                 return;
               }
-              auto vectorBroadcastOp = vector::BroadcastOp::create(
-                  builder, loc, *vecTyOr, scalarValue);
-              virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
+              virSymbolTable[op.getResult()] =
+                  broadcastTo(builder, loc, *vecTyOr, scalarValue);
             }
           })
           .Case<vir::FMAOp>([&](vir::FMAOp op) {
@@ -1318,7 +1334,7 @@ private:
             auto oneAttr = builder.getFloatAttr(elemTy, 1.0);
             Value one = arith::ConstantOp::create(builder, loc, oneAttr);
             if (isa<VectorType>(outTy))
-              one = vector::BroadcastOp::create(builder, loc, outTy, one);
+              one = broadcastTo(builder, loc, cast<VectorType>(outTy), one);
             auto div = arith::DivFOp::create(builder, loc, one, sqrt);
             virSymbolTable[op.getResult()] = div.getResult();
           })
@@ -1638,11 +1654,12 @@ private:
         Value scalar = one(bcast.getValue());
         SmallVector<Value, 4> out;
         for (int64_t p = 0; p < pieces.size(); ++p)
-          out.push_back(
-              pieces.isVector(p)
-                  ? Value(vector::BroadcastOp::create(
-                        b, loc, pieces.type(scalar.getType(), p), scalar))
-                  : scalar);
+          out.push_back(pieces.isVector(p)
+                            ? broadcastTo(b, loc,
+                                          cast<VectorType>(
+                                              pieces.type(scalar.getType(), p)),
+                                          scalar)
+                            : scalar);
         map[bcast.getResult()] = out;
       } else if (auto fma = dyn_cast<vir::FMAOp>(op)) {
         SmallVector<Value, 4> lhs = get(fma.getLhs()), rhs = get(fma.getRhs()),
