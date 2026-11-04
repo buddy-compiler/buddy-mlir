@@ -1810,7 +1810,8 @@ private:
       // fixed: lanes; scalable: N * vscale == lanes
       if (!useCustomVecWid) {
         width = lanes / vscale;
-        if (lanes % vscale != 0 || !llvm::has_single_bit(uint64_t(width)))
+        if (useScalable &&
+            (lanes % vscale != 0 || !llvm::has_single_bit(uint64_t(width))))
           return op.emitError("vir.shuffle needs a dynamic vector of ")
                  << lanes << " lanes in one register group (vector<[N]xT>, N "
                  << "a power of two) of VLEN " << rvvVlen;
