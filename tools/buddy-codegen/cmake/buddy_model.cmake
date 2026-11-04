@@ -204,6 +204,11 @@ endfunction()
 #                                           single_forward, or
 #                                           qwen3_vl_multimodal
 #   [IMPORT_SCRIPT <path>]                  custom importer for single_forward
+#   [LOWER_SCRIPT <path>]                   single_forward: lowers subgraph0.mlir
+#                                           to subgraph0.o (lower_to_obj.sh
+#                                           arguments, PYTHON in the
+#                                           environment) instead of the
+#                                           default pipeline
 #   [MANIFEST_SCRIPT <path>]                custom RHAL manifest generator
 #   [LOCAL_MODEL_ENV <name>]                env var used for LOCAL_MODEL in importer
 #   [MODEL_SO_NAME <name>]                  output model shared library basename
@@ -376,7 +381,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -1154,6 +1159,19 @@ function(buddy_add_model)
         NUM_THREADS "${MDL_NUM_THREADS}"
         LLC_ATTRS ${MDL_LLC_ATTRS_LIST}
       )
+    elseif(MDL_LOWER_SCRIPT)
+      add_custom_command(
+        OUTPUT "${BIN}/subgraph0.o"
+        COMMAND ${CMAKE_COMMAND} -E env "PYTHON=${Python3_EXECUTABLE}"
+                bash "${MDL_LOWER_SCRIPT}"
+                "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
+                "${BIN}/subgraph0.mlir" "${BIN}/subgraph0.o"
+                "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
+        DEPENDS "${IMPORT_STAMP}" "${MDL_LOWER_SCRIPT}"
+          "${BUDDY_CODEGEN_DIR}/compile_pipeline.py" buddy-opt
+          ${LLVM_TOOLS_BINARY_DIR}/llc
+        COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o (${MDL_LOWER_SCRIPT})"
+        VERBATIM)
     else()
       add_custom_command(
         OUTPUT "${BIN}/subgraph0.o"

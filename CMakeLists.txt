@@ -150,6 +150,9 @@ option(BUDDY_BUILD_BGE_M3_MODEL
 option(BUDDY_BUILD_PROTEINGLM_MODEL
   "Build models/proteinglm (masked-LM single-forward .so/.rax package)"
   OFF)
+option(BUDDY_BUILD_YOLOV8_MODEL
+  "Build models/yolov8 (object detection single-forward .so/.rax package)"
+  OFF)
 option(BUDDY_ENABLE_TENSTORRENT
   "Enable optional Tenstorrent/tt-mlir configuration checks for TTIR->TTNN flows"
   OFF)

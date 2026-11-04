@@ -198,11 +198,12 @@ def main() -> int:
         "qwen3_vl_moe",
         "bge_m3",
         "proteinglm",
+        "yolov8",
     }:
         print(
             "error: unsupported model_family in spec: "
             f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
-            "qwen3_vl_moe, bge_m3, proteinglm)",
+            "qwen3_vl_moe, bge_m3, proteinglm, yolov8)",
             file=sys.stderr,
         )
         return 1
@@ -406,6 +407,20 @@ def main() -> int:
                 "warning: --hf-config is ignored for model_family=proteinglm",
                 file=sys.stderr,
             )
+    elif model_family == "yolov8":
+        cmake_args.extend(
+            [
+                f"-DBUDDY_YOLOV8_SPEC={spec}",
+                "-DBUDDY_BUILD_YOLOV8_MODEL=ON",
+            ]
+        )
+        if args.local_model is not None:
+            print(
+                "error: model_family=yolov8 takes the checkpoint through "
+                "--cmake-args=-DBUDDY_YOLOV8_CHECKPOINT=/path/to/yolov8n.pt",
+                file=sys.stderr,
+            )
+            return 1
 
     if args.is_rvv_crosscompile:
         cmake_args.extend(
