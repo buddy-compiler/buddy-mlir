@@ -204,14 +204,16 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
     VERBOSE_ANALYSIS_INFO("\n--- Checking AArch64 Features ---\n");
     if (Features.count("sve") && Features["sve"]) {
       VERBOSE_ANALYSIS_INFO("[+] SVE is supported.\n");
+      totalVectorRegs = 32;
 #if defined(__ARM_FEATURE_SVE)
       uint64_t bytes = svcntb();
       vectorRegBitWidth = bytes * 8;
-      totalVectorRegs = 32;
 #else
-      assert(
-          false &&
-          "LLVM detected ARM SVE, but MACRO __ARM_FEATURE_SVE is not defined.");
+      // the vector length cannot be read without SVE code: the least, 128
+      // bits (the fixed vectors are valid on any)
+      vectorRegBitWidth = 128;
+      VERBOSE_ANALYSIS_INFO("    built without SVE: its least vector "
+                            "length, 128 bits\n");
 #endif
     } else {
       VERBOSE_ANALYSIS_INFO("[-] SVE is NOT supported.\n");
