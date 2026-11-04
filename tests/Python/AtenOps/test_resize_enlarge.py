@@ -1,21 +1,23 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x):
     """
-    Test resize_ operation with enlarging.
-    resize_(tensor, size) resizes the tensor to the specified size.
+    Test resize operation with enlarging.
+    resize(tensor, size) resizes the tensor to the specified size.
     When enlarging, new elements are filled with zeros.
     """
-    # Use torch.ops.aten.resize_ directly
-    return torch.ops.aten.resize_(x.clone(), [3, 3])
+    # Use the out-of-place torch.ops.aten.resize directly: the in-place
+    # torch.ops.aten.resize_ can no longer enlarge a tensor under torch 2.15,
+    # where AOT autograd functionalization rejects resizing a view tensor to a
+    # larger size before the graph reaches the importer. Both variants lower
+    # through the same ResizeOp handler.
+    return torch.ops.aten.resize(x.clone(), [3, 3])
 
 
 # Input: 2x2 tensor -> resize to 3x3 (enlarging)

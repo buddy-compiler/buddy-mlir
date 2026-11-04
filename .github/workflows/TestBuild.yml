@@ -85,16 +85,14 @@ jobs:
           # Newest first: the latest torch releases break most often, so fail
           # fast before spending time on the older, stable ones.
           if [ "${{ matrix.arch }}" = "riscv64" ]; then
-            # The Ruyi torch 2.12 riscv64 wheel omits the top-level functorch
-            # compatibility package still imported by torch._dynamo.
+            # PyPI has no riscv64 torch wheels; the Ruyi index has them.
             # https://ruyirepo.ruyicommunity.cn/pypi/simple/torch/
-            # That index carries torch 2.14.0 for x86_64/aarch64 but its newest
-            # riscv64 build is still 2.13.0, so keep 2.14 off riscv64 until it
-            # shows up.
-            torch_versions=(2.14 2.13 2.12 2.11 2.10)
+            # Its newest riscv64 build is 2.15.0, which ships the top-level
+            # functorch compatibility package imported by torch._dynamo.
+            torch_versions=(2.15 2.14 2.13 2.12 2.11)
           else
-            # torch 2.14.0 is on the CPU index and on PyPI, including cp312.
-            torch_versions=(2.14 2.13 2.12 2.11 2.10)
+            # torch 2.15.0 is on the CPU index and on PyPI, including cp312.
+            torch_versions=(2.15 2.14 2.13 2.12 2.11)
           fi
 
           for torch_version in "${torch_versions[@]}"; do
