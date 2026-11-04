@@ -1,0 +1,20 @@
+{
+  "dataset": "openslr/librispeech_asr",
+  "config": "clean",
+  "split": "test",
+  "source": "https://datasets-server.huggingface.co/rows?dataset=openslr/librispeech_asr&config=clean&split=test&offset=0&length=3",
+  "samples": [
+    {
+      "id": "6930-75918-0000",
+      "text": "CONCORD RETURNED TO ITS PLACE AMIDST THE TENTS"
+    },
+    {
+      "id": "6930-75918-0001",
+      "text": "THE ENGLISH FORWARDED TO THE FRENCH BASKETS OF FLOWERS OF WHICH THEY HAD MADE A PLENTIFUL PROVISION TO GREET THE ARRIVAL OF THE YOUNG PRINCESS THE FRENCH IN RETURN INVITED THE ENGLISH TO A SUPPER WHICH WAS TO BE GIVEN THE NEXT DAY"
+    },
+    {
+      "id": "6930-75918-0002",
+      "text": "CONGRATULATIONS WERE POURED IN UPON THE PRINCESS EVERYWHERE DURING HER JOURNEY"
+    }
+  ]
+}

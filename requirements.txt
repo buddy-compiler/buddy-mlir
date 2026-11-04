@@ -24,3 +24,4 @@ psutil<=7.2.2
 diffusers
 pre-commit
 nanobind>=2.9,<3.0
+tomli; python_version<"3.11"
