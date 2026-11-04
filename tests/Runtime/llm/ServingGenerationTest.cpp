@@ -18,6 +18,8 @@
 
 #include <buddy/runtime/llm/ServingGeneration.h>
 
+#include "ServingGenerationInternal.h"
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -729,6 +731,151 @@ void checkResetLifecycle() {
   }
 }
 
+void checkTimings() {
+  struct Case {
+    const char *name;
+    int budget;
+    std::vector<int> tokens;
+    const char *stop;
+    int cancelAfter;
+    bool rejectTerminal;
+    bool zeroTime;
+    FinishReason reason;
+  };
+  const Case cases[] = {
+      {"zero budget", 0, {}, "", 0, false, false, FinishReason::Length},
+      {"one token", 1, {0}, "", 0, false, false, FinishReason::Length},
+      {"two tokens", 2, {0, 1}, "", 0, false, false, FinishReason::Length},
+      {"multiple tokens",
+       4,
+       {0, 1, 2, 0},
+       "",
+       0,
+       false,
+       false,
+       FinishReason::Length},
+      {"first EOS", 4, {kEos}, "", 0, false, false, FinishReason::Stop},
+      {"later EOS", 4, {0, kEos}, "", 0, false, false, FinishReason::Stop},
+      {"string stop", 4, {0, 1}, "AB", 0, false, false, FinishReason::Stop},
+      {"first delta cancellation",
+       4,
+       {0},
+       "",
+       1,
+       false,
+       false,
+       FinishReason::Cancelled},
+      {"second delta cancellation",
+       4,
+       {0, 1},
+       "",
+       2,
+       false,
+       false,
+       FinishReason::Cancelled},
+      {"terminal rejection",
+       2,
+       {0, 1},
+       "",
+       0,
+       true,
+       false,
+       FinishReason::Length},
+      {"zero elapsed time",
+       2,
+       {0, 1},
+       "",
+       0,
+       false,
+       true,
+       FinishReason::Length},
+  };
+  for (const auto &test : cases) {
+    std::chrono::steady_clock::time_point elapsed{};
+    auto advance = [&](int ms) { elapsed += std::chrono::milliseconds(ms); };
+    auto now = [&] { return elapsed; };
+    auto check = [&](bool condition, const char *message) {
+      require(condition, std::string(test.name) + ": " + message);
+    };
+    int resets = 0, prefills = 0, decodes = 0, selections = 0, deltas = 0;
+    ServingTokenSource source;
+    source.reset = [&] {
+      ++resets;
+      advance(1000);
+    };
+    source.prefill = [&](const std::vector<int> &) {
+      ++prefills;
+      advance(test.zeroTime ? 0 : 10);
+    };
+    source.decode = [&](int previous) {
+      check(previous == test.tokens.at(selections - 1),
+            "decode received the wrong previous token");
+      ++decodes;
+      advance(test.zeroTime ? 0 : 5);
+    };
+    source.selectToken = [&](const std::vector<int> &) {
+      advance(test.zeroTime ? 0 : (selections == 0 ? 2 : 3));
+      return test.tokens.at(selections++);
+    };
+    source.validToken = [&](int token) {
+      advance(1000);
+      return token >= 0 && token < kVocab;
+    };
+    auto codec = codecFor();
+    const auto encode = codec.encode;
+    codec.encode = [&, encode](const std::string &prompt) {
+      advance(1000);
+      return encode(prompt);
+    };
+    const auto tokenBytes = codec.tokenBytes;
+    codec.tokenBytes = [&, tokenBytes](int token) {
+      advance(1000);
+      return tokenBytes(token);
+    };
+    auto sampling = params(test.budget);
+    if (test.stop[0] != '\0')
+      sampling.stop = {test.stop};
+    Events events;
+    auto callback = [&](const CompletionChunk &chunk) {
+      events(chunk);
+      advance(1000);
+      return chunk.done ? !test.rejectTerminal : ++deltas != test.cancelAfter;
+    };
+    const auto result = detail::runServingGenerationImpl(
+        "prompt", source, sampling, codec, callback, now);
+    const int expectedTokens = static_cast<int>(test.tokens.size());
+    const int expectedDecodes = std::max(0, expectedTokens - 1);
+    const double prefillMs =
+        test.zeroTime ? 0 : (expectedTokens == 0 ? 10 : 12);
+    const double decodeMs = test.zeroTime ? 0 : expectedDecodes * 8;
+    const double rate = test.zeroTime || expectedDecodes == 0 ? 0 : 125;
+    check(prefills == 1 && selections == expectedTokens &&
+              decodes == expectedDecodes,
+          "execution counts are wrong");
+    check(result.usage.completionTokens == expectedTokens &&
+              result.finishReason == test.reason,
+          "completion count or finish reason is wrong");
+    check(result.timings.prefillMs == prefillMs &&
+              result.timings.decodeMs == decodeMs &&
+              result.timings.tokensPerSecond == rate,
+          "timings include unrelated work or omit token selection");
+    check(std::isfinite(result.timings.tokensPerSecond),
+          "throughput is not finite");
+    check(resets == 1 + (test.cancelAfter != 0 || test.rejectTerminal),
+          "cleanup reset count is wrong");
+    if (test.reason == FinishReason::Cancelled) {
+      check(events.terminals == 0 && events.text == result.content,
+            "cancellation emitted a terminal or lost a delivered delta");
+    } else {
+      events.check(result);
+      check(events.terminal.timings.prefillMs == prefillMs &&
+                events.terminal.timings.decodeMs == decodeMs &&
+                events.terminal.timings.tokensPerSecond == rate,
+            "terminal timings disagree with the result");
+    }
+  }
+}
+
 void checkTokenSource() {
   FakeTokenSource device({0, 1, 2, 3, 4, 5});
   auto source = device.callbacks();
@@ -922,6 +1069,9 @@ int main() {
     checkResetLifecycle();
     // CHECK: serving reset lifecycle and static validation: passed
     std::cout << "serving reset lifecycle and static validation: passed\n";
+    checkTimings();
+    // CHECK: serving prefill and decode timing accounting: passed
+    std::cout << "serving prefill and decode timing accounting: passed\n";
     checkTokenSource();
     // CHECK: serving direct token source contract: passed
     std::cout << "serving direct token source contract: passed\n";

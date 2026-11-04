@@ -27,3 +27,7 @@ _add_test_executable(buddy-serving-generation-test
   LINK_LIBS
     buddy_runtime_llm
 )
+
+target_include_directories(buddy-serving-generation-test PRIVATE
+  ${BUDDY_SOURCE_DIR}/runtime/llm
+)

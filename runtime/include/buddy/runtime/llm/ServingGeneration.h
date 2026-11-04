@@ -76,6 +76,15 @@ struct ServingTokenSource {
 /// Returning false from the done summary resets the source but preserves the
 /// finalized result, including its Stop/Length reason. Exceptions propagate to
 /// the transport after source cleanup.
+///
+/// Timings measure the prefill/decode/selectToken callbacks: prefillMs includes
+/// prefill and the first selection (prefill alone for a zero token budget);
+/// decodeMs sums subsequent decode/selection pairs. tokensPerSecond is the
+/// number of subsequent selected tokens, including EOS/stop tokens, times 1000
+/// divided by decodeMs. It is zero without a decode or positive decode time.
+/// Cancellation retains completed work. Reset, codec calls, controller-side
+/// token validation/text processing, and transport callbacks are excluded;
+/// this is not end-to-end throughput.
 CompletionResult runServingGeneration(
     const std::string &prompt, const ServingTokenSource &source,
     const SamplingParams &sampling, const ServingTextCodec &codec,

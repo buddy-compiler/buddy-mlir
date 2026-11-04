@@ -16,6 +16,7 @@
 
 #include "buddy/runtime/llm/ServingGeneration.h"
 
+#include "ServingGenerationInternal.h"
 #include "buddy/runtime/llm/TextGeneration.h"
 
 #include <algorithm>
@@ -132,12 +133,16 @@ void validateSampling(const SamplingParams &sampling) {
       throw std::invalid_argument("stop: empty strings are not supported");
 }
 
+} // namespace
+
+namespace detail {
+
 CompletionResult runServingGenerationImpl(
     const std::string &prompt, const ServingTokenSource &source,
     const SamplingParams &sampling, const ServingTextCodec &codec,
-    const CompletionStreamCallback &callback,
-    const std::function<void()> &prepare = {},
-    const std::function<void(const std::vector<int> &)> &preparePrefill = {}) {
+    const CompletionStreamCallback &callback, const ServingNow &now,
+    const std::function<void()> &prepare,
+    const std::function<void(const std::vector<int> &)> &preparePrefill) {
   if (!source.reset)
     throw std::invalid_argument("serving token source: missing reset callback");
   validateSampling(sampling);
@@ -184,12 +189,10 @@ CompletionResult runServingGenerationImpl(
   CompletionResult result;
   result.usage.promptTokens = promptCount;
   result.finishReason = FinishReason::Length;
-  const auto prefillStart = std::chrono::steady_clock::now();
+  const auto prefillStart = now();
   source.prefill(promptTokens);
   result.timings.prefillMs =
-      std::chrono::duration<double, std::milli>(
-          std::chrono::steady_clock::now() - prefillStart)
-          .count();
+      std::chrono::duration<double, std::milli>(now() - prefillStart).count();
   std::vector<int> history = promptTokens;
   StopMatcher matcher(sampling.stop);
   Utf8StreamDecoder utf8;
@@ -208,15 +211,14 @@ CompletionResult runServingGenerationImpl(
 
   int previous = -1;
   for (int index = 0; index < limit; ++index) {
-    if (index != 0) {
-      const auto decodeStart = std::chrono::steady_clock::now();
+    const auto stepStart = now();
+    if (index != 0)
       source.decode(previous);
-      result.timings.decodeMs +=
-          std::chrono::duration<double, std::milli>(
-              std::chrono::steady_clock::now() - decodeStart)
-              .count();
-    }
     const int token = source.selectToken(history);
+    double &stepMs =
+        index == 0 ? result.timings.prefillMs : result.timings.decodeMs;
+    stepMs +=
+        std::chrono::duration<double, std::milli>(now() - stepStart).count();
     if (!validToken(token))
       throw std::runtime_error(
           "serving token source: selected token ID is out of range");
@@ -245,9 +247,10 @@ CompletionResult runServingGenerationImpl(
       emit(std::move(tail), -1);
   }
   result.usage.totalTokens = promptCount + result.usage.completionTokens;
-  if (result.timings.decodeMs > 0)
+  const int decodeTokens = std::max(0, result.usage.completionTokens - 1);
+  if (decodeTokens > 0 && result.timings.decodeMs > 0)
     result.timings.tokensPerSecond =
-        result.usage.completionTokens * 1000.0 / result.timings.decodeMs;
+        decodeTokens * 1000.0 / result.timings.decodeMs;
   bool terminalAccepted = true;
   if (callback && result.finishReason != FinishReason::Cancelled) {
     CompletionChunk done;
@@ -262,13 +265,15 @@ CompletionResult runServingGenerationImpl(
   return result;
 }
 
-} // namespace
+} // namespace detail
 
 CompletionResult runServingGeneration(
     const std::string &prompt, const ServingTokenSource &source,
     const SamplingParams &sampling, const ServingTextCodec &codec,
     const CompletionStreamCallback &callback) {
-  return runServingGenerationImpl(prompt, source, sampling, codec, callback);
+  return detail::runServingGenerationImpl(prompt, source, sampling, codec,
+                                          callback,
+                                          std::chrono::steady_clock::now);
 }
 
 CompletionResult
@@ -341,8 +346,9 @@ runServingGeneration(const std::string &prompt, LLMSession &session,
           "serving codec: vocabulary size must be a decodable session prefix");
     vocabSize = codec.vocabSize == 0 ? sessionVocabSize : codec.vocabSize;
   };
-  return runServingGenerationImpl(prompt, source, sampling, codec, callback,
-                                  prepare, preparePrefill);
+  return detail::runServingGenerationImpl(
+      prompt, source, sampling, codec, callback, std::chrono::steady_clock::now,
+      prepare, preparePrefill);
 }
 
 } // namespace runtime

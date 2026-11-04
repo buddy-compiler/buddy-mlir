@@ -205,6 +205,18 @@ from the terminal summary resets the source but keeps the finalized result
 and its Stop/Length reason consistent with that summary.
 Callback exceptions propagate after cleanup.
 
+For `runServingGeneration`, `prefillMs` includes prefill execution and the first
+token selection; a zero token budget measures prefill alone. `decodeMs` sums
+each subsequent decode and its token selection. `tokensPerSecond` is the number
+of these subsequent selected tokens times 1000 divided by `decodeMs`, or zero
+if no decode occurs or elapsed decode time is zero. EOS/stop tokens count as
+selection work, and cancellation retains the work already completed. For
+example, selecting two tokens with 12 ms of prefill/first selection and 8 ms of
+decode/second selection reports 125 tokens/s. Timings include work inside these
+source callbacks but exclude reset, codec calls, controller-side token
+validation, text/stop processing, and transport callbacks. They are not HTTP
+end-to-end throughput.
+
 The existing `runGeneration` API continues to provide the CLI's historical
 total-token budget and stdout/JSONL behavior. Production CLI and server entry
 points retain their existing generation paths; `runServingGeneration` is an
