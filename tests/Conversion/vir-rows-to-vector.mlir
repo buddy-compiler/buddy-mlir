@@ -42,17 +42,15 @@ func.func @dot(%q: memref<2x64xf32>,
 // FIXED: vector.reduction <add>, %[[M]], %{{.*}} : vector<128xf32> into f32
 // FIXED-NOT: vector.reduction
 
-// At VLEN 256: two vector<[16]xf32> of 64 lanes, masked from 128 lanes on.
+// At VLEN 256: two vector<[16]xf32> of 64 lanes, at lanes 0 and 64.
 // SCALABLE-LABEL: func.func @dot
-// SCALABLE: %[[LANES:.*]] = arith.constant 128 : index
-// SCALABLE: arith.subi %[[LANES]], %{{.*}} : index
-// SCALABLE: vector.create_mask %{{.*}} : vector<[16]xi1>
-// SCALABLE: arith.subi %[[LANES]], %{{.*}} : index
-// SCALABLE: vector.create_mask %{{.*}} : vector<[16]xi1>
-// SCALABLE-NOT: vector.create_mask
-// SCALABLE: vector.maskedload {{.*}} : memref<128xf32>, vector<[16]xi1>, vector<[16]xf32> into vector<[16]xf32>
-// SCALABLE: vector.maskedload {{.*}} : memref<128xf32>, vector<[16]xi1>, vector<[16]xf32> into vector<[16]xf32>
-// SCALABLE: vector.maskedload {{.*}} : memref<8x128xf32, strided<[256, 1], offset: ?>>, vector<[16]xi1>, vector<[16]xf32> into vector<[16]xf32>
+// SCALABLE-NOT: mask
+// SCALABLE: vector.load %{{.*}} : memref<128xf32>, vector<[16]xf32>
+// SCALABLE: %[[AT1:.*]] = arith.addi %{{.*}}, %c64{{.*}} : index
+// SCALABLE: vector.load %{{.*}}[%[[AT1]]] : memref<128xf32>, vector<[16]xf32>
+// SCALABLE: vector.load %{{.*}} : memref<8x128xf32, strided<[256, 1], offset: ?>>, vector<[16]xf32>
+// SCALABLE: vector.store %{{.*}} : memref<128xf32>, vector<[16]xf32>
+// SCALABLE: vector.store %{{.*}} : memref<128xf32>, vector<[16]xf32>
 
 // 128 lanes at width 48: two vectors and 32 scalars.
 // W48-LABEL: func.func @dot

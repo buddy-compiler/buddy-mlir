@@ -159,9 +159,9 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
 /// (Req_Group, the most dynamic vectors live at once) and the vector
 /// registers of the target: with `rvvVlen` (bits, > 0), a RISC-V Vector
 /// target with 32 registers of that VLEN, whatever the host; otherwise the
-/// host's registers. With `useScalable` (RVV only), the vector is scalable
-/// and `rvvVlen` is the minimum VLEN. An index element has `indexBitWidth`
-/// bits.
+/// host's registers. With `useScalable` (RVV only), the vector is scalable,
+/// of the register group it is at VLEN `rvvVlen`. An index element has
+/// `indexBitWidth` bits.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose, int rvvVlen,
                             unsigned indexBitWidth, int64_t rows = 1) {
@@ -363,7 +363,7 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
 
   if (useScalable) {
     // RVV: vscale = VLEN / 64, so vector<[N]xT> is the register group of
-    // LMUL = N * SEW / 64 registers whatever the VLEN; at the minimum VLEN
+    // LMUL = N * SEW / 64 registers whatever the VLEN; at VLEN rvvVlen
     // it holds sizeVec = N * rvvVlen / 64 lanes. N >= 1 (a fractional LMUL
     // for SEW < 64 when sizeVec was clamped below that).
     int64_t n = std::max<int64_t>(1, sizeVec * 64 / rvvVlen);
@@ -1329,33 +1329,27 @@ private:
   }
 
   /// The pieces a dynamic vector of a set_vl with results is lowered to:
-  /// `numVectors` vectors of `width` lanes, then `numScalars` scalars. A
+  /// `numVectors` vectors of `lanes` lanes, then `numScalars` scalars. A
   /// dynamic vector of static layout `layout` (e.g. [2] for
   /// !vir.vec<2x?xT>) has its rows of vl lanes one after the other, row
-  /// major, in rows * vl lanes. With
-  /// `scalable`, the vectors have width * vscale lanes (`lanes`, a runtime
-  /// value), there are no scalars, and the lanes of vector p from vl on are
-  /// off in `masks[p]`.
+  /// major, in rows * vl lanes. The vectors are vector<widthxT> (lanes =
+  /// width), or with `scalable` vector<[width]xT>, of width * vscale lanes
+  /// at the vscale of rvv-vlen, the VLEN of the target.
   struct Pieces {
     int64_t width, numVectors, numScalars;
     bool scalable = false;
+    int64_t lanes = width;
     SmallVector<int64_t> layout;
     int64_t vl = 0;
-    Value lanes;
-    SmallVector<Value> masks;
     int64_t size() const { return numVectors + numScalars; }
-    // the number of lanes, rows * vl (fixed pieces)
-    int64_t length() const { return numVectors * width + numScalars; }
+    // the number of lanes, rows * vl
+    int64_t length() const { return numVectors * lanes + numScalars; }
     bool isVector(int64_t p) const { return p < numVectors; }
-    // the first lane of piece p of fixed pieces
-    int64_t fixedOffset(int64_t p) const {
-      return isVector(p) ? p * width : numVectors * width + p - numVectors;
-    }
     // the first lane of piece p
+    int64_t fixedOffset(int64_t p) const {
+      return isVector(p) ? p * lanes : numVectors * lanes + p - numVectors;
+    }
     Value offset(OpBuilder &b, Location loc, int64_t p) const {
-      if (scalable)
-        return arith::MulIOp::create(
-            b, loc, arith::ConstantIndexOp::create(b, loc, p), lanes);
       return arith::ConstantIndexOp::create(b, loc, fixedOffset(p));
     }
     Type type(Type elem, int64_t p) const {
@@ -1490,11 +1484,7 @@ private:
             if (!hasStaticallyUnitStrideInVectorizedDim(base))
               return op->emitError("a vir.set_vl with results on scalable "
                                    "vectors needs unit-stride accesses");
-            // the lanes that are off are not used (a vir.reduce selects
-            // its identity there): no value to pass through
-            Value none = ub::PoisonOp::create(b, loc, vecTy);
-            out.push_back(vector::MaskedLoadOp::create(b, loc, vecTy, base, idx,
-                                                       pieces.masks[p], none));
+            out.push_back(vector::LoadOp::create(b, loc, vecTy, base, idx));
           } else if (shouldScalarizeI1VectorMemoryOp(vecTy))
             out.push_back(
                 buildScalarizedI1VectorLoad(b, loc, vecTy, base, idx));
@@ -1520,8 +1510,7 @@ private:
             if (!hasStaticallyUnitStrideInVectorizedDim(base))
               return op->emitError("a vir.set_vl with results on scalable "
                                    "vectors needs unit-stride accesses");
-            vector::MaskedStoreOp::create(b, loc, base, idx, pieces.masks[p],
-                                          values[p]);
+            vector::StoreOp::create(b, loc, values[p], base, idx);
           } else if (shouldScalarizeI1VectorMemoryOp(
                          cast<VectorType>(values[p].getType())))
             buildScalarizedI1VectorStore(b, loc, values[p], base, idx);
@@ -1532,8 +1521,8 @@ private:
         }
       } else if (auto shuffle = dyn_cast<vir::ShuffleOp>(op)) {
         // Row r of the result is row s = mask[r] of v1 then v2: within the
-        // one vector of the rows, a slide of v1 or v2 by (s mod rows - r)
-        // rows.
+        // one vector of the rows, a part of v1 or v2 put in place, or a
+        // slide of v1 or v2 by (s mod rows - r) rows.
         if (pieces.size() != 1 || !pieces.isVector(0))
           return op->emitError("vir.shuffle needs a dynamic vector in one "
                                "vector of the target");
@@ -1553,6 +1542,18 @@ private:
                                   ? s * rowLanes + c
                                   : pieces.width + (s - rows) * rowLanes + c);
           out = vector::ShuffleOp::create(b, loc, v1, v2, lanes);
+        } else if (pieces.width % rows == 0) {
+          // a row is vector<[width / rows]xT>, a part of the register group
+          // (rowLanes = width / rows * vscale): taken from v1 or v2 and put
+          // in place, register moves
+          int64_t sub = pieces.width / rows;
+          out = ub::PoisonOp::create(b, loc, vecTy);
+          for (auto [r, s] : llvm::enumerate(mask)) {
+            Value row = vector::ScalableExtractOp::create(
+                b, loc, VectorType::get({sub}, vecTy.getElementType(), {true}),
+                s < rows ? v1 : v2, s % rows * sub);
+            out = vector::ScalableInsertOp::create(b, loc, row, out, r * sub);
+          }
         } else {
           for (auto [r, s] : llvm::enumerate(mask)) {
             Value src = s < rows ? v1 : v2;
@@ -1658,22 +1659,7 @@ private:
         auto fastmath = reduce.getReassoc() ? arith::FastMathFlags::reassoc
                                             : arith::FastMathFlags::none;
         Value acc = one(reduce.getAcc());
-        for (auto [p, piece] : llvm::enumerate(get(reduce.getInput()))) {
-          if (pieces.scalable) {
-            // the lanes that are off hold the identity: -0.0 for add, NaN
-            // for maxnum
-            auto vecTy = cast<VectorType>(piece.getType());
-            auto elem = cast<FloatType>(vecTy.getElementType());
-            APFloat identity = kind == "add"
-                                   ? APFloat::getZero(elem.getFloatSemantics(),
-                                                      /*Negative=*/true)
-                                   : APFloat::getQNaN(elem.getFloatSemantics());
-            Value fill = arith::ConstantOp::create(
-                b, loc, vecTy,
-                DenseElementsAttr::get(vecTy, b.getFloatAttr(elem, identity)));
-            piece =
-                arith::SelectOp::create(b, loc, pieces.masks[p], piece, fill);
-          }
+        for (Value piece : get(reduce.getInput())) {
           if (isa<VectorType>(piece.getType()))
             acc = vector::ReductionOp::create(b, loc, combineKind, piece, acc,
                                               fastmath);
@@ -1757,33 +1743,11 @@ private:
                                "vir.set_vl with results");
         // an elementwise op on every piece, or any other op once
         int64_t n = onDyn ? pieces.size() : 1;
-        // An integer division by a lane that is off (poison) is undefined
-        // behavior, even if the lane is not used: divide by 1 there.
-        bool guardDivisor =
-            pieces.scalable &&
-            isa<arith::DivUIOp, arith::DivSIOp, arith::RemUIOp, arith::RemSIOp,
-                arith::CeilDivUIOp, arith::CeilDivSIOp, arith::FloorDivSIOp>(
-                op);
         SmallVector<SmallVector<Value, 4>> results(op->getNumResults());
         for (int64_t p = 0; p < n; ++p) {
           OperationState state(loc, op->getName());
-          for (auto [i, v] : llvm::enumerate(op->getOperands())) {
-            if (!isDyn(v.getType())) {
-              state.addOperands(one(v));
-              continue;
-            }
-            Value piece = get(v)[p];
-            if (guardDivisor && i == 1) {
-              auto vecTy = cast<VectorType>(piece.getType());
-              Value ones = arith::ConstantOp::create(
-                  b, loc, vecTy,
-                  DenseElementsAttr::get(
-                      vecTy, b.getIntegerAttr(vecTy.getElementType(), 1)));
-              piece =
-                  arith::SelectOp::create(b, loc, pieces.masks[p], piece, ones);
-            }
-            state.addOperands(piece);
-          }
+          for (Value v : op->getOperands())
+            state.addOperands(isDyn(v.getType()) ? get(v)[p] : one(v));
           for (Type t : op->getResultTypes())
             state.addTypes(isDyn(t) ? pieces.type(elemOf(t), p) : t);
           state.addAttributes(op->getAttrs());
@@ -1828,6 +1792,12 @@ private:
                                getTypeConverter()->getIndexTypeBitwidth(),
                                llvm::product_of(layout))
                   .getShape()[0];
+    // Scalable vectors have width * vscale lanes at the vscale of the
+    // target, rvv-vlen / 64: the code is for that VLEN only.
+    if (useScalable && rvvVlen == 0)
+      return op.emitError("a vir.set_vl with results on scalable vectors "
+                          "needs rvv-vlen");
+    int64_t vscale = useScalable ? rvvVlen / 64 : 1;
     // A vir.shuffle moves lanes between rows within one vector: each
     // dynamic vector is one vector of all its lanes, whatever the register
     // pressure (a scalable one in a register group of at most 8).
@@ -1837,16 +1807,18 @@ private:
       if (lanes <= 0)
         return op.emitError("vir.shuffle needs a dynamic vector with a "
                             "positive number of lanes");
-      // fixed: lanes; scalable: N * vscale >= lanes at the minimum vscale
-      // (use-scalable without vector-width has rvv-vlen)
-      if (!useCustomVecWid)
-        width = useScalable ? int64_t(llvm::bit_ceil(uint64_t(
-                                  llvm::divideCeil(lanes * 64, rvvVlen))))
-                            : lanes;
-      // RVV: vector<[N]xT> is a group of N * SEW / 64 registers, whatever
-      // the VLEN, of at most 8; each shuffle has its element type (vir.extf
-      // / truncf; index as the LLVM lowering has it)
-      if (useScalable && rvvVlen > 0)
+      // fixed: lanes; scalable: N * vscale == lanes
+      if (!useCustomVecWid) {
+        width = lanes / vscale;
+        if (lanes % vscale != 0 || !llvm::has_single_bit(uint64_t(width)))
+          return op.emitError("vir.shuffle needs a dynamic vector of ")
+                 << lanes << " lanes in one register group (vector<[N]xT>, N "
+                 << "a power of two) of VLEN " << rvvVlen;
+      }
+      // RVV: vector<[N]xT> is a group of N * SEW / 64 registers of at most
+      // 8; each shuffle has its element type (vir.extf / truncf; index as
+      // the LLVM lowering has it)
+      if (useScalable)
         for (vir::ShuffleOp s : shuffles) {
           Type elem = s.getType().getElementType();
           int64_t sew = elem.isIndex()
@@ -1860,15 +1832,9 @@ private:
         llvm::outs() << "vir.shuffle: one vector of " << lanes
                      << " lanes, width " << width << "\n";
     }
-    Pieces pieces{width, lanes / width, lanes % width};
-    // Vectors of width * vscale lanes cover the lanes: as many as at the
-    // minimum vscale (rvv-vlen / 64 on RVV, else 1), each masked from the
-    // lanes on. At a larger vscale, the last ones are all off.
-    if (useScalable)
-      pieces = {width,
-                static_cast<int64_t>(llvm::divideCeil(
-                    lanes, width * (rvvVlen > 0 ? rvvVlen / 64 : 1))),
-                0, true};
+    // whole vectors, then the lanes left as scalars: no lane is off
+    int64_t step = width * vscale;
+    Pieces pieces{width, lanes / step, lanes % step, useScalable, step};
     pieces.layout = layout;
     pieces.vl = *vl;
     // keep the lowered code small: vl over a few vectors
@@ -1876,21 +1842,8 @@ private:
       return op.emitError("a vir.set_vl with results lowers to more than 64 "
                           "pieces; increase vector-width");
     Location loc = op.getLoc();
-    if (useScalable) {
-      if (failed(rejectI1Accesses(op.getRegion())))
-        return failure();
-      pieces.lanes = arith::MulIOp::create(
-          rewriter, loc, arith::ConstantIndexOp::create(rewriter, loc, width),
-          vector::VectorScaleOp::create(rewriter, loc));
-      auto maskTy = VectorType::get({width}, rewriter.getI1Type(), {true});
-      Value lanesValue = arith::ConstantIndexOp::create(rewriter, loc, lanes);
-      for (int64_t p = 0; p < pieces.numVectors; ++p) {
-        Value rest = arith::SubIOp::create(rewriter, loc, lanesValue,
-                                           pieces.offset(rewriter, loc, p));
-        pieces.masks.push_back(
-            vector::CreateMaskOp::create(rewriter, loc, maskTy, rest));
-      }
-    }
+    if (useScalable && failed(rejectI1Accesses(op.getRegion())))
+      return failure();
     PieceMap map;
     Block &block = op.getRegion().front();
     if (failed(lowerBlockInPieces(rewriter, loc, &block, map, pieces)))
@@ -2208,8 +2161,9 @@ public:
       llvm::cl::desc("VLEN in bits of a RISC-V Vector target: without "
                      "vector-width, the vector size comes from its 32 "
                      "registers of VLEN bits instead of the host's; with "
-                     "use-scalable, the minimum VLEN: the code is only "
-                     "valid on a VLEN of at least rvv-vlen"),
+                     "use-scalable, a vir.set_vl with results is lowered "
+                     "for this VLEN (vscale = rvv-vlen / 64) and is only "
+                     "valid on it"),
       llvm::cl::init(0)};
 
   Option<bool> verbose{*this, "verbose",
