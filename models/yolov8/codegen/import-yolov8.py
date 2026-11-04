@@ -37,6 +37,13 @@ from buddy.compiler.ops import tosa
 from torch._inductor.decomposition import decompositions as inductor_decomp
 from ultralytics import YOLO
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from yolov8_ime import gen_kernels, rewrite_graph  # noqa: E402
+
+# The kernels of the "ime" rewrite, next to subgraph0.mlir; lower_to_obj.sh
+# compiles and links them with it.
+KERNELS_MLIR = "yolov8_kernels.mlir"
+
 
 def import_yolov8(spec: dict, output_dir: str) -> None:
     model_path = (
@@ -90,6 +97,14 @@ def import_yolov8(spec: dict, output_dir: str) -> None:
 
     graph = graphs[0]
     params = dynamo_compiler.imported_params[graph]
+    if spec.get("ime"):
+        # The convolutions on the matrix engine of the K3 A100 cores.
+        kernels = rewrite_graph(graph, params, num_classes, num_keypoints)
+        with open(os.path.join(output_dir, KERNELS_MLIR), "w") as f:
+            f.write(gen_kernels(kernels))
+        print(f"[import-yolov8] {len(kernels)} IME kernels in {KERNELS_MLIR}")
+    elif os.path.exists(os.path.join(output_dir, KERNELS_MLIR)):
+        os.remove(os.path.join(output_dir, KERNELS_MLIR))
     graph.fuse_ops([simply_fuse])
     driver = GraphDriver(graph)
     driver.subgraphs[0].lower_to_top_level_ir()

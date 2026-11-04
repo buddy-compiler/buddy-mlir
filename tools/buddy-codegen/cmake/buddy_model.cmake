@@ -502,7 +502,7 @@ function(buddy_add_model)
   #   SpacemiT TCM they read their activations from.
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
-            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime') + ';' + str(s.get('kernels') or 'k3') + ';' + str(int(s.get('arena_prefault_mb', 0))))"
+            "import json,sys; s=json.load(open(sys.argv[1])); on=lambda k: 'ON' if s.get(k) is True else 'OFF'; print(on('arena') + ';' + str(s.get('variant', '')) + ';' + on('thread_pool') + ';' + on('prefill_ime') + ';' + str(s.get('kernels') or 'k3') + ';' + str(int(s.get('arena_prefault_mb', 0))) + ';' + on('ime'))"
             "${MDL_SPEC}"
     OUTPUT_VARIABLE _mdl_spec_fields
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -516,6 +516,7 @@ function(buddy_add_model)
   list(GET _mdl_spec_fields 3 MDL_PREFILL_IME)
   list(GET _mdl_spec_fields 4 MDL_W4_KERNELS)
   list(GET _mdl_spec_fields 5 MDL_ARENA_PREFAULT_MB)
+  list(GET _mdl_spec_fields 6 MDL_IME)
   # The A210 kernels target RVV cores with VLEN 128 and Zvfh
   # (docs/A210DeepSeekR1.md): a RISC-V build for another exact VLEN assumes
   # vector lengths the A210 does not have, and without Zvfh the f16 weight
@@ -537,19 +538,25 @@ function(buddy_add_model)
         "BUDDY_RISCV_ENABLE_ZFH_ZVFH=ON (the A210 cores have Zvfh).")
     endif()
   endif()
-  if(MDL_PREFILL_IME AND NOT IS_RVV_CROSSCOMPILE AND NOT HAVE_LOCAL_RVV)
-    message(FATAL_ERROR
-      "buddy_add_model (${MDL_NAME}): \"prefill_ime\" targets the SpacemiT "
-      "K3 (RISC-V); build it with --is-rvv-crosscompile or on the board.")
-  endif()
-  # The A100 code of "prefill_ime" is for VLEN 1024 (A100_VLEN, which
-  # compile_pipeline.a100_llc_args checks): the build's, BUDDY_RISCV_VLEN.
-  if(MDL_PREFILL_IME AND NOT "${BUDDY_RISCV_VLEN}" STREQUAL "1024")
-    message(FATAL_ERROR
-      "buddy_add_model (${MDL_NAME}): \"prefill_ime\" needs the VLEN of "
-      "the K3 A100 cores: BUDDY_RISCV_VLEN=1024; it is "
-      "\"${BUDDY_RISCV_VLEN}\".")
-  endif()
+  # "prefill_ime" (LLM prefill) and "ime" (single_forward models whose
+  # LOWER_SCRIPT compiles IME kernels, models/yolov8) target the SpacemiT K3.
+  foreach(_ime_opt prefill_ime ime)
+    string(TOUPPER "MDL_${_ime_opt}" _ime_var)
+    if(${_ime_var} AND NOT IS_RVV_CROSSCOMPILE AND NOT HAVE_LOCAL_RVV)
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): \"${_ime_opt}\" targets the "
+        "SpacemiT K3 (RISC-V); build it with --is-rvv-crosscompile or on "
+        "the board.")
+    endif()
+    # Their A100 code is for VLEN 1024 (A100_VLEN, which
+    # compile_pipeline.a100_llc_args checks): the build's, BUDDY_RISCV_VLEN.
+    if(${_ime_var} AND NOT "${BUDDY_RISCV_VLEN}" STREQUAL "1024")
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): \"${_ime_opt}\" needs the VLEN of "
+        "the K3 A100 cores: BUDDY_RISCV_VLEN=1024; it is "
+        "\"${BUDDY_RISCV_VLEN}\".")
+    endif()
+  endforeach()
   # The VLEN the model's RVV code is for, that of the final llc options
   # (buddy_rvv_vlen.cmake): every library that holds its code links
   # runtime/rvv/BuddyRvvVlen.c for it, which stops a process on a CPU of
@@ -1168,7 +1175,7 @@ function(buddy_add_model)
                 "${BIN}/subgraph0.mlir" "${BIN}/subgraph0.o"
                 "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
         DEPENDS "${IMPORT_STAMP}" "${MDL_LOWER_SCRIPT}"
-          "${BUDDY_CODEGEN_DIR}/compile_pipeline.py" buddy-opt
+          "${BUDDY_CODEGEN_DIR}/compile_pipeline.py" buddy-opt buddy-translate
           ${LLVM_TOOLS_BINARY_DIR}/llc
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o (${MDL_LOWER_SCRIPT})"
         VERBATIM)
@@ -1473,8 +1480,9 @@ function(buddy_add_model)
   if(MDL_ARENA)
     list(APPEND _mdl_runtime_srcs "${BUDDY_SOURCE_DIR}/runtime/arena/BuddyArena.c")
   endif()
-  if(MDL_PREFILL_IME)
-    # The IME prefill tiles read their activations from the A100 TCM.
+  if(MDL_PREFILL_IME OR MDL_IME)
+    # The IME prefill tiles read their activations from the A100 TCM, the
+    # IME convolutions of "ime" (models/yolov8) weights.
     list(APPEND _mdl_runtime_srcs
       "${BUDDY_SOURCE_DIR}/runtime/spacemit/BuddySpacemitTcm.c")
   endif()
