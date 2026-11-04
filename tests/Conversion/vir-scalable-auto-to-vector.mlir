@@ -2,17 +2,16 @@
 // RUN: | FileCheck %s --check-prefixes=CHECK,V256
 // RUN: buddy-opt %s -lower-vir-to-vector='use-scalable=true rvv-vlen=1024' \
 // RUN: | FileCheck %s --check-prefixes=CHECK,V1024
-// RUN: not buddy-opt %s -lower-vir-to-vector='use-scalable=true' 2>&1 \
-// RUN: | FileCheck %s --check-prefix=ERR
+// RUN: buddy-opt %s -lower-vir-to-vector='use-scalable=true' \
+// RUN: | FileCheck %s --check-prefixes=CHECK,ANY
 // RUN: not buddy-opt %s -lower-vir-to-vector='use-scalable=true rvv-vlen=32' 2>&1 \
 // RUN: | FileCheck %s --check-prefix=ERR32
 
 // On RVV, vscale = VLEN / 64: vector<[N]xT> is a group of LMUL = N * SEW / 64
 // registers whatever the VLEN, so the scalable vector size only depends on
-// the register pressure. rvv-vlen is the minimum VLEN, for the clamp to a
-// constant vl.
+// the register pressure. rvv-vlen is the VLEN, for the clamp to a constant
+// vl; without it (any VLEN), the least, 128.
 
-// ERR: use-scalable without vector-width needs rvv-vlen
 // vscale = VLEN / 64 must be at least 1.
 // ERR32: rvv-vlen must be at least 64 with use-scalable, got 32
 
@@ -73,6 +72,7 @@ func.func @clamped(%a: memref<100xf32>) {
 // CHECK-LABEL: func.func @clamped
 // V256: vector.load {{.*}} vector<[16]xf32>
 // V1024: vector.load {{.*}} vector<[4]xf32>
+// ANY: vector.load {{.*}} vector<[16]xf32>
 
 // The smallest scalable vector, [1]: at VLEN 1024, 16 f32 lanes
 // (LMUL 1/2), more than the constant vl of 8.
@@ -90,3 +90,4 @@ func.func @smallest(%a: memref<8xf32>) {
 // CHECK-LABEL: func.func @smallest
 // V256: vector.load {{.*}} vector<[2]xf32>
 // V1024: vector.load {{.*}} vector<[1]xf32>
+// ANY: vector.load {{.*}} vector<[4]xf32>

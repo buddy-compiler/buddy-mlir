@@ -1,4 +1,4 @@
-// RUN: not buddy-opt %s -lower-vir-to-vector='use-scalable=true rvv-vlen=128 rvv-vlen-exact=false' \
+// RUN: not buddy-opt %s -lower-vir-to-vector='use-scalable=true' \
 // RUN:   -o /dev/null 2>&1 | FileCheck %s
 
 // A vir.set_vl that is not lowered fails the pass (a nonzero exit), with the
@@ -14,5 +14,5 @@ func.func @dot(%a: memref<64xf32>) -> f32 {
   return %r : f32
 }
 
-// CHECK: error: a vir.set_vl with results on scalable vectors needs the exact VLEN (rvv-vlen-exact)
+// CHECK: error: a vir.set_vl with results on scalable vectors needs rvv-vlen, the exact VLEN
 // CHECK-NOT: : error:
