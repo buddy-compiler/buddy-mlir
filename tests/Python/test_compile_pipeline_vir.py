@@ -90,9 +90,15 @@ for name, pipeline_type, llc_attrs in (
 # CHECK-NEXT: max 256, zvl1024b: error: llc options of a -riscv-v-vector-bits-max=256 below the VLEN of +zvl1024b
 
 # The decode attention of the K3 kernels (DeepSeek-R1: 12 heads, 2 KV heads,
-# head 128, 2 heads per work item), a vir.set_vl with results: on the A100,
-# one vector<[8]xf32> (128 lanes, LMUL 4) per head and no masks; for no exact
-# VLEN, rejected (no code is valid on all of them).
+# head 128, 2 heads per work item; with q / k norms, as Qwen3), a vir.set_vl
+# with results whose rotate_half is a vir.shuffle of the two rows of a head.
+# For an exact VLEN, scalable vectors of the pressure's LMUL 4,
+# vector<[8]xf32>: one per head on the A100 (VLEN 1024; the rows are parts of
+# it, taken and put in place), a row of whole pieces below (they swap, no
+# instruction); no masks. For no exact VLEN, rejected (no code is valid on
+# every VLEN).
+import re  # noqa: E402
+
 SPEC = {
     "kind": "attn",
     "m": 1,
@@ -104,34 +110,56 @@ SPEC = {
     "threads": 8,
     "name": "attn",
 }
-with ir.Context(), ir.Location.unknown():
-    module = ir.Module.create()
-    with ir.InsertionPoint(module.body):
-        k3_w4._attn_decode_vir_fn(k3_w4._Types(), SPEC)
-    text = str(module)
-for name, pipeline_type, llc_attrs in (
-    ("A100", "kernels_a100", RVV),
-    ("RVV", "kernels", RVV),
-):
-    out = subprocess.run(
-        [BUDDY_OPT, lower_vir(pipeline_type, llc_attrs)],
-        input=text,
-        capture_output=True,
-        text=True,
-    )
-    if out.returncode:
-        errors = sorted(
-            {
-                l.split("error: ")[1]
-                for l in out.stderr.splitlines()
-                if "error: " in l
-            }
+
+
+def exact(vlen):
+    return RVV + f",+zvl{vlen}b -riscv-v-vector-bits-max={vlen}"
+
+
+for norm in (False, True):
+    spec = dict(SPEC, qk_norm_eps=1e-6) if norm else SPEC
+    with ir.Context(), ir.Location.unknown():
+        module = ir.Module.create()
+        with ir.InsertionPoint(module.body):
+            k3_w4._attn_decode_vir_fn(k3_w4._Types(), spec)
+        text = str(module)
+    for name, pipeline_type, llc_attrs in (
+        ("A100", "kernels_a100", RVV),
+        ("RVV 512", "kernels", exact(512)),
+        ("RVV 256", "kernels", exact(256)),
+        ("RVV 128", "kernels", exact(128)),
+        ("RVV", "kernels", RVV),
+    ):
+        out = subprocess.run(
+            [BUDDY_OPT, lower_vir(pipeline_type, llc_attrs)],
+            input=text,
+            capture_output=True,
+            text=True,
         )
-        print(f"{name}: {errors}")
-    else:
+        name = f"{'q/k norm ' if norm else ''}{name}"
+        if out.returncode:
+            errors = sorted(
+                {
+                    l.split("error: ")[1]
+                    for l in out.stderr.splitlines()
+                    if "error: " in l
+                }
+            )
+            print(f"{name}: {errors}")
+            continue
+        types = sorted(set(re.findall(r"vector<\[\d+\]xf32>", out.stdout)))
         print(
-            f"{name}: vector<[8]xf32> {'vector<[8]xf32>' in out.stdout}, "
-            f"masks {'mask' in out.stdout}"
+            f"{name}: {' '.join(types)}, extract/insert "
+            f"{'scalable.extract' in out.stdout}, splice "
+            f"{'splice' in out.stdout}, masks {'mask' in out.stdout}"
         )
-# CHECK: A100: vector<[8]xf32> True, masks False
+# CHECK: A100: vector<[4]xf32> vector<[8]xf32>, extract/insert True, splice False, masks False
+# CHECK-NEXT: RVV 512: vector<[8]xf32>, extract/insert False, splice False, masks False
+# CHECK-NEXT: RVV 256: vector<[8]xf32>, extract/insert False, splice False, masks False
+# CHECK-NEXT: RVV 128: vector<[8]xf32>, extract/insert False, splice False, masks False
 # CHECK-NEXT: RVV: ['a vir.set_vl with results on scalable vectors needs rvv-vlen, the exact VLEN']
+# CHECK-NEXT: q/k norm A100: vector<[4]xf32> vector<[8]xf32>, extract/insert True, splice False, masks False
+# CHECK-NEXT: q/k norm RVV 512: vector<[8]xf32>, extract/insert False, splice False, masks False
+# CHECK-NEXT: q/k norm RVV 256: vector<[16]xf32> vector<[8]xf32>, extract/insert False, splice False, masks False
+# CHECK-NEXT: q/k norm RVV 128: vector<[16]xf32> vector<[8]xf32>, extract/insert False, splice False, masks False
+# CHECK-NEXT: q/k norm RVV: ['a vir.set_vl with results on scalable vectors needs rvv-vlen, the exact VLEN']
