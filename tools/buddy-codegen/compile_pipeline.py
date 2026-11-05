@@ -88,18 +88,9 @@ BUFFER_DEALLOCATION = [
 A100_VLEN = 1024
 
 
-def kernels_lower_vir(llc_args: list[str]) -> str:
-    """-lower-vir-to-vector of the generated kernels (the decode attention of
-    the K3 kernels, k3_w4._attn_decode_vir_fn) for the target of the llc
-    options `llc_args`:
-
-    - RVV (+v) of an exact VLEN V (+zvlVb and -riscv-v-vector-bits-max=V):
-      scalable vectors for it (rvv-vlen=V; the A100: one vector<[8]xf32> of
-      128 lanes per head, LMUL 4), valid on that VLEN only;
-    - RVV of no exact VLEN: use-scalable without rvv-vlen, code valid on
-      any VLEN (a vir.set_vl with results is rejected);
-    - other targets (x86, Arm NEON; SVE, whose scalable vectors the pass
-      does not size yet): fixed vectors sized for the host's registers.
+def exact_rvv_vlen(llc_args: list[str]) -> int | None:
+    """The exact RVV VLEN of the llc options `llc_args`, or None: not RVV
+    (no +v), or no exact VLEN.
 
     The VLEN options are read as llc reads them: the minimum VLEN is the
     zvl (+v: 128), or -riscv-v-vector-bits-min when it is positive (-1 and 0
@@ -144,10 +135,34 @@ def kernels_lower_vir(llc_args: list[str]) -> str:
             f"llc options of a maximum VLEN below the minimum {vmin}: "
             f"-riscv-v-vector-bits-max={bits_max}"
         )
-    if "+v" not in features:
+    if "+v" not in features or vmin != bits_max:
+        return None
+    return vmin
+
+
+def kernels_lower_vir(llc_args: list[str]) -> str:
+    """-lower-vir-to-vector of the generated kernels (the decode attention of
+    the K3 kernels, k3_w4._attn_decode_vir_fn) for the target of the llc
+    options `llc_args`:
+
+    - RVV (+v) of an exact VLEN V (exact_rvv_vlen): scalable vectors for it
+      (rvv-vlen=V; the A100: one vector<[8]xf32> of 128 lanes per head, LMUL
+      4), valid on that VLEN only;
+    - RVV of no exact VLEN: use-scalable without rvv-vlen, code valid on
+      any VLEN (a vir.set_vl with results is rejected);
+    - other targets (x86, Arm NEON; SVE, whose scalable vectors the pass
+      does not size yet): fixed vectors sized for the host's registers.
+
+    VLEN options that disagree are an error (exact_rvv_vlen)."""
+    vlen = exact_rvv_vlen(llc_args)
+    if vlen is not None:
+        return f"-lower-vir-to-vector=rvv-vlen={vlen} use-scalable=true"
+    if not any(
+        "+v" in a[len("-mattr=") :].split(",")
+        for a in llc_args
+        if a.startswith("-mattr=")
+    ):
         return "-lower-vir-to-vector"
-    if vmin == bits_max:
-        return f"-lower-vir-to-vector=rvv-vlen={vmin} use-scalable=true"
     return "-lower-vir-to-vector=use-scalable=true"
 
 
@@ -1044,6 +1059,13 @@ def main():
     )
     parser.add_argument("--cxx", default="c++", help="C++ compiler for linking")
     parser.add_argument(
+        "--extra-obj",
+        action="append",
+        default=[],
+        help="Another object file to link (repeatable), e.g. the VLEN check "
+        "of runtime/rvv/BuddyRvvVlen.c",
+    )
+    parser.add_argument(
         "--llvm-lib-dir", default="", help="LLVM library directory"
     )
     parser.add_argument(
@@ -1097,7 +1119,7 @@ def main():
                 obj_files.append(os.path.join(args.output_dir, obj_name))
 
             link_shared_lib(
-                obj_files=obj_files,
+                obj_files=obj_files + args.extra_obj,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
@@ -1129,7 +1151,8 @@ def main():
                     args.output_dir,
                     config,
                     prefill_only=args.partitioned_prefill_only,
-                ),
+                )
+                + args.extra_obj,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
