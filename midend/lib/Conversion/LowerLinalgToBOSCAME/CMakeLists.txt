@@ -1,3 +1,29 @@
 add_mlir_library(LowerLinalgToBOSCAMEPass
   LowerLinalgToBOSCAME.cpp
+  BOSCAMEBufferNormalization.cpp
+  BOSCAMEOrderedMatmul.cpp
+  BOSCAMEDDRPlan.cpp
+  BOSCAMEFloatSchedule.cpp
+  BOSCAMEStreamPlan.cpp
+  BOSCAMERegisterSchedule.cpp
+  BOSCAMEPlan.cpp
+  BOSCAMEPlanEmit.cpp
+  BOSCAMEPlanVerify.cpp
+
+  LINK_LIBS PUBLIC
+  BuddyKernelContract
+  BuddyBOSCAME
+  BuddyBOSCAMETransforms
+  MLIRArithDialect
+  MLIRBufferizationTransforms
+  MLIRFuncDialect
+  MLIRIR
+  MLIRLinalgDialect
+  MLIRLinalgTransforms
+  MLIRMathDialect
+  MLIRMemRefDialect
+  MLIRPass
+  MLIRSCFDialect
+  MLIRTransforms
+  MLIRVectorDialect
 )

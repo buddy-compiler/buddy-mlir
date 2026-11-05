@@ -247,6 +247,22 @@ We provide examples to demonstrate how to use the passes and interfaces in `budd
 
 For more details, please see the [examples documentation](./examples/README.md).
 
+### Triton FPGA frontend boundary
+
+Triton AST/TTIR compilation is provided by the external triton-riscv AOT
+frontend. Buddy consumes verified standard buffer Contracts and owns BOSCAME
+planning, emission and firmware construction. All Triton Python examples and the
+ViT model live in `triton-riscv/examples/BOSCAMEFPGA`. Buddy's three standalone
+examples live in `examples/BOSCAMEFPGA` and start at `kernel.frontend.mlir`.
+See [Triton Contract handoff](docs/TritonContract.md).
+
+BOSCAME reading map:
+
+- Board examples / upload: [examples/BOSCAMEFPGA/README.md](examples/BOSCAMEFPGA/README.md)
+- Host dialect demos: [examples/BOSCAMEDialect/README.md](examples/BOSCAMEDialect/README.md)
+- Firmware runtime: [runtime/boscame/README.md](runtime/boscame/README.md)
+- Pipeline: [docs/BOSCAMEKernelContractPipeline.md](docs/BOSCAMEKernelContractPipeline.md)
+
 ## Contributions
 
 We welcome contributions to our open-source project!

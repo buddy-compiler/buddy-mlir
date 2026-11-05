@@ -1,23 +1,7 @@
-// RUN: buddy-opt %s -lower-linalg-to-boscame
-// RUN: buddy-opt %s \
-// RUN:   -lower-linalg-to-boscame \
-// RUN:   -lower-bosc-ame \
-// RUN:   -convert-linalg-to-loops \
-// RUN:   -lower-affine \
-// RUN:   -convert-scf-to-cf \
-// RUN:   -expand-strided-metadata \
-// RUN:   -lower-affine \
-// RUN:   -convert-cf-to-llvm \
-// RUN:   -convert-arith-to-llvm \
-// RUN:   -convert-math-to-llvm \
-// RUN:   -convert-func-to-llvm \
-// RUN:   -finalize-memref-to-llvm \
-// RUN:   -reconcile-unrealized-casts | \
-// RUN: buddy-translate -buddy-to-llvmir | \
-// RUN: buddy-llc -filetype=obj -mtriple=riscv64 \
-// RUN:   -mattr=+xboscame
+// RUN: %PYTHON %S/Inputs/check_reference.py %s %t buddy-opt mlir-runner %mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext
+// RUN: buddy-opt %s --convert-linalg-to-loops --lower-affine --convert-scf-to-cf --expand-strided-metadata --lower-affine --convert-cf-to-llvm --convert-arith-to-llvm --convert-math-to-llvm --convert-func-to-llvm --finalize-memref-to-llvm --reconcile-unrealized-casts | buddy-translate --buddy-to-llvmir | buddy-llc -filetype=obj -mtriple=riscv64 -mattr=+xboscame -o %t.o
 
-// This file tests the lowering of linalg.matmul to boscame operations.
+// Standard reference execution of the historical i32 matmul demo.
 //
 module {
 

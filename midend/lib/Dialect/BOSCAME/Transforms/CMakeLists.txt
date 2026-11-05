@@ -1,17 +1,43 @@
 add_mlir_library(BuddyBOSCAMETransforms
+  BOSCAMETileLowering.cpp
   LegalizeForLLVMExport.cpp
+  SpmDmaCheck.cpp
 
   DEPENDS
+  BuddyBOSCAMEAttrsIncGen
   MLIRBOSCAMEIncGen
 
   LINK_LIBS PUBLIC
+  BuddyBOSCAMEHelpers
   BuddyBOSCAME
+  MLIRAffineDialect
+  MLIRAffineToStandard
+  MLIRAnalysis
   MLIRArithDialect
+  MLIRArithToLLVM
+  MLIRCallInterfaces
+  MLIRControlFlowDialect
+  MLIRControlFlowToLLVM
+  MLIRDialectUtils
   MLIRFuncDialect
+  MLIRFuncToLLVM
   MLIRIR
+  MLIRIndexDialect
+  MLIRIndexToLLVM
+  MLIRLinalgDialect
+  MLIRLinalgTransforms
   MLIRLLVMCommonConversion
   MLIRLLVMDialect
+  MLIRMathDialect
+  MLIRMathToLLVM
   MLIRMemRefDialect
+  MLIRMemRefToLLVM
+  MLIRMemRefTransforms
   MLIRPass
   MLIRTransforms
+  MLIRUBDialect
+  MLIRUBToLLVM
+  MLIRVectorDialect
+  MLIRVectorToLLVM
+  MLIRVectorToSCF
 )

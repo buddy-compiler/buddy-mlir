@@ -15,7 +15,11 @@
 #
 # ===---------------------------------------------------------------------------
 
-"""Remote half of fpga_run.py for the NR FPGA server.
+"""Remote half of fpga_run.py on the NR FPGA server (UVHS workdir).
+
+Inputs: Uploaded image.bin / runner args: --detach, --background, --relay offset.
+Outputs: uart.raw.log, result.json, UVHS/worker logs; DDR readback verification.
+When used: Invoked on the board server by fpga_run.py; not run directly from developer trees.
 
 Runs inside an approved workdir: claims the board, opens UART, loads the
 image via make uv_runN, captures serial output, verifies DDR readback, and

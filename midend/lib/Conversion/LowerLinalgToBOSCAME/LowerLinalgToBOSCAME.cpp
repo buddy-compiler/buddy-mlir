@@ -1,4 +1,4 @@
-//=== LowerLinalgToBOSCAME.cpp - Linalg to BOSCAME Dialect Lowering Pass --===//
+//===- LowerLinalgToBOSCAME.cpp - Compatibility input adapters ------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,1184 +14,757 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines Linalg dialect lowering pass to BOSCAME dialect.
+// Compatibility ModuleOp pass that validates neutral buffer-form input,
+// normalizes supported generics, rebuilds contract metadata when needed, then
+// runs the shared BOSCAME plan and emit pipeline.
 //
 //===----------------------------------------------------------------------===//
 
+#include "Conversion/LowerLinalgToBOSCAME/LowerLinalgToBOSCAME.h"
+#include "Analysis/KernelContract.h"
+#include "Conversion/LowerLinalgToBOSCAME/BOSCAMEBufferNormalization.h"
+#include "Conversion/LowerLinalgToBOSCAME/BOSCAMEPlanIR.h"
+#include "Dialect/BOSCAME/BOSCAMEDialect.h"
+#include "Dialect/BOSCAME/BOSCAMEOps.h"
+#include "Dialect/BOSCAME/DmaAlignment.h"
+#include "Dialect/BOSCAME/SpmDma.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Dialect/Utils/StructuredOpsUtils.h"
-#include "mlir/IR/AffineMap.h"
-#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-
-#include "Dialect/BOSCAME/BOSCAMEDialect.h"
-#include "Dialect/BOSCAME/BOSCAMEOps.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
+#include <limits>
 
 using namespace mlir;
-using namespace buddy::boscame;
+using namespace ::buddy::boscame;
 
 namespace {
-
-enum class ElementwiseKind {
-  Add,
-  Sub,
-  Mul,
-  MinS,
-  MinU,
-  MaxS,
-  MaxU,
-  FAdd,
-  FSub,
-  FMul,
-  FMax,
-};
-
-enum class BroadcastKind {
-  Row,
-  Column,
-  Element,
-};
-
-enum class BroadcastRegisterKind {
-  TileA,
-  TileB,
-  Accumulation,
-};
-
-static unsigned getElementBitWidth(Type type) {
-  if (auto intType = dyn_cast<IntegerType>(type))
-    return intType.getWidth();
-  if (auto floatType = dyn_cast<FloatType>(type))
-    return floatType.getWidth();
-  return 0;
+Value rootOf(Value value) {
+  while (auto view =
+             dyn_cast_or_null<ViewLikeOpInterface>(value.getDefiningOp()))
+    value = view.getViewSource();
+  return value;
 }
 
-static unsigned getElementByteWidth(Type type) {
-  unsigned bitWidth = getElementBitWidth(type);
-  return bitWidth == 0 ? 0 : (bitWidth + 7) / 8;
+MemRefType neutralType(MemRefType type) {
+  return MemRefType::get(type.getShape(), type.getElementType(),
+                         type.getLayout());
 }
 
-static LogicalResult getMsetTypeImm(Type elementType, int64_t &imm) {
-  if (elementType.isInteger(4)) {
-    imm = 4;
-    return success();
+LogicalResult validateCompatibilityDialects(ModuleOp module) {
+  return failure(
+      module
+          .walk([&](Operation *op) -> WalkResult {
+            StringRef dialect = op->getName().getDialectNamespace();
+            if (op->getName().getStringRef() !=
+                    "builtin.unrealized_conversion_cast" &&
+                llvm::is_contained(
+                    ArrayRef<StringRef>{"builtin", "func", "arith", "affine",
+                                        "scf", "cf", "math", "memref", "linalg",
+                                        "vector", "bosc_ame"},
+                    dialect))
+              return WalkResult::advance();
+            op->emitError("compatibility input contains a non-neutral dialect "
+                          "or bridge operation; lower the frontend before "
+                          "BOSCAME planning");
+            return WalkResult::interrupt();
+          })
+          .wasInterrupted());
+}
+
+DictionaryAttr boundary(OpBuilder &builder, StringRef kind,
+                        DictionaryAttr legacy = {}) {
+  NamedAttrList fields;
+  fields.append("kind", builder.getStringAttr(kind));
+  fields.append("boundary", builder.getStringAttr("external_ddr"));
+  NamedAttrList mask;
+  auto masked = legacy ? legacy.getAs<BoolAttr>("masked") : BoolAttr();
+  mask.append("kind",
+              builder.getStringAttr(masked && masked.getValue() ? "rectangular"
+                                                                : "none"));
+  if (masked && masked.getValue())
+    if (auto valid = legacy.get("valid_shape"))
+      mask.append("valid_shape", valid);
+  fields.append("mask", builder.getDictionaryAttr(mask));
+  if (legacy)
+    for (StringRef key : {"origin_id", "other"})
+      if (auto attr = legacy.get(key))
+        fields.append(key, attr);
+  return builder.getDictionaryAttr(fields);
+}
+
+// A physical window can include untouched guard bytes. Extract one independent
+// logical subwindow rather than claiming those bytes were initialized by a
+// partial load. Every alias and actual memory access must be statically inside
+// the extracted interval, and the original pointer/extent must be
+// unobservable. This changes only descriptors and their fixed placement; no
+// bytes are moved.
+void extractLogicalSubwindow(FixedSPMBuffer &fixed) {
+  auto rootType = dyn_cast<MemRefType>(fixed.root.getType());
+  if (!rootType || rootType.getRank() != 1)
+    return;
+  int64_t width = spmdma::getSpmElementByteWidth(rootType.getElementType());
+  if (!width)
+    return;
+  auto range = [&](Value value) -> std::optional<std::pair<int64_t, int64_t>> {
+    auto type = dyn_cast<MemRefType>(value.getType());
+    auto offset = spmdma::getStaticDescriptorOffset(value);
+    SmallVector<int64_t> strides;
+    int64_t ignored, end;
+    if (!type || !type.hasStaticShape() || !offset || *offset < 0 ||
+        type.getElementType() != rootType.getElementType() ||
+        failed(type.getStridesAndOffset(strides, ignored)))
+      return std::nullopt;
+    end = *offset;
+    for (auto [dimension, stride] : llvm::zip(type.getShape(), strides)) {
+      int64_t delta;
+      if (dimension <= 0 || stride <= 0 ||
+          llvm::MulOverflow(dimension - 1, stride, delta) ||
+          llvm::AddOverflow(end, delta, end))
+        return std::nullopt;
+    }
+    if (llvm::AddOverflow(end, int64_t{1}, end))
+      return std::nullopt;
+    return std::pair(*offset, end);
+  };
+  SmallVector<Value> work{fixed.root}, aliases;
+  llvm::DenseSet<Value> visited;
+  int64_t first = std::numeric_limits<int64_t>::max(), last = 0;
+  while (!work.empty()) {
+    Value value = work.pop_back_val();
+    if (!visited.insert(value).second)
+      continue;
+    for (Operation *user : value.getUsers()) {
+      if (auto view = dyn_cast<ViewLikeOpInterface>(user)) {
+        if (view.getViewSource() != value ||
+            !isa<memref::SubViewOp, memref::ReinterpretCastOp,
+                 memref::CollapseShapeOp, memref::ExpandShapeOp,
+                 memref::TransposeOp>(user))
+          return;
+        if (auto sub = dyn_cast<memref::SubViewOp>(user);
+            sub && value == fixed.root &&
+            (sub.getStaticOffsets().size() != 1 ||
+             ShapedType::isDynamic(sub.getStaticOffsets()[0])))
+          return;
+        if (auto cast = dyn_cast<memref::ReinterpretCastOp>(user);
+            cast && ShapedType::isDynamic(cast.getStaticOffsets()[0]))
+          return;
+        for (Value alias : user->getResults()) {
+          if (!isa<MemRefType>(alias.getType()))
+            return;
+          aliases.push_back(alias);
+          work.push_back(alias);
+        }
+        continue;
+      }
+      if (isa<memref::DeallocOp>(user))
+        continue;
+      if (!isa<memref::CopyOp, memref::LoadOp, memref::StoreOp, vector::LoadOp,
+               vector::StoreOp, linalg::FillOp, linalg::GenericOp,
+               linalg::MatmulOp, linalg::ReduceOp>(user))
+        return;
+      auto bounds = range(value);
+      if (!bounds)
+        return;
+      first = std::min(first, bounds->first);
+      last = std::max(last, bounds->second);
+    }
   }
-  if (elementType.isInteger(8)) {
-    imm = 8;
-    return success();
+  int64_t firstBytes, lastBytes;
+  if (first == std::numeric_limits<int64_t>::max() || first < 0 ||
+      llvm::MulOverflow(first, width, firstBytes) ||
+      llvm::MulOverflow(last, width, lastBytes) || firstBytes % 64 ||
+      lastBytes % 64 || lastBytes > fixed.capacity)
+    return;
+  if (firstBytes == 0 && lastBytes == fixed.capacity)
+    return;
+  SmallVector<int64_t> aliasOffsets;
+  for (Value alias : aliases) {
+    auto bounds = range(alias);
+    if (!bounds || bounds->first < first || bounds->second > last)
+      return;
+    aliasOffsets.push_back(bounds->first);
   }
-  if (elementType.isInteger(16) || elementType.isF16() ||
-      elementType.isBF16()) {
-    imm = 16;
-    return success();
+  // All checks finish before modifying any descriptor.
+  for (auto [alias, absoluteOffset] : llvm::zip(aliases, aliasOffsets)) {
+    Operation *op = alias.getDefiningOp();
+    if (auto sub = dyn_cast<memref::SubViewOp>(op);
+        sub && sub.getSource() == fixed.root)
+      sub.setStaticOffsets(
+          ArrayRef<int64_t>{sub.getStaticOffsets()[0] - first});
+    if (auto cast = dyn_cast<memref::ReinterpretCastOp>(op))
+      cast.setStaticOffsets(
+          ArrayRef<int64_t>{cast.getStaticOffsets()[0] - first});
+    auto type = cast<MemRefType>(alias.getType());
+    SmallVector<int64_t> strides;
+    int64_t ignored;
+    (void)type.getStridesAndOffset(strides, ignored);
+    alias.setType(MemRefType::get(type.getShape(), type.getElementType(),
+                                  StridedLayoutAttr::get(type.getContext(),
+                                                         absoluteOffset - first,
+                                                         strides)));
   }
-  if (elementType.isInteger(32) || elementType.isF32()) {
-    imm = 32;
-    return success();
+  fixed.root.setType(
+      MemRefType::get({last - first}, rootType.getElementType()));
+  fixed.offset += firstBytes;
+  fixed.capacity = lastBytes - firstBytes;
+}
+
+// Translate only facts whose meaning is unchanged. Target configuration is
+// validated separately; unrecognized target metadata is diagnosed rather
+// than being silently discarded by contract annotation.
+LogicalResult migrateSourceFacts(ModuleOp module) {
+  OpBuilder builder(module.getContext());
+  return failure(
+      module
+          .walk([&](Operation *op) -> WalkResult {
+            if (auto function = dyn_cast<func::FuncOp>(op)) {
+              for (unsigned index = 0; index != function.getNumArguments();
+                   ++index) {
+                auto role = function.getArgAttrOfType<StringAttr>(
+                    index, "bosc_ame.program_role");
+                auto axis = function.getArgAttrOfType<IntegerAttr>(
+                    index, "bosc_ame.program_axis");
+                if (role || axis) {
+                  if (!role || !axis || axis.getInt() < 0 ||
+                      axis.getInt() > 2 ||
+                      (role.getValue() != "program_id" &&
+                       role.getValue() != "num_programs")) {
+                    function.emitError("invalid legacy program-axis metadata");
+                    return WalkResult::interrupt();
+                  }
+                  function.setArgAttr(
+                      index, "contract.program",
+                      builder.getDictionaryAttr(
+                          {builder.getNamedAttr("role", role),
+                           builder.getNamedAttr("axis", axis)}));
+                  function.removeArgAttr(index, "bosc_ame.program_role");
+                  function.removeArgAttr(index, "bosc_ame.program_axis");
+                }
+                SmallVector<StringAttr> derived;
+                auto argumentAttrs = function.getArgAttrDict(index);
+                for (NamedAttribute attr : argumentAttrs
+                                               ? argumentAttrs.getValue()
+                                               : ArrayRef<NamedAttribute>{}) {
+                  StringRef name = attr.getName().strref();
+                  if (!name.starts_with("bosc_ame."))
+                    continue;
+                  StringRef key = name.drop_front(9);
+                  if (key == "logical_value_id" || key == "logical_value_ids" ||
+                      key == "logical_value_users" ||
+                      key == "varying_program_axes" ||
+                      key == "invariant_program_axes") {
+                    derived.push_back(attr.getName());
+                    continue;
+                  }
+                  function.emitError()
+                      << "unsupported legacy target argument metadata: " << name
+                      << "; regenerate a neutral contract";
+                  return WalkResult::interrupt();
+                }
+                for (StringAttr key : derived)
+                  function.removeArgAttr(index, key);
+              }
+              if (auto grid = function->getAttr("gpu.known_grid_size")) {
+                auto extents = dyn_cast<DenseI32ArrayAttr>(grid);
+                if (!extents) {
+                  function.emitError(
+                      "gpu.known_grid_size must be a dense i32 array");
+                  return WalkResult::interrupt();
+                }
+                if (extents.size() != 3) {
+                  function.emitError(
+                      "gpu.known_grid_size must contain exactly 3 elements");
+                  return WalkResult::interrupt();
+                }
+                if (llvm::any_of(extents.asArrayRef(),
+                                 [](int32_t extent) { return extent <= 0; })) {
+                  function.emitError("invalid gpu.known_grid_size contract; "
+                                     "expected three positive i32 extents");
+                  return WalkResult::interrupt();
+                }
+                function->setAttr("contract.grid", grid);
+              }
+            }
+            NamedAttrList provenance;
+            if (auto old =
+                    op->getAttrOfType<DictionaryAttr>("contract.provenance"))
+              provenance.assign(old.getValue());
+            SmallVector<StringAttr> remove;
+            for (NamedAttribute attr : op->getAttrs()) {
+              StringRef name = attr.getName().strref();
+              if (!name.starts_with("bosc_ame."))
+                continue;
+              StringRef key = name.drop_front(9);
+              if (key == "memory") {
+                auto memory = dyn_cast<DictionaryAttr>(attr.getValue());
+                auto kind =
+                    memory ? memory.getAs<StringAttr>("kind") : StringAttr();
+                if (!isa<memref::CopyOp>(op) || !kind ||
+                    (kind.getValue() != "load" && kind.getValue() != "store")) {
+                  op->emitError(
+                      "legacy memory facts require a concrete buffer copy");
+                  return WalkResult::interrupt();
+                }
+                op->setAttr("contract.access",
+                            boundary(builder, kind.getValue(), memory));
+              } else if (key == "padding") {
+                if (!isa<linalg::FillOp>(op)) {
+                  op->emitError("padding metadata requires a concrete fill");
+                  return WalkResult::interrupt();
+                }
+                op->setAttr("contract.fill",
+                            builder.getDictionaryAttr({builder.getNamedAttr(
+                                "padding", builder.getBoolAttr(true))}));
+              } else if (key == "origin_id" || key == "compute_origin_id") {
+                provenance.set("origin_id", attr.getValue());
+              } else if (key.ends_with("_origin_id") ||
+                         key.ends_with("_origin_ids") ||
+                         key.ends_with("_lineage_complete")) {
+                provenance.set(key, attr.getValue());
+              } else if (key == "lower_to_ame") {
+                auto matmul = dyn_cast<linalg::MatmulOp>(op);
+                if (!matmul ||
+                    matmul.getCast() != linalg::TypeFn::cast_signed ||
+                    !cast<ShapedType>(matmul.getInputs()[0].getType())
+                         .getElementType()
+                         .isInteger(8) ||
+                    !cast<ShapedType>(matmul.getInputs()[1].getType())
+                         .getElementType()
+                         .isInteger(8) ||
+                    !cast<ShapedType>(matmul.getOutputs()[0].getType())
+                         .getElementType()
+                         .isInteger(32)) {
+                  op->emitError("legacy AME marker requires signed i8 x i8 -> "
+                                "i32 matmul");
+                  return WalkResult::interrupt();
+                }
+              } else if (key.starts_with("compute_") ||
+                         key.starts_with("logical_value") ||
+                         key == "varying_program_axes" ||
+                         key == "invariant_program_axes" ||
+                         key == "rematerializable") {
+                // These derived facts are rebuilt from the actual standard
+                // operations.
+              } else {
+                op->emitError()
+                    << "unsupported legacy target metadata: " << name
+                    << "; remove it and regenerate a neutral contract";
+                return WalkResult::interrupt();
+              }
+              remove.push_back(attr.getName());
+            }
+            for (StringAttr key : remove)
+              op->removeAttr(key);
+            if (!provenance.empty())
+              op->setAttr("contract.provenance",
+                          builder.getDictionaryAttr(provenance));
+            if (auto matmul = dyn_cast<linalg::MatmulOp>(op)) {
+              bool ame = matmul.getCast() == linalg::TypeFn::cast_signed &&
+                         cast<ShapedType>(matmul.getInputs()[0].getType())
+                             .getElementType()
+                             .isInteger(8) &&
+                         cast<ShapedType>(matmul.getInputs()[1].getType())
+                             .getElementType()
+                             .isInteger(8) &&
+                         cast<ShapedType>(matmul.getOutputs()[0].getType())
+                             .getElementType()
+                             .isInteger(32);
+              if (!ame && !op->hasAttr("contract.compute"))
+                op->setAttr("contract.compute",
+                            builder.getDictionaryAttr(
+                                {builder.getNamedAttr(
+                                     "kind", builder.getStringAttr("matmul")),
+                                 builder.getNamedAttr(
+                                     "order", builder.getStringAttr("mnk"))}));
+            }
+            return WalkResult::advance();
+          })
+          .wasInterrupted());
+}
+
+// Physical compatibility is deliberately outside the neutral interchange.
+// Validate original windows and synchronous transfer order before erasing
+// target types. Pass their placement constraints to the one planner in C++.
+LogicalResult adaptPhysicalInput(ModuleOp module,
+                                 SmallVectorImpl<FixedSPMBuffer> &fixed) {
+  SmallVector<SpmViewOp> windows;
+  SmallVector<DmaStartOp> transfers;
+  WalkResult surface = module.walk([&](Operation *op) -> WalkResult {
+    if (auto window = dyn_cast<SpmViewOp>(op)) {
+      if (failed(window.verify()))
+        return WalkResult::interrupt();
+      windows.push_back(window);
+    } else if (auto transfer = dyn_cast<DmaStartOp>(op)) {
+      if (failed(transfer.verify()))
+        return WalkResult::interrupt();
+      transfers.push_back(transfer);
+    } else if (op->getName().getDialectNamespace() == "bosc_ame" &&
+               !isa<DmaWaitOp>(op)) {
+      op->emitError(
+          "target compatibility accepts SPM windows and synchronous DMA only; "
+          "already emitted instructions cannot be replanned");
+      return WalkResult::interrupt();
+    }
+    auto validate = [&](Value value) {
+      auto type = dyn_cast<BaseMemRefType>(value.getType());
+      if (!type || !type.getMemorySpace())
+        return success();
+      auto bank = spmdma::getSpmBank(type);
+      if (!bank || !rootOf(value).getDefiningOp<SpmViewOp>())
+        return op->emitError(
+                   "target memory must be rooted in a verified SPM window"),
+               failure();
+      auto viewType = dyn_cast<MemRefType>(type);
+      auto origin = spmdma::getStaticPointerOrigin(value);
+      auto offset = spmdma::getStaticDescriptorOffset(value);
+      SmallVector<int64_t> strides;
+      int64_t ignored = 0;
+      if (!viewType || !viewType.hasStaticShape() || !origin || !offset ||
+          *offset < 0 || origin->byteShift < 0 ||
+          failed(viewType.getStridesAndOffset(strides, ignored)))
+        return op->emitError("SPM input view needs a known nonnegative "
+                             "descriptor offset and static layout"),
+               failure();
+      int64_t end = *offset;
+      for (auto [dimension, stride] : llvm::zip(viewType.getShape(), strides)) {
+        int64_t delta = 0;
+        if (dimension <= 0 || stride <= 0 ||
+            llvm::MulOverflow(dimension - 1, stride, delta) ||
+            llvm::AddOverflow(end, delta, end))
+          return op->emitError(
+                     "SPM input view has an unbounded physical range"),
+                 failure();
+      }
+      int64_t width = spmdma::getSpmElementByteWidth(viewType.getElementType());
+      auto capacity = spmdma::getContiguousZeroOffsetByteSize(
+          cast<MemRefType>(rootOf(value).getType()));
+      if (!width || !capacity || llvm::AddOverflow(end, int64_t{1}, end) ||
+          llvm::MulOverflow(end, width, end) ||
+          llvm::AddOverflow(end, origin->byteShift, end) || end > *capacity)
+        return op->emitError("SPM input view leaves its spm.view allocation"),
+               failure();
+      return success();
+    };
+    for (Value value : op->getOperands())
+      if (failed(validate(value)))
+        return WalkResult::interrupt();
+    for (Value value : op->getResults())
+      if (failed(validate(value)))
+        return WalkResult::interrupt();
+    return WalkResult::advance();
+  });
+  if (surface.wasInterrupted())
+    return failure();
+  // A copy has synchronous completion. Only erase DMA when that completion
+  // has exactly the same observable position and exact endpoint byte range.
+  for (DmaStartOp start : transfers) {
+    if (!start.getToken().hasOneUse())
+      return start.emitError(
+          "target DMA adapter requires one local completion");
+    auto wait = dyn_cast<DmaWaitOp>(*start.getToken().getUsers().begin());
+    if (!wait || wait->getBlock() != start->getBlock() ||
+        !start->isBeforeInBlock(wait))
+      return start.emitError(
+          "target DMA adapter requires a following local completion");
+    for (Operation *between = start->getNextNode(); between != wait;
+         between = between->getNextNode())
+      if (!isMemoryEffectFree(between) || between->getNumRegions())
+        return between->emitError("cannot normalize asynchronous DMA across an "
+                                  "intervening effect or region");
+    APInt bytes;
+    auto src = cast<MemRefType>(start.getSrc().getType());
+    auto dst = cast<MemRefType>(start.getDst().getType());
+    if (!matchPattern(start.getBytes(), m_ConstantInt(&bytes)) ||
+        src.getElementType() != dst.getElementType() ||
+        spmdma::getSpmBank(src).has_value() ==
+            spmdma::getSpmBank(dst).has_value())
+      return start.emitError(
+          "target DMA adapter requires a static typed DDR/SPM transfer");
+    int64_t elementBytes = spmdma::getSpmElementByteWidth(src.getElementType());
+    int64_t elements = bytes.getSExtValue() / elementBytes;
+    OpBuilder builder(wait);
+    auto prefix = [&](Value endpoint) -> Value {
+      auto type = cast<MemRefType>(endpoint.getType());
+      if (elements == type.getDimSize(0))
+        return endpoint;
+      return memref::SubViewOp::create(
+          builder, wait.getLoc(), endpoint,
+          ArrayRef<OpFoldResult>{builder.getIndexAttr(0)},
+          ArrayRef<OpFoldResult>{builder.getIndexAttr(elements)},
+          ArrayRef<OpFoldResult>{builder.getIndexAttr(1)});
+    };
+    auto copy = memref::CopyOp::create(
+        builder, wait.getLoc(), prefix(start.getSrc()), prefix(start.getDst()));
+    copy->setAttr(
+        "contract.access",
+        boundary(builder, spmdma::getSpmBank(src) ? "store" : "load"));
+    for (NamedAttribute attr : wait->getAttrs())
+      if (attr.getName().strref().starts_with("contract."))
+        copy->setAttr(attr.getName(), attr.getValue());
+    wait.erase();
+    start.erase();
   }
-  if (elementType.isInteger(64) || elementType.isF64()) {
-    imm = 64;
-    return success();
+  // Check sharing after synchronous DMA becomes concrete copies, so the same
+  // arm-local noescape/completion proof is used for raw and planned inputs.
+  DominanceInfo dominance(module);
+  llvm::DenseSet<Operation *> duplicates;
+  for (auto [index, current] : llvm::enumerate(windows)) {
+    auto capacity = spmdma::getContiguousZeroOffsetByteSize(
+        cast<MemRefType>(current.getView().getType()));
+    if (!capacity)
+      return current.emitError("SPM input needs a bounded contiguous root");
+    for (SpmViewOp previous : ArrayRef(windows).take_front(index)) {
+      if (duplicates.contains(previous) ||
+          current->getParentOfType<func::FuncOp>() !=
+              previous->getParentOfType<func::FuncOp>() ||
+          current.getBank() != previous.getBank() ||
+          canShareExclusiveSPMWindow(current.getView(), previous.getView()))
+        continue;
+      auto previousCapacity = *spmdma::getContiguousZeroOffsetByteSize(
+          cast<MemRefType>(previous.getView().getType()));
+      if (current.getOffset() >= previous.getOffset() + previousCapacity ||
+          previous.getOffset() >= current.getOffset() + *capacity)
+        continue;
+      if (current.getOffset() == previous.getOffset() &&
+          current.getView().getType() == previous.getView().getType() &&
+          dominance.dominates(previous.getOperation(),
+                              current.getOperation())) {
+        current.getView().replaceAllUsesWith(previous.getView());
+        duplicates.insert(current);
+        break;
+      }
+      return current.emitError(
+          "overlapping SPM input windows require a shared root or provably "
+          "exclusive arms; distinct private allocations would change aliasing");
+    }
   }
-  return failure();
-}
-
-static bool isParallel(utils::IteratorType type) {
-  return type == utils::IteratorType::parallel;
-}
-
-static bool isReduction(utils::IteratorType type) {
-  return type == utils::IteratorType::reduction;
-}
-
-static bool hasPureBufferOperands(linalg::GenericOp op) {
-  return op.hasPureBufferSemantics() && op.getNumDpsInits() == 1;
-}
-
-static bool isAffineMap(AffineMap map, unsigned numDims,
-                        ArrayRef<unsigned> dimPositions) {
-  if (map.getNumDims() != numDims || map.getNumSymbols() != 0 ||
-      map.getNumResults() != dimPositions.size())
-    return false;
-
-  MLIRContext *ctx = map.getContext();
-  for (auto [result, dimPos] : llvm::zip_equal(map.getResults(), dimPositions))
-    if (result != getAffineDimExpr(dimPos, ctx))
-      return false;
-  return true;
-}
-
-static bool isIdentity2D(AffineMap map) {
-  return isAffineMap(map, 2, ArrayRef<unsigned>{0, 1});
-}
-
-static bool isIdentityND(AffineMap map, unsigned rank) {
-  SmallVector<unsigned> dims;
-  dims.reserve(rank);
-  for (unsigned i = 0; i < rank; ++i)
-    dims.push_back(i);
-  return isAffineMap(map, rank, dims);
-}
-
-static bool isGenericMatmulLike(linalg::GenericOp op) {
-  if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 2)
-    return false;
-
-  auto iterators = op.getIteratorTypesArray();
-  if (iterators.size() != 3 || !isParallel(iterators[0]) ||
-      !isParallel(iterators[1]) || !isReduction(iterators[2]))
-    return false;
-
-  SmallVector<AffineMap> maps = op.getIndexingMapsArray();
-  if (maps.size() != 3 || !isAffineMap(maps[0], 3, ArrayRef<unsigned>{0, 2}) ||
-      !isAffineMap(maps[1], 3, ArrayRef<unsigned>{2, 1}) ||
-      !isAffineMap(maps[2], 3, ArrayRef<unsigned>{0, 1}))
-    return false;
-
-  Block &body = op.getRegion().front();
-  if (body.getNumArguments() != 3)
-    return false;
-
-  auto yieldOp = dyn_cast<linalg::YieldOp>(body.getTerminator());
-  if (!yieldOp || yieldOp.getValues().size() != 1)
-    return false;
-
-  Operation *addOp = yieldOp.getValues()[0].getDefiningOp();
-  if (!addOp)
-    return false;
-
-  StringRef addName = addOp->getName().getStringRef();
-  if (addName != "arith.addi" && addName != "arith.addf")
-    return false;
-
-  Value lhs = addOp->getOperand(0);
-  Value rhs = addOp->getOperand(1);
-  Operation *mulOp = lhs.getDefiningOp();
-  Value accumulator = rhs;
-  if (!mulOp) {
-    mulOp = rhs.getDefiningOp();
-    accumulator = lhs;
+  for (SpmViewOp window : windows) {
+    if (duplicates.contains(window)) {
+      window.erase();
+      continue;
+    }
+    auto type = cast<MemRefType>(window.getView().getType());
+    uint64_t capacity = *spmdma::getContiguousZeroOffsetByteSize(type);
+    if (window.getOffset() > uint64_t(std::numeric_limits<int64_t>::max()) ||
+        capacity > uint64_t(std::numeric_limits<int64_t>::max()))
+      return window.emitError("SPM input offset and capacity must fit signed "
+                              "64-bit planning fields");
+    OpBuilder builder(window);
+    auto root =
+        memref::AllocOp::create(builder, window.getLoc(), neutralType(type),
+                                builder.getI64IntegerAttr(64));
+    fixed.push_back({root, window.getBank(), int64_t(window.getOffset()),
+                     int64_t(capacity)});
+    // Rewrite users first; their view types are normalized in the next walk.
+    window.getView().replaceAllUsesWith(root);
+    window.erase();
   }
-  if (!mulOp || accumulator != body.getArgument(2))
-    return false;
-
-  StringRef mulName = mulOp->getName().getStringRef();
-  if (mulName != "arith.muli" && mulName != "arith.mulf")
-    return false;
-
-  return (mulOp->getOperand(0) == body.getArgument(0) &&
-          mulOp->getOperand(1) == body.getArgument(1)) ||
-         (mulOp->getOperand(0) == body.getArgument(1) &&
-          mulOp->getOperand(1) == body.getArgument(0));
-}
-
-static bool matchElementwiseKind(linalg::GenericOp op, ElementwiseKind &kind) {
-  if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 2)
-    return false;
-
-  auto iterators = op.getIteratorTypesArray();
-  if (iterators.size() != 2 || !llvm::all_of(iterators, isParallel))
-    return false;
-
-  SmallVector<AffineMap> maps = op.getIndexingMapsArray();
-  if (maps.size() != 3 || !llvm::all_of(maps, isIdentity2D))
-    return false;
-
-  Block &body = op.getRegion().front();
-  if (body.getNumArguments() != 3)
-    return false;
-
-  auto yieldOp = dyn_cast<linalg::YieldOp>(body.getTerminator());
-  if (!yieldOp || yieldOp.getValues().size() != 1)
-    return false;
-
-  Operation *opDef = yieldOp.getValues()[0].getDefiningOp();
-  if (!opDef || opDef->getNumOperands() != 2)
-    return false;
-
-  bool directOrder = opDef->getOperand(0) == body.getArgument(0) &&
-                     opDef->getOperand(1) == body.getArgument(1);
-  bool swappedOrder = opDef->getOperand(0) == body.getArgument(1) &&
-                      opDef->getOperand(1) == body.getArgument(0);
-  if (!directOrder && !swappedOrder)
-    return false;
-
-  StringRef name = opDef->getName().getStringRef();
-  if (name == "arith.addi")
-    kind = ElementwiseKind::Add;
-  else if (name == "arith.subi" && directOrder)
-    kind = ElementwiseKind::Sub;
-  else if (name == "arith.muli")
-    kind = ElementwiseKind::Mul;
-  else if (name == "arith.minsi")
-    kind = ElementwiseKind::MinS;
-  else if (name == "arith.minui")
-    kind = ElementwiseKind::MinU;
-  else if (name == "arith.maxsi")
-    kind = ElementwiseKind::MaxS;
-  else if (name == "arith.maxui")
-    kind = ElementwiseKind::MaxU;
-  else if (name == "arith.addf")
-    kind = ElementwiseKind::FAdd;
-  else if (name == "arith.subf" && directOrder)
-    kind = ElementwiseKind::FSub;
-  else if (name == "arith.mulf")
-    kind = ElementwiseKind::FMul;
-  else if (name == "arith.maximumf" || name == "arith.maxnumf")
-    kind = ElementwiseKind::FMax;
-  else
-    return false;
-
-  return true;
-}
-
-static bool matchUnarySquare(linalg::GenericOp op) {
-  if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
-    return false;
-
-  auto iterators = op.getIteratorTypesArray();
-  if (iterators.size() < 2 || !llvm::all_of(iterators, isParallel))
-    return false;
-
-  unsigned rank = iterators.size();
-  SmallVector<AffineMap> maps = op.getIndexingMapsArray();
-  if (maps.size() != 2 || !isIdentityND(maps[0], rank) ||
-      !isIdentityND(maps[1], rank))
-    return false;
-
-  Block &body = op.getRegion().front();
-  if (body.getNumArguments() != 2)
-    return false;
-
-  auto yieldOp = dyn_cast<linalg::YieldOp>(body.getTerminator());
-  if (!yieldOp || yieldOp.getValues().size() != 1)
-    return false;
-
-  Operation *opDef = yieldOp.getValues()[0].getDefiningOp();
-  if (!opDef || opDef->getName().getStringRef() != "math.fpowi" ||
-      opDef->getNumOperands() != 2 ||
-      opDef->getOperand(0) != body.getArgument(0))
-    return false;
-
-  APInt exponent;
-  if (!matchPattern(opDef->getOperand(1), m_ConstantInt(&exponent)))
-    return false;
-  return exponent.getSExtValue() == 2;
-}
-
-static bool matchTranspose(linalg::GenericOp op) {
-  if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
-    return false;
-
-  auto iterators = op.getIteratorTypesArray();
-  if (iterators.size() != 2 || !llvm::all_of(iterators, isParallel))
-    return false;
-
-  SmallVector<AffineMap> maps = op.getIndexingMapsArray();
-  if (maps.size() != 2 || !isAffineMap(maps[0], 2, ArrayRef<unsigned>{1, 0}) ||
-      !isIdentity2D(maps[1]))
-    return false;
-
-  Block &body = op.getRegion().front();
-  auto yieldOp = dyn_cast<linalg::YieldOp>(body.getTerminator());
-  return yieldOp && yieldOp.getValues().size() == 1 &&
-         yieldOp.getValues()[0] == body.getArgument(0);
-}
-
-static bool matchBroadcast(linalg::GenericOp op, BroadcastKind &kind) {
-  if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
-    return false;
-
-  auto iterators = op.getIteratorTypesArray();
-  if (iterators.size() != 2 || !llvm::all_of(iterators, isParallel))
-    return false;
-
-  SmallVector<AffineMap> maps = op.getIndexingMapsArray();
-  if (maps.size() != 2 || !isIdentity2D(maps[1]))
-    return false;
-
-  AffineMap inputMap = maps[0];
-  if (inputMap.getNumDims() != 2 || inputMap.getNumSymbols() != 0)
-    return false;
-
-  if (inputMap.getNumResults() == 0) {
-    kind = BroadcastKind::Element;
-  } else if (isAffineMap(inputMap, 2, ArrayRef<unsigned>{1})) {
-    kind = BroadcastKind::Row;
-  } else if (isAffineMap(inputMap, 2, ArrayRef<unsigned>{0})) {
-    kind = BroadcastKind::Column;
-  } else {
-    return false;
-  }
-
-  Block &body = op.getRegion().front();
-  auto yieldOp = dyn_cast<linalg::YieldOp>(body.getTerminator());
-  return yieldOp && yieldOp.getValues().size() == 1 &&
-         yieldOp.getValues()[0] == body.getArgument(0);
-}
-
-static bool isLowerableGeneric(linalg::GenericOp op) {
-  ElementwiseKind elementwiseKind;
-  BroadcastKind broadcastKind;
-  return isGenericMatmulLike(op) || matchElementwiseKind(op, elementwiseKind) ||
-         matchUnarySquare(op) || matchTranspose(op) ||
-         matchBroadcast(op, broadcastKind);
-}
-
-static Value createDim(PatternRewriter &rewriter, Location loc, Value memref,
-                       int64_t dim) {
-  return memref::DimOp::create(rewriter, loc, memref, dim);
-}
-
-static Value createIndexMin(PatternRewriter &rewriter, Location loc,
-                            Value bound, Value iv, int64_t step) {
-  Value remain = arith::SubIOp::create(rewriter, loc, bound, iv);
-  Value stepVal = arith::ConstantIndexOp::create(rewriter, loc, step);
-  Value cmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::slt,
-                                    remain, stepVal);
-  return arith::SelectOp::create(rewriter, loc, cmp, remain, stepVal);
-}
-
-static Value castIndexToI64(PatternRewriter &rewriter, Location loc,
-                            Value value) {
-  return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
-                                    value);
-}
-
-static Value createByteStride(PatternRewriter &rewriter, Location loc,
-                              Value memref, unsigned dim = 0) {
-  auto memrefType = cast<MemRefType>(memref.getType());
-  unsigned rank = memrefType.getRank();
-  unsigned bytesPerElem = getElementByteWidth(memrefType.getElementType());
-  Value bytes = arith::ConstantIndexOp::create(rewriter, loc, bytesPerElem);
-
-  if (rank == 0)
-    return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
-                                      bytes);
-
-  auto metadata =
-      memref::ExtractStridedMetadataOp::create(rewriter, loc, memref);
-  Value strideElem = metadata.getResult(2 + rank + dim);
-  Value strideBytes = arith::MulIOp::create(rewriter, loc, strideElem, bytes);
-  return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
-                                    strideBytes);
-}
-
-static Value createSubView(PatternRewriter &rewriter, Location loc,
-                           Value source, ArrayRef<Value> offsets,
-                           ArrayRef<Value> sizes) {
-  SmallVector<OpFoldResult> offsetResults;
-  SmallVector<OpFoldResult> sizeResults;
-  for (Value offset : offsets)
-    offsetResults.push_back(offset);
-  for (Value size : sizes)
-    sizeResults.push_back(size);
-  SmallVector<OpFoldResult> strides(offsets.size(), rewriter.getIndexAttr(1));
-  return memref::SubViewOp::create(rewriter, loc, source, offsetResults,
-                                   sizeResults, strides);
-}
-
-static LogicalResult createMSetTypeAndTiles(PatternRewriter &rewriter,
-                                            Operation *anchor, Location loc,
-                                            Type elementType, Value currM,
-                                            Value currN, Value currK = {}) {
-  int64_t msetTypeImm = 0;
-  if (failed(getMsetTypeImm(elementType, msetTypeImm)))
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME element type");
-
-  MSettypeiOp::create(rewriter, loc, rewriter.getI64Type(), msetTypeImm);
-  MSettilemOp::create(rewriter, loc, rewriter.getI64Type(),
-                      castIndexToI64(rewriter, loc, currM));
-  MSettilenOp::create(rewriter, loc, rewriter.getI64Type(),
-                      castIndexToI64(rewriter, loc, currN));
-  if (currK)
-    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(),
-                        castIndexToI64(rewriter, loc, currK));
+  module.walk([&](Operation *op) {
+    for (Value result : op->getResults())
+      if (auto type = dyn_cast<MemRefType>(result.getType());
+          type && spmdma::getSpmBank(type))
+        result.setType(neutralType(type));
+  });
+  for (FixedSPMBuffer &window : fixed)
+    extractLogicalSubwindow(window);
   return success();
 }
 
-static FailureOr<Value> createLoadA(PatternRewriter &rewriter,
-                                    Operation *anchor, Location loc,
-                                    Type elementType, Value source,
-                                    Value stride) {
-  Type tileType = VectorType::get({4, 4}, elementType);
-  if (elementType.isInteger(8))
-    return Mlae8mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    return Mlae16mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(32) || elementType.isF32())
-    return Mlae32mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(64) || elementType.isF64())
-    return Mlae64mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME A load type");
-}
-
-static FailureOr<Value> createLoadB(PatternRewriter &rewriter,
-                                    Operation *anchor, Location loc,
-                                    Type elementType, Value source,
-                                    Value stride) {
-  Type tileType = VectorType::get({4, 4}, elementType);
-  if (elementType.isInteger(8))
-    return Mlbe8mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    return Mlbe16mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(32) || elementType.isF32())
-    return Mlbe32mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(64) || elementType.isF64())
-    return Mlbe64mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME B load type");
-}
-
-static FailureOr<Value> createLoadC(PatternRewriter &rewriter,
-                                    Operation *anchor, Location loc,
-                                    Type elementType, Value source,
-                                    Value stride) {
-  Type tileType = VectorType::get({4, 4}, elementType);
-  if (elementType.isInteger(8))
-    return Mlce8mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    return Mlce16mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(32) || elementType.isF32())
-    return Mlce32mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else if (elementType.isInteger(64) || elementType.isF64())
-    return Mlce64mOp::create(rewriter, loc, tileType, source, stride).getRes();
-  else
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME C load type");
-}
-
-static LogicalResult createStoreC(PatternRewriter &rewriter, Operation *anchor,
-                                  Location loc, Type elementType, Value src,
-                                  Value dest, Value stride) {
-  if (elementType.isInteger(8))
-    Msce8mOp::create(rewriter, loc, src, dest, stride);
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    Msce16mOp::create(rewriter, loc, src, dest, stride);
-  else if (elementType.isInteger(32) || elementType.isF32())
-    Msce32mOp::create(rewriter, loc, src, dest, stride);
-  else if (elementType.isInteger(64) || elementType.isF64())
-    Msce64mOp::create(rewriter, loc, src, dest, stride);
-  else
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME C store type");
-  return success();
-}
-
-static FailureOr<Value> createMatmul(PatternRewriter &rewriter,
-                                     Operation *anchor, Location loc,
-                                     Type lhsType, Type resultType, Value acc,
-                                     Value lhs, Value rhs) {
-  Type tileType = VectorType::get({4, 4}, resultType);
-  if (resultType.isInteger(32) && lhsType.isInteger(32))
-    return MmaWmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if (resultType.isInteger(32) && lhsType.isInteger(16))
-    return MwmaHmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if (resultType.isInteger(32) && lhsType.isInteger(8))
-    return MqmaBmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if (resultType.isInteger(16) && lhsType.isInteger(16))
-    return MmaHmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if (resultType.isInteger(64) && lhsType.isInteger(64))
-    return MmaDwmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if ((lhsType.isF16() || lhsType.isBF16()) && resultType.isF32())
-    return MfwmaHfmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if (lhsType.isF32() && resultType.isF32())
-    return MfmaFmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if (lhsType.isF32() && resultType.isF64())
-    return MfwmaFmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else if (lhsType.isF64() && resultType.isF64())
-    return MfmaDmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
-  else
-    return rewriter.notifyMatchFailure(
-        anchor, "unsupported BOSCAME matmul instruction type");
-}
-
-static Value createMatrixOp(PatternRewriter &rewriter, Location loc,
-                            StringRef name, Type resultType,
-                            ValueRange operands) {
-  OperationState state(loc, name);
-  state.addOperands(operands);
-  state.addTypes(resultType);
-  return rewriter.create(state)->getResult(0);
-}
-
-static FailureOr<Value> createElementwise(PatternRewriter &rewriter,
-                                          Operation *anchor, Location loc,
-                                          ElementwiseKind kind,
-                                          Type elementType, Value lhs,
-                                          Value rhs) {
-  StringRef suffix;
-  if (elementType.isInteger(8))
-    suffix = ".b.mm";
-  else if (elementType.isInteger(16))
-    suffix = ".h.mm";
-  else if (elementType.isInteger(32))
-    suffix = ".w.mm";
-  else if (elementType.isInteger(64))
-    suffix = ".dw.mm";
-  else if (elementType.isF16() || elementType.isBF16())
-    suffix = ".hf.mm";
-  else if (elementType.isF32())
-    suffix = ".f.mm";
-  else if (elementType.isF64())
-    suffix = ".d.mm";
-  else
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME elementwise type");
-
-  StringRef mnemonic;
-  switch (kind) {
-  case ElementwiseKind::Add:
-    mnemonic = "madd";
-    break;
-  case ElementwiseKind::Sub:
-    mnemonic = "msub";
-    break;
-  case ElementwiseKind::Mul:
-    mnemonic = "mmul";
-    break;
-  case ElementwiseKind::MinS:
-    mnemonic = "mmin";
-    break;
-  case ElementwiseKind::MinU:
-    mnemonic = "mminu";
-    break;
-  case ElementwiseKind::MaxS:
-    mnemonic = "mmax";
-    break;
-  case ElementwiseKind::MaxU:
-    mnemonic = "mmaxu";
-    break;
-  case ElementwiseKind::FAdd:
-    mnemonic = "mfadd";
-    break;
-  case ElementwiseKind::FSub:
-    mnemonic = "mfsub";
-    break;
-  case ElementwiseKind::FMul:
-    mnemonic = "mfmul";
-    break;
-  case ElementwiseKind::FMax:
-    mnemonic = "mfmax";
-    break;
-  }
-  std::string name = "bosc_ame." + mnemonic.str() + suffix.str();
-  return createMatrixOp(rewriter, loc, name, lhs.getType(), {lhs, rhs});
-}
-
-static FailureOr<Value> createBroadcast(PatternRewriter &rewriter,
-                                        Operation *anchor, Location loc,
-                                        BroadcastKind kind,
-                                        BroadcastRegisterKind regKind,
-                                        Type elementType, Value src) {
-  StringRef registerSuffix = regKind == BroadcastRegisterKind::TileA   ? "a"
-                             : regKind == BroadcastRegisterKind::TileB ? "b"
-                                                                       : "c";
-  if (kind == BroadcastKind::Row) {
-    std::string name = "bosc_ame.mbc" + registerSuffix.str() + "r.m";
-    return createMatrixOp(rewriter, loc, name, src.getType(), {src});
-  }
-
-  StringRef bitWidth;
-  if (elementType.isInteger(8))
-    bitWidth = "8";
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    bitWidth = "16";
-  else if (elementType.isInteger(32) || elementType.isF32())
-    bitWidth = "32";
-  else if (elementType.isInteger(64) || elementType.isF64())
-    bitWidth = "64";
-  else
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME broadcast type");
-
-  std::string name = "bosc_ame.mbc" + registerSuffix.str() +
-                     (kind == BroadcastKind::Column ? "ce" : "ee") +
-                     bitWidth.str() + ".m";
-  return createMatrixOp(rewriter, loc, name, src.getType(), {src});
-}
-
-static FailureOr<Value> createTranspose(PatternRewriter &rewriter,
-                                        Operation *anchor, Location loc,
-                                        BroadcastRegisterKind regKind,
-                                        Type elementType, Value src) {
-  StringRef registerSuffix = regKind == BroadcastRegisterKind::TileA   ? "a"
-                             : regKind == BroadcastRegisterKind::TileB ? "b"
-                                                                       : "c";
-  StringRef bitWidth;
-  if (elementType.isInteger(8))
-    bitWidth = "8";
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    bitWidth = "16";
-  else if (elementType.isInteger(32) || elementType.isF32())
-    bitWidth = "32";
-  else if (elementType.isInteger(64) || elementType.isF64())
-    bitWidth = "64";
-  else
-    return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME transpose type");
-  std::string name =
-      "bosc_ame.mt" + registerSuffix.str() + "e" + bitWidth.str() + ".m";
-  return createMatrixOp(rewriter, loc, name, src.getType(), {src});
-}
-
-static LogicalResult lowerMatmulLike(Operation *anchor,
-                                     PatternRewriter &rewriter, Location loc,
-                                     Value A, Value B, Value C) {
-  auto AType = dyn_cast<MemRefType>(A.getType());
-  auto BType = dyn_cast<MemRefType>(B.getType());
-  auto CType = dyn_cast<MemRefType>(C.getType());
-  if (!AType || !BType || !CType)
-    return rewriter.notifyMatchFailure(anchor, "expected memref operands");
-
-  Type elemTypeA = AType.getElementType();
-  Type elemTypeB = BType.getElementType();
-  Type elemTypeC = CType.getElementType();
-  if (elemTypeA != elemTypeB)
-    return rewriter.notifyMatchFailure(
-        anchor, "matmul lhs and rhs element types differ");
-
-  int64_t tileM = 4, tileN = 4, tileK = 4;
-  if (elemTypeA.isInteger(8) && elemTypeC.isInteger(32))
-    tileK = 16;
-  else if ((elemTypeA.isF16() || elemTypeA.isBF16()) && elemTypeC.isF32())
-    tileK = 8;
-  else if (elemTypeA.isInteger(16) && elemTypeC.isInteger(32))
-    tileK = 8;
-  else if (elemTypeA.isInteger(32) && elemTypeC.isInteger(32))
-    tileK = 4;
-  else if (elemTypeA.isF32() && (elemTypeC.isF32() || elemTypeC.isF64()))
-    tileK = 4;
-  else if (elemTypeA.isInteger(64) && elemTypeC.isInteger(64))
-    tileK = 2;
-  else if (elemTypeA.isF64() && elemTypeC.isF64())
-    tileK = 2;
-  else
-    return rewriter.notifyMatchFailure(anchor, "unsupported matmul precision");
-
-  Value dimM = createDim(rewriter, loc, A, 0);
-  Value dimK = createDim(rewriter, loc, A, 1);
-  Value dimN = createDim(rewriter, loc, B, 1);
-
-  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-  Value stepM = arith::ConstantIndexOp::create(rewriter, loc, tileM);
-  Value stepK = arith::ConstantIndexOp::create(rewriter, loc, tileK);
-  Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
-
-  auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
-  rewriter.setInsertionPointToStart(loopM.getBody());
-  Value ivM = loopM.getInductionVar();
-
-  auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
-  rewriter.setInsertionPointToStart(loopN.getBody());
-  Value ivN = loopN.getInductionVar();
-
-  auto loopK = scf::ForOp::create(rewriter, loc, c0, dimK, stepK);
-  rewriter.setInsertionPointToStart(loopK.getBody());
-  Value ivK = loopK.getInductionVar();
-
-  Value currM = createIndexMin(rewriter, loc, dimM, ivM, tileM);
-  Value currN = createIndexMin(rewriter, loc, dimN, ivN, tileN);
-  Value currK = createIndexMin(rewriter, loc, dimK, ivK, tileK);
-
-  Value subA = createSubView(rewriter, loc, A, {ivM, ivK}, {currM, currK});
-  Value subB = createSubView(rewriter, loc, B, {ivK, ivN}, {currK, currN});
-  Value subC = createSubView(rewriter, loc, C, {ivM, ivN}, {currM, currN});
-
-  Value strideA = createByteStride(rewriter, loc, subA);
-  Value strideB = createByteStride(rewriter, loc, subB);
-  Value strideC = createByteStride(rewriter, loc, subC);
-
-  if (failed(createMSetTypeAndTiles(rewriter, anchor, loc, elemTypeA, currM,
-                                    currN, currK)))
-    return failure();
-  FailureOr<Value> tileA =
-      createLoadA(rewriter, anchor, loc, elemTypeA, subA, strideA);
-  FailureOr<Value> tileB =
-      createLoadB(rewriter, anchor, loc, elemTypeB, subB, strideB);
-  FailureOr<Value> acc =
-      createLoadC(rewriter, anchor, loc, elemTypeC, subC, strideC);
-  if (failed(tileA) || failed(tileB) || failed(acc))
-    return failure();
-  FailureOr<Value> result = createMatmul(rewriter, anchor, loc, elemTypeA,
-                                         elemTypeC, *acc, *tileA, *tileB);
-  if (failed(result) || failed(createStoreC(rewriter, anchor, loc, elemTypeC,
-                                            *result, subC, strideC)))
-    return failure();
-
-  rewriter.setInsertionPointAfter(loopM);
-  return success();
-}
-
-class MatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
-public:
-  using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(linalg::MatmulOp op,
-                                PatternRewriter &rewriter) const override {
-    if (!op.hasPureBufferSemantics())
-      return failure();
-
-    Value A = op.getDpsInputOperand(0)->get();
-    Value B = op.getDpsInputOperand(1)->get();
-    Value C = op.getDpsInitOperand(0)->get();
-
-    if (failed(lowerMatmulLike(op, rewriter, op.getLoc(), A, B, C)))
-      return failure();
-
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-class GenericMatmulToBOSCAMELowering
-    : public OpRewritePattern<linalg::GenericOp> {
-public:
-  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(linalg::GenericOp op,
-                                PatternRewriter &rewriter) const override {
-    if (!isGenericMatmulLike(op))
-      return failure();
-
-    Value A = op.getDpsInputOperand(0)->get();
-    Value B = op.getDpsInputOperand(1)->get();
-    Value C = op.getDpsInitOperand(0)->get();
-
-    if (failed(lowerMatmulLike(op, rewriter, op.getLoc(), A, B, C)))
-      return failure();
-
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-class GenericElementwiseToBOSCAMELowering
-    : public OpRewritePattern<linalg::GenericOp> {
-public:
-  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(linalg::GenericOp op,
-                                PatternRewriter &rewriter) const override {
-    ElementwiseKind kind;
-    if (!matchElementwiseKind(op, kind))
-      return failure();
-
-    Location loc = op.getLoc();
-    Value lhs = op.getDpsInputOperand(0)->get();
-    Value rhs = op.getDpsInputOperand(1)->get();
-    Value out = op.getDpsInitOperand(0)->get();
-
-    auto lhsType = dyn_cast<MemRefType>(lhs.getType());
-    auto rhsType = dyn_cast<MemRefType>(rhs.getType());
-    auto outType = dyn_cast<MemRefType>(out.getType());
-    if (!lhsType || !rhsType || !outType || lhsType.getRank() != 2 ||
-        rhsType.getRank() != 2 || outType.getRank() != 2)
-      return rewriter.notifyMatchFailure(op, "expected rank-2 memrefs");
-
-    Type elementType = outType.getElementType();
-    if (lhsType.getElementType() != rhsType.getElementType() ||
-        lhsType.getElementType() != elementType)
-      return rewriter.notifyMatchFailure(op,
-                                         "elementwise operand types differ");
-
-    constexpr int64_t tileM = 4;
-    constexpr int64_t tileN = 4;
-
-    Value dimM = createDim(rewriter, loc, out, 0);
-    Value dimN = createDim(rewriter, loc, out, 1);
-    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-    Value stepM = arith::ConstantIndexOp::create(rewriter, loc, tileM);
-    Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
-
-    auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
-    rewriter.setInsertionPointToStart(loopM.getBody());
-    Value ivM = loopM.getInductionVar();
-
-    auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
-    rewriter.setInsertionPointToStart(loopN.getBody());
-    Value ivN = loopN.getInductionVar();
-
-    Value currM = createIndexMin(rewriter, loc, dimM, ivM, tileM);
-    Value currN = createIndexMin(rewriter, loc, dimN, ivN, tileN);
-
-    Value subLhs =
-        createSubView(rewriter, loc, lhs, {ivM, ivN}, {currM, currN});
-    Value subRhs =
-        createSubView(rewriter, loc, rhs, {ivM, ivN}, {currM, currN});
-    Value subOut =
-        createSubView(rewriter, loc, out, {ivM, ivN}, {currM, currN});
-
-    Value strideLhs = createByteStride(rewriter, loc, subLhs);
-    Value strideRhs = createByteStride(rewriter, loc, subRhs);
-    Value strideOut = createByteStride(rewriter, loc, subOut);
-
-    if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
-                                      currN)))
-      return failure();
-    FailureOr<Value> lhsTile =
-        createLoadC(rewriter, op, loc, elementType, subLhs, strideLhs);
-    FailureOr<Value> rhsTile =
-        createLoadC(rewriter, op, loc, elementType, subRhs, strideRhs);
-    if (failed(lhsTile) || failed(rhsTile))
-      return failure();
-    FailureOr<Value> result = createElementwise(
-        rewriter, op, loc, kind, elementType, *lhsTile, *rhsTile);
-    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
-                                              *result, subOut, strideOut)))
-      return failure();
-
-    rewriter.setInsertionPointAfter(loopM);
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-class GenericUnarySquareToBOSCAMELowering
-    : public OpRewritePattern<linalg::GenericOp> {
-public:
-  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(linalg::GenericOp op,
-                                PatternRewriter &rewriter) const override {
-    if (!matchUnarySquare(op))
-      return failure();
-
-    Location loc = op.getLoc();
-    Value input = op.getDpsInputOperand(0)->get();
-    Value out = op.getDpsInitOperand(0)->get();
-
-    auto inputType = dyn_cast<MemRefType>(input.getType());
-    auto outType = dyn_cast<MemRefType>(out.getType());
-    if (!inputType || !outType || inputType.getRank() != outType.getRank() ||
-        inputType.getRank() < 2)
-      return rewriter.notifyMatchFailure(
-          op, "expected same-rank memrefs with rank >= 2");
-
-    if (inputType.getElementType() != outType.getElementType())
-      return rewriter.notifyMatchFailure(op, "square operand types differ");
-
-    Type elementType = outType.getElementType();
-    if (!elementType.isF16() && !elementType.isBF16() && !elementType.isF32() &&
-        !elementType.isF64())
-      return rewriter.notifyMatchFailure(
-          op, "math.fpowi square expects floating point element type");
-
-    constexpr int64_t tileM = 4;
-    constexpr int64_t tileN = 4;
-    unsigned rank = outType.getRank();
-    unsigned matrixDimM = rank - 2;
-    unsigned matrixDimN = rank - 1;
-
-    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
-    Value stepM = arith::ConstantIndexOp::create(rewriter, loc, tileM);
-    Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
-
-    SmallVector<Value> outerIvs;
-    SmallVector<scf::ForOp> outerLoops;
-    for (unsigned dim = 0; dim < matrixDimM; ++dim) {
-      Value dimSize = createDim(rewriter, loc, out, dim);
-      auto loop = scf::ForOp::create(rewriter, loc, c0, dimSize, c1);
-      outerLoops.push_back(loop);
-      rewriter.setInsertionPointToStart(loop.getBody());
-      outerIvs.push_back(loop.getInductionVar());
-    }
-
-    Value dimM = createDim(rewriter, loc, out, matrixDimM);
-    Value dimN = createDim(rewriter, loc, out, matrixDimN);
-
-    auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
-    rewriter.setInsertionPointToStart(loopM.getBody());
-    Value ivM = loopM.getInductionVar();
-
-    auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
-    rewriter.setInsertionPointToStart(loopN.getBody());
-    Value ivN = loopN.getInductionVar();
-
-    Value currM = createIndexMin(rewriter, loc, dimM, ivM, tileM);
-    Value currN = createIndexMin(rewriter, loc, dimN, ivN, tileN);
-
-    SmallVector<Value> offsets(outerIvs.begin(), outerIvs.end());
-    offsets.push_back(ivM);
-    offsets.push_back(ivN);
-
-    SmallVector<Value> sizes(outerIvs.size(), c1);
-    sizes.push_back(currM);
-    sizes.push_back(currN);
-
-    Value subInput = createSubView(rewriter, loc, input, offsets, sizes);
-    Value subOut = createSubView(rewriter, loc, out, offsets, sizes);
-
-    Value strideInput = createByteStride(rewriter, loc, subInput, matrixDimM);
-    Value strideOut = createByteStride(rewriter, loc, subOut, matrixDimM);
-
-    if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
-                                      currN)))
-      return failure();
-    FailureOr<Value> inputTile =
-        createLoadC(rewriter, op, loc, elementType, subInput, strideInput);
-    if (failed(inputTile))
-      return failure();
-    FailureOr<Value> result =
-        createElementwise(rewriter, op, loc, ElementwiseKind::FMul, elementType,
-                          *inputTile, *inputTile);
-    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
-                                              *result, subOut, strideOut)))
-      return failure();
-
-    if (!outerLoops.empty())
-      rewriter.setInsertionPointAfter(outerLoops.front());
-    else
-      rewriter.setInsertionPointAfter(loopM);
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-class GenericTransposeToBOSCAMELowering
-    : public OpRewritePattern<linalg::GenericOp> {
-public:
-  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(linalg::GenericOp op,
-                                PatternRewriter &rewriter) const override {
-    if (!matchTranspose(op))
-      return failure();
-
-    Location loc = op.getLoc();
-    Value input = op.getDpsInputOperand(0)->get();
-    Value out = op.getDpsInitOperand(0)->get();
-
-    auto inputType = dyn_cast<MemRefType>(input.getType());
-    auto outType = dyn_cast<MemRefType>(out.getType());
-    if (!inputType || !outType || inputType.getRank() != 2 ||
-        outType.getRank() != 2)
-      return rewriter.notifyMatchFailure(op, "expected rank-2 memrefs");
-
-    Type elementType = outType.getElementType();
-    if (inputType.getElementType() != elementType)
-      return rewriter.notifyMatchFailure(op, "transpose element types differ");
-
-    constexpr int64_t tileM = 4;
-    constexpr int64_t tileN = 4;
-    for (int64_t dim : outType.getShape()) {
-      if (ShapedType::isDynamic(dim) || dim % tileM != 0)
-        return rewriter.notifyMatchFailure(
-            op, "BOSCAME transpose requires full 4x4 square tiles");
-    }
-
-    Value dimM = createDim(rewriter, loc, out, 0);
-    Value dimN = createDim(rewriter, loc, out, 1);
-    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-    Value stepM = arith::ConstantIndexOp::create(rewriter, loc, tileM);
-    Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
-
-    auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
-    rewriter.setInsertionPointToStart(loopM.getBody());
-    Value ivM = loopM.getInductionVar();
-
-    auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
-    rewriter.setInsertionPointToStart(loopN.getBody());
-    Value ivN = loopN.getInductionVar();
-
-    Value currM = createIndexMin(rewriter, loc, dimM, ivM, tileM);
-    Value currN = createIndexMin(rewriter, loc, dimN, ivN, tileN);
-
-    Value subInput =
-        createSubView(rewriter, loc, input, {ivN, ivM}, {currN, currM});
-    Value subOut =
-        createSubView(rewriter, loc, out, {ivM, ivN}, {currM, currN});
-
-    Value strideInput = createByteStride(rewriter, loc, subInput);
-    Value strideOut = createByteStride(rewriter, loc, subOut);
-
-    if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
-                                      currN)))
-      return failure();
-    FailureOr<Value> inputTile =
-        createLoadC(rewriter, op, loc, elementType, subInput, strideInput);
-    if (failed(inputTile))
-      return failure();
-    FailureOr<Value> result =
-        createTranspose(rewriter, op, loc, BroadcastRegisterKind::Accumulation,
-                        elementType, *inputTile);
-    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
-                                              *result, subOut, strideOut)))
-      return failure();
-
-    rewriter.setInsertionPointAfter(loopM);
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-class GenericBroadcastToBOSCAMELowering
-    : public OpRewritePattern<linalg::GenericOp> {
-public:
-  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(linalg::GenericOp op,
-                                PatternRewriter &rewriter) const override {
-    BroadcastKind kind;
-    if (!matchBroadcast(op, kind))
-      return failure();
-
-    Location loc = op.getLoc();
-    Value input = op.getDpsInputOperand(0)->get();
-    Value out = op.getDpsInitOperand(0)->get();
-
-    auto inputType = dyn_cast<MemRefType>(input.getType());
-    auto outType = dyn_cast<MemRefType>(out.getType());
-    if (!inputType || !outType || outType.getRank() != 2)
-      return rewriter.notifyMatchFailure(op, "expected memref operands");
-
-    Type elementType = outType.getElementType();
-    if (inputType.getElementType() != elementType)
-      return rewriter.notifyMatchFailure(op, "broadcast element types differ");
-
-    constexpr int64_t tileM = 4;
-    constexpr int64_t tileN = 4;
-
-    Value dimM = createDim(rewriter, loc, out, 0);
-    Value dimN = createDim(rewriter, loc, out, 1);
-    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-    Value stepM = arith::ConstantIndexOp::create(rewriter, loc, tileM);
-    Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
-
-    auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
-    rewriter.setInsertionPointToStart(loopM.getBody());
-    Value ivM = loopM.getInductionVar();
-
-    auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
-    rewriter.setInsertionPointToStart(loopN.getBody());
-    Value ivN = loopN.getInductionVar();
-
-    Value currM = createIndexMin(rewriter, loc, dimM, ivM, tileM);
-    Value currN = createIndexMin(rewriter, loc, dimN, ivN, tileN);
-
-    Value broadcastSource = input;
-    if (kind == BroadcastKind::Row) {
-      if (inputType.getRank() != 1)
-        return rewriter.notifyMatchFailure(
-            op, "row broadcast expects rank-1 input");
-      broadcastSource = createSubView(rewriter, loc, input, {ivN}, {currN});
-    } else if (kind == BroadcastKind::Column) {
-      if (inputType.getRank() != 1)
-        return rewriter.notifyMatchFailure(
-            op, "column broadcast expects rank-1 input");
-      broadcastSource = createSubView(rewriter, loc, input, {ivM}, {currM});
-    } else if (inputType.getRank() != 0) {
-      return rewriter.notifyMatchFailure(
-          op, "element broadcast expects rank-0 input");
-    }
-
-    Value subOut =
-        createSubView(rewriter, loc, out, {ivM, ivN}, {currM, currN});
-    Value strideInput = createByteStride(rewriter, loc, broadcastSource);
-    Value strideOut = createByteStride(rewriter, loc, subOut);
-
-    if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
-                                      currN)))
-      return failure();
-    FailureOr<Value> inputTile = createLoadC(rewriter, op, loc, elementType,
-                                             broadcastSource, strideInput);
-    if (failed(inputTile))
-      return failure();
-    FailureOr<Value> result = createBroadcast(
-        rewriter, op, loc, kind, BroadcastRegisterKind::Accumulation,
-        elementType, *inputTile);
-    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
-                                              *result, subOut, strideOut)))
-      return failure();
-
-    rewriter.setInsertionPointAfter(loopM);
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-} // namespace
-
-//===----------------------------------------------------------------------===//
-// Pass Definition
-//===----------------------------------------------------------------------===//
-
-namespace {
+// The two historical names deliberately share every input and output step.
+template <bool Independent>
 class LowerLinalgToBOSCAMEPass
-    : public PassWrapper<LowerLinalgToBOSCAMEPass, OperationPass<ModuleOp>> {
+    : public PassWrapper<LowerLinalgToBOSCAMEPass<Independent>,
+                         OperationPass<ModuleOp>> {
 public:
+  using Base = PassWrapper<LowerLinalgToBOSCAMEPass<Independent>,
+                           OperationPass<ModuleOp>>;
+  template <typename T> using Option = typename Base::template Option<T>;
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerLinalgToBOSCAMEPass)
-
-  StringRef getArgument() const final { return "lower-linalg-to-boscame"; }
-  StringRef getDescription() const final {
-    return "Lower linalg dialect operations to BOSCAME dialect operations.";
-  }
-
   LowerLinalgToBOSCAMEPass() = default;
   LowerLinalgToBOSCAMEPass(const LowerLinalgToBOSCAMEPass &) {}
+  StringRef getArgument() const final {
+    return Independent ? "linalg-to-boscame" : "lower-linalg-to-boscame";
+  }
+  StringRef getDescription() const final {
+    return "Adapt buffer-form input through the shared BOSCAME contract, "
+           "planner and emitter";
+  }
+  Option<bool> enableSpmDma{
+      *this, "enable-spm-dma",
+      llvm::cl::desc("Compatibility assertion that SPM/DMA is available"),
+      llvm::cl::init(true)};
+  Option<bool> enableAME{
+      *this, "enable-ame",
+      llvm::cl::desc("Compatibility assertion that AME is available"),
+      llvm::cl::init(true)};
+  Option<std::string> dmaAbi{
+      *this, "dma-abi",
+      llvm::cl::desc("Explicit caller promise: args_aligned64 or "
+                     "args_aligned64_nonalias"),
+      llvm::cl::init("")};
+  Option<std::string> target{*this, "target",
+                             llvm::cl::desc("Target profile: nr-fpga"),
+                             llvm::cl::init("nr-fpga")};
+  Option<int64_t> bm{*this, "bm", llvm::cl::desc("Obsolete geometry override"),
+                     llvm::cl::init(64)};
+  Option<int64_t> bn{*this, "bn", llvm::cl::desc("Obsolete geometry override"),
+                     llvm::cl::init(64)};
+  Option<int64_t> bk{*this, "bk", llvm::cl::desc("Obsolete geometry override"),
+                     llvm::cl::init(128)};
+  Option<bool> bufferPlacement{
+      *this, "buffer-placement",
+      llvm::cl::desc("Enable optional automatic SPM placement (V1: required "
+                     "fixed placement)"),
+      llvm::cl::init(true)};
+  Option<int64_t> planVersion{
+      *this, "plan-version",
+      llvm::cl::desc(
+          "Plan version (1: frozen compatibility, 2: DDR/register default)"),
+      llvm::cl::init(2)};
+  Option<bool> planReport{*this, "plan-report",
+                          llvm::cl::desc("Print the concrete plan"),
+                          llvm::cl::init(false)};
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<BOSCAMEDialect>();
-    registry.insert<linalg::LinalgDialect>();
-    registry.insert<arith::ArithDialect>();
-    registry.insert<memref::MemRefDialect>();
-    registry.insert<scf::SCFDialect>();
+    registry
+        .insert<BOSCAMEDialect, arith::ArithDialect, func::FuncDialect,
+                linalg::LinalgDialect, math::MathDialect, memref::MemRefDialect,
+                scf::SCFDialect, vector::VectorDialect>();
   }
 
-  void runOnOperation() override;
+  void runOnOperation() override {
+    ModuleOp module = this->getOperation();
+    auto run = [&]() -> LogicalResult {
+      if (module->hasAttr("bosc_ame.store_policy"))
+        return module.emitError("bosc_ame.store_policy is obsolete; remove it "
+                                "and rerun the automatic BOSCAME planner");
+      if (bm.getNumOccurrences() || bn.getNumOccurrences() ||
+          bk.getNumOccurrences())
+        return module.emitError(
+            "legacy bm/bn/bk overrides are obsolete; geometry is taken from "
+            "buffer-form Linalg operands");
+      if (!enableSpmDma || !enableAME)
+        return module.emitError(
+            "the automatic BOSCAME planner requires enabled target engines; "
+            "remove disabled legacy feature "
+            "overrides");
+      if (target != "nr-fpga")
+        return module.emitError("unsupported BOSCAME target; expected nr-fpga");
+      for (StringRef name : {"bosc_ame.enable_spm_dma", "bosc_ame.enable_ame"})
+        if (Attribute attr = module->getAttr(name)) {
+          auto enabled = dyn_cast<BoolAttr>(attr);
+          if (!enabled || !enabled.getValue())
+            return module.emitError()
+                   << "disabled or invalid legacy target feature " << name
+                   << "; remove it and use automatic planning";
+          module->removeAttr(name);
+        }
+      for (StringRef name : {"bosc_ame.bm", "bosc_ame.bn", "bosc_ame.bk"})
+        if (module->hasAttr(name))
+          return module.emitError()
+                 << "obsolete geometry attribute " << name
+                 << "; remove it and regenerate a neutral contract";
+      if (Attribute attr = module->getAttr("bosc_ame.target")) {
+        auto profile = dyn_cast<StringAttr>(attr);
+        if (!profile || profile.getValue() != target)
+          return module.emitError(
+              "invalid or conflicting BOSCAME target profile");
+        module->removeAttr("bosc_ame.target");
+      }
+      StringRef abi = dmaAbi;
+      if (Attribute attr = module->getAttr(spmdma::kDmaAbiAttrName)) {
+        auto promised = dyn_cast<StringAttr>(attr);
+        if (!promised || (!abi.empty() && promised.getValue() != abi))
+          return module.emitError(
+              "invalid or conflicting explicit DMA ABI contract");
+        abi = promised.getValue();
+      }
+      if (!abi.empty()) {
+        if (abi != spmdma::kDmaAbiAlignedNonAliasing &&
+            abi != spmdma::kDmaAbiAligned)
+          return module.emitError() << "invalid dma-abi: " << abi;
+        OpBuilder builder(module.getContext());
+        NamedAttrList promises;
+        promises.append("args_aligned_bytes", builder.getI64IntegerAttr(64));
+        if (abi == spmdma::kDmaAbiAlignedNonAliasing)
+          promises.append("args_disjoint", builder.getBoolAttr(true));
+        auto promised = promises.getDictionary(module.getContext());
+        if (auto existing = module->getAttr("contract.abi");
+            existing && existing != promised)
+          return module.emitError(
+              "explicit DMA ABI conflicts with contract.abi");
+        module->setAttr("contract.abi", promised);
+        // The target op verifier needs this explicit promise before adaptation.
+        module->setAttr(spmdma::kDmaAbiAttrName, builder.getStringAttr(abi));
+      }
+      if (failed(validateCompatibilityDialects(module)))
+        return failure();
+      SmallVector<FixedSPMBuffer> fixed;
+      if (!module->hasAttr("contract.version")) {
+        if (failed(adaptPhysicalInput(module, fixed)))
+          return failure();
+        module->removeAttr(spmdma::kDmaAbiAttrName);
+        if (auto placement = module->getAttr("bosc_ame.placement")) {
+          if (placement != StringAttr::get(module.getContext(), "logical"))
+            return module.emitError(
+                "unsupported legacy placement mode; use automatic planning");
+          module->removeAttr("bosc_ame.placement");
+        }
+        if (auto expected = module->getAttr("bosc_ame.expected_ame_matmuls")) {
+          auto count = dyn_cast<IntegerAttr>(expected);
+          int64_t actual = 0;
+          module.walk([&](linalg::MatmulOp op) {
+            actual += op->hasAttr("bosc_ame.lower_to_ame");
+          });
+          if (!count || count.getInt() != actual)
+            return module.emitError(
+                "BOSCAME AME marker count changed before input adaptation");
+          module->removeAttr("bosc_ame.expected_ame_matmuls");
+        }
+        normalizeBOSCAMEBufferInput(module);
+        if (failed(migrateSourceFacts(module)))
+          return failure();
+        if (failed(::buddy::contract::annotateKernelContract(module)))
+          return failure();
+      } else if (!abi.empty()) {
+        module->removeAttr(spmdma::kDmaAbiAttrName);
+      }
+      if (!module->hasAttr("plan.version") &&
+          failed(planBOSCAME(module, fixed,
+                             PlanOptions{bool(bufferPlacement), planVersion})))
+        return failure();
+      if (failed(verifyBOSCAMEPlan(module)))
+        return failure();
+      if (planReport)
+        printBOSCAMEPlan(module, llvm::errs());
+      return emitBOSCAMEPlan(module);
+    };
+    if (failed(run()))
+      this->signalPassFailure();
+  }
 };
 } // namespace
 
-void LowerLinalgToBOSCAMEPass::runOnOperation() {
-  MLIRContext *context = &getContext();
-  ModuleOp module = getOperation();
-
-  RewritePatternSet patterns(context);
-  patterns.add<
-      MatmulToBOSCAMELowering, GenericMatmulToBOSCAMELowering,
-      GenericElementwiseToBOSCAMELowering, GenericUnarySquareToBOSCAMELowering,
-      GenericTransposeToBOSCAMELowering, GenericBroadcastToBOSCAMELowering>(
-      context);
-
-  ConversionTarget target(*context);
-  target.addLegalDialect<BOSCAMEDialect, arith::ArithDialect,
-                         memref::MemRefDialect, scf::SCFDialect>();
-  target.addIllegalOp<linalg::MatmulOp>();
-  target.addDynamicallyLegalOp<linalg::GenericOp>(
-      [](linalg::GenericOp op) { return !isLowerableGeneric(op); });
-
-  if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
-    signalPassFailure();
-  }
+namespace mlir::buddy {
+std::unique_ptr<Pass> createLowerLinalgToBOSCAMEPass() {
+  return std::make_unique<LowerLinalgToBOSCAMEPass<false>>();
 }
-
-//===----------------------------------------------------------------------===//
-// Pass Registration
-//===----------------------------------------------------------------------===//
-
-namespace mlir {
-namespace buddy {
+std::unique_ptr<Pass> createLinalgToBOSCAMEPass() {
+  return std::make_unique<LowerLinalgToBOSCAMEPass<true>>();
+}
 void registerLowerLinalgToBOSCAMEPass() {
-  PassRegistration<LowerLinalgToBOSCAMEPass>();
+  PassRegistration<LowerLinalgToBOSCAMEPass<false>>();
+  PassRegistration<LowerLinalgToBOSCAMEPass<true>>();
 }
-} // namespace buddy
-} // namespace mlir
+} // namespace mlir::buddy

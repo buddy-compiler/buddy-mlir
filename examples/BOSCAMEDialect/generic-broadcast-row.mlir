@@ -1,6 +1,6 @@
-// RUN: buddy-opt %s -lower-linalg-to-boscame
+// RUN: %PYTHON %S/Inputs/check_reference.py %s %t buddy-opt mlir-runner %mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext
 //
-// This file tests lowering a linalg.generic row broadcast pattern to BOSCAME.
+// Standard reference execution of the historical row-broadcast demo.
 
 #identity_2d = affine_map<(d0, d1) -> (d0, d1)>
 #broadcast_row = affine_map<(d0, d1) -> (d1)>

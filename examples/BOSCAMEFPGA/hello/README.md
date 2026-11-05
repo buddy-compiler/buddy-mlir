@@ -30,8 +30,8 @@ Toolchain overrides are documented in
 The launcher **does not compile**. Pass the `.bin` from the step above.
 
 SSH host, UVHS workdir, and shared flags are documented in the
-[parent README](../README.md) and [`../tools/README.md`](../tools/README.md)
-(see internal docs for lab machine details). Set them for your lab first:
+[parent README](../README.md) (see internal docs for lab machine details).
+Set them for your lab first:
 
 ```bash
 export FPGA_SSH_HOST=<ssh-alias-or-host>
