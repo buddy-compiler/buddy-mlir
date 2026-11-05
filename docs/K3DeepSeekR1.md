@@ -78,7 +78,10 @@ HuggingFace config.
 
 The K3 kernel only lets "AI" threads run on the A100 cores: make the process
 one (`/proc/set_ai_thread`) before `buddy-cli` starts, so that all its threads
-run there.
+run there. The model library checks the VLEN of the CPU when it loads
+(`runtime/rvv/BuddyRvvVlen.c`, in every RISC-V model built for an exact VLEN):
+started on the X100 cores (VLEN 256), it stops with a message instead of
+computing wrong results.
 
 ```bash
 sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --prompt "..."'

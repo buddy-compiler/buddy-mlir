@@ -62,7 +62,7 @@ set(RISCV_OMP_SHARED "" CACHE FILEPATH
 set(RISCV_MLIR_C_RUNNER_UTILS "" CACHE FILEPATH
   "Path to target mlir_c_runner_utils shared library for RVV link")
 set(BUDDY_RISCV_VLEN "" CACHE STRING
-  "RISC-V targets: the exact VLEN in bits (e.g. 1024 for the SpacemiT K3 A100 cores); empty: any")
+  "RISC-V targets: the exact VLEN in bits (e.g. 1024 for the SpacemiT K3 A100 cores), checked when the model library loads; empty: any")
 set(RISCV_LLVM_BUILD_DIR "" CACHE PATH
   "riscv64 LLVM/MLIR build dir for the RVV plugins (lib/libLLVMSupport.a, include/llvm/Config)")
 if(NOT DEFINED BUDDY_MLIR_BUILD_DIR)
@@ -1424,6 +1424,22 @@ function(buddy_add_model)
     # dladdr (the names in its profile) is in libdl before glibc 2.34
     list(APPEND MDL_STAGE3_LIBS -lpthread -ldl)
   endif()
+  # RISC-V Vector code of an exact VLEN (the llc options and the VIR lowering
+  # of compile_pipeline.kernels_lower_vir; the A100 code of "prefill_ime" is
+  # for 1024) computes wrong results on another: the model library stops a
+  # process whose CPU has another VLEN when it loads.
+  set(_mdl_rvv_vlen "")
+  if(IS_RVV_CROSSCOMPILE OR HAVE_LOCAL_RVV)
+    if(BUDDY_RISCV_VLEN)
+      set(_mdl_rvv_vlen "${BUDDY_RISCV_VLEN}")
+    elseif(MDL_PREFILL_IME)
+      set(_mdl_rvv_vlen 1024)
+    endif()
+  endif()
+  if(_mdl_rvv_vlen)
+    list(APPEND _mdl_runtime_srcs
+      "${BUDDY_SOURCE_DIR}/runtime/rvv/BuddyRvvVlen.c")
+  endif()
   set(MDL_STAGE3_EXTRA_OBJS)
   foreach(_src ${_mdl_runtime_srcs})
     get_filename_component(_name "${_src}" NAME_WE)
@@ -1436,6 +1452,9 @@ function(buddy_add_model)
     if(_name STREQUAL "BuddyArena" AND MDL_ARENA_PREFAULT_MB GREATER 0)
       list(APPEND _opts
         "-DBUDDY_ARENA_DEFAULT_PREFAULT_MB=${MDL_ARENA_PREFAULT_MB}")
+    endif()
+    if(_name STREQUAL "BuddyRvvVlen")
+      list(APPEND _opts "-DBUDDY_RVV_VLEN=${_mdl_rvv_vlen}")
     endif()
     add_custom_command(
       OUTPUT "${_obj}"

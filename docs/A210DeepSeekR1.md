@@ -72,6 +72,9 @@ The spec (`models/deepseek_r1/specs/a210_w4g32.json`):
   build never reuses weights packed for another layout.
 - For a RISC-V target, `buddy_model.cmake` stops when `BUDDY_RISCV_VLEN` is
   set to another value than 128 or `BUDDY_RISCV_ENABLE_ZFH_ZVFH` is off.
+- The model library checks the VLEN of the CPU when it loads
+  (`runtime/rvv/BuddyRvvVlen.c`): on a CPU of another VLEN than
+  `BUDDY_RISCV_VLEN` it stops with a message.
 
 ## Run
 
