@@ -15,9 +15,8 @@
 //===----------------------------------------------------------------------===//
 //
 // Linked into each library that holds the code of a buddy-codegen model built
-// for RISC-V Vector of an exact VLEN: that of its llc options
-// (BUDDY_RISCV_VLEN, or a model's LLC_ATTRS), or 1024 for the SpacemiT K3
-// A100 code of "prefill_ime" (tools/buddy-codegen/cmake/buddy_rvv_vlen.cmake).
+// for RISC-V Vector of an exact VLEN, BUDDY_RISCV_VLEN
+// (tools/buddy-codegen/cmake/buddy_rvv_vlen.cmake).
 // Its vector code is for that VLEN only: llc
 // is told the exact VLEN (+zvlNb, -riscv-v-vector-bits-max) and
 // -lower-vir-to-vector sizes its scalable vectors for it, so on a CPU of
