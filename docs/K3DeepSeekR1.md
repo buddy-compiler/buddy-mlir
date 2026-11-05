@@ -288,8 +288,7 @@ disagree are an error):
 | x86, Arm NEON, SVE (not sized by the pass yet), the host tests | fixed vectors for the host's registers |
 
 On the A100 the two rows of a head (row-flattened) are one `vector<[8]xf32>`
-of 128 lanes, LMUL 4 (a region with a `vir.shuffle` keeps each dynamic
-vector in one vector), and `rotate_half` takes each row (`vector<[4]xf32>`)
+of 128 lanes, LMUL 4, and `rotate_half` takes each row (`vector<[4]xf32>`)
 and puts it in place: register moves.
 
 The results are those of the vector kernel bit for bit, with and without
