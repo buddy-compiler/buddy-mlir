@@ -63,7 +63,7 @@ set(RISCV_OMP_SHARED "" CACHE FILEPATH
 set(RISCV_MLIR_C_RUNNER_UTILS "" CACHE FILEPATH
   "Path to target mlir_c_runner_utils shared library for RVV link")
 set(BUDDY_RISCV_VLEN "" CACHE STRING
-  "RISC-V targets: the exact VLEN in bits (e.g. 1024 for the SpacemiT K3 A100 cores), checked when the model library loads; empty: any")
+  "RISC-V targets: the exact VLEN in bits (e.g. 1024 for the SpacemiT K3 A100 cores), the one setting of the VLEN of a build (llc options, VIR lowering, the check when the model library loads); empty: any")
 set(RISCV_LLVM_BUILD_DIR "" CACHE PATH
   "riscv64 LLVM/MLIR build dir for the RVV plugins (lib/libLLVMSupport.a, include/llvm/Config)")
 if(NOT DEFINED BUDDY_MLIR_BUILD_DIR)
@@ -400,20 +400,24 @@ function(buddy_add_model)
   if(BUDDY_RISCV_ENABLE_ZFH_ZVFH)
     string(APPEND _MDL_RISCV_MATTR ",+zfh,+zvfh")
   endif()
-  # A known VLEN lets LLVM map fixed-length vectors onto whole registers.
-  set(_MDL_RISCV_VLEN_ARGS "")
-  if(BUDDY_RISCV_VLEN)
-    string(APPEND _MDL_RISCV_MATTR ",+zvl${BUDDY_RISCV_VLEN}b")
-    set(_MDL_RISCV_VLEN_ARGS " -riscv-v-vector-bits-max=${BUDDY_RISCV_VLEN}")
-  endif()
   if(IS_RVV_CROSSCOMPILE)
-    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu${_MDL_RISCV_VLEN_ARGS}")
+    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
   elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
-      set(MDL_LLC_ATTRS "-mcpu=native -mattr=${_MDL_RISCV_MATTR}${_MDL_RISCV_VLEN_ARGS}")
+      set(MDL_LLC_ATTRS "-mcpu=native -mattr=${_MDL_RISCV_MATTR}")
     else()
       set(MDL_LLC_ATTRS "-mcpu=native")
     endif()
+  endif()
+  # The VLEN of an RVV build is BUDDY_RISCV_VLEN's (buddy_rvv_vlen.cmake):
+  # its VLEN options join the llc options, a model's LLC_ATTRS included,
+  # which must not set one. A known VLEN lets LLVM map fixed-length vectors
+  # onto whole registers.
+  if(IS_RVV_CROSSCOMPILE OR HAVE_LOCAL_RVV)
+    buddy_rvv_vlen_llc_attrs(MDL_LLC_ATTRS
+      LLC_ATTRS "${MDL_LLC_ATTRS}"
+      VLEN "${BUDDY_RISCV_VLEN}"
+      CONTEXT "buddy_add_model (${MDL_NAME})")
   endif()
 
   if(NOT MDL_COMPILE_JOBS)
@@ -529,15 +533,15 @@ function(buddy_add_model)
       "buddy_add_model (${MDL_NAME}): \"prefill_ime\" targets the SpacemiT "
       "K3 (RISC-V); build it with --is-rvv-crosscompile or on the board.")
   endif()
-  # compile_pipeline.py compiles the IME kernels for VLEN 1024 (A100_VLEN)
-  # whatever BUDDY_RISCV_VLEN says; a build for another VLEN cannot run them.
-  if(MDL_PREFILL_IME AND BUDDY_RISCV_VLEN AND
-     NOT BUDDY_RISCV_VLEN EQUAL 1024)
+  # The A100 code of "prefill_ime" is for VLEN 1024 (A100_VLEN, which
+  # compile_pipeline.a100_llc_args checks): the build's, BUDDY_RISCV_VLEN.
+  if(MDL_PREFILL_IME AND NOT "${BUDDY_RISCV_VLEN}" STREQUAL "1024")
     message(FATAL_ERROR
       "buddy_add_model (${MDL_NAME}): \"prefill_ime\" needs the VLEN of "
-      "the K3 A100 cores, 1024; BUDDY_RISCV_VLEN is ${BUDDY_RISCV_VLEN}.")
+      "the K3 A100 cores: BUDDY_RISCV_VLEN=1024; it is "
+      "\"${BUDDY_RISCV_VLEN}\".")
   endif()
-  # The VLEN the model's RVV code is for, from the final llc options
+  # The VLEN the model's RVV code is for, that of the final llc options
   # (buddy_rvv_vlen.cmake): every library that holds its code links
   # runtime/rvv/BuddyRvvVlen.c for it, which stops a process on a CPU of
   # another VLEN when the library loads.
@@ -546,7 +550,6 @@ function(buddy_add_model)
   if(IS_RVV_CROSSCOMPILE OR HAVE_LOCAL_RVV)
     buddy_rvv_vlen_required(_mdl_rvv_vlen
       LLC_ATTRS "${MDL_LLC_ATTRS}"
-      PREFILL_IME "${MDL_PREFILL_IME}"
       PYTHON "${Python3_EXECUTABLE}"
       CODEGEN_DIR "${BUDDY_CODEGEN_DIR}"
       CONTEXT "buddy_add_model (${MDL_NAME})")

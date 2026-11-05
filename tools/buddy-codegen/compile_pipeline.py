@@ -84,7 +84,9 @@ BUFFER_DEALLOCATION = [
 
 # The matrix-engine code of the SpacemiT K3 A100 cores (pipeline
 # "kernels_ime") is written for exactly this VLEN: vscale 16, at which
-# vector<[8]xi8> is one 8 x 16 int8 tile of smt.vmadot.
+# vector<[8]xi8> is one 8 x 16 int8 tile of smt.vmadot. Not a setting: the
+# VLEN of a build is BUDDY_RISCV_VLEN's (in the llc options), which the A100
+# pipelines check against it.
 A100_VLEN = 1024
 
 
@@ -168,24 +170,21 @@ def kernels_lower_vir(llc_args: list[str]) -> str:
 
 def a100_llc_args(llc_base_args: list[str]) -> list[str]:
     """llc options of the A100 code, on top of the build's: the IME
-    extension, the exact VLEN (whatever BUDDY_RISCV_VLEN gives the other
-    kernels; an option llc accepts once is not repeated) and the A100
-    scheduling model, top down (it issues the weight load of an IME step
-    first and unpacks it while the activations load)."""
-    vmax = f"-riscv-v-vector-bits-max={A100_VLEN}"
-    given = [
-        a for a in llc_base_args if a.startswith("-riscv-v-vector-bits-max=")
-    ]
-    if any(a != vmax for a in given):
+    extension and the A100 scheduling model, top down (it issues the weight
+    load of an IME step first and unpacks it while the activations load).
+    The build's options must be of the exact VLEN of the A100 (A100_VLEN):
+    the VLEN of a build is set in one place, BUDDY_RISCV_VLEN."""
+    vlen = exact_rvv_vlen(llc_base_args)
+    if vlen != A100_VLEN:
         raise ValueError(
-            f"the A100 IME kernels need VLEN {A100_VLEN}, the build gives "
-            f"{given[-1]}"
+            f"the A100 code needs the exact VLEN {A100_VLEN} "
+            f"(BUDDY_RISCV_VLEN={A100_VLEN}); the build's llc options give "
+            f"{'no exact VLEN' if vlen is None else f'VLEN {vlen}'}"
         )
     return [
-        f"-mattr=+xsmtvdotii,+zvl{A100_VLEN}b",
+        "-mattr=+xsmtvdotii",
         "-mcpu=spacemit-a100",
         "-misched-prera-direction=topdown",
-        *([] if given else [vmax]),
     ]
 
 

@@ -1,4 +1,4 @@
-#===- buddy_rvv_vlen.cmake - The VLEN check of RVV model libraries -------===#
+#===- buddy_rvv_vlen.cmake - The VLEN of RISC-V Vector model builds ------===#
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,25 +14,49 @@
 #
 #===----------------------------------------------------------------------===#
 #
-# RISC-V Vector code of an exact VLEN computes wrong results on another VLEN
-# (runtime/rvv/BuddyRvvVlen.c). The VLEN a model is for comes from the llc
-# options its code is compiled with, the same reading as the VIR lowering
-# (compile_pipeline.exact_rvv_vlen), and is 1024 with "prefill_ime" (the
-# SpacemiT K3 A100 code, compile_pipeline.A100_VLEN).
+# The VLEN of a RISC-V Vector model build is set in one place,
+# BUDDY_RISCV_VLEN (empty: any VLEN). Everything else follows it: the llc
+# options of the model's code, the VIR lowering
+# (compile_pipeline.kernels_lower_vir), the checks of code written for one
+# VLEN (the A100 code of "prefill_ime", the A210 kernels), and the VLEN check
+# of the model's libraries (runtime/rvv/BuddyRvvVlen.c).
+#
+#   buddy_rvv_vlen_llc_attrs(<var> LLC_ATTRS <llc options> [VLEN <vlen>]
+#                            [CONTEXT <name>])
+#
+# sets <var> to the llc options with the VLEN options of <vlen> (+zvl<vlen>b,
+# -riscv-v-vector-bits-max=<vlen>) when it is given. The llc options must not
+# have VLEN options of their own (a model's LLC_ATTRS): they stop the
+# configuration.
 #
 #   buddy_rvv_vlen_required(<var> LLC_ATTRS <llc options> PYTHON <python>
-#                           CODEGEN_DIR <tools/buddy-codegen>
-#                           [PREFILL_IME <bool>] [CONTEXT <name>])
+#                           CODEGEN_DIR <tools/buddy-codegen> [CONTEXT <name>])
 #
-# sets <var> to that VLEN, or to "" (not RVV, or no exact VLEN: code valid on
-# any VLEN). llc options that disagree, or an exact VLEN other than 1024 with
-# "prefill_ime", stop the configuration.
+# sets <var> to the exact VLEN of the final llc options, read as llc reads
+# them (compile_pipeline.exact_rvv_vlen), or to "" (not RVV, or no exact
+# VLEN: code valid on any VLEN). Options that disagree stop the
+# configuration.
 #
 #===----------------------------------------------------------------------===#
 
+function(buddy_rvv_vlen_llc_attrs out)
+  cmake_parse_arguments(A "" "LLC_ATTRS;VLEN;CONTEXT" "" ${ARGN})
+  if(A_LLC_ATTRS MATCHES "(\\+zvl[0-9]+b|-riscv-v-vector-bits-(min|max))")
+    message(FATAL_ERROR
+      "${A_CONTEXT}: the llc options \"${A_LLC_ATTRS}\" set a VLEN "
+      "(${CMAKE_MATCH_1}); the VLEN of a build is BUDDY_RISCV_VLEN.")
+  endif()
+  set(_attrs "${A_LLC_ATTRS}")
+  if(A_VLEN)
+    string(APPEND _attrs
+      " -mattr=+zvl${A_VLEN}b -riscv-v-vector-bits-max=${A_VLEN}")
+    string(STRIP "${_attrs}" _attrs)
+  endif()
+  set(${out} "${_attrs}" PARENT_SCOPE)
+endfunction()
+
 function(buddy_rvv_vlen_required out)
-  cmake_parse_arguments(A "" "LLC_ATTRS;PYTHON;CODEGEN_DIR;PREFILL_IME;CONTEXT"
-                        "" ${ARGN})
+  cmake_parse_arguments(A "" "LLC_ATTRS;PYTHON;CODEGEN_DIR;CONTEXT" "" ${ARGN})
   execute_process(
     COMMAND "${A_PYTHON}" -c
             "import sys; sys.path.insert(0, sys.argv[1]); import compile_pipeline as c; v = c.exact_rvv_vlen(sys.argv[2].split()); print('' if v is None else v)"
@@ -46,14 +70,6 @@ function(buddy_rvv_vlen_required out)
     string(STRIP "${_error}" _error)
     message(FATAL_ERROR
       "${A_CONTEXT}: the llc options \"${A_LLC_ATTRS}\": ${_error}")
-  endif()
-  if(A_PREFILL_IME)
-    if(_vlen AND NOT _vlen EQUAL 1024)
-      message(FATAL_ERROR
-        "${A_CONTEXT}: \"prefill_ime\" needs the VLEN of the K3 A100 cores, "
-        "1024; the llc options give ${_vlen}.")
-    endif()
-    set(_vlen 1024)
   endif()
   set(${out} "${_vlen}" PARENT_SCOPE)
 endfunction()

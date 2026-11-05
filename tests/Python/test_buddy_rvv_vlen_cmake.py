@@ -1,11 +1,12 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 #
-# tools/buddy-codegen/cmake/buddy_rvv_vlen.cmake: the VLEN that the VLEN
-# check of a model's libraries (runtime/rvv/BuddyRvvVlen.c) is built for,
-# from the final llc options of the model (those of BUDDY_RISCV_VLEN, or a
-# model's own LLC_ATTRS) read as compile_pipeline.exact_rvv_vlen reads them,
-# and 1024 with "prefill_ime"; "" for code valid on any VLEN. Options that
-# disagree stop the configuration.
+# tools/buddy-codegen/cmake/buddy_rvv_vlen.cmake, run with cmake -P. The VLEN
+# of an RVV model build is set in one place, BUDDY_RISCV_VLEN:
+# buddy_rvv_vlen_llc_attrs adds its VLEN options to the llc options (a
+# model's LLC_ATTRS included), which must not set one; buddy_rvv_vlen_required
+# reads the exact VLEN of the final llc options (as
+# compile_pipeline.exact_rvv_vlen) for the VLEN check of the model's
+# libraries (runtime/rvv/BuddyRvvVlen.c), "" for code valid on any VLEN.
 
 import os
 import shutil
@@ -18,16 +19,11 @@ CMAKE = shutil.which("cmake")
 RVV = "-march=riscv64 -mtriple=riscv64-unknown-linux-gnu -mattr=+m,+d,+v"
 
 
-def required(llc_attrs, prefill_ime=False):
+def run(call):
     script = f"""
 include("{SRC}/tools/buddy-codegen/cmake/buddy_rvv_vlen.cmake")
-buddy_rvv_vlen_required(vlen
-  LLC_ATTRS "{llc_attrs}"
-  PREFILL_IME "{"ON" if prefill_ime else "OFF"}"
-  PYTHON "{sys.executable}"
-  CODEGEN_DIR "{SRC}/tools/buddy-codegen"
-  CONTEXT "model")
-message(STATUS "VLEN '${{vlen}}'")
+{call}
+message(STATUS "'${{out}}'")
 """
     with tempfile.NamedTemporaryFile("w", suffix=".cmake") as f:
         f.write(script)
@@ -43,41 +39,48 @@ message(STATUS "VLEN '${{vlen}}'")
     return out.stdout.strip().removeprefix("-- ")
 
 
-for name, llc_attrs, ime in (
-    (
-        "BUDDY_RISCV_VLEN=1024",
-        RVV + ",+zvl1024b -riscv-v-vector-bits-max=1024",
-        False,
-    ),
-    # a model's LLC_ATTRS (native builds), whatever BUDDY_RISCV_VLEN is
-    (
-        "LLC_ATTRS of VLEN 256",
-        "-mcpu=native -mattr=+m,+d,+v,+zvl256b -riscv-v-vector-bits-max=256",
-        False,
-    ),
-    ("RVV of no exact VLEN", RVV, False),
-    ("RVV, max 0", RVV + ",+zvl256b -riscv-v-vector-bits-max=0", False),
-    ("x86", "-mcpu=native", False),
-    ("prefill_ime", RVV, True),
-    (
-        "prefill_ime, VLEN 1024",
-        RVV + ",+zvl1024b -riscv-v-vector-bits-max=1024",
-        True,
-    ),
-    (
-        "prefill_ime, VLEN 256",
-        RVV + ",+zvl256b -riscv-v-vector-bits-max=256",
-        True,
-    ),
-    ("zvl 256 and 512", RVV + ",+zvl256b -mattr=+zvl512b", False),
+def llc_attrs(attrs, vlen=""):
+    return run(
+        f'buddy_rvv_vlen_llc_attrs(out LLC_ATTRS "{attrs}" VLEN "{vlen}" '
+        f'CONTEXT "model")'
+    )
+
+
+def required(attrs):
+    return run(
+        f'buddy_rvv_vlen_required(out LLC_ATTRS "{attrs}" '
+        f'PYTHON "{sys.executable}" '
+        f'CODEGEN_DIR "{SRC}/tools/buddy-codegen" CONTEXT "model")'
+    )
+
+
+for name, attrs, vlen in (
+    ("BUDDY_RISCV_VLEN=1024", RVV, "1024"),
+    ("no BUDDY_RISCV_VLEN", RVV, ""),
+    ("LLC_ATTRS, BUDDY_RISCV_VLEN=256", "-mcpu=native -mattr=+m,+d,+v", "256"),
+    ("LLC_ATTRS with a zvl", "-mcpu=native -mattr=+m,+d,+v,+zvl256b", "1024"),
+    ("LLC_ATTRS with a max", "-mcpu=native -riscv-v-vector-bits-max=256", ""),
 ):
-    print(f"{name}: {required(llc_attrs, ime)}")
-# CHECK: BUDDY_RISCV_VLEN=1024: VLEN '1024'
-# CHECK-NEXT: LLC_ATTRS of VLEN 256: VLEN '256'
-# CHECK-NEXT: RVV of no exact VLEN: VLEN ''
-# CHECK-NEXT: RVV, max 0: VLEN ''
-# CHECK-NEXT: x86: VLEN ''
-# CHECK-NEXT: prefill_ime: VLEN '1024'
-# CHECK-NEXT: prefill_ime, VLEN 1024: VLEN '1024'
-# CHECK-NEXT: prefill_ime, VLEN 256: error: {{.*}}model: "prefill_ime" needs the VLEN of the K3 A100 cores, 1024; the llc options give 256.
-# CHECK-NEXT: zvl 256 and 512: error: {{.*}}model: the llc options "{{.*}}": ValueError: llc options of several VLEN: +zvl[256, 512]b
+    print(f"llc options, {name}: {llc_attrs(attrs, vlen)}")
+# CHECK: llc options, BUDDY_RISCV_VLEN=1024: '-march=riscv64 -mtriple=riscv64-unknown-linux-gnu -mattr=+m,+d,+v -mattr=+zvl1024b -riscv-v-vector-bits-max=1024'
+# CHECK-NEXT: llc options, no BUDDY_RISCV_VLEN: '-march=riscv64 -mtriple=riscv64-unknown-linux-gnu -mattr=+m,+d,+v'
+# CHECK-NEXT: llc options, LLC_ATTRS, BUDDY_RISCV_VLEN=256: '-mcpu=native -mattr=+m,+d,+v -mattr=+zvl256b -riscv-v-vector-bits-max=256'
+# CHECK-NEXT: llc options, LLC_ATTRS with a zvl: error: {{.*}}model: the llc options "-mcpu=native -mattr=+m,+d,+v,+zvl256b" set a VLEN (+zvl256b); the VLEN of a build is BUDDY_RISCV_VLEN.
+# CHECK-NEXT: llc options, LLC_ATTRS with a max: error: {{.*}}model: the llc options "-mcpu=native -riscv-v-vector-bits-max=256" set a VLEN (-riscv-v-vector-bits-max); the VLEN of a build is BUDDY_RISCV_VLEN.
+
+for name, attrs in (
+    ("VLEN 1024", RVV + " -mattr=+zvl1024b -riscv-v-vector-bits-max=1024"),
+    (
+        "VLEN 256",
+        "-mcpu=native -mattr=+m,+d,+v -mattr=+zvl256b -riscv-v-vector-bits-max=256",
+    ),
+    ("no exact VLEN", RVV),
+    ("x86", "-mcpu=native"),
+    ("zvl 256 and 512", RVV + ",+zvl256b -mattr=+zvl512b"),
+):
+    print(f"check, {name}: {required(attrs)}")
+# CHECK-NEXT: check, VLEN 1024: '1024'
+# CHECK-NEXT: check, VLEN 256: '256'
+# CHECK-NEXT: check, no exact VLEN: ''
+# CHECK-NEXT: check, x86: ''
+# CHECK-NEXT: check, zvl 256 and 512: error: {{.*}}model: the llc options "{{.*}}": ValueError: llc options of several VLEN: +zvl[256, 512]b
