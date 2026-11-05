@@ -58,21 +58,35 @@ for name, attrs, vlen in (
     ("BUDDY_RISCV_VLEN=1024", RVV, "1024"),
     ("no BUDDY_RISCV_VLEN", RVV, ""),
     ("LLC_ATTRS, BUDDY_RISCV_VLEN=256", "-mcpu=native -mattr=+m,+d,+v", "256"),
+    (
+        "LLC_ATTRS of an -mcpu only, BUDDY_RISCV_VLEN=256",
+        "-mcpu=spacemit-x60",
+        "256",
+    ),
     ("LLC_ATTRS with a zvl", "-mcpu=native -mattr=+m,+d,+v,+zvl256b", "1024"),
     ("LLC_ATTRS with a max", "-mcpu=native -riscv-v-vector-bits-max=256", ""),
 ):
     print(f"llc options, {name}: {llc_attrs(attrs, vlen)}")
-# CHECK: llc options, BUDDY_RISCV_VLEN=1024: '-march=riscv64 -mtriple=riscv64-unknown-linux-gnu -mattr=+m,+d,+v -mattr=+zvl1024b -riscv-v-vector-bits-max=1024'
+# CHECK: llc options, BUDDY_RISCV_VLEN=1024: '-march=riscv64 -mtriple=riscv64-unknown-linux-gnu -mattr=+m,+d,+v -mattr=+v,+zvl1024b -riscv-v-vector-bits-max=1024'
 # CHECK-NEXT: llc options, no BUDDY_RISCV_VLEN: '-march=riscv64 -mtriple=riscv64-unknown-linux-gnu -mattr=+m,+d,+v'
-# CHECK-NEXT: llc options, LLC_ATTRS, BUDDY_RISCV_VLEN=256: '-mcpu=native -mattr=+m,+d,+v -mattr=+zvl256b -riscv-v-vector-bits-max=256'
+# CHECK-NEXT: llc options, LLC_ATTRS, BUDDY_RISCV_VLEN=256: '-mcpu=native -mattr=+m,+d,+v -mattr=+v,+zvl256b -riscv-v-vector-bits-max=256'
+# CHECK-NEXT: llc options, LLC_ATTRS of an -mcpu only, BUDDY_RISCV_VLEN=256: '-mcpu=spacemit-x60 -mattr=+v,+zvl256b -riscv-v-vector-bits-max=256'
 # CHECK-NEXT: llc options, LLC_ATTRS with a zvl: error: {{.*}}model: the llc options "-mcpu=native -mattr=+m,+d,+v,+zvl256b" set a VLEN (+zvl256b); the VLEN of a build is BUDDY_RISCV_VLEN.
 # CHECK-NEXT: llc options, LLC_ATTRS with a max: error: {{.*}}model: the llc options "-mcpu=native -riscv-v-vector-bits-max=256" set a VLEN (-riscv-v-vector-bits-max); the VLEN of a build is BUDDY_RISCV_VLEN.
 
 for name, attrs in (
-    ("VLEN 1024", RVV + " -mattr=+zvl1024b -riscv-v-vector-bits-max=1024"),
+    ("VLEN 1024", RVV + " -mattr=+v,+zvl1024b -riscv-v-vector-bits-max=1024"),
     (
         "VLEN 256",
-        "-mcpu=native -mattr=+m,+d,+v -mattr=+zvl256b -riscv-v-vector-bits-max=256",
+        "-mcpu=native -mattr=+m,+d,+v -mattr=+v,+zvl256b -riscv-v-vector-bits-max=256",
+    ),
+    (
+        "-mcpu only, VLEN 256",
+        "-mcpu=spacemit-x60 -mattr=+v,+zvl256b -riscv-v-vector-bits-max=256",
+    ),
+    (
+        "VLEN 256, then -v",
+        RVV + " -mattr=+v,+zvl256b -riscv-v-vector-bits-max=256 -mattr=-v",
     ),
     ("no exact VLEN", RVV),
     ("x86", "-mcpu=native"),
@@ -81,6 +95,8 @@ for name, attrs in (
     print(f"check, {name}: {required(attrs)}")
 # CHECK-NEXT: check, VLEN 1024: '1024'
 # CHECK-NEXT: check, VLEN 256: '256'
+# CHECK-NEXT: check, -mcpu only, VLEN 256: '256'
+# CHECK-NEXT: check, VLEN 256, then -v: ''
 # CHECK-NEXT: check, no exact VLEN: ''
 # CHECK-NEXT: check, x86: ''
 # CHECK-NEXT: check, zvl 256 and 512: error: {{.*}}model: the llc options "{{.*}}": ValueError: llc options of several VLEN: +zvl[256, 512]b

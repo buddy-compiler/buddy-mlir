@@ -90,9 +90,24 @@ BUFFER_DEALLOCATION = [
 A100_VLEN = 1024
 
 
+def rvv_enabled(llc_args: list[str]) -> bool:
+    """Whether the llc options `llc_args` enable RVV by a +v of -mattr (the
+    last of +v / -v, as llc applies them). A V that only an -mcpu implies is
+    not seen: the RVV builds of buddy_model.cmake give +v with the VLEN of
+    BUDDY_RISCV_VLEN (buddy_rvv_vlen.cmake)."""
+    v = [
+        f
+        for a in llc_args
+        if a.startswith("-mattr=")
+        for f in a[len("-mattr=") :].split(",")
+        if f in ("+v", "-v")
+    ]
+    return v[-1:] == ["+v"]
+
+
 def exact_rvv_vlen(llc_args: list[str]) -> int | None:
     """The exact RVV VLEN of the llc options `llc_args`, or None: not RVV
-    (no +v), or no exact VLEN.
+    (no +v, rvv_enabled), or no exact VLEN.
 
     The VLEN options are read as llc reads them: the minimum VLEN is the
     zvl (+v: 128), or -riscv-v-vector-bits-min when it is positive (-1 and 0
@@ -122,7 +137,7 @@ def exact_rvv_vlen(llc_args: list[str]) -> int | None:
     }
     if len(zvl) > 1:
         raise ValueError(f"llc options of several VLEN: +zvl{sorted(zvl)}b")
-    vmin = next(iter(zvl), 128 if "+v" in features else 0)
+    vmin = next(iter(zvl), 128 if rvv_enabled(llc_args) else 0)
     bits_min = option("-riscv-v-vector-bits-min") or -1
     bits_max = option("-riscv-v-vector-bits-max") or 0
     for name, bits in (("min", bits_min), ("max", bits_max)):
@@ -137,7 +152,7 @@ def exact_rvv_vlen(llc_args: list[str]) -> int | None:
             f"llc options of a maximum VLEN below the minimum {vmin}: "
             f"-riscv-v-vector-bits-max={bits_max}"
         )
-    if "+v" not in features or vmin != bits_max:
+    if not rvv_enabled(llc_args) or vmin != bits_max:
         return None
     return vmin
 
@@ -159,11 +174,7 @@ def kernels_lower_vir(llc_args: list[str]) -> str:
     vlen = exact_rvv_vlen(llc_args)
     if vlen is not None:
         return f"-lower-vir-to-vector=rvv-vlen={vlen} use-scalable=true"
-    if not any(
-        "+v" in a[len("-mattr=") :].split(",")
-        for a in llc_args
-        if a.startswith("-mattr=")
-    ):
+    if not rvv_enabled(llc_args):
         return "-lower-vir-to-vector"
     return "-lower-vir-to-vector=use-scalable=true"
 

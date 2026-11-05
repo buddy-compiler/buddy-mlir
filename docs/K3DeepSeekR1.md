@@ -35,9 +35,10 @@ python3 tools/buddy-codegen/build_model.py \
 
 - `BUDDY_RISCV_VLEN=1024` is the exact VLEN of the build, its one VLEN
   setting (`tools/buddy-codegen/cmake/buddy_rvv_vlen.cmake`): it gives llc
-  the exact VLEN (`+zvl1024b`, `-riscv-v-vector-bits-max=1024`; llc options
-  of a model, `LLC_ATTRS`, must not set one), so that a weight tile is one e8
-  register and a 512-byte load is one `vl4r`; the VIR lowering, the checks
+  V and the exact VLEN (`+v,+zvl1024b`, `-riscv-v-vector-bits-max=1024`;
+  llc options of a model, `LLC_ATTRS`, must not set one), so that a weight
+  tile is one e8 register and a 512-byte load is one `vl4r`; the VIR
+  lowering, the checks
   below and the VLEN check of the model library at load follow it. The
   decode attention (VIR dialect, below) is compiled for this VLEN and runs on
   it only. `prefill_ime` (the A100 code) needs `BUDDY_RISCV_VLEN=1024`.

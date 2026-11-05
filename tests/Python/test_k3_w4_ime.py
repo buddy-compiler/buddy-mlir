@@ -133,12 +133,12 @@ print(
 # the A100: the build's options, which must be of the A100's exact VLEN (the
 # options of BUDDY_RISCV_VLEN=1024, the one VLEN setting of a build), then
 # the IME extension and the A100 scheduling model.
-K3 = "-mattr=+m,+d,+v -mattr=+zvl1024b -riscv-v-vector-bits-max=1024"
+K3 = "-mattr=+m,+d,+v -mattr=+v,+zvl1024b -riscv-v-vector-bits-max=1024"
 stages = compile_pipeline.build_stages("kernels_ime", 8, K3, "w4g32")
 print("tools:", " ".join(tool for tool, _ in stages))
 print("llc:", " ".join(stages[-1][1]))
 # CHECK: tools: buddy-opt buddy-translate llvm-as llc
-# CHECK-NEXT: llc: -mattr=+m,+d,+v -mattr=+zvl1024b -riscv-v-vector-bits-max=1024 -code-model=large -mattr=+xsmtvdotii -mcpu=spacemit-a100 -misched-prera-direction=topdown -filetype=obj -relocation-model=pic -O3
+# CHECK-NEXT: llc: -mattr=+m,+d,+v -mattr=+v,+zvl1024b -riscv-v-vector-bits-max=1024 -code-model=large -mattr=+xsmtvdotii -mcpu=spacemit-a100 -misched-prera-direction=topdown -filetype=obj -relocation-model=pic -O3
 # "kernels_a100" (the other kernels of a model on the A100 cores): the passes
 # of "kernels", the llc options of the A100.
 a100 = compile_pipeline.build_stages("kernels_a100", 8, K3, "w4g32")

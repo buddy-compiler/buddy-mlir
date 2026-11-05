@@ -24,8 +24,10 @@
 #   buddy_rvv_vlen_llc_attrs(<var> LLC_ATTRS <llc options> [VLEN <vlen>]
 #                            [CONTEXT <name>])
 #
-# sets <var> to the llc options with the VLEN options of <vlen> (+zvl<vlen>b,
-# -riscv-v-vector-bits-max=<vlen>) when it is given. The llc options must not
+# sets <var> to the llc options with the VLEN options of <vlen> (+v,
+# +zvl<vlen>b, -riscv-v-vector-bits-max=<vlen>) when it is given: a VLEN is
+# for code with V, and the +v makes it seen when only an -mcpu would imply V
+# (compile_pipeline.rvv_enabled). The llc options must not
 # have VLEN options of their own (a model's LLC_ATTRS): they stop the
 # configuration.
 #
@@ -49,7 +51,7 @@ function(buddy_rvv_vlen_llc_attrs out)
   set(_attrs "${A_LLC_ATTRS}")
   if(A_VLEN)
     string(APPEND _attrs
-      " -mattr=+zvl${A_VLEN}b -riscv-v-vector-bits-max=${A_VLEN}")
+      " -mattr=+v,+zvl${A_VLEN}b -riscv-v-vector-bits-max=${A_VLEN}")
     string(STRIP "${_attrs}" _attrs)
   endif()
   set(${out} "${_attrs}" PARENT_SCOPE)
