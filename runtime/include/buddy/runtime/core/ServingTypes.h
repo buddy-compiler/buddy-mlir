@@ -83,6 +83,9 @@ struct ModelStatus {
   int contextLength = 0;
 };
 
+/// Serving seed policy, independent of the legacy SamplerConfig seed sentinel.
+enum class SamplingSeedPolicy { Random, Fixed };
+
 /// Request-time sampling and stopping configuration.
 struct SamplingParams {
   /// Maximum total token count, including prompt tokens. A value of 0 means no
@@ -91,12 +94,23 @@ struct SamplingParams {
 
   buddy::SamplerConfig samplerConfig;
 
-  /// Optional string stops supplied by the transport layer. The MVP may choose
-  /// to support token-id stops first and leave string stops to the adapter.
+  /// Optional string stops, matched against raw token bytes by serving
+  /// generation before UTF-8 decoding.
   std::vector<std::string> stop;
 
   /// Optional token-id stops merged with model/template default stop ids.
   std::vector<long long> stopTokenIds;
+
+  /// Generated-token budget for runServingGeneration, separate from the legacy
+  /// maxTokens limit. Zero runs prefill only; -1 uses the remaining context.
+  /// Positive limits count the first prediction and any EOS/stop token.
+  int maxNewTokens = 512;
+
+  /// Serving seed selection is independent of samplerConfig.seed. Fixed
+  /// permits zero; UINT32_MAX is reserved for random selection.
+  SamplingSeedPolicy seedPolicy = SamplingSeedPolicy::Random;
+  /// Used only when seedPolicy is Fixed.
+  uint32_t fixedSeed = 0;
 };
 /// One image supplied with a multimodal request.
 ///
