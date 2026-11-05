@@ -103,3 +103,28 @@ func.func @tail(%a: memref<2x3xf32>, %o: memref<2x3xf32>) {
 // CHECK: %[[L:.*]] = llvm.call_intrinsic "llvm.vector.splice.left"(%[[X]], %{{.*}}, %c1_i32)
 // CHECK: %[[E:.*]] = vector.extract %[[L]][0] : f32 from vector<[1]xf32>
 // CHECK: memref.store %[[E]]
+
+// The width comes from the anchor (f16: vector<[32]xf16> at LMUL 8), but
+// the shuffle is of f32, where that is 16 registers: halved to
+// vector<[16]xf32> (LMUL 8), one row of 64 lanes per piece, which swap.
+func.func @extf(%a: memref<2x64xf16>) -> f32 {
+  %vl = arith.constant 64 : index
+  %z = arith.constant 0.0 : f32
+  %r = vir.set_vl %vl : index {
+    %h = vir.load %a[] : memref<2x64xf16> -> !vir.vec<2x?xf16>
+    %x = vir.extf %h : !vir.vec<2x?xf16> -> !vir.vec<2x?xf32>
+    %y = vir.shuffle %x, %x [1, 0] : !vir.vec<2x?xf32>
+    %s = vir.reduce %y, %z {kind = "add"} : !vir.vec<2x?xf32>, f32 -> f32
+    vector.yield %s : f32
+  } -> f32
+  return %r : f32
+}
+
+// CHECK-LABEL: func.func @extf
+// CHECK-NOT: splice
+// CHECK: vector.load %{{.*}} : memref<128xf16>, vector<[16]xf16>
+// CHECK: vector.load %{{.*}} : memref<128xf16>, vector<[16]xf16>
+// CHECK: %[[X0:.*]] = arith.extf %{{.*}} : vector<[16]xf16> to vector<[16]xf32>
+// CHECK: %[[X1:.*]] = arith.extf %{{.*}} : vector<[16]xf16> to vector<[16]xf32>
+// CHECK: %[[R:.*]] = vector.reduction <add>, %[[X1]], %{{.*}} : vector<[16]xf32> into f32
+// CHECK: vector.reduction <add>, %[[X0]], %[[R]] : vector<[16]xf32> into f32

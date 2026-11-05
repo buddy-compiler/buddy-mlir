@@ -178,8 +178,11 @@ def VIR_ShuffleOp : VIR_Op<"shuffle",
     per row. RoPE's rotate_half of a head as two rows `x` is
     `vir.shuffle %neg_x, %x [1, 2]`, i.e. `[-x[1], x[0]]`.
 
-    It is only supported in a `vir.set_vl` with results, whose dynamic
-    vectors must lower to one vector each.
+    It is only supported in a `vir.set_vl` with results. With fixed vectors,
+    each dynamic vector of the region lowers to one vector of all its lanes;
+    with scalable vectors, every lane is known (vscale = rvv-vlen / 64) and
+    a dynamic vector can lower to several vectors (pieces): the rows move
+    between them.
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$v1,

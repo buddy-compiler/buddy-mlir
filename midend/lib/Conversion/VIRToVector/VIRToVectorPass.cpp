@@ -1884,14 +1884,24 @@ private:
                             "positive number of lanes");
       if (!useScalable && !useCustomVecWid)
         width = lanes;
-      // scalable: whole vectors only where they can be (no lanes left as
-      // scalars, which a shuffle moves one by one)
-      while (useScalable && !useCustomVecWid && width > 1 &&
-             lanes % (width * vscale) != 0)
-        width /= 2;
       // RVV: vector<[N]xT> is a group of N * SEW / 64 registers, of at most
-      // 8 (vector-width can ask for more); each shuffle has its element
-      // type (vir.extf / truncf; index as the LLVM lowering has it)
+      // 8; each shuffle has its element type (vir.extf / truncf, wider than
+      // the anchor's the width comes from; index as the LLVM lowering has
+      // it)
+      int64_t sew = 0;
+      for (vir::ShuffleOp s : shuffles) {
+        Type elem = s.getType().getElementType();
+        sew = std::max<int64_t>(
+            sew, elem.isIndex() ? getTypeConverter()->getIndexTypeBitwidth()
+                                : elem.getIntOrFloatBitWidth());
+      }
+      // scalable: groups of at most 8 for every shuffle, whole vectors only
+      // where they can be (no lanes left as scalars, which a shuffle moves
+      // one by one)
+      while (useScalable && !useCustomVecWid && width > 1 &&
+             (width * sew > 8 * 64 || lanes % (width * vscale) != 0))
+        width /= 2;
+      // (vector-width can ask for more)
       if (useScalable)
         for (vir::ShuffleOp s : shuffles) {
           Type elem = s.getType().getElementType();
