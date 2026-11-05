@@ -25,6 +25,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <numeric>
+
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
@@ -94,6 +96,23 @@ static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
 // Downstream LLVM lowering may pack vector<...xi1> memory operations, which
 // breaks round-tripping through scalar i1 loads/stores. Keep i1 memref accesses
 // scalarized even inside the vectorized loop.
+/// `scalar` broadcast to `vecTy`. The LLVM lowering of vector.broadcast
+/// takes vector<[1]xT> for one lane (its splat shufflevector of mask [0]
+/// folds away) and leaves the other vscale - 1 lanes poison: a broadcast to
+/// vector<[2]xT> and its first half instead. The fold is
+/// LLVM::ShuffleVectorOp::fold (LLVMDialect.cpp), which takes a vector of
+/// one known-minimum element for a vector of one element; this can go once
+/// it leaves scalable vectors alone.
+static Value broadcastTo(OpBuilder &builder, Location loc, VectorType vecTy,
+                         Value scalar) {
+  if (vecTy.getRank() != 1 || vecTy.getShape()[0] != 1 || !vecTy.isScalable())
+    return vector::BroadcastOp::create(builder, loc, vecTy, scalar);
+  Value wide = vector::BroadcastOp::create(
+      builder, loc, VectorType::get({2}, vecTy.getElementType(), {true}),
+      scalar);
+  return vector::ScalableExtractOp::create(builder, loc, vecTy, wide, 0);
+}
+
 static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
   return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
          vecTy.getElementType().isInteger(1);
@@ -622,9 +641,8 @@ private:
                 op.emitError("failed to derive vector type for vir.broadcast");
                 return;
               }
-              auto vectorBroadcastOp = vector::BroadcastOp::create(
-                  builder, loc, *vecTyOr, scalarValue);
-              virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
+              virSymbolTable[op.getResult()] =
+                  broadcastTo(builder, loc, *vecTyOr, scalarValue);
             }
           })
           .Case<vir::FMAOp>([&](vir::FMAOp op) {
@@ -1318,7 +1336,7 @@ private:
             auto oneAttr = builder.getFloatAttr(elemTy, 1.0);
             Value one = arith::ConstantOp::create(builder, loc, oneAttr);
             if (isa<VectorType>(outTy))
-              one = vector::BroadcastOp::create(builder, loc, outTy, one);
+              one = broadcastTo(builder, loc, cast<VectorType>(outTy), one);
             auto div = arith::DivFOp::create(builder, loc, one, sqrt);
             virSymbolTable[op.getResult()] = div.getResult();
           })
@@ -1524,82 +1542,131 @@ private:
             vector::TransferWriteOp::create(b, loc, values[p], base, idx);
         }
       } else if (auto shuffle = dyn_cast<vir::ShuffleOp>(op)) {
-        // Row r of the result is row s = mask[r] of v1 then v2: within the
-        // one vector of the rows, a part of v1 or v2 put in place, or a
-        // slide of v1 or v2 by (s mod rows - r) rows.
-        if (pieces.size() != 1 || !pieces.isVector(0))
-          return op->emitError("vir.shuffle needs a dynamic vector in one "
-                               "vector of the target");
-        Value v1 = get(shuffle.getV1()).front(),
-              v2 = get(shuffle.getV2()).front();
+        // Row r of the result is row s = mask[r] of v1 then v2.
         ArrayRef<int64_t> mask = shuffle.getMask();
         int64_t rows = pieces.layout.front();
         int64_t rowLanes =
             pieces.vl * llvm::product_of(ArrayRef(pieces.layout).drop_front());
-        auto vecTy = cast<VectorType>(v1.getType());
-        Value out;
         if (!pieces.scalable) {
+          // fixed: one vector of all the lanes, a vector.shuffle
+          if (pieces.size() != 1 || !pieces.isVector(0))
+            return op->emitError("vir.shuffle needs a dynamic vector in one "
+                                 "vector of the target");
+          Value v1 = one(shuffle.getV1()), v2 = one(shuffle.getV2());
           SmallVector<int64_t> lanes;
           for (int64_t s : mask)
             for (int64_t c = 0; c < rowLanes; ++c)
               lanes.push_back(s < rows
                                   ? s * rowLanes + c
                                   : pieces.width + (s - rows) * rowLanes + c);
-          out = vector::ShuffleOp::create(b, loc, v1, v2, lanes);
-        } else if (pieces.width % rows == 0) {
-          // a row is vector<[width / rows]xT>, a part of the register group
-          // (rowLanes = width / rows * vscale): taken from v1 or v2 and put
-          // in place, register moves
-          int64_t sub = pieces.width / rows;
-          out = ub::PoisonOp::create(b, loc, vecTy);
-          for (auto [r, s] : llvm::enumerate(mask)) {
-            Value row = vector::ScalableExtractOp::create(
-                b, loc, VectorType::get({sub}, vecTy.getElementType(), {true}),
-                s < rows ? v1 : v2, s % rows * sub);
-            out = vector::ScalableInsertOp::create(b, loc, row, out, r * sub);
-          }
-        } else {
-          for (auto [r, s] : llvm::enumerate(mask)) {
-            Value src = s < rows ? v1 : v2;
-            int64_t shift = (s % rows - int64_t(r)) * rowLanes;
-            Value row = src;
-            if (shift != 0) {
-              // a slide down (left) or up (right); the lanes it shifts in
-              // are of other rows
-              Value by = arith::ConstantOp::create(
-                  b, loc, b.getI32IntegerAttr(std::abs(shift)));
-              // the intrinsic takes LLVM types: index as an integer
-              VectorType llvmTy = vecTy;
-              if (vecTy.getElementType().isIndex()) {
-                llvmTy = vecTy.clone(b.getIntegerType(
-                    getTypeConverter()->getIndexTypeBitwidth()));
-                src = arith::IndexCastOp::create(b, loc, llvmTy, src);
-              }
-              Value none = ub::PoisonOp::create(b, loc, llvmTy);
-              row = LLVM::CallIntrinsicOp::create(
-                        b, loc, llvmTy,
-                        b.getStringAttr(shift > 0 ? "llvm.vector.splice.left"
-                                                  : "llvm.vector.splice.right"),
-                        shift > 0 ? ValueRange{src, none, by}
-                                  : ValueRange{none, src, by})
-                        .getResult(0);
-              if (llvmTy != vecTy)
-                row = arith::IndexCastOp::create(b, loc, vecTy, row);
-            }
-            if (r == 0) {
-              out = row;
-              continue;
-            }
-            // the lanes from row r on
-            Value before = vector::CreateMaskOp::create(
-                b, loc,
-                VectorType::get(vecTy.getShape(), b.getI1Type(), {true}),
-                ValueRange{
-                    arith::ConstantIndexOp::create(b, loc, r * rowLanes)});
-            out = arith::SelectOp::create(b, loc, before, out, row);
-          }
+          map[shuffle.getResult()] = {
+              vector::ShuffleOp::create(b, loc, v1, v2, lanes)};
+          continue;
         }
-        map[shuffle.getResult()] = {out};
+        // Scalable: every lane is known (vscale = rvv-vlen / 64). Lane l of
+        // the result is lane (s mod rows) * rowLanes + l mod rowLanes of v1
+        // (s < rows) or v2, s = mask[l / rowLanes]. A piece of the result is
+        // made of runs of lanes from one piece of v1 or v2: a whole piece is
+        // that piece; a run of whole blocks of vscale lanes is taken and put
+        // in place (vector.scalable.extract / insert, register moves); other
+        // runs are slid into place and selected from their first lane on
+        // (the runs come in order: the next ones set the lanes after).
+        SmallVector<Value, 4> s1 = get(shuffle.getV1()),
+                              s2 = get(shuffle.getV2()), out;
+        int64_t vscale = pieces.lanes / pieces.width;
+        auto pieceOf = [&](int64_t lane) {
+          int64_t vectorLanes = pieces.numVectors * pieces.lanes;
+          return lane < vectorLanes ? lane / pieces.lanes
+                                    : pieces.numVectors + lane - vectorLanes;
+        };
+        // src slid down by `shift` lanes (up when negative): lane i is lane
+        // i + shift of src, the lanes shifted in are poison
+        auto slide = [&](Value src, int64_t shift) -> Value {
+          if (shift == 0)
+            return src;
+          auto vecTy = cast<VectorType>(src.getType());
+          Value by = arith::ConstantOp::create(
+              b, loc, b.getI32IntegerAttr(std::abs(shift)));
+          // the intrinsic takes LLVM types: index as an integer
+          VectorType llvmTy = vecTy;
+          if (vecTy.getElementType().isIndex()) {
+            llvmTy = vecTy.clone(
+                b.getIntegerType(getTypeConverter()->getIndexTypeBitwidth()));
+            src = arith::IndexCastOp::create(b, loc, llvmTy, src);
+          }
+          Value none = ub::PoisonOp::create(b, loc, llvmTy);
+          Value moved =
+              LLVM::CallIntrinsicOp::create(
+                  b, loc, llvmTy,
+                  b.getStringAttr(shift > 0 ? "llvm.vector.splice.left"
+                                            : "llvm.vector.splice.right"),
+                  shift > 0 ? ValueRange{src, none, by}
+                            : ValueRange{none, src, by})
+                  .getResult(0);
+          return llvmTy != vecTy
+                     ? Value(arith::IndexCastOp::create(b, loc, vecTy, moved))
+                     : moved;
+        };
+        // `res` with its lanes from `from` on those of `value`
+        auto selectFrom = [&](Value res, int64_t from, Value value) -> Value {
+          if (!res)
+            return value;
+          auto vecTy = cast<VectorType>(value.getType());
+          Value before = vector::CreateMaskOp::create(
+              b, loc, VectorType::get(vecTy.getShape(), b.getI1Type(), {true}),
+              ValueRange{arith::ConstantIndexOp::create(b, loc, from)});
+          return arith::SelectOp::create(b, loc, before, res, value);
+        };
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          int64_t first = pieces.fixedOffset(p);
+          int64_t n = pieces.isVector(p) ? pieces.lanes : 1;
+          Type elem = elemOf(shuffle.getType());
+          Value res;
+          for (int64_t l = 0; l < n;) {
+            int64_t lane = first + l, s = mask[lane / rowLanes];
+            int64_t c = lane % rowLanes;
+            int64_t from = s % rows * rowLanes + c, q = pieceOf(from);
+            int64_t a = from - pieces.fixedOffset(q);
+            int64_t qn = pieces.isVector(q) ? pieces.lanes : 1;
+            int64_t len = std::min({n - l, rowLanes - c, qn - a});
+            Value src = (s < rows ? s1 : s2)[q];
+            if (!pieces.isVector(p)) {
+              // a scalar: lane a of a vector, slid down to lane 0
+              res = pieces.isVector(q)
+                        ? Value(vector::ExtractOp::create(b, loc, slide(src, a),
+                                                          ArrayRef<int64_t>{0}))
+                        : src;
+            } else if (!pieces.isVector(q)) {
+              res = selectFrom(
+                  res, l,
+                  broadcastTo(b, loc, cast<VectorType>(pieces.type(elem, p)),
+                              src));
+            } else if (len == n) {
+              res = src;
+            } else if (l % vscale == 0 && a % vscale == 0 &&
+                       len % vscale == 0) {
+              // blocks of g * vscale lanes, g the largest power of two that
+              // divides the positions, the length and the width
+              int64_t g = std::gcd(std::gcd(l / vscale, a / vscale),
+                                   std::gcd(len / vscale, pieces.width));
+              g = int64_t(llvm::bit_floor(uint64_t(g & -g)));
+              if (!res)
+                res = ub::PoisonOp::create(b, loc, pieces.type(elem, p));
+              auto subTy = VectorType::get({g}, elem, {true});
+              for (int64_t k = 0; k < len / vscale; k += g) {
+                Value sub = vector::ScalableExtractOp::create(
+                    b, loc, subTy, src, a / vscale + k);
+                res = vector::ScalableInsertOp::create(b, loc, sub, res,
+                                                       l / vscale + k);
+              }
+            } else {
+              res = selectFrom(res, l, slide(src, a - l));
+            }
+            l += len;
+          }
+          out.push_back(res);
+        }
+        map[shuffle.getResult()] = out;
       } else if (auto from = dyn_cast<vir::FromVectorOp>(op)) {
         Value src = one(from.getSource());
         auto srcTy = cast<VectorType>(src.getType());
@@ -1638,11 +1705,12 @@ private:
         Value scalar = one(bcast.getValue());
         SmallVector<Value, 4> out;
         for (int64_t p = 0; p < pieces.size(); ++p)
-          out.push_back(
-              pieces.isVector(p)
-                  ? Value(vector::BroadcastOp::create(
-                        b, loc, pieces.type(scalar.getType(), p), scalar))
-                  : scalar);
+          out.push_back(pieces.isVector(p)
+                            ? broadcastTo(b, loc,
+                                          cast<VectorType>(
+                                              pieces.type(scalar.getType(), p)),
+                                          scalar)
+                            : scalar);
         map[bcast.getResult()] = out;
       } else if (auto fma = dyn_cast<vir::FMAOp>(op)) {
         SmallVector<Value, 4> lhs = get(fma.getLhs()), rhs = get(fma.getRhs()),
@@ -1804,27 +1872,36 @@ private:
       return op.emitError("a vir.set_vl with results on scalable vectors "
                           "needs rvv-vlen, the exact VLEN");
     int64_t vscale = useScalable ? rvvVlen / 64 : 1;
-    // A vir.shuffle moves lanes between rows within one vector: each
+    // A vir.shuffle of fixed vectors moves lanes within one vector: each
     // dynamic vector is one vector of all its lanes, whatever the register
-    // pressure (a scalable one in a register group of at most 8).
+    // pressure. On scalable vectors, every lane is known, so the pieces are
+    // sized as for any region (the shuffle moves lanes between them).
     SmallVector<vir::ShuffleOp> shuffles;
     op.getRegion().walk([&](vir::ShuffleOp s) { shuffles.push_back(s); });
     if (!shuffles.empty()) {
       if (lanes <= 0)
         return op.emitError("vir.shuffle needs a dynamic vector with a "
                             "positive number of lanes");
-      // fixed: lanes; scalable: N * vscale == lanes
-      if (!useCustomVecWid) {
-        width = lanes / vscale;
-        if (useScalable &&
-            (lanes % vscale != 0 || !llvm::has_single_bit(uint64_t(width))))
-          return op.emitError("vir.shuffle needs a dynamic vector of ")
-                 << lanes << " lanes in one register group (vector<[N]xT>, N "
-                 << "a power of two) of VLEN " << rvvVlen;
+      if (!useScalable && !useCustomVecWid)
+        width = lanes;
+      // RVV: vector<[N]xT> is a group of N * SEW / 64 registers, of at most
+      // 8; each shuffle has its element type (vir.extf / truncf, wider than
+      // the anchor's the width comes from; index as the LLVM lowering has
+      // it)
+      int64_t sew = 0;
+      for (vir::ShuffleOp s : shuffles) {
+        Type elem = s.getType().getElementType();
+        sew = std::max<int64_t>(
+            sew, elem.isIndex() ? getTypeConverter()->getIndexTypeBitwidth()
+                                : elem.getIntOrFloatBitWidth());
       }
-      // RVV: vector<[N]xT> is a group of N * SEW / 64 registers of at most
-      // 8; each shuffle has its element type (vir.extf / truncf; index as
-      // the LLVM lowering has it)
+      // scalable: groups of at most 8 for every shuffle, whole vectors only
+      // where they can be (no lanes left as scalars, which a shuffle moves
+      // one by one)
+      while (useScalable && !useCustomVecWid && width > 1 &&
+             (width * sew > 8 * 64 || lanes % (width * vscale) != 0))
+        width /= 2;
+      // (vector-width can ask for more)
       if (useScalable)
         for (vir::ShuffleOp s : shuffles) {
           Type elem = s.getType().getElementType();
@@ -1832,10 +1909,11 @@ private:
                             ? getTypeConverter()->getIndexTypeBitwidth()
                             : elem.getIntOrFloatBitWidth();
           if (width * sew > 8 * 64)
-            return s.emitError("vir.shuffle needs a dynamic vector of ")
-                   << lanes << " lanes in one register group of at most 8";
+            return s.emitError("vir.shuffle needs register groups of at "
+                               "most 8, vector-width ")
+                   << width << " gives " << width * sew / 64 << " registers";
         }
-      if (verbose && !useCustomVecWid)
+      if (verbose && !useScalable && !useCustomVecWid)
         llvm::outs() << "vir.shuffle: one vector of " << lanes
                      << " lanes, width " << width << "\n";
     }
