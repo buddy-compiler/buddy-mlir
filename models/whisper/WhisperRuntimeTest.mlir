@@ -19,7 +19,8 @@ rhal.module @whisper_runtime_test attributes {
     model_name = "whisper_runtime_test",
     vocab_uri = "file:vocab.txt",
     runner_library = "file:whisper_runner.so",
-    params_size = "1",
+    params_size = "2",
+    encoder_params_size = "1",
     vocab_size = "3",
     max_token_len = "4",
     mel_bins = "80",
@@ -29,14 +30,18 @@ rhal.module @whisper_runtime_test attributes {
     sot_token = "0",
     eot_token = "2"} {
   rhal.constant @params {id = 1 : i32, storage = "external",
-                         type = tensor<1xf32>, uri = "file:weights.bin"}
+                         type = tensor<2xf32>, uri = "file:weights.bin"}
   rhal.codeobj @model {id = 1 : i32, kind = "host_shared_lib",
                        backend = "cpu", uri = "file:model.so"}
   rhal.buffer @audio_features {space = "host",
                                type = tensor<1x80x3000xf32>}
+  rhal.buffer @encoder_states {space = "host", type = tensor<1x1x1xf32>}
   rhal.buffer @decoder_tokens {space = "host", type = tensor<1x4xi64>}
   rhal.buffer @logits {space = "host", type = tensor<1x4x3xf32>}
-  rhal.func @forward {
-    inputs = ["audio_features", "decoder_tokens"], outputs = ["logits"],
-    dispatch = "model", args = ["audio_features", "decoder_tokens", "logits"]}
+  rhal.func @forward_encoder {
+    inputs = ["audio_features"], outputs = ["encoder_states"],
+    dispatch = "model", args = ["audio_features", "encoder_states"]}
+  rhal.func @forward_decoder {
+    inputs = ["decoder_tokens", "encoder_states"], outputs = ["logits"],
+    dispatch = "model", args = ["decoder_tokens", "encoder_states", "logits"]}
 }

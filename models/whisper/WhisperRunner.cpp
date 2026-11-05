@@ -81,6 +81,11 @@ void WhisperRunner::run(const RunConfig &config) {
       });
 
   std::cout << "\033[33;1m[Output]\033[0m " << result.text << std::endl;
+  printLog("Preprocess " + std::to_string(result.timings.preprocessMs) +
+               " ms | Encoder " + std::to_string(result.timings.encoderMs) +
+               " ms | Decoder " + std::to_string(result.timings.decoderMs) +
+               " ms | Total " + std::to_string(result.timings.totalMs) + " ms",
+           suppress);
 }
 
 } // namespace runtime

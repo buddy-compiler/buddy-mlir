@@ -20,6 +20,12 @@ conda run -n buddy-mlir python tools/buddy-codegen/build_model.py \
 Transformers, and the Buddy Python package, and generates the MLIR and parameter
 data consumed by the native build.
 
+The encoder and the decoder are separate graphs. One transcription preprocesses
+the audio and runs `forward_encoder` once, then runs `forward_decoder` for each
+token with the resulting hidden states. `arg0.data` holds the encoder parameters
+followed by the decoder parameters; `encoder_params_size` in the spec is the
+split point. The decoder keeps its fixed 448-token input and has no KV cache.
+
 The equivalent explicit CMake commands are:
 
 ```bash
@@ -50,7 +56,8 @@ the default payload mode embeds all of them in the `.rax`.
 ```
 
 `--audio` accepts a local WAV file and defaults to `audio.wav` beside
-the `.rax` package. `--no-stats` preserves the concise `[Output]` form.
+the `.rax` package. `--no-stats` preserves the concise `[Output]` form; otherwise
+the run ends with the preprocessing, encoder, decoder, and total times.
 
 ## buddy-server
 

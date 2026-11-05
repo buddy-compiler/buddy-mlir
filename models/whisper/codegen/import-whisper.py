@@ -16,10 +16,17 @@
 #
 # AOT importer for the Whisper model used by models/whisper (buddy-cli / .rax).
 #
-# Produces three artifacts in --output-dir:
-#   forward.mlir    main graph (calls into subgraph0)
-#   subgraph0.mlir  lowered top-level IR for the compute subgraph
-#   arg0.data       concatenated model parameters (f32)
+# The encoder and the decoder are imported as separate graphs so that one
+# transcription runs the encoder once and only the decoder for each token.
+#
+# Produces five artifacts in --output-dir:
+#   forward_encoder.mlir    encoder main graph (calls into subgraph0_encoder)
+#   subgraph0_encoder.mlir  lowered top-level IR for the encoder
+#   forward_decoder.mlir    decoder main graph (calls into subgraph0_decoder)
+#   subgraph0_decoder.mlir  lowered top-level IR for the decoder
+#   arg0.data               encoder parameters followed by decoder parameters
+#                           (f32); the split point is encoder_params_size in
+#                           the variant spec
 #
 # The model is resolved in this order:
 #   1. $WHISPER_MODEL_PATH        (local HF snapshot, set by CMake)
@@ -41,6 +48,7 @@ from buddy.compiler.graph import (
     build_transformer_partition_plan,
 )
 from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
 from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import WhisperForConditionalGeneration
@@ -69,11 +77,13 @@ args = parser.parse_args()
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
-# Resolve the Whisper model path.
-model_path = os.environ.get("WHISPER_MODEL_PATH")
-if not model_path and args.spec:
+spec = {}
+if args.spec:
     with open(args.spec) as f:
-        model_path = json.load(f).get("hf_model_path")
+        spec = json.load(f)
+
+# Resolve the Whisper model path.
+model_path = os.environ.get("WHISPER_MODEL_PATH") or spec.get("hf_model_path")
 if not model_path:
     model_path = "openai/whisper-base"
 
@@ -83,13 +93,70 @@ print(f"[import-whisper] Loading model from: {model_path}")
 model = WhisperForConditionalGeneration.from_pretrained(model_path)
 model.config.use_cache = False
 
-# Generate placeholder for inputs.
-input_features = torch.zeros(size=(1, 80, 3000), dtype=torch.float32)
-decoder_input_ids = torch.zeros(size=(1, 448), dtype=torch.long)
-inputs = {
-    "input_features": input_features,
-    "decoder_input_ids": decoder_input_ids,
-}
+
+class WhisperEncoderGraph(torch.nn.Module):
+    """Log-mel features -> encoder hidden states."""
+
+    def __init__(self, whisper):
+        super().__init__()
+        self.config = whisper.config
+        self.encoder = whisper.model.encoder
+
+    def forward(self, input_features):
+        return self.encoder(input_features).last_hidden_state
+
+
+class WhisperDecoderGraph(torch.nn.Module):
+    """Encoder hidden states and decoder tokens -> vocabulary logits."""
+
+    def __init__(self, whisper):
+        super().__init__()
+        self.config = whisper.config
+        self.decoder = whisper.model.decoder
+        self.proj_out = whisper.proj_out
+
+    def forward(self, encoder_hidden_states, decoder_input_ids):
+        hidden_states = self.decoder(
+            input_ids=decoder_input_ids,
+            encoder_hidden_states=encoder_hidden_states,
+        ).last_hidden_state
+        return self.proj_out(hidden_states)
+
+
+# Each graph with the placeholder inputs that fix its shapes, and the input
+# shapes WhisperRuntime passes to the compiled function, in order. The importer
+# orders graph inputs by first use, not by the order they are passed in.
+graph_definitions = [
+    (
+        "encoder",
+        WhisperEncoderGraph(model).eval(),
+        (torch.zeros(size=(1, 80, 3000), dtype=torch.float32),),
+        [[1, 80, 3000]],
+    ),
+    (
+        "decoder",
+        WhisperDecoderGraph(model).eval(),
+        (
+            torch.zeros(
+                size=(
+                    1,
+                    spec.get("enc_seq", 1500),
+                    spec.get("enc_dim", model.config.d_model),
+                ),
+                dtype=torch.float32,
+            ),
+            torch.zeros(size=(1, 448), dtype=torch.long),
+        ),
+        [
+            [1, 448],
+            [
+                1,
+                spec.get("enc_seq", 1500),
+                spec.get("enc_dim", model.config.d_model),
+            ],
+        ],
+    ),
+]
 
 # ── Work around a transformers tracing bug ───────────────────────────────────
 # transformers' masking_utils.find_packed_sequence_indices() keeps a
@@ -108,33 +175,36 @@ except (
 ) as _e:  # pragma: no cover - older transformers without this util
     print(f"[import-whisper] packed-sequence patch skipped: {_e}")
 
-# Initialize Dynamo Compiler with specific configurations as an importer.
-dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=inductor_decomp,
-)
 
-# Import the model into MLIR module and parameters.
-with torch.no_grad():
-    graphs = dynamo_compiler.importer(model, **inputs)
+def import_graph(name, graph_module, inputs, expected_input_shapes):
+    """Import one graph as MLIR-ready buddy graph plus flat parameters."""
+    dynamo_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name=f"forward_{name}",
+    )
+    with torch.no_grad():
+        graphs = dynamo_compiler.importer(graph_module, *inputs)
+    assert len(graphs) == 1
+    graph = graphs[0]
+    params = dynamo_compiler.imported_params[graph]
+    input_shapes = [list(meta.shape) for meta in graph.inputs_shapes]
+    if input_shapes != expected_input_shapes:
+        raise ValueError(
+            f"Whisper {name} graph inputs are {input_shapes}; WhisperRuntime "
+            f"passes {expected_input_shapes}"
+        )
+    graph.fuse_ops([simply_fuse])
+    return graph, params
 
-assert len(graphs) == 1
-graph = graphs[0]
-params = dynamo_compiler.imported_params[graph]
-pattern_list = [simply_fuse]
-graph.fuse_ops(pattern_list)
 
-if args.experimental_template_partitioned:
-    mlir_dir = os.path.join(output_dir, "layer_partitioned")
-    os.makedirs(mlir_dir, exist_ok=True)
-    partition_dir = os.path.join(output_dir, "layer_partitioned")
-    os.makedirs(partition_dir, exist_ok=True)
-
-    for filename in os.listdir(mlir_dir):
-        if filename.startswith("subgraph0_forward_") and filename.endswith(
+def write_template_partitioned(name, graph, partition_dir):
+    """Write one graph's template subgraphs and return its manifest entry."""
+    for filename in os.listdir(partition_dir):
+        if filename.startswith(f"subgraph0_{name}_") and filename.endswith(
             ".mlir"
         ):
-            os.remove(os.path.join(mlir_dir, filename))
+            os.remove(os.path.join(partition_dir, filename))
 
     plan = build_transformer_partition_plan(graph)
     driver = TemplatePartitionedGraphDriver(graph, plan)
@@ -153,21 +223,55 @@ if args.experimental_template_partitioned:
             print(subgraph._imported_module, file=module_file)
         template_files.append(filename)
 
-    with open(os.path.join(partition_dir, "forward.mlir"), "w") as module_file:
+    forward_file = f"forward_{name}.mlir"
+    with open(os.path.join(partition_dir, forward_file), "w") as module_file:
         print(
             driver.construct_template_combined_main_graph(True),
             file=module_file,
         )
+    return {
+        "name": f"forward_{name}",
+        "component": "model",
+        "forward": forward_file,
+        "templates": template_files,
+    }
+
+
+def write_single_subgraph(name, graph):
+    """Write one graph as its main graph and one compute subgraph."""
+    # Both graphs link into one library, so their subgraph symbols must differ.
+    subgraph_name = f"subgraph0_{name}"
+    graph.op_groups[subgraph_name] = graph.op_groups.pop("subgraph0")
+    graph.group_map_device[subgraph_name] = DeviceType.CPU
+
+    driver = GraphDriver(graph)
+    driver.subgraphs[0].lower_to_top_level_ir()
+    with open(
+        os.path.join(output_dir, f"{subgraph_name}.mlir"), "w"
+    ) as module_file:
+        print(driver.subgraphs[0]._imported_module, file=module_file)
+    with open(
+        os.path.join(output_dir, f"forward_{name}.mlir"), "w"
+    ) as module_file:
+        print(driver.construct_main_graph(True), file=module_file)
+
+
+# Import both graphs. The decoder and its output projection share the embedding
+# weights, and neither graph shares parameters with the other.
+imported_graphs = [
+    (name, *import_graph(name, graph_module, inputs, expected_input_shapes))
+    for name, graph_module, inputs, expected_input_shapes in graph_definitions
+]
+
+if args.experimental_template_partitioned:
+    partition_dir = os.path.join(output_dir, "layer_partitioned")
+    os.makedirs(partition_dir, exist_ok=True)
 
     manifest = {
         "template_materialization": True,
         "graphs": [
-            {
-                "name": "forward",
-                "component": "model",
-                "forward": "forward.mlir",
-                "templates": template_files,
-            }
+            write_template_partitioned(name, graph, partition_dir)
+            for name, graph, _ in imported_graphs
         ],
     }
     with open(
@@ -177,16 +281,26 @@ if args.experimental_template_partitioned:
         json.dump(manifest, manifest_file, indent=2)
         manifest_file.write("\n")
 else:
-    driver = GraphDriver(graph)
-    driver.subgraphs[0].lower_to_top_level_ir()
-    with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
-        print(driver.subgraphs[0]._imported_module, file=module_file)
-    with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
-        print(driver.construct_main_graph(True), file=module_file)
+    for name, graph, _ in imported_graphs:
+        write_single_subgraph(name, graph)
 
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
-)
+graph_params = [
+    numpy.concatenate(
+        [param.detach().numpy().reshape([-1]) for param in params]
+    )
+    for _, _, params in imported_graphs
+]
+encoder_params_size = graph_params[0].size
+all_param = numpy.concatenate(graph_params)
+for key, actual in (
+    ("encoder_params_size", encoder_params_size),
+    ("params_size", all_param.size),
+):
+    if key in spec and spec[key] != actual:
+        raise ValueError(
+            f"Whisper spec {key}={spec[key]} does not match the "
+            f"{actual} parameters imported from {model_path}"
+        )
 all_param.tofile(os.path.join(output_dir, "arg0.data"))
 if args.experimental_template_partitioned:
     print(
@@ -195,6 +309,6 @@ if args.experimental_template_partitioned:
     )
 else:
     print(
-        "[import-whisper] Wrote forward.mlir, subgraph0.mlir, "
-        f"arg0.data → {output_dir}"
+        "[import-whisper] Wrote forward_{encoder,decoder}.mlir, "
+        f"subgraph0_{{encoder,decoder}}.mlir, arg0.data → {output_dir}"
     )
