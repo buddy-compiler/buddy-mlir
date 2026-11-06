@@ -295,6 +295,16 @@ def gen_header(config: dict) -> str:
     p("  bool handleKVCacheOverflow(int keepTokenNum,")
     p("                             float ropeTheta = 10000.0f) override;")
     p("  int position() const override { return position_; }")
+    p("  /// Token positions the last prefill() actually computed. A tiered KV")
+    p(
+        "  /// cache rounds the prompt up to the selected tier and a chunked prefill"
+    )
+    p("  /// pads to whole chunks, so this can exceed the prompt token count.")
+    p(
+        "  /// 0 before the first prefill. Benchmarks divide prefill throughput by"
+    )
+    p("  /// this, not by the requested prompt length.")
+    p("  int lastPrefillWorkLen() const { return lastPrefillWorkLen_; }")
     p(
         "  /// Logits for one position; non-f32 logits may be converted to float."
     )
@@ -310,6 +320,7 @@ def gen_header(config: dict) -> str:
     p("  Config cfg_;")
     p("  BufferPool pool_;")
     p("  int position_ = 0;")
+    p("  int lastPrefillWorkLen_ = 0;")
     p()
     p("  // Pimpl: KVCacheABI, dlopen handle, and function pointers.")
     p("  struct Impl;")
@@ -752,6 +763,10 @@ def gen_impl_tiered(config: dict) -> str:
     p("              cacheLen, cacheLen, tokenCount);")
     p("  impl_->lastLogitsAreDecode = false;")
     p("  position_ = tokenCount;")
+    p(
+        "  // The prefill kernel runs the whole selected tier, not just the prompt."
+    )
+    p("  lastPrefillWorkLen_ = cacheLen;")
     p("}")
     p()
     p("void ModelSession::decode(int tokenId) {")
@@ -783,6 +798,7 @@ def gen_impl_tiered(config: dict) -> str:
     p()
     p("void ModelSession::resetPosition() {")
     p("  position_ = 0;")
+    p("  lastPrefillWorkLen_ = 0;")
     p("  impl_->activeSlot = 0;")
     p("  impl_->lastLogitsAreDecode = false;")
     p("}")
@@ -977,11 +993,15 @@ def _emit_chunked_prefill(
     p("    impl_->setPrefillLogits(1);")
     p("  if (n < n0) {")
     p("    position_ = n;")
+    p("    // One padded chunk plus the final decode step.")
+    p("    lastPrefillWorkLen_ = C + 1;")
     p("    decode((int)tokens.getData()[n0 - 1]);")
     p("    return;")
     p("  }")
     p("  impl_->lastLogitsAreDecode = true;")
     p("  position_ = n;")
+    p("  // Whole chunks, the last one right-aligned and possibly overlapping.")
+    p("  lastPrefillWorkLen_ = ((n + C - 1) / C) * C;")
     p("}")
     p()
 
@@ -1691,6 +1711,7 @@ def gen_impl(config: dict) -> str:
         p("  impl_->lastLogitsAreDecode = false;")
         p("  int tokenCount = (int)tokens.getTokenCnt();")
         p("  position_ = tokenCount;")
+        p("  lastPrefillWorkLen_ = tokenCount;")
         p("}")
         p()
     p(
@@ -1790,6 +1811,7 @@ def gen_impl(config: dict) -> str:
     # ── Misc methods ─────────────────────────────────────────────────────────
     p("void ModelSession::resetPosition() {")
     p("  position_ = 0;")
+    p("  lastPrefillWorkLen_ = 0;")
     p("  impl_->lastLogitsAreDecode = false;")
     p("}")
     p()
