@@ -115,6 +115,54 @@ def _tiered_cache_sizes(config: dict) -> list[int]:
     ]
 
 
+def _emit_dummy1ref(p) -> None:
+    """Emit the 24-byte rank-0 scalar type for cache_position and the per-layer
+    dummy scalars. It matches the LLVM lowering of MLIR `memref<i64>` (rank 0):
+    { i64* allocated, i64* aligned, i64 offset }. The previous `MemRef<long
+    long, 1>` (rank 1, 40 bytes) shifted every following field of the decode
+    ABI by 16 bytes, so the runtime read the logits at the wrong offset (a NULL
+    aligned pointer) and memcpy crashed. Rank 1 reads the same first three
+    words on input, so only the ABI layout (sizeof) changes."""
+    p("// A rank-0 scalar MemRef (MLIR `memref<i64>`), 24 bytes, matching the")
+    p("// LLVM struct { i64* allocated, i64* aligned, i64 offset } the decode")
+    p("// subgraph uses for cache_position and the per-layer dummy scalars.")
+    p("struct Dummy1Ref {")
+    p("  long long *allocated = nullptr;")
+    p("  long long *aligned = nullptr;")
+    p("  intptr_t offset = 0;")
+    p()
+    p("  // Session-side scalar slot (one element, initialised to `init`).")
+    p("  Dummy1Ref(intptr_t *shape, long long init) {")
+    p("    (void)shape; // scalar: always exactly one element")
+    p("    allocated = aligned = (long long *)malloc(sizeof(long long));")
+    p("    aligned[0] = init;")
+    p("  }")
+    p(
+        "  // Output slot the subgraph fills in place (needMalloc is always false)."
+    )
+    p("  Dummy1Ref(intptr_t *shape, bool needMalloc, intptr_t offset)")
+    p("      : offset(offset) {")
+    p("    (void)shape;")
+    p("    if (needMalloc)")
+    p("      allocated = aligned = (long long *)malloc(sizeof(long long));")
+    p("  }")
+    p("  Dummy1Ref(const Dummy1Ref &) = delete;")
+    p("  Dummy1Ref &operator=(const Dummy1Ref &) = delete;")
+    p("  ~Dummy1Ref() { free(allocated); }")
+    p()
+    p("  long long *getData() { return aligned; }")
+    p("  const long long *getData() const { return aligned; }")
+    p("  long long *release() {")
+    p("    long long *data = allocated;")
+    p("    allocated = nullptr;")
+    p("    aligned = nullptr;")
+    p("    offset = 0;")
+    p("    return data;")
+    p("  }")
+    p("};")
+    p()
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Header generation
 # ──────────────────────────────────────────────────────────────────────────────
@@ -338,6 +386,7 @@ def gen_impl_tiered(config: dict) -> str:
     p()
     p("#include <algorithm>")
     p("#include <array>")
+    p("#include <cstdlib>")
     p("#include <cstring>")
     p("#include <dlfcn.h>")
     p("#include <fstream>")
@@ -382,7 +431,7 @@ def gen_impl_tiered(config: dict) -> str:
 
     dummy_groups = kv_layers // 2 - 1
 
-    p("using Dummy1Ref = MemRef<long long, 1>;")
+    _emit_dummy1ref(p)
     p(f"using KV4Ref = {kv_memref};")
     p(f"using Logits3Ref = {logits_memref};")
     p()
@@ -970,6 +1019,7 @@ def gen_impl(config: dict) -> str:
     p('#include "buddy/runtime/models/ModelSession.h"')
     p('#include "buddy/runtime/llm/KVCacheManager.h"')
     p()
+    p("#include <cstdlib>")
     p("#include <cstring>")
     p("#include <dlfcn.h>")
     p("#include <fstream>")
@@ -1053,7 +1103,7 @@ def gen_impl(config: dict) -> str:
         "//===----------------------------------------------------------------------===//"
     )
     p()
-    p("using Dummy1Ref = MemRef<long long, 1>;")
+    _emit_dummy1ref(p)
     p(f"using KV4Ref = {kv_memref};")
     p(f"using Logits3Ref = {logits_memref};")
     p()
@@ -1236,8 +1286,8 @@ def gen_impl(config: dict) -> str:
     p("  new (&abi.logits()) Logits3Ref(logitsShape, false, 0);")
     p("}")
     p()
-    p("template <typename T, size_t N>")
-    p("void releaseIfAliased(MemRef<T, N> &result, MemRef<T, N> &owner) {")
+    p("template <typename ResultT, typename OwnerT>")
+    p("void releaseIfAliased(ResultT &result, OwnerT &owner) {")
     p("  if (result.getData() == owner.getData())")
     p("    (void)result.release();")
     p("}")
