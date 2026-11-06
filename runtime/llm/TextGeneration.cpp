@@ -263,6 +263,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   Text<size_t, 2> inputTokens(prompt);
   codec.tokenize(inputTokens, vocabPath);
+  result.nPrompt = static_cast<int>(inputTokens.getTokenCnt());
 
   Text<size_t, 2> outputTokens;
   outputTokens.loadVocab(vocabPath);
@@ -411,6 +412,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   Text<size_t, 2> inputTokens(prompt);
   codec.tokenize(inputTokens, vocabPath);
+  result.nPrompt = static_cast<int>(inputTokens.getTokenCnt());
 
   Text<size_t, 2> outputTokens;
   outputTokens.loadVocab(vocabPath);
