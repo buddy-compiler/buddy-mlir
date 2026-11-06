@@ -1,6 +1,11 @@
 add_subdirectory(Interface)
 add_subdirectory(Runtime)
 
+add_llvm_executable(buddy-kernel-contract-policy-test
+  KernelContract/source-policy.cpp)
+target_link_libraries(buddy-kernel-contract-policy-test PRIVATE
+  BuddyKernelContract MLIRParser MLIRFuncDialect MLIRMemRefDialect)
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -11,6 +16,7 @@ configure_lit_site_cfg(
 set(BUDDY_TEST_DEPENDS
   FileCheck count not
   buddy-opt
+  buddy-kernel-contract-policy-test
   buddy-translate
   buddy-llc
   buddy-container-test

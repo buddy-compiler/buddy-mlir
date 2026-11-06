@@ -145,15 +145,15 @@ bosc-mfmul-obj:
 	        -o bosc-mfmul.o
 	@echo "Assembly saved to bosc-mfmul.o"
 
+# Historical small Linalg programs retain standard reference lowering.
+# Handwritten bosc-* examples above continue to lower target instructions.
 linalg-matmul-lower:
 	@${BUDDY_OPT} ./linalg-to-boscame-matmul.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o linalg-matmul-lowered.mlir
 
 linalg-matmul-translate:
 	@${BUDDY_OPT} ./linalg-to-boscame-matmul.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -170,8 +170,6 @@ linalg-matmul-translate:
 
 linalg-matmul-obj:
 	@${BUDDY_OPT} ./linalg-to-boscame-matmul.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -191,13 +189,11 @@ linalg-matmul-obj:
 
 generic-matmul-lower:
 	@${BUDDY_OPT} ./generic-matmul.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o generic-matmul-lowered.mlir
 
 generic-matmul-translate:
 	@${BUDDY_OPT} ./generic-matmul.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -214,8 +210,6 @@ generic-matmul-translate:
 
 generic-matmul-obj:
 	@${BUDDY_OPT} ./generic-matmul.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -235,13 +229,11 @@ generic-matmul-obj:
 
 generic-elementwise-add-lower:
 	@${BUDDY_OPT} ./generic-elementwise-add.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o generic-elementwise-add-lowered.mlir
 
 generic-elementwise-add-translate:
 	@${BUDDY_OPT} ./generic-elementwise-add.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -258,8 +250,6 @@ generic-elementwise-add-translate:
 
 generic-elementwise-add-obj:
 	@${BUDDY_OPT} ./generic-elementwise-add.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -279,13 +269,11 @@ generic-elementwise-add-obj:
 
 generic-transpose-lower:
 	@${BUDDY_OPT} ./generic-transpose.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o generic-transpose-lowered.mlir
 
 generic-transpose-translate:
 	@${BUDDY_OPT} ./generic-transpose.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -302,8 +290,6 @@ generic-transpose-translate:
 
 generic-transpose-obj:
 	@${BUDDY_OPT} ./generic-transpose.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -323,13 +309,11 @@ generic-transpose-obj:
 
 generic-broadcast-row-lower:
 	@${BUDDY_OPT} ./generic-broadcast-row.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o generic-broadcast-row-lowered.mlir
 
 generic-broadcast-row-translate:
 	@${BUDDY_OPT} ./generic-broadcast-row.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -346,8 +330,6 @@ generic-broadcast-row-translate:
 
 generic-broadcast-row-obj:
 	@${BUDDY_OPT} ./generic-broadcast-row.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -367,13 +349,11 @@ generic-broadcast-row-obj:
 
 generic-broadcast-column-lower:
 	@${BUDDY_OPT} ./generic-broadcast-column.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o generic-broadcast-column-lowered.mlir
 
 generic-broadcast-column-translate:
 	@${BUDDY_OPT} ./generic-broadcast-column.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -390,8 +370,6 @@ generic-broadcast-column-translate:
 
 generic-broadcast-column-obj:
 	@${BUDDY_OPT} ./generic-broadcast-column.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -411,13 +389,11 @@ generic-broadcast-column-obj:
 
 generic-broadcast-element-lower:
 	@${BUDDY_OPT} ./generic-broadcast-element.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o generic-broadcast-element-lowered.mlir
 
 generic-broadcast-element-translate:
 	@${BUDDY_OPT} ./generic-broadcast-element.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -434,8 +410,6 @@ generic-broadcast-element-translate:
 
 generic-broadcast-element-obj:
 	@${BUDDY_OPT} ./generic-broadcast-element.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -455,13 +429,11 @@ generic-broadcast-element-obj:
 
 generic-unary-square-f32-qwen-lower:
 	@${BUDDY_OPT} ./generic-unary-square-f32-qwen.mlir \
-		-lower-linalg-to-boscame \
+		-convert-linalg-to-loops \
 		-o generic-unary-square-f32-qwen-lowered.mlir
 
 generic-unary-square-f32-qwen-translate:
 	@${BUDDY_OPT} ./generic-unary-square-f32-qwen.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -478,8 +450,6 @@ generic-unary-square-f32-qwen-translate:
 
 generic-unary-square-f32-qwen-obj:
 	@${BUDDY_OPT} ./generic-unary-square-f32-qwen.mlir \
-		-lower-linalg-to-boscame \
-		-lower-bosc-ame \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \

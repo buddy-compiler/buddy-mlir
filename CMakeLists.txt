@@ -257,6 +257,8 @@ include_directories(${BUDDY_MIDEND_INCLUDE_DIR})
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include/Dialect)
+# Generated non-dialect headers are included relative to midend/include.
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})

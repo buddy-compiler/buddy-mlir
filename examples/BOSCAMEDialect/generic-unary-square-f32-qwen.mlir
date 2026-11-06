@@ -1,9 +1,8 @@
-// RUN: buddy-opt %s -lower-linalg-to-boscame
+// RUN: %PYTHON %S/Inputs/check_reference.py %s %t buddy-opt mlir-runner %mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext
 //
 // This file tests the Qwen3 RMSNorm-style linalg.generic pattern:
 //   y = fpowi(x, 2)
-// over a rank-3 tensor-shaped memref. The BOSCAME lowering treats the last two
-// dimensions as the matrix tile and emits outer loops for leading dimensions.
+// over a rank-3 tensor-shaped memref, through standard scalar LLVM lowering.
 //
 
 #map3 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
