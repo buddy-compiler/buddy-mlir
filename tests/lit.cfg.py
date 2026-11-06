@@ -74,7 +74,11 @@ config.test_exec_root = os.path.join(config.buddy_obj_root, "tests")
 # config.buddy_tools_dir = os.path.join(config.buddy_obj_root, 'bin')
 
 # Tweak the PATH to include the tools dir.
+llvm_config.with_environment("PATH", config.buddy_tools_dir, append_path=True)
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
+config.environment["BUDDY_OPT"] = os.path.join(
+    config.buddy_tools_dir, "buddy-opt"
+)
 
 # So The execution engine in frontend can find out-of-tree llvm librarys
 config.environment["LLVM_LIBS_DIR"] = config.mlir_runner_utils_dir
@@ -83,6 +87,7 @@ config.environment["BUDDY_SRC_ROOT"] = config.buddy_src_root
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     "buddy-opt",
+    "buddy-kernel-contract-policy-test",
     "buddy-translate",
     "buddy-llc",
     "buddy-container-test",

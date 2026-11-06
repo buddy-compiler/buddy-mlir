@@ -83,14 +83,18 @@ module attributes {bosc_ame.target = "nr-fpga", bosc_ame.cpu_ddr_policy} {
 
 def compiler_tool(name):
     opt = Path(buddy_opt_path()).resolve()
-    llvm = ROOT / "llvm/build/bin"
     sibling = opt.with_name(name)
     if sibling.is_file():
         return str(sibling)
+    found = which(name)
+    if found:
+        return found
+    llvm = ROOT / "llvm/build/bin"
     if (llvm / name).is_file():
         return str(llvm / name)
-    found = which(name)
-    return found or str(llvm / name)
+    raise FileNotFoundError(
+        f"{name}: set BUDDY_OPT / PATH (lit should inject buddy_tools_dir + llvm_tools_dir)"
+    )
 
 
 def check_object(work, stem, lowered):

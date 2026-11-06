@@ -28,12 +28,28 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from shutil import which
 
 ROOT = Path(__file__).resolve().parents[3]
 WORK = Path(sys.argv[1])
 WORK.mkdir(parents=True, exist_ok=True)
-OPT = Path(os.environ.get("BUDDY_OPT", ROOT / "build/bin/buddy-opt"))
-LLVM = ROOT / "llvm/build/bin"
+
+
+def tool(name, default=None):
+    override = os.environ.get("BUDDY_OPT")
+    if override and name.startswith("buddy-"):
+        sibling = Path(override).with_name(name)
+        if sibling.is_file():
+            return sibling
+    found = which(name)
+    if found:
+        return Path(found)
+    if default and Path(default).is_file():
+        return Path(default)
+    raise FileNotFoundError(name)
+
+
+OPT = tool("buddy-opt", ROOT / "build/bin/buddy-opt")
 
 
 def run(command):
@@ -227,7 +243,7 @@ void bosc_ame_private_ddr_release(uint64_t p, uint64_t n) {
 }
 """)
 library = WORK / "memory.so"
-run([LLVM / "clang", ll, runtime, "-O2", "-shared", "-fPIC", "-o", library])
+run([tool("clang"), ll, runtime, "-O2", "-shared", "-fPIC", "-o", library])
 native_library = ctypes.CDLL(str(library.resolve()))
 
 

@@ -29,12 +29,28 @@ import random
 import subprocess
 import sys
 from pathlib import Path
+from shutil import which
 
 ROOT = Path(__file__).resolve().parents[3]
 WORK = Path(sys.argv[1])
 WORK.mkdir(parents=True, exist_ok=True)
-OPT = Path(os.environ.get("BUDDY_OPT", ROOT / "build/bin/buddy-opt"))
-LLVM = ROOT / "llvm/build/bin"
+
+
+def tool(name, default=None):
+    override = os.environ.get("BUDDY_OPT")
+    if override and name.startswith("buddy-"):
+        sibling = Path(override).with_name(name)
+        if sibling.is_file():
+            return sibling
+    found = which(name)
+    if found:
+        return Path(found)
+    if default and Path(default).is_file():
+        return Path(default)
+    raise FileNotFoundError(name)
+
+
+OPT = tool("buddy-opt", ROOT / "build/bin/buddy-opt")
 SOURCE = r"""
 module {
   func.func @abs_bits(%word: i32) -> i32 {
@@ -75,7 +91,7 @@ assert "fabsf" not in lowered.read_text(), lowered.read_text()
 run([OPT.with_name("buddy-translate"), lowered, "--buddy-to-llvmir", "-o", ll])
 assembly = run(
     [
-        LLVM / "llc",
+        tool("llc"),
         ll,
         "-O2",
         "-mtriple=riscv64",
@@ -87,7 +103,7 @@ assembly = run(
 assert "fabs" not in assembly, assembly
 assert "call" not in assembly, assembly
 library = WORK / "abs.so"
-run([LLVM / "clang", ll, "-O2", "-shared", "-fPIC", "-o", library])
+run([tool("clang"), ll, "-O2", "-shared", "-fPIC", "-o", library])
 native = ctypes.CDLL(str(library.resolve()))
 native.abs_bits.argtypes = [ctypes.c_uint32]
 native.abs_bits.restype = ctypes.c_uint32
