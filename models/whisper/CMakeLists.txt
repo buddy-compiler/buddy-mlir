@@ -1,6 +1,7 @@
 # Whisper encoder-decoder ASR integration.
 #
-# Uses the shared buddy-codegen model entry point with MODEL_KIND=single_forward.
+# Uses the shared buddy-codegen model entry point with MODEL_KIND=single_forward
+# and one forward graph each for the encoder and the decoder.
 # Whisper keeps custom import and manifest generators because the generic
 # DeepSeek path is LLM prefill/decode + KV-cache specific.
 
@@ -18,6 +19,7 @@ buddy_add_model(
   NAME whisper
   TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
+  FORWARD_GRAPHS encoder decoder
   SPEC "${BUDDY_WHISPER_SPEC}"
   RUNNER_SRC WhisperRunner.cpp
   RUNNER_PLUGIN_SRC WhisperRunnerPlugin.cpp

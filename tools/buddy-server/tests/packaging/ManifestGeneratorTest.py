@@ -60,6 +60,7 @@ def main():
     assert 'model_library = "file:whisper_server.so"' in whisper_text
     for key in (
         "params_size",
+        "encoder_params_size",
         "vocab_size",
         "max_token_len",
         "mel_bins",

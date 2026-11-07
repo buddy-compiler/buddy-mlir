@@ -202,6 +202,11 @@ endfunction()
 #   [MODEL_KIND   <kind>]                   llm_prefill_decode (default),
 #                                           single_forward, or
 #                                           qwen3_vl_multimodal
+#   [FORWARD_GRAPHS <list>]                 single_forward only: names of the
+#                                           graphs the importer writes, as
+#                                           forward_<name>.mlir and
+#                                           subgraph0_<name>.mlir, instead of
+#                                           forward.mlir and subgraph0.mlir
 #   [IMPORT_SCRIPT <path>]                  custom importer for single_forward
 #   [MANIFEST_SCRIPT <path>]                custom RHAL manifest generator
 #   [LOCAL_MODEL_ENV <name>]                env var used for LOCAL_MODEL in importer
@@ -376,7 +381,7 @@ function(buddy_add_model)
     MDL                                      # prefix
     ""                                       # flags
     "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
-    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
+    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;FORWARD_GRAPHS" # multi-value
     ${ARGN}
   )
 
@@ -990,14 +995,32 @@ function(buddy_add_model)
   set(OBJ_FILES)
   set(MLIR_COMPILE_DEPS)
   if(MDL_MODEL_KIND STREQUAL "single_forward")
-    if(MDL_LAYER_PARTITION)
-      list(APPEND OBJ_FILES
-        "${BIN}/layer_partitioned/forward.o"
-        "${BIN}/layer_partitioned/subgraphs.o")
+    if(MDL_FORWARD_GRAPHS)
+      set(_SINGLE_FORWARD_MAINS)
+      set(_SINGLE_FORWARD_SUBGRAPHS)
+      foreach(_graph ${MDL_FORWARD_GRAPHS})
+        list(APPEND _SINGLE_FORWARD_MAINS "forward_${_graph}")
+        list(APPEND _SINGLE_FORWARD_SUBGRAPHS "subgraph0_${_graph}")
+      endforeach()
+      set(_SINGLE_FORWARD_TEMPLATE_PATTERN "subgraph0_*_*.mlir")
     else()
-      list(APPEND OBJ_FILES
-        "${BIN}/forward.o"
-        "${BIN}/subgraph0.o")
+      set(_SINGLE_FORWARD_MAINS forward)
+      set(_SINGLE_FORWARD_SUBGRAPHS subgraph0)
+      set(_SINGLE_FORWARD_TEMPLATE_PATTERN "subgraph0_forward_*.mlir")
+    endif()
+
+    if(MDL_LAYER_PARTITION)
+      foreach(_main ${_SINGLE_FORWARD_MAINS})
+        list(APPEND OBJ_FILES "${BIN}/layer_partitioned/${_main}.o")
+      endforeach()
+      list(APPEND OBJ_FILES "${BIN}/layer_partitioned/subgraphs.o")
+    else()
+      foreach(_main ${_SINGLE_FORWARD_MAINS})
+        list(APPEND OBJ_FILES "${BIN}/${_main}.o")
+      endforeach()
+      foreach(_subgraph ${_SINGLE_FORWARD_SUBGRAPHS})
+        list(APPEND OBJ_FILES "${BIN}/${_subgraph}.o")
+      endforeach()
     endif()
   elseif(MDL_TIERED_KV_CACHE)
     foreach(CACHE_SIZE ${MDL_TIERED_CACHE_SIZES})
@@ -1056,16 +1079,19 @@ function(buddy_add_model)
         --experimental-template-partitioned)
       set(_SINGLE_FORWARD_MLIR_DIR "${BIN}/layer_partitioned")
       set(_SINGLE_FORWARD_BYPRODUCTS
-        "${BIN}/layer_partitioned/forward.mlir"
         "${BIN}/layer_partitioned/partition_manifest.json"
         "${BIN}/arg0.data")
     else()
       set(_SINGLE_FORWARD_MLIR_DIR "${BIN}")
-      set(_SINGLE_FORWARD_BYPRODUCTS
-        "${BIN}/forward.mlir"
-        "${BIN}/subgraph0.mlir"
-        "${BIN}/arg0.data")
+      set(_SINGLE_FORWARD_BYPRODUCTS "${BIN}/arg0.data")
+      foreach(_subgraph ${_SINGLE_FORWARD_SUBGRAPHS})
+        list(APPEND _SINGLE_FORWARD_BYPRODUCTS "${BIN}/${_subgraph}.mlir")
+      endforeach()
     endif()
+    foreach(_main ${_SINGLE_FORWARD_MAINS})
+      list(APPEND _SINGLE_FORWARD_BYPRODUCTS
+        "${_SINGLE_FORWARD_MLIR_DIR}/${_main}.mlir")
+    endforeach()
 
     add_custom_command(
       OUTPUT "${IMPORT_STAMP}"
@@ -1080,22 +1106,24 @@ function(buddy_add_model)
       VERBATIM
     )
 
-    add_custom_command(
-      OUTPUT "${_SINGLE_FORWARD_MLIR_DIR}/forward.o"
-      COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
-                "${_SINGLE_FORWARD_MLIR_DIR}/forward.mlir"
-                -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg)" |
-              ${BUDDY_BINARY_DIR}/buddy-opt
-                -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
-              ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-              ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-              ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic
-                ${MDL_LLC_ATTRS_LIST}
-                -O0 -o "${_SINGLE_FORWARD_MLIR_DIR}/forward.o"
-      DEPENDS "${IMPORT_STAMP}" buddy-opt
-        ${LLVM_TOOLS_BINARY_DIR}/llc
-      COMMENT "[${MDL_NAME}] Stage 2: forward.mlir -> forward.o"
-      VERBATIM)
+    foreach(_main ${_SINGLE_FORWARD_MAINS})
+      add_custom_command(
+        OUTPUT "${_SINGLE_FORWARD_MLIR_DIR}/${_main}.o"
+        COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+                  "${_SINGLE_FORWARD_MLIR_DIR}/${_main}.mlir"
+                  -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg)" |
+                ${BUDDY_BINARY_DIR}/buddy-opt
+                  -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
+                ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+                ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+                ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic
+                  ${MDL_LLC_ATTRS_LIST}
+                  -O0 -o "${_SINGLE_FORWARD_MLIR_DIR}/${_main}.o"
+        DEPENDS "${IMPORT_STAMP}" buddy-opt
+          ${LLVM_TOOLS_BINARY_DIR}/llc
+        COMMENT "[${MDL_NAME}] Stage 2: ${_main}.mlir -> ${_main}.o"
+        VERBATIM)
+    endforeach()
 
     if(MDL_LAYER_PARTITION)
       get_filename_component(
@@ -1105,61 +1133,63 @@ function(buddy_add_model)
       _buddy_compile_generated_subgraphs(
         OUTPUT "${BIN}/layer_partitioned/subgraphs.o"
         MLIR_DIR "${BIN}/layer_partitioned"
-        PATTERN "subgraph0_forward_*.mlir"
+        PATTERN "${_SINGLE_FORWARD_TEMPLATE_PATTERN}"
         LOWER_SCRIPT "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
         IMPORT_DEP "${IMPORT_STAMP}"
         NUM_THREADS "${MDL_NUM_THREADS}"
         LLC_ATTRS ${MDL_LLC_ATTRS_LIST}
       )
     else()
-      add_custom_command(
-        OUTPUT "${BIN}/subgraph0.o"
-        COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt "${BIN}/subgraph0.mlir"
-                  -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
-                ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
-                  -test-linalg-transform-patterns=test-decompose-pad-tensor |
-                ${BUDDY_BINARY_DIR}/buddy-opt
-                  -arith-expand
-                  -eliminate-empty-tensors
-                  -convert-elementwise-to-linalg
-                  -empty-tensor-to-alloc-tensor
-                  -one-shot-bufferize=bufferize-function-boundaries
-                  -ownership-based-buffer-deallocation
-                  -buffer-deallocation-simplification
-                  -bufferization-lower-deallocations
-                  -matmul-parallel-vectorization-optimize
-                  -convert-linalg-to-affine-loops
-                  -affine-loop-fusion
-                  -affine-parallelize
-                  -lower-affine
-                  -convert-scf-to-openmp
-                  -convert-linalg-to-loops
-                  -convert-vector-to-scf
-                  -expand-strided-metadata
-                  -lower-affine
-                  -cse
-                  -convert-vector-to-llvm
-                  -memref-expand
-                  -convert-arith-to-llvm
-                  -finalize-memref-to-llvm
-                  -convert-scf-to-cf
-                  -convert-cf-to-llvm
-                  -llvm-request-c-wrappers
-                  -convert-openmp-to-llvm
-                  -convert-arith-to-llvm
-                  -convert-math-to-llvm
-                  -convert-math-to-libm
-                  -convert-func-to-llvm
-                  -reconcile-unrealized-casts |
-                ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-                ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-                ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj
-                  -relocation-model=pic ${MDL_LLC_ATTRS_LIST}
-                  -O3 -o "${BIN}/subgraph0.o"
-        DEPENDS "${IMPORT_STAMP}" buddy-opt
-          ${LLVM_TOOLS_BINARY_DIR}/llc
-        COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o"
-        VERBATIM)
+      foreach(_subgraph ${_SINGLE_FORWARD_SUBGRAPHS})
+        add_custom_command(
+          OUTPUT "${BIN}/${_subgraph}.o"
+          COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt "${BIN}/${_subgraph}.mlir"
+                    -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
+                  ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+                    -test-linalg-transform-patterns=test-decompose-pad-tensor |
+                  ${BUDDY_BINARY_DIR}/buddy-opt
+                    -arith-expand
+                    -eliminate-empty-tensors
+                    -convert-elementwise-to-linalg
+                    -empty-tensor-to-alloc-tensor
+                    -one-shot-bufferize=bufferize-function-boundaries
+                    -ownership-based-buffer-deallocation
+                    -buffer-deallocation-simplification
+                    -bufferization-lower-deallocations
+                    -matmul-parallel-vectorization-optimize
+                    -convert-linalg-to-affine-loops
+                    -affine-loop-fusion
+                    -affine-parallelize
+                    -lower-affine
+                    -convert-scf-to-openmp
+                    -convert-linalg-to-loops
+                    -convert-vector-to-scf
+                    -expand-strided-metadata
+                    -lower-affine
+                    -cse
+                    -convert-vector-to-llvm
+                    -memref-expand
+                    -convert-arith-to-llvm
+                    -finalize-memref-to-llvm
+                    -convert-scf-to-cf
+                    -convert-cf-to-llvm
+                    -llvm-request-c-wrappers
+                    -convert-openmp-to-llvm
+                    -convert-arith-to-llvm
+                    -convert-math-to-llvm
+                    -convert-math-to-libm
+                    -convert-func-to-llvm
+                    -reconcile-unrealized-casts |
+                  ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+                  ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+                  ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj
+                    -relocation-model=pic ${MDL_LLC_ATTRS_LIST}
+                    -O3 -o "${BIN}/${_subgraph}.o"
+          DEPENDS "${IMPORT_STAMP}" buddy-opt
+            ${LLVM_TOOLS_BINARY_DIR}/llc
+          COMMENT "[${MDL_NAME}] Stage 2: ${_subgraph}.mlir -> ${_subgraph}.o"
+          VERBATIM)
+      endforeach()
     endif()
 
   elseif(MDL_BUILD_DIR)

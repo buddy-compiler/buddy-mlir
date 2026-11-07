@@ -18,8 +18,9 @@
 # Generates the RHAL dialect .mlir manifest that rax-pack consumes for the
 # Whisper encoder-decoder model.
 #
-# Unlike the LLM manifest (tools/buddy-codegen/gen_manifest.py), Whisper has a
-# single `forward` entrypoint, no KV cache, and an audio-feature input.  buddy-cli
+# Unlike the LLM manifest (tools/buddy-codegen/gen_manifest.py), Whisper has
+# `forward_encoder` and `forward_decoder` entrypoints, no KV cache, and an
+# audio-feature input.  buddy-cli
 # does not interpret the rhal.func/buffer bodies at runtime; it only reads the
 # external constant (weights), the host_shared_lib code object (model .so), and
 # the module attrs (model_name, vocab_uri, runner_library,
@@ -53,6 +54,7 @@ def gen_manifest(
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = spec["params_size"]
+    encoder_params_size = spec["encoder_params_size"]
     vocab_size = spec["vocab_size"]
     max_token_len = spec["max_token_len"]
     mel_bins = spec["mel_bins"]
@@ -70,6 +72,7 @@ def gen_manifest(
     emit(f'    runner_library = "{runner_library}",')
     emit(f'    model_library = "{model_library}",')
     emit(f'    params_size = "{params_size}",')
+    emit(f'    encoder_params_size = "{encoder_params_size}",')
     emit(f'    vocab_size = "{vocab_size}",')
     emit(f'    max_token_len = "{max_token_len}",')
     emit(f'    mel_bins = "{mel_bins}",')
@@ -104,6 +107,10 @@ def gen_manifest(
         f"type = tensor<1x{mel_bins}x{audio_frames}xf32>}}"
     )
     emit(
+        f'  rhal.buffer @encoder_states {{space = "host", '
+        f"type = tensor<1x{spec['enc_seq']}x{spec['enc_dim']}xf32>}}"
+    )
+    emit(
         f'  rhal.buffer @decoder_tokens {{space = "host", '
         f"type = tensor<1x{max_token_len}xi64>}}"
     )
@@ -113,11 +120,16 @@ def gen_manifest(
     )
     emit("")
 
-    emit("  rhal.func @forward {")
-    emit('    inputs   = ["audio_features", "decoder_tokens"],')
+    emit("  rhal.func @forward_encoder {")
+    emit('    inputs   = ["audio_features"],')
+    emit('    outputs  = ["encoder_states"],')
+    emit('    dispatch = "model_kernels",')
+    emit('    args     = ["audio_features", "encoder_states"]}')
+    emit("  rhal.func @forward_decoder {")
+    emit('    inputs   = ["decoder_tokens", "encoder_states"],')
     emit('    outputs  = ["logits"],')
     emit('    dispatch = "model_kernels",')
-    emit('    args     = ["audio_features", "decoder_tokens", "logits"]}')
+    emit('    args     = ["decoder_tokens", "encoder_states", "logits"]}')
     emit("}")
     return "\n".join(lines) + "\n"
 
