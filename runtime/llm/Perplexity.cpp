@@ -94,6 +94,9 @@ PerplexityResult runPerplexity(LLMSession &session, const std::vector<int> &ids,
   for (int c = 0; c < chunks; ++c) {
     const int *tok = ids.data() + static_cast<size_t>(c) * n;
     Text<size_t, 2> first;
+    for (int i = 0; i < opts.prefillCapacity; ++i)
+      first.appendTokenIdx(0);
+    first.setTokenCnt(0);
     first.appendTokenIdx(static_cast<size_t>(tok[0]));
     // each chunk starts from an empty context: token 0 at position 0
     session.resetPosition();

@@ -4337,7 +4337,7 @@ def flash_attention_for_cpu_prefill_op(
     # Use f32 for all intermediate computation (numerical stability)
     dtype = f32
     need_cast = dtype_qkv != dtype
-    vector_width = 16
+    vector_width = node.kwargs.get("vector_width", 16)
     v16 = ir.VectorType.get([vector_width], dtype)
     v16_qkv = ir.VectorType.get([vector_width], dtype_qkv)
     vec_len = arith.ConstantOp(index, vector_width, loc=loc)
@@ -4365,6 +4365,10 @@ def flash_attention_for_cpu_prefill_op(
 
     c0 = arith.ConstantOp(index, 0, loc=loc)
     query_shape = query.type.shape
+    if vector_width <= 0 or query_shape[-1] % vector_width:
+        raise ValueError(
+            "Prefill attention vector width must divide the head dimension"
+        )
     key_shape = key.type.shape
     value_shape = value.type.shape
     output_shape = list(query_shape)
@@ -13949,12 +13953,19 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     need_cast = mlir_dtype != compute_dtype
 
     # I/O vector type (matches tensor element type for TransferRead/Write)
-    v16_io = ir.VectorType.get([16], mlir_dtype)
+    vector_width = node.kwargs.get("vector_width", 16)
+    v16_io = ir.VectorType.get([vector_width], mlir_dtype)
     # Compute vector type (f32 for numerical stability)
-    v16_compute = ir.VectorType.get([16], compute_dtype)
+    v16_compute = ir.VectorType.get([vector_width], compute_dtype)
+    # The 16-key softmax score block is independent of the head-vector width.
+    score_type = ir.VectorType.get([16], compute_dtype)
 
     # ========= shape =========
     query_shape = query.type.shape
+    if vector_width not in (16, 32, 64, 128) or query_shape[-1] % vector_width:
+        raise ValueError(
+            "Decode attention vector width must divide the head dimension"
+        )
     key_shape = k_cache.type.shape
     value_shape = v_cache.type.shape
 
@@ -13968,6 +13979,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     zero_compute = arith.ConstantOp(compute_dtype, 0.0, loc=loc).result
     one = arith.ConstantOp(compute_dtype, 1.0, loc=loc).result
     zero_vec = vector.BroadcastOp(v16_compute, zero_compute, loc=loc).result
+    zero_scores = vector.BroadcastOp(score_type, zero_compute, loc=loc).result
 
     # Padding value for TransferReadOp must match tensor element type
     if need_cast:
@@ -13983,7 +13995,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     q_dim2 = arith.ConstantOp(index, query_shape[2], loc=loc).result
     q_dim3 = arith.ConstantOp(index, query_shape[3], loc=loc).result
     k_dim2 = arith.ConstantOp(index, key_shape[2], loc=loc).result
-    vec_len = arith.ConstantOp(index, 16, loc=loc).result
+    vec_len = arith.ConstantOp(index, vector_width, loc=loc).result
     group_size = query_shape[1] // key_shape[1]
 
     # ========= mask preprocess =========
@@ -14080,7 +14092,9 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     # (6.5%), and 1.9% of FMA peak -- it is latency-bound on that (m, l, acc)
     # chain. Splitting k both fills the idle cores *and* shortens each chain
     # from 64 blocks to 64/num_splits, so the two effects compound.
-    num_splits = 4
+    num_splits = node.kwargs.get("kv_splits", 4)
+    if num_splits not in (1, 2, 4, 8):
+        raise ValueError("Decode KV splits must be 1, 2, 4 or 8")
     if key_shape[2] % (num_splits * 16) != 0:
         num_splits = 1
     split_len_num = key_shape[2] // num_splits
@@ -14246,9 +14260,9 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                 #   p[j]     = exp(score[j] - new_m)           # 1 vector exp
                 #   l        = l*alpha   + sum_j p[j]
                 #   acc      = acc*alpha + sum_j p[j]*V[base+j]
-                num_acc_chunks = query_shape[3] // 16
+                num_acc_chunks = query_shape[3] // vector_width
                 d_consts = [
-                    arith.ConstantOp(index, i * 16, loc=loc).result
+                    arith.ConstantOp(index, i * vector_width, loc=loc).result
                     for i in range(num_acc_chunks)
                 ]
 
@@ -14283,7 +14297,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                     # score[j] = scale*dot(Q[b,h,q,:], K[b,h_kv,base+j,:])
                     #            + mask[base+j]
                     score_loop = scf.ForOp(
-                        c0, block_size, c1, iter_args=[zero_vec], loc=loc
+                        c0, block_size, c1, iter_args=[zero_scores], loc=loc
                     )
                     with ir.InsertionPoint(score_loop.body):
                         j = score_loop.induction_variable
@@ -14367,7 +14381,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                         arith.SubFOp(m_prev, new_m, loc=loc).result, loc=loc
                     ).result
                     new_m_vec = vector.BroadcastOp(
-                        v16_compute, new_m, loc=loc
+                        score_type, new_m, loc=loc
                     ).result
                     p_vec = math.ExpOp(
                         arith.SubFOp(scores_vec, new_m_vec, loc=loc).result,
@@ -14486,9 +14500,9 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
             with ir.InsertionPoint(combine_q_loop.body):
                 qc = combine_q_loop.induction_variable
 
-                num_acc_chunks_c = query_shape[3] // 16
+                num_acc_chunks_c = query_shape[3] // vector_width
                 d_consts_c = [
-                    arith.ConstantOp(index, i * 16, loc=loc).result
+                    arith.ConstantOp(index, i * vector_width, loc=loc).result
                     for i in range(num_acc_chunks_c)
                 ]
                 num_splits_v = arith.ConstantOp(

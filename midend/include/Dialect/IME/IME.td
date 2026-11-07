@@ -98,6 +98,58 @@ def VfmadotOp : IME_Op<"vfmadot"> {
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
 
+def VfwmadotOp : IME_Op<"vfwmadot"> {
+  let summary = "A100 FP16 matrix multiply with widening FP32 accumulation";
+  let description = [{
+    A100 smt.vfwmadot computes C += A * transpose(B), where A and B are
+    contiguous 8x8 FP16 tiles and C is a contiguous 8x8 FP32 tile. It uses
+    VLEN=1024, LMUL=1 for inputs and two registers for the FP32 accumulator.
+    MCPM.BF16 must select FP16. This operation is distinct from legacy vfmadot.
+  }];
+  let arguments = (ins MemRefRankOf<[F32], [2]>:$vd,
+                       MemRefRankOf<[F16], [2]>:$vs1,
+                       MemRefRankOf<[F16], [2]>:$vs2);
+  let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
+}
+
+def PackBF16Op : IME_Op<"pack_b_f16"> {
+  let summary = "Pack one Kx32 Prefill panel into A100 N32/K8 tiles";
+  let arguments = (ins MemRefRankOf<[F16], [1]>:$packed,
+                       MemRefRankOf<[F16], [2]>:$source,
+                       Index:$column, I64Attr:$k);
+  let assemblyFormat = "$packed `,` $source `,` $column attr-dict `:` type($packed) `,` type($source)";
+}
+
+def GemmF16Op : IME_Op<"gemm_f16"> {
+  let summary = "A100 8x32 Prefill microkernel with FP32 accumulation";
+  let description = [{
+    Computes an 8x32 block of C += A*B. A is packed as [M/8][K/8][8][8],
+    B is a single [K/8][4][8][8] panel, and C is contiguous row-major F16.
+    Four 8x8 FP32 accumulators remain in registers across the K reduction.
+    Requires A100 VLEN=1024, M%8=0, K%8=0 and N%32=0.
+  }];
+  let arguments = (ins MemRefRankOf<[F16], [2]>:$vd,
+                       MemRefRankOf<[F16], [1]>:$vs1,
+                       MemRefRankOf<[F16], [1]>:$vs2,
+                       Index:$row, Index:$column, I64Attr:$k, I64Attr:$n);
+  let assemblyFormat = "$vd `,` $vs1 `,` $vs2 `,` $row `,` $column attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
+}
+
+def GemvF16Op : IME_Op<"gemv_f16"> {
+  let summary = "A100 32-output GEMV with register-resident FP32 accumulators";
+  let description = [{
+    Computes one 32-column block of C += A * B with FP16 input/output and
+    FP32 accumulation. B uses offline [N/32][K/8][4][8][8] layout. Requires
+    A100 VLEN=1024. K is divisible by 8, or 16 when unroll2 is enabled.
+  }];
+  let arguments = (ins MemRefRankOf<[F16], [2]>:$vd,
+                       MemRefRankOf<[F16], [2]>:$vs1,
+                       MemRefRankOf<[F16], [2]>:$vs2,
+                       Index:$column, I64Attr:$k, I64Attr:$prefetch,
+                       BoolAttr:$unroll2);
+  let assemblyFormat = "$vd `,` $vs1 `,` $vs2 `,` $column attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
+}
+
 //===----------------------------------------------------------------------===//
 // Sliding-window Integer Matrix Multiply-Accumulate Operations
 //===----------------------------------------------------------------------===//

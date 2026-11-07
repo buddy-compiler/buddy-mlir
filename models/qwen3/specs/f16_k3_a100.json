@@ -1,0 +1,39 @@
+{
+  "hf_model_path": "Qwen/Qwen3-0.6B",
+  "model_family": "qwen3",
+  "variant": "f16",
+  "max_token_len": 128,
+  "num_threads": 8,
+  "weights_override": {
+    "total": 751632448,
+    "linear_elements": 0,
+    "linear_output_channels": 0,
+    "other_elements": 0
+  },
+  "separate_output_embedding": true,
+  "decode_pack_vector_size": 32,
+  "ime_decode_kernel": "gemv",
+  "ime_decode_shapes": [
+    "1024x1024",
+    "1024x2048",
+    "2048x1024",
+    "1024x3072",
+    "3072x1024",
+    "1024x151936"
+  ],
+  "prefill_rvv_vlen_bits": 1024,
+  "prefill_rvv_vector_size": 64,
+  "ime_prefill_shapes": [
+    "1024x1024",
+    "1024x2048",
+    "2048x1024",
+    "1024x3072",
+    "3072x1024",
+    "1024x151936"
+  ],
+  "prefill_optimize_silu": true,
+  "prefill_attention_vector_size": 64,
+  "decode_attention_vector_size": 64,
+  "decode_kv_splits": 1,
+  "decode_optimize_silu": true
+}

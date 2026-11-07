@@ -137,6 +137,8 @@ void registerLinalgToVIRPass();
 void registerMatMulVectorizationBLISPass();
 void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
+void registerVectorExpApproximationPass();
+void registerPrefillElementwiseFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
@@ -234,6 +236,8 @@ int main(int argc, char **argv) {
   // Register trace conversion pipeline.
   mlir::buddy::registerConvertTraceToLLVMPass();
   mlir::buddy::registerSiLUFusionPass();
+  mlir::buddy::registerVectorExpApproximationPass();
+  mlir::buddy::registerPrefillElementwiseFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerConvertStridedMemrefCopyToLinalgPass();

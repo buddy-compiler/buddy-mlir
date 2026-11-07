@@ -138,6 +138,17 @@ def load_model(config: dict):
             model_path, dtype=torch.float32
         ).eval()
 
+    # Give the output projection its own layout without changing embedding
+    # lookups when the checkpoint shares the two parameter objects.
+    if config.get("separate_output_embedding", False):
+        output = model.get_output_embeddings()
+        embedding = model.get_input_embeddings()
+        if output.weight is embedding.weight:
+            output.weight = torch.nn.Parameter(
+                output.weight.detach().clone(), requires_grad=False
+            )
+            model.config.tie_word_embeddings = False
+
     model.config.use_cache = False
     print(
         f"[import] Model loaded: {model_path} ({activation})", file=sys.stderr
@@ -650,7 +661,9 @@ def pack_decode_weights(graph_decode, decode_pack: dict) -> None:
     the tensors -- which are still shared objects -- in place.
     """
     packed = pack_decode_matmul_weights(
-        graph_decode, vecsize=decode_pack["vector_size"]
+        graph_decode,
+        vecsize=decode_pack["vector_size"],
+        ime_shapes=decode_pack.get("ime_shapes"),
     )
     print(
         f"[import] packed {len(packed)} decode matmul weights into panel "
@@ -1618,6 +1631,26 @@ def import_model(
         apply_fusion(
             graphs_prefill[0], graphs_decode[0], chunked_prefill=chunked_prefill
         )
+
+    attention_width = (
+        config.get("compilation", {})
+        .get("prefill", {})
+        .get("attention_vector_size", 0)
+    )
+    if attention_width:
+        for node in graphs_prefill[0].body:
+            if isinstance(node, FlashAttentionForCpuPrefillOp):
+                node.kwargs["vector_width"] = attention_width
+
+    decode_options = config.get("compilation", {}).get("decode", {})
+    for node in graphs_decode[0].body:
+        if isinstance(node, GQAAttentionFusedOp):
+            if decode_options.get("attention_vector_size"):
+                node.kwargs["vector_width"] = decode_options[
+                    "attention_vector_size"
+                ]
+            if decode_options.get("kv_splits"):
+                node.kwargs["kv_splits"] = decode_options["kv_splits"]
 
     if export_layer_partitioned:
         with timed_import_step("export_layer_partitioned_mlir"):

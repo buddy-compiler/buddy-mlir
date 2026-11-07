@@ -193,6 +193,7 @@ def main() -> int:
     model_family = spec_data.get("model_family")
     if model_family not in {
         "deepseek_r1",
+        "qwen3",
         "whisper",
         "qwen3_vl",
         "qwen3_vl_moe",
@@ -201,7 +202,7 @@ def main() -> int:
     }:
         print(
             "error: unsupported model_family in spec: "
-            f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
+            f"{model_family!r} (supported: deepseek_r1, qwen3, whisper, qwen3_vl, "
             "qwen3_vl_moe, bge_m3, proteinglm)",
             file=sys.stderr,
         )
@@ -297,23 +298,31 @@ def main() -> int:
         # Without this, buddy_add_model sets PYTHONPATH but the tree is empty.
         "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON",
     ]
-    if model_family == "deepseek_r1":
+    if model_family in {"deepseek_r1", "qwen3"}:
+        prefix = (
+            "BUDDY_DSR1" if model_family == "deepseek_r1" else "BUDDY_QWEN3"
+        )
+        enable = (
+            "BUDDY_BUILD_DEEPSEEK_R1_MODEL"
+            if model_family == "deepseek_r1"
+            else "BUDDY_BUILD_QWEN3_MODEL"
+        )
         cmake_args.extend(
             [
-                f"-DBUDDY_DSR1_SPEC={spec}",
-                "-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON",
+                f"-D{prefix}_SPEC={spec}",
+                f"-D{enable}=ON",
             ]
         )
         if local_model is not None:
-            cmake_args.append(f"-DBUDDY_DSR1_LOCAL_MODEL={local_model}")
+            cmake_args.append(f"-D{prefix}_LOCAL_MODEL={local_model}")
 
         if args.hf_config is not None:
             hf = resolve_from_cwd(args.hf_config)
-            cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={hf}")
+            cmake_args.append(f"-D{prefix}_HF_CONFIG={hf}")
         elif local_model is not None:
             auto_cfg = local_model / "config.json"
             if auto_cfg.is_file():
-                cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={auto_cfg}")
+                cmake_args.append(f"-D{prefix}_HF_CONFIG={auto_cfg}")
     elif model_family == "whisper":
         cmake_args.extend(
             [

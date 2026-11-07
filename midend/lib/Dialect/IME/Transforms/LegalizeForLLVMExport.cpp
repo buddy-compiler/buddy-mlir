@@ -1801,16 +1801,18 @@ struct LegalizeIMEForLLVMExport
     target.addLegalDialect<IMEDialect>();
     target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
-    target.addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp,
-                        Vmadot1Op, Vmadot1uOp, Vmadot1suOp, Vmadot1usOp,
-                        Vmadot2Op, Vmadot2uOp, Vmadot2suOp, Vmadot2usOp,
-                        Vmadot3Op, Vmadot3uOp, Vmadot3suOp, Vmadot3usOp,
-                        Vfmadot1Op, Vfmadot2Op, Vfmadot3Op, VmadotnOp,
-                        VmadotnuOp, VmadotnsuOp, VmadotnusOp, VfmadotnOp>();
+    target.addIllegalOp<VfwmadotOp, PackBF16Op, GemmF16Op, GemvF16Op, VmadotOp,
+                        VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp, Vmadot1Op,
+                        Vmadot1uOp, Vmadot1suOp, Vmadot1usOp, Vmadot2Op,
+                        Vmadot2uOp, Vmadot2suOp, Vmadot2usOp, Vmadot3Op,
+                        Vmadot3uOp, Vmadot3suOp, Vmadot3usOp, Vfmadot1Op,
+                        Vfmadot2Op, Vfmadot3Op, VmadotnOp, VmadotnuOp,
+                        VmadotnsuOp, VmadotnusOp, VfmadotnOp>();
 
     LLVMTypeConverter typeConverter(&context);
 
     RewritePatternSet patterns(&context);
+    populateIMEFP16KernelPatterns(typeConverter, patterns);
     patterns
         .add<IMEVmadotLowering, IMEVmadotuLowering, IMEVmadotsuLowering,
              IMEVmadotusLowering, IMEVfmadotLowering, IMEVmadot1Lowering,
@@ -1831,6 +1833,7 @@ struct LegalizeIMEForLLVMExport
 
 void mlir::populateIMELegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
+  populateIMEFP16KernelPatterns(converter, patterns);
   patterns.add<IMEVmadotLowering, IMEVmadotuLowering, IMEVmadotsuLowering,
                IMEVmadotusLowering, IMEVfmadotLowering, IMEVmadot1Lowering,
                IMEVmadot1uLowering, IMEVmadot1suLowering, IMEVmadot1usLowering,
@@ -1846,12 +1849,12 @@ void mlir::configureIMELegalizeForExportTarget(LLVMConversionTarget &target) {
   target.addLegalDialect<IMEDialect>();
   target.addLegalDialect<arith::ArithDialect>();
   target.addLegalDialect<memref::MemRefDialect>();
-  target.addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp,
-                      Vmadot1Op, Vmadot1uOp, Vmadot1suOp, Vmadot1usOp,
-                      Vmadot2Op, Vmadot2uOp, Vmadot2suOp, Vmadot2usOp,
-                      Vmadot3Op, Vmadot3uOp, Vmadot3suOp, Vmadot3usOp,
-                      Vfmadot1Op, Vfmadot2Op, Vfmadot3Op, VmadotnOp, VmadotnuOp,
-                      VmadotnsuOp, VmadotnusOp, VfmadotnOp>();
+  target.addIllegalOp<
+      VfwmadotOp, PackBF16Op, GemmF16Op, GemvF16Op, VmadotOp, VmadotuOp,
+      VmadotsuOp, VmadotusOp, VfmadotOp, Vmadot1Op, Vmadot1uOp, Vmadot1suOp,
+      Vmadot1usOp, Vmadot2Op, Vmadot2uOp, Vmadot2suOp, Vmadot2usOp, Vmadot3Op,
+      Vmadot3uOp, Vmadot3suOp, Vmadot3usOp, Vfmadot1Op, Vfmadot2Op, Vfmadot3Op,
+      VmadotnOp, VmadotnuOp, VmadotnsuOp, VmadotnusOp, VfmadotnOp>();
 }
 
 std::unique_ptr<Pass> buddy::ime::createLegalizeForLLVMExportPass() {
