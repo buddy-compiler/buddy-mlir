@@ -36,8 +36,10 @@ def lower_vir(pipeline_type, llc_attrs):
     raise AssertionError(f"no -lower-vir-to-vector in {pipeline_type}")
 
 
+K3 = RVV + " -mattr=+zvl1024b -riscv-v-vector-bits-max=1024"
 for name, pipeline_type, llc_attrs in (
-    ("A100", "kernels_a100", RVV),
+    ("A100", "kernels_a100", K3),
+    ("A100, no VLEN", "kernels_a100", RVV),
     (
         "A100 IME",
         "kernels_ime",
@@ -58,7 +60,11 @@ for name, pipeline_type, llc_attrs in (
         "-riscv-v-vector-bits-max=512",
     ),
     ("RVV min 512", "kernels", RVV + ",+zvl256b -riscv-v-vector-bits-min=512"),
-    ("A100, zvl256b", "kernels_a100", RVV + ",+zvl256b"),
+    (
+        "A100, VLEN 256",
+        "kernels_a100",
+        RVV + ",+zvl256b -riscv-v-vector-bits-max=256",
+    ),
     ("zvl 256 and 512", "kernels", RVV + ",+zvl256b -mattr=+zvl512b"),
     (
         "min 256, zvl512b",
@@ -73,6 +79,7 @@ for name, pipeline_type, llc_attrs in (
 ):
     print(f"{name}: {lower_vir(pipeline_type, llc_attrs)}")
 # CHECK: A100: -lower-vir-to-vector=rvv-vlen=1024 use-scalable=true
+# CHECK-NEXT: A100, no VLEN: error: the A100 code needs the exact VLEN 1024 (BUDDY_RISCV_VLEN=1024); the build's llc options give no exact VLEN
 # CHECK-NEXT: A100 IME: -lower-vir-to-vector=rvv-vlen=1024 use-scalable=true
 # CHECK-NEXT: RVV 1024: -lower-vir-to-vector=rvv-vlen=1024 use-scalable=true
 # CHECK-NEXT: RVV 128: -lower-vir-to-vector=rvv-vlen=128 use-scalable=true
@@ -84,7 +91,7 @@ for name, pipeline_type, llc_attrs in (
 # CHECK-NEXT: RVV max 0: -lower-vir-to-vector=use-scalable=true{{$}}
 # CHECK-NEXT: RVV min 512 max 512: -lower-vir-to-vector=rvv-vlen=512 use-scalable=true
 # CHECK-NEXT: RVV min 512: -lower-vir-to-vector=use-scalable=true{{$}}
-# CHECK-NEXT: A100, zvl256b: error: llc options of several VLEN: +zvl[256, 1024]b
+# CHECK-NEXT: A100, VLEN 256: error: the A100 code needs the exact VLEN 1024 (BUDDY_RISCV_VLEN=1024); the build's llc options give VLEN 256
 # CHECK-NEXT: zvl 256 and 512: error: llc options of several VLEN: +zvl[256, 512]b
 # CHECK-NEXT: min 256, zvl512b: error: llc options of a -riscv-v-vector-bits-min=256 below the VLEN of +zvl512b
 # CHECK-NEXT: max 256, zvl1024b: error: llc options of a -riscv-v-vector-bits-max=256 below the VLEN of +zvl1024b
@@ -124,7 +131,7 @@ for norm in (False, True):
             k3_w4._attn_decode_vir_fn(k3_w4._Types(), spec)
         text = str(module)
     for name, pipeline_type, llc_attrs in (
-        ("A100", "kernels_a100", RVV),
+        ("A100", "kernels_a100", exact(1024)),
         ("RVV 512", "kernels", exact(512)),
         ("RVV 256", "kernels", exact(256)),
         ("RVV 128", "kernels", exact(128)),

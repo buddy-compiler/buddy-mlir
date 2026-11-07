@@ -35,6 +35,7 @@
 
 set(BUDDY_CODEGEN_DIR "${CMAKE_SOURCE_DIR}/tools/buddy-codegen"
     CACHE PATH "Path to buddy-codegen scripts")
+include("${CMAKE_CURRENT_LIST_DIR}/buddy_rvv_vlen.cmake")
 
 option(BUDDY_RAX_EMBED_PAYLOAD
   "Embed model .so / weights / vocab into .rax payload segment"
@@ -62,7 +63,7 @@ set(RISCV_OMP_SHARED "" CACHE FILEPATH
 set(RISCV_MLIR_C_RUNNER_UTILS "" CACHE FILEPATH
   "Path to target mlir_c_runner_utils shared library for RVV link")
 set(BUDDY_RISCV_VLEN "" CACHE STRING
-  "RISC-V targets: the exact VLEN in bits (e.g. 1024 for the SpacemiT K3 A100 cores); empty: any")
+  "RISC-V targets: the exact VLEN in bits (e.g. 1024 for the SpacemiT K3 A100 cores), the one setting of the VLEN of a build (llc options, VIR lowering, the check when the model library loads); empty: any")
 set(RISCV_LLVM_BUILD_DIR "" CACHE PATH
   "riscv64 LLVM/MLIR build dir for the RVV plugins (lib/libLLVMSupport.a, include/llvm/Config)")
 if(NOT DEFINED BUDDY_MLIR_BUILD_DIR)
@@ -399,20 +400,24 @@ function(buddy_add_model)
   if(BUDDY_RISCV_ENABLE_ZFH_ZVFH)
     string(APPEND _MDL_RISCV_MATTR ",+zfh,+zvfh")
   endif()
-  # A known VLEN lets LLVM map fixed-length vectors onto whole registers.
-  set(_MDL_RISCV_VLEN_ARGS "")
-  if(BUDDY_RISCV_VLEN)
-    string(APPEND _MDL_RISCV_MATTR ",+zvl${BUDDY_RISCV_VLEN}b")
-    set(_MDL_RISCV_VLEN_ARGS " -riscv-v-vector-bits-max=${BUDDY_RISCV_VLEN}")
-  endif()
   if(IS_RVV_CROSSCOMPILE)
-    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu${_MDL_RISCV_VLEN_ARGS}")
+    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
   elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
-      set(MDL_LLC_ATTRS "-mcpu=native -mattr=${_MDL_RISCV_MATTR}${_MDL_RISCV_VLEN_ARGS}")
+      set(MDL_LLC_ATTRS "-mcpu=native -mattr=${_MDL_RISCV_MATTR}")
     else()
       set(MDL_LLC_ATTRS "-mcpu=native")
     endif()
+  endif()
+  # The VLEN of an RVV build is BUDDY_RISCV_VLEN's (buddy_rvv_vlen.cmake):
+  # its VLEN options join the llc options, a model's LLC_ATTRS included,
+  # which must not set one. A known VLEN lets LLVM map fixed-length vectors
+  # onto whole registers.
+  if(IS_RVV_CROSSCOMPILE OR HAVE_LOCAL_RVV)
+    buddy_rvv_vlen_llc_attrs(MDL_LLC_ATTRS
+      LLC_ATTRS "${MDL_LLC_ATTRS}"
+      VLEN "${BUDDY_RISCV_VLEN}"
+      CONTEXT "buddy_add_model (${MDL_NAME})")
   endif()
 
   if(NOT MDL_COMPILE_JOBS)
@@ -528,13 +533,47 @@ function(buddy_add_model)
       "buddy_add_model (${MDL_NAME}): \"prefill_ime\" targets the SpacemiT "
       "K3 (RISC-V); build it with --is-rvv-crosscompile or on the board.")
   endif()
-  # compile_pipeline.py compiles the IME kernels for VLEN 1024 (A100_VLEN)
-  # whatever BUDDY_RISCV_VLEN says; a build for another VLEN cannot run them.
-  if(MDL_PREFILL_IME AND BUDDY_RISCV_VLEN AND
-     NOT BUDDY_RISCV_VLEN EQUAL 1024)
+  # The A100 code of "prefill_ime" is for VLEN 1024 (A100_VLEN, which
+  # compile_pipeline.a100_llc_args checks): the build's, BUDDY_RISCV_VLEN.
+  if(MDL_PREFILL_IME AND NOT "${BUDDY_RISCV_VLEN}" STREQUAL "1024")
     message(FATAL_ERROR
       "buddy_add_model (${MDL_NAME}): \"prefill_ime\" needs the VLEN of "
-      "the K3 A100 cores, 1024; BUDDY_RISCV_VLEN is ${BUDDY_RISCV_VLEN}.")
+      "the K3 A100 cores: BUDDY_RISCV_VLEN=1024; it is "
+      "\"${BUDDY_RISCV_VLEN}\".")
+  endif()
+  # The VLEN the model's RVV code is for, that of the final llc options
+  # (buddy_rvv_vlen.cmake): every library that holds its code links
+  # runtime/rvv/BuddyRvvVlen.c for it, which stops a process on a CPU of
+  # another VLEN when the library loads.
+  set(MDL_RVV_VLEN_OBJ "")
+  set(MDL_RVV_VLEN_LINK_ARGS "")
+  if(IS_RVV_CROSSCOMPILE OR HAVE_LOCAL_RVV)
+    buddy_rvv_vlen_required(_mdl_rvv_vlen
+      LLC_ATTRS "${MDL_LLC_ATTRS}"
+      PYTHON "${Python3_EXECUTABLE}"
+      CODEGEN_DIR "${BUDDY_CODEGEN_DIR}"
+      CONTEXT "buddy_add_model (${MDL_NAME})")
+    if(_mdl_rvv_vlen)
+      set(_mdl_rvv_vlen_cc "${CMAKE_C_COMPILER}")
+      if(IS_RVV_CROSSCOMPILE)
+        # the compiler and options of stage 3 (below)
+        set(_mdl_rvv_vlen_cc "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang"
+          --target=riscv64-unknown-linux-gnu
+          "--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot"
+          "--gcc-toolchain=${RISCV_GNU_TOOLCHAIN}")
+      endif()
+      set(MDL_RVV_VLEN_OBJ "${BIN}/BuddyRvvVlen.o")
+      set(MDL_RVV_VLEN_LINK_ARGS --extra-obj "${MDL_RVV_VLEN_OBJ}")
+      add_custom_command(
+        OUTPUT "${MDL_RVV_VLEN_OBJ}"
+        COMMAND ${_mdl_rvv_vlen_cc} "-DBUDDY_RVV_VLEN=${_mdl_rvv_vlen}" -O2
+                -fPIC -c "${BUDDY_SOURCE_DIR}/runtime/rvv/BuddyRvvVlen.c"
+                -o "${MDL_RVV_VLEN_OBJ}"
+        DEPENDS "${BUDDY_SOURCE_DIR}/runtime/rvv/BuddyRvvVlen.c" "${MDL_SPEC}"
+        COMMENT "[${MDL_NAME}] Compiling BuddyRvvVlen.c (VLEN ${_mdl_rvv_vlen})"
+        VERBATIM
+      )
+    endif()
   endif()
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MDL_SPEC}")
   if(MDL_ARENA AND (NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" OR
@@ -912,10 +951,10 @@ function(buddy_add_model)
         OUTPUT ${out}
         COMMAND ${CMAKE_CXX_COMPILER} -shared -fPIC -std=c++17 -O2
                 -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
-                ${src} ${obj1} ${obj2}
+                ${src} ${obj1} ${obj2} ${MDL_RVV_VLEN_OBJ}
                 -L${LLVM_LIBRARY_DIR} -lmlir_c_runner_utils -L${_Q_OMP} -lomp
                 -Wl,-rpath,${LLVM_LIBRARY_DIR} -Wl,-rpath,${_Q_OMP} -o ${out}
-        DEPENDS ${src} ${obj1} ${obj2}
+        DEPENDS ${src} ${obj1} ${obj2} ${MDL_RVV_VLEN_OBJ}
         COMMENT "[${MDL_NAME}] Stage 3: linking ${out}"
         VERBATIM)
     endfunction()
@@ -1319,12 +1358,14 @@ function(buddy_add_model)
                 --cxx "${CMAKE_CXX_COMPILER}"
                 --llvm-lib-dir "${LLVM_LIBRARY_DIR}"
                 ${MDL_OPENMP_RUNTIME_ARGS}
+                ${MDL_RVV_VLEN_LINK_ARGS}
                 -j "${MDL_COMPILE_JOBS}"
         DEPENDS
           buddy-opt
           "${GEN_CONFIG}"
           "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
           ${MLIR_COMPILE_DEPS}
+          ${MDL_RVV_VLEN_OBJ}
         COMMENT "[${MDL_NAME}] Stage 2/3: partitioned MLIR → ${MDL_NAME}_model.so"
         VERBATIM
       )
@@ -1446,6 +1487,8 @@ function(buddy_add_model)
     )
     list(APPEND MDL_STAGE3_EXTRA_OBJS "${_obj}")
   endforeach()
+  # the VLEN check (above)
+  list(APPEND MDL_STAGE3_EXTRA_OBJS ${MDL_RVV_VLEN_OBJ})
 
   if(APPLE)
     set(_BUDDY_MODEL_LINK_FLAGS
