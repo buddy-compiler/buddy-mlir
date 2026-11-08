@@ -174,6 +174,22 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
   }
 }
 
+/// The VLEN in bits of the host when it is a RISC-V CPU with V, else 0. The
+/// fixed vectors of a host are sized as for an rvv-vlen of it.
+static int hostRvvVlen() {
+#if defined(__riscv)
+  llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
+  if (Features.count("v") && Features["v"]) {
+    unsigned long vlenb;
+    // vlenb (CSR 0xc22) by number: the assembler knows its name only with
+    // V, which buddy-opt need not be built with
+    __asm__ volatile("csrr %0, 0xc22" : "=r"(vlenb));
+    return int(vlenb * 8);
+  }
+#endif
+  return 0;
+}
+
 /// The vector type of a dynamic vector region from its register pressure
 /// (Req_Group, the most dynamic vectors live at once) and the vector
 /// registers of the target: with `rvvVlen` (bits, > 0), a RISC-V Vector
@@ -188,9 +204,10 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
   }
-  // Defaults when no target-specific features are detected (e.g. RISC-V or
-  // hosts not enumerated below). A width of 1 made sizeVec zero for f32
-  // (VectorType::get asserts); 128-bit is a reasonable generic SIMD nominal.
+  // Defaults when no target-specific features are detected (hosts not
+  // enumerated below; a RISC-V host with V is an rvv-vlen, hostRvvVlen). A
+  // width of 1 made sizeVec zero for f32 (VectorType::get asserts); 128-bit is
+  // a reasonable generic SIMD nominal.
   int vectorRegBitWidth = 128;
   int totalVectorRegs = 16;
   if (rvvVlen > 0) {
@@ -2247,7 +2264,8 @@ public:
       *this, "rvv-vlen",
       llvm::cl::desc("VLEN in bits of a RISC-V Vector target: without "
                      "vector-width, the vector size comes from its 32 "
-                     "registers of VLEN bits instead of the host's; with "
+                     "registers of VLEN bits instead of the host's (on a "
+                     "RISC-V host with V, those of its VLEN); with "
                      "use-scalable, a vir.set_vl with results is lowered "
                      "for this VLEN (vscale = rvv-vlen / 64) and is only "
                      "valid on it. use-scalable without rvv-vlen (and "
@@ -2304,6 +2322,13 @@ void VIRToVectorPass::runOnOperation() {
   int vlen = rvvVlen;
   if (useScalable && !useCustomVecWid && !exactVlen)
     vlen = 128;
+  // Fixed vectors for the host: on a RISC-V host with V, those of its VLEN,
+  // as for rvv-vlen
+  if (!useScalable && !useCustomVecWid && !exactVlen) {
+    vlen = hostRvvVlen();
+    if (verbose && vlen)
+      llvm::outs() << "--- RISC-V Vector host: VLEN " << vlen << " ---\n";
+  }
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
                                         vectorWidth, verbose, useCustomVecWid,
                                         vlen, exactVlen);
