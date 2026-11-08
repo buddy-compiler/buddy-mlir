@@ -258,6 +258,85 @@ The emulator used for all results below is version 8.2.94 with the
 /tmp/xuantie-qemu-build/qemu-riscv64 -cpu xt-c9501fdvmt ./linalg-matmul
 ```
 
+## Measured shapes
+
+Each entry is a self-checking program: a correct run exits with status 0. The
+inputs vary by row and column, so a wrong tile base, row offset or accumulator
+register cannot cancel out.
+
+| M | K | N | Result |
+| --- | --- | --- | --- |
+| 4 | 4 | 4 | 0 |
+| 4 | 8 | 4 | 0 |
+| 4 | 8 | 5 | 0 |
+| 4 | 6 | 6 | 0 |
+| 4 | 8 | 8 | 0 |
+| 8 | 8 | 8 | 0 |
+| 8 | 20 | 8 | 0 |
+| 8 | 20 | 16 | 0 |
+| 4 | 22 | 7 | 0 |
+| 16 | 20 | 13 | 0 |
+| 20 | 12 | 4 | 0 |
+| 17 | 10 | 4 | 0 |
+| 33 | 20 | 8 | 0 |
+| 20 | 20 | 7 | 0 |
+
+Reductions with `K` from 4 to 64 were also checked with a uniform right-hand
+side.
+
+## Benchmark
+
+`benchmarks/XtameBench` holds one kernel per file in `ops/` and builds each of
+them twice, through this pass and as scalar loops, then counts the instructions
+both programs execute under QEMU:
+
+```bash
+QEMU_RISCV64=/path/to/qemu-riscv64 \
+    python3 benchmarks/XtameBench/run_xtame_bench.py
+```
+
+| case | AME instructions | matmul instructions, AME | matmul instructions, scalar |
+| --- | --- | --- | --- |
+| `matmul_4x1x1` | 10 | 16 | 104 |
+| `matmul_4x4x4` | 10 | 16 | 889 |
+| `matmul_5x3x2` | 10 | 17 | 471 |
+| `matmul_8x20x8` | 22 | 34 | 14730 |
+| `matmul_16x32x16` | 37 | 68 | 92554 |
+| `matmul_16x256x16` | 163 | 306 | 723338 |
+| `matmul_20x20x20` | 91 | 120 | 91809 |
+| `matmul_33x20x13` | 112 | 142 | 98517 |
+| `matmul_32x64x32` | 275 | 783 | 730378 |
+| `batch_matmul_4x8x16x8` | 72 | 170 | 47983 |
+| `quantized_matmul_16x32x16` | 87 | 4066 | 108938 |
+| `quantized_matmul_16x256x16` | 381 | 4902 | 854410 |
+
+The columns are the case file, the AME instructions it executes, and the
+executed instructions of the whole program minus the fill, zero and dump cost
+for the AME and for the scalar version. Both programs therefore pay the same
+non-kernel cost, and the last two columns compare only the kernel.
+
+`quantized_matmul_16x32x16` executes 87 AME instructions and 4066 instructions
+in total, against 68 for the plain matmul of the same shape. The extra AME work
+is the two ones-vector matmuls; the rest is the per-element update of `C`, which
+is `O(M*N)`. The same case needed 11890 instructions when the sums were scalar
+reductions, and 4745 when the ones were filled at run time.
+
+`quantized_matmul_16x256x16` shows the scaling: 4902 instructions against 306 for
+the plain matmul. The per-element part is amortised as `K` grows, so the ratio of
+the quantized path to the plain matmul falls from 60 times at `K = 32` to 16
+times at `K = 256`.
+
+These are instruction counts, not times. QEMU has no timing model for the
+XuanTie core, so the ratio says how much less work the AME version executes, not
+how much faster it runs; one `th.mmacc.w.b` also performs many more
+multiply-accumulates than one scalar instruction. The benchmark prints cycles
+from `rdcycle`, which is meaningful only on a board.
+
+The table also shows the effect of the chunk selection. Reductions use
+16-element chunks while they fit and only fall back to 4-element chunks for the
+remainder, so `K = 20` is 16 + 4: `matmul_20x20x20` dropped from 284 to 120
+executed instructions and `matmul_33x20x13` from 369 to 142.
+
 ## Known limitations
 
 - Only `i8 x i8 -> i32`. There is no `i16`, `i4` or floating-point path yet, and
