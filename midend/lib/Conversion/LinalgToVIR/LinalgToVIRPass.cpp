@@ -1944,13 +1944,20 @@ static LogicalResult lowerSoftmaxToVIR(linalg::SoftmaxOp op,
 
 /// Expand & transpose source memrefs to the common shape, and map them into
 /// `transformedMemRefs`.
+static bool isRank0MemRef(Value v) {
+  auto ty = dyn_cast<MemRefType>(v.getType());
+  return ty && ty.getRank() == 0;
+}
+
 static LogicalResult transformProjectedPermutationOperands(
     linalg::LinalgOp linalgOp, PatternRewriter &rewriter,
     ArrayRef<OpFoldResult> commonShape,
     DenseMap<Value, Value> &transformedMemRefs) {
   Location loc = linalgOp.getLoc();
   for (OpOperand *opOperand : linalgOp.getOpOperandsMatchingBBargs()) {
-    if (linalgOp.isScalar(opOperand)) {
+    // (a rank-0 input is loaded as a scalar, mapInputsToVIRVectors)
+    if (linalgOp.isScalar(opOperand) ||
+        (linalgOp.isDpsInput(opOperand) && isRank0MemRef(opOperand->get()))) {
       continue;
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
@@ -1998,6 +2005,14 @@ static LogicalResult mapInputsToVIRVectors(linalg::LinalgOp linalgOp,
     auto bbArg = linalgOp.getMatchingBlockArgument(opOperand);
     if (linalgOp.isScalar(opOperand)) {
       valueMap.map(bbArg, opOperand->get());
+      continue;
+    }
+    // A rank-0 input is the same element at every point: a scalar, which
+    // the body broadcasts where it meets a vector.
+    if (isRank0MemRef(opOperand->get())) {
+      valueMap.map(bbArg, memref::LoadOp::create(rewriter, loc,
+                                                 opOperand->get(), ValueRange{})
+                              .getResult());
       continue;
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
