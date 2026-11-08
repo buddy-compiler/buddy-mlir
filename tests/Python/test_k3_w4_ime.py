@@ -130,31 +130,36 @@ print(
 # CHECK-NEXT: k 8960: copies 2 tile calls 2 omp loops 5
 
 # The "kernels_ime" pipeline: -lower-ime target=k3, buddy-translate, llc for
-# the A100, the exact VLEN included whatever the build gives the other
-# kernels (an equal one is not repeated, another one is refused).
-stages = compile_pipeline.build_stages("kernels_ime", 8, "", "w4g32")
+# the A100: the build's options, which must be of the A100's exact VLEN (the
+# options of BUDDY_RISCV_VLEN=1024, the one VLEN setting of a build), then
+# the IME extension and the A100 scheduling model.
+K3 = "-mattr=+m,+d,+v -mattr=+v,+zvl1024b -riscv-v-vector-bits-max=1024"
+stages = compile_pipeline.build_stages("kernels_ime", 8, K3, "w4g32")
 print("tools:", " ".join(tool for tool, _ in stages))
 print("llc:", " ".join(stages[-1][1]))
 # CHECK: tools: buddy-opt buddy-translate llvm-as llc
-# CHECK-NEXT: llc: -code-model=large -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024 -filetype=obj -relocation-model=pic -O3
+# CHECK-NEXT: llc: -mattr=+m,+d,+v -mattr=+v,+zvl1024b -riscv-v-vector-bits-max=1024 -code-model=large -mattr=+xsmtvdotii -mcpu=spacemit-a100 -misched-prera-direction=topdown -filetype=obj -relocation-model=pic -O3
 # "kernels_a100" (the other kernels of a model on the A100 cores): the passes
 # of "kernels", the llc options of the A100.
-a100 = compile_pipeline.build_stages("kernels_a100", 8, "", "w4g32")
-plain = compile_pipeline.build_stages("kernels", 8, "", "w4g32")
+a100 = compile_pipeline.build_stages("kernels_a100", 8, K3, "w4g32")
+plain = compile_pipeline.build_stages("kernels", 8, K3, "w4g32")
 print("kernels_a100 tools:", " ".join(tool for tool, _ in a100))
 print("same passes:", a100[0] == plain[0], "same llc:", a100[-1] == stages[-1])
 # CHECK-NEXT: kernels_a100 tools: buddy-opt mlir-translate llvm-as llc
 # CHECK-NEXT: same passes: True same llc: True
-for given in ("-riscv-v-vector-bits-max=1024", "-riscv-v-vector-bits-max=256"):
+for given in (
+    "",
+    "-mattr=+m,+d,+v",
+    "-mattr=+v,+zvl256b -riscv-v-vector-bits-max=256",
+):
     try:
-        llc = compile_pipeline.build_stages("kernels_ime", 8, given, "w4g32")[
-            -1
-        ][1]
-        print(f"{given}: given once {llc.count(given) == 1}")
+        compile_pipeline.build_stages("kernels_ime", 8, given, "w4g32")
+        print(f"{given!r}: accepted")
     except ValueError as e:
-        print(f"{given}: ValueError: {e}")
-# CHECK-NEXT: -riscv-v-vector-bits-max=1024: given once True
-# CHECK-NEXT: -riscv-v-vector-bits-max=256: ValueError: the A100 IME kernels need VLEN 1024, the build gives -riscv-v-vector-bits-max=256
+        print(f"{given!r}: ValueError: {e}")
+# CHECK-NEXT: '': ValueError: the A100 code needs the exact VLEN 1024 (BUDDY_RISCV_VLEN=1024); the build's llc options give no exact VLEN
+# CHECK-NEXT: '-mattr=+m,+d,+v': ValueError: the A100 code needs the exact VLEN 1024 (BUDDY_RISCV_VLEN=1024); the build's llc options give no exact VLEN
+# CHECK-NEXT: '-mattr=+v,+zvl256b -riscv-v-vector-bits-max=256': ValueError: the A100 code needs the exact VLEN 1024 (BUDDY_RISCV_VLEN=1024); the build's llc options give VLEN 256
 lowered = subprocess.run(
     [BUDDY_OPT, *stages[0][1]],
     input=ime,

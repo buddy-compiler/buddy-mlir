@@ -235,3 +235,43 @@ for flag in (0, 1):
     )
 # CHECK: prefill logits 0: computed False
 # CHECK-NEXT: prefill logits 1: computed True
+
+# Without BUDDY_RISCV_VLEN, an A210 build is a generic RVV one, with no VLEN
+# check (buddy_model.cmake): valid on any VLEN as the kernels, the attention
+# of k3_w4.py included, are fixed-length vectors with no VIR, which llc
+# lowers for any VLEN of at least 128 when it is not told an exact one. The
+# "kernels" pipeline gives the same LLVM IR with VLEN 128 and without a VLEN.
+RVV = "-march=riscv64 -mtriple=riscv64-unknown-linux-gnu -mattr=+m,+d,+v"
+attn = {"kind": "attn", "heads": 8, "kv_heads": 2, "dim": 128, "ctx": 256}
+attn["scale"] = attn["dim"] ** -0.5
+specs = [
+    a210_w4.kernel_spec("plain", 8, 96, [256], False, THREADS),
+    a210_w4.kernel_spec("multi", 1, 96, [256, 128, 128], True, THREADS),
+    a210_w4.kernel_spec("glu", 1, 96, [256], False, THREADS),
+    dict(attn, name="attn_decode", m=1, threads=2),
+    dict(attn, name="attn_prefill", m=32),
+]
+text = a210_w4.gen_kernels(specs)
+scalable = bool(re.search(r"vector<[^>]*\[", text))
+print(f"VIR {'vir.' in text}, scalable vectors {scalable}")
+lowered = []
+for llc_attrs in (
+    RVV,
+    RVV + " -mattr=+v,+zvl128b -riscv-v-vector-bits-max=128",
+):
+    stages = compile_pipeline.build_stages(
+        "kernels", THREADS, llc_attrs, "w4g32"
+    )
+    passes = next(args for tool, args in stages if tool == "buddy-opt")
+    lowered.append(
+        subprocess.run(
+            [BUDDY_OPT, *passes],
+            input=text,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+print(f"LLVM IR without a VLEN as with VLEN 128: {lowered[0] == lowered[1]}")
+# CHECK: VIR False, scalable vectors False
+# CHECK-NEXT: LLVM IR without a VLEN as with VLEN 128: True

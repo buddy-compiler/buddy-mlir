@@ -72,6 +72,14 @@ The spec (`models/deepseek_r1/specs/a210_w4g32.json`):
   build never reuses weights packed for another layout.
 - For a RISC-V target, `buddy_model.cmake` stops when `BUDDY_RISCV_VLEN` is
   set to another value than 128 or `BUDDY_RISCV_ENABLE_ZFH_ZVFH` is off.
+  Without `BUDDY_RISCV_VLEN` the build is a generic RVV one, valid on any
+  VLEN: the A210 kernels are fixed-length vectors with no VIR, which llc
+  lowers for any VLEN of at least 128 (`test_a210_w4_kernels.py`).
+- With `BUDDY_RISCV_VLEN=128`, the model library checks the VLEN of the CPU
+  when it loads (`runtime/rvv/BuddyRvvVlen.c`): on a CPU of another VLEN it
+  stops with a message. It checks the core of the thread that loads the
+  library, once; all threads must run on cores of VLEN 128 (both A210
+  clusters are).
 
 ## Run
 
