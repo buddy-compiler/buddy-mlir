@@ -338,6 +338,139 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
   return failure();
 }
 
+static Value dimOrConstant(OpBuilder &builder, Location loc, Value memref,
+                           int64_t dim);
+
+/// Whether lowerReduceToScalarLoop has a case for the ranks and dimensions
+/// of `reduceOp` (rank-1 -> rank-0, rank-2 -> rank-1, rank-3 -> rank-2
+/// dimensions=[0]).
+static bool hasScalarLoopReduceCase(linalg::ReduceOp reduceOp) {
+  if (reduceOp.getInputs().size() != 1 || reduceOp.getInits().size() != 1)
+    return false;
+  auto inTy = dyn_cast<MemRefType>((*reduceOp.getInputs().begin()).getType());
+  auto outTy = dyn_cast<MemRefType>((*reduceOp.getInits().begin()).getType());
+  if (!inTy || !outTy)
+    return false;
+  ArrayRef<int64_t> dims = reduceOp.getDimensions();
+  return (inTy.getRank() == 1 && outTy.getRank() == 0) ||
+         (inTy.getRank() == 2 && outTy.getRank() == 1) ||
+         (inTy.getRank() == 3 && outTy.getRank() == 2 && dims.size() == 1 &&
+          dims[0] == 0);
+}
+
+/// A linalg.reduce that keeps the last dim (the reduced dims before it),
+/// e.g. tensor<1x16x4x2100xf32> dimensions = [1]: vectorized along the last
+/// dim, each output vector the elementwise combination (the combiner of the
+/// body: one floating-point binary op) of the input vectors along the
+/// reduced dims, in their order. Every access is contiguous and no reduction
+/// crosses lanes.
+static LogicalResult lowerReduceKeepingLastDim(linalg::ReduceOp reduceOp,
+                                               PatternRewriter &rewriter) {
+  if (!reduceOp.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(reduceOp,
+                                       "expected pure buffer semantics");
+  if (reduceOp.getInputs().size() != 1 || reduceOp.getInits().size() != 1)
+    return rewriter.notifyMatchFailure(
+        reduceOp, "only single-input single-output reduce supported");
+  Value input = *reduceOp.getInputs().begin();
+  Value init = *reduceOp.getInits().begin();
+  auto inTy = dyn_cast<MemRefType>(input.getType());
+  auto outTy = dyn_cast<MemRefType>(init.getType());
+  if (!inTy || !outTy || !isa<FloatType>(inTy.getElementType()) ||
+      inTy.getElementType() != outTy.getElementType())
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected floating-point memrefs of one element type");
+  int64_t rank = inTy.getRank();
+  ArrayRef<int64_t> dims = reduceOp.getDimensions();
+  if (rank < 2 || llvm::is_contained(dims, rank - 1))
+    return rewriter.notifyMatchFailure(reduceOp, "the last dim is reduced");
+  // the combiner: combine(input element, accumulator)
+  Block *body = reduceOp.getBody();
+  auto yield = cast<linalg::YieldOp>(body->getTerminator());
+  Operation *combiner = yield.getNumOperands() == 1
+                            ? yield.getOperand(0).getDefiningOp()
+                            : nullptr;
+  if (!combiner || combiner->getBlock() != body ||
+      body->getOperations().size() != 2 ||
+      !isa<arith::AddFOp, arith::MulFOp, arith::MaxNumFOp, arith::MinNumFOp,
+           arith::MaximumFOp, arith::MinimumFOp>(combiner))
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected a combiner of one floating-point binary op");
+  bool inputFirst = combiner->getOperand(0) == body->getArgument(0);
+  if (!(inputFirst ? combiner->getOperand(1) == body->getArgument(1)
+                   : combiner->getOperand(0) == body->getArgument(1) &&
+                         combiner->getOperand(1) == body->getArgument(0)))
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected the combiner of the two block arguments");
+
+  Location loc = reduceOp.getLoc();
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Type elemTy = inTy.getElementType();
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  SmallVector<Value> inIdx(rank, c0);
+  // the kept dims before the last one: loops around the set_vl
+  SmallVector<int64_t> outer;
+  for (int64_t d = 0; d < rank - 1; ++d)
+    if (!llvm::is_contained(dims, d))
+      outer.push_back(d);
+  auto outIdx = [&]() {
+    SmallVector<Value> idx;
+    for (int64_t d = 0; d < rank; ++d)
+      if (!llvm::is_contained(dims, d))
+        idx.push_back(inIdx[d]);
+    return idx;
+  };
+  // the reduced dims, in their order, carrying the accumulator
+  auto emitReduced = [&](auto &&self, OpBuilder &b, size_t i,
+                         Value acc) -> Value {
+    if (i == dims.size()) {
+      Value v =
+          buddy::vir::LoadOp::create(b, loc, vecTy, input, inIdx).getResult();
+      OperationState state(loc, combiner->getName());
+      state.addOperands(inputFirst ? ValueRange{v, acc} : ValueRange{acc, v});
+      state.addTypes(vecTy);
+      state.addAttributes(combiner->getAttrs());
+      return b.create(state)->getResult(0);
+    }
+    Value ub = dimOrConstant(b, loc, input, dims[i]);
+    auto loop = scf::ForOp::create(
+        b, loc, c0, ub, c1, ValueRange{acc},
+        [&](OpBuilder &lb, Location, Value iv, ValueRange args) {
+          inIdx[dims[i]] = iv;
+          scf::YieldOp::create(lb, loc, self(self, lb, i + 1, args[0]));
+        });
+    return loop.getResult(0);
+  };
+  auto emitOuter = [&](auto &&self, OpBuilder &b, size_t i) -> void {
+    if (i == outer.size()) {
+      Value n = dimOrConstant(b, loc, input, rank - 1);
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPoint(b.getInsertionBlock(), b.getInsertionPoint());
+      buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+      Value acc =
+          buddy::vir::LoadOp::create(rewriter, loc, vecTy, init, outIdx())
+              .getResult();
+      acc = emitReduced(emitReduced, rewriter, 0, acc);
+      buddy::vir::StoreOp::create(rewriter, loc, acc, init, outIdx());
+      vector::YieldOp::create(rewriter, loc);
+      rewriter.setInsertionPointAfter(setVl);
+      return;
+    }
+    Value ub = dimOrConstant(b, loc, input, outer[i]);
+    scf::ForOp::create(b, loc, c0, ub, c1, ValueRange{},
+                       [&](OpBuilder &lb, Location, Value iv, ValueRange) {
+                         inIdx[outer[i]] = iv;
+                         self(self, lb, i + 1);
+                         scf::YieldOp::create(lb, loc);
+                       });
+  };
+  emitOuter(emitOuter, rewriter, 0);
+  rewriter.eraseOp(reduceOp);
+  return success();
+}
+
 static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                              PatternRewriter &rewriter) {
   if (!reduceOp.hasPureBufferSemantics())
@@ -2377,13 +2510,18 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
     auto reduceOp = dyn_cast<linalg::ReduceOp>(op);
     if (!reduceOp)
       return rewriter.notifyMatchFailure(op, "expected linalg.reduce");
+    if (!hasScalarLoopReduceCase(reduceOp) &&
+        succeeded(lowerReduceKeepingLastDim(reduceOp, rewriter)))
+      return success();
     if (succeeded(lowerReduceToScalarLoop(reduceOp, rewriter)))
       return success();
     reduceOp.emitError(
         "unsupported linalg.reduce for -lower-linalg-to-vir; supported forms "
         "are rank-1->rank-0 dimensions=[0], rank-2->rank-1 dimensions=[1], "
         "static-shape rank-2->rank-1 dimensions=[0], and static-shape "
-        "rank-3->rank-2 dimensions=[0], all with f32 addf/maxnumf combiner");
+        "rank-3->rank-2 dimensions=[0], all with f32 addf/maxnumf combiner, "
+        "and the reductions that keep the last dim with a floating-point "
+        "binary combiner");
     return failure();
   }
 };
