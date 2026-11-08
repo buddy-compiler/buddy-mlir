@@ -1168,7 +1168,7 @@ static LogicalResult touchFirstOutputWithVIR(Operation *sourceOp,
 }
 
 static LogicalResult
-lowerGenericToScalarLoopsWithVIRMarker(linalg::GenericOp genericOp,
+lowerGenericToScalarLoopsWithVIRMarker(linalg::LinalgOp genericOp,
                                        PatternRewriter &rewriter) {
   if (!genericOp.hasPureBufferSemantics())
     return rewriter.notifyMatchFailure(genericOp,
@@ -1219,7 +1219,7 @@ lowerGenericToScalarLoopsWithVIRMarker(linalg::GenericOp genericOp,
         mapper.map(bbArg, loaded);
       }
 
-      Block &body = genericOp.getRegion().front();
+      Block &body = *genericOp.getBlock();
       auto yield = dyn_cast<linalg::YieldOp>(body.getTerminator());
       if (!yield)
         return rewriter.notifyMatchFailure(genericOp, "expected linalg.yield");
@@ -2426,12 +2426,9 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
                           .str());
       }
     }
-    if (hasIndexSemantics) {
-      if (auto genericOp = dyn_cast<linalg::GenericOp>(op))
-        return lowerGenericToScalarLoopsWithVIRMarker(genericOp, rewriter);
-      return rewriter.notifyMatchFailure(linalgOp,
-                                         "linalg.index shape unsupported");
-    }
+    // (a linalg.generic or a named op with a body, e.g. linalg.map)
+    if (hasIndexSemantics)
+      return lowerGenericToScalarLoopsWithVIRMarker(linalgOp, rewriter);
     if (hasCastSemantics) {
       if (succeeded(lowerSimpleCastGenericToScalarLoop(linalgOp, rewriter)))
         return success();
