@@ -34,26 +34,11 @@ THREADS = 3
 rng = numpy.random.default_rng(0)
 
 
-# The VIR regions sized for the 32 registers of the A100's VLEN, as fixed
-# vectors (one vector<128xf32> per head of 128), whatever the host: the
-# vector kernels the VIR is checked against bit for bit are written for one
-# vector per head. Sized for the host's registers (the pipeline without llc
-# options), a riscv64 host (128 bits, 16 registers) sums the squares of the
-# q / k norms in pieces of 32 lanes, another order.
-LOWER_VIR = (
-    f"-lower-vir-to-vector=rvv-vlen={compile_pipeline.A100_VLEN} "
-    "use-scalable=false"
-)
-
-
 def jit(specs, emulate_ime=False, kernels=None):
     """The kernels of `specs` (or the MLIR text `kernels`), lowered like
-    compile_pipeline.py does, the VIR with LOWER_VIR."""
+    compile_pipeline.py does."""
     stages = compile_pipeline.build_stages("kernels", THREADS, "", "w4g32")
-    passes = [
-        LOWER_VIR if a.startswith("-lower-vir-to-vector") else a
-        for a in next(args for tool, args in stages if tool == "buddy-opt")
-    ]
+    passes = next(args for tool, args in stages if tool == "buddy-opt")
     llvm = subprocess.run(
         [BUDDY_OPT, *passes],
         input=kernels or k3_w4.gen_kernels(specs, emulate_ime=emulate_ime),
@@ -399,8 +384,8 @@ for start in (0, 37, 70):
 # CHECK-NEXT: decode start 70: 4 heads per item, same bits True True
 
 # The decode attention in a VIR region (heads as rows of their RoPE halves,
-# lowered with LOWER_VIR: fixed vectors, one vector of 128 lanes per head):
-# the same bits as the vector kernel it is written after.
+# lowered by the pipeline for the host: fixed vectors, one vector of 128
+# lanes per head): the same bits as the vector kernel it is written after.
 for threads in (None, 2):
     for start in (0, 15, 16, 37, 70):
         base = {
