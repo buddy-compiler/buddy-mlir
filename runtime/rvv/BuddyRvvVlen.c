@@ -25,6 +25,11 @@
 // it differs. On the K3, a process that is not on the A100 cores (VLEN 1024)
 // runs on the X100 cores (VLEN 256).
 //
+// It checks the CPU of the thread that loads the library, once: a last
+// guard, not a check of every thread. All threads of the process must run on
+// cores of that VLEN: on the K3, a process switched to the A100 cores
+// (/proc/set_ai_thread) before it starts its threads.
+//
 // BUDDY_RVV_VLEN: the VLEN in bits the model is built for.
 //
 //===----------------------------------------------------------------------===//
@@ -45,10 +50,14 @@ __attribute__((constructor)) static void buddyRvvVlenCheck(void) {
   fprintf(stderr,
           "buddy model: built for RISC-V Vector VLEN %d, but this CPU has "
           "VLEN %lu: the results would be wrong.\n"
-          "  On the SpacemiT K3, run the model on the A100 cores (VLEN "
-          "1024): `echo 0 > /proc/set_ai_thread` in the shell that starts "
-          "it (docs/K3DeepSeekR1.md).\n",
-          BUDDY_RVV_VLEN, vlenb * 8);
+          "  Run the model, all its threads, on cores of VLEN %d.\n",
+          BUDDY_RVV_VLEN, vlenb * 8, BUDDY_RVV_VLEN);
+#if BUDDY_RVV_VLEN == 1024
+  // the VLEN of the SpacemiT K3 A100 cores
+  fprintf(stderr, "  On the SpacemiT K3, the A100 cores: `echo 0 > "
+                  "/proc/set_ai_thread` in the shell that starts it "
+                  "(docs/K3DeepSeekR1.md).\n");
+#endif
   // not exit(): it would run the destructors under the loader's lock
   _exit(1);
 }

@@ -515,6 +515,10 @@ function(buddy_add_model)
   # (docs/A210DeepSeekR1.md): a RISC-V build for another exact VLEN assumes
   # vector lengths the A210 does not have, and without Zvfh the f16 weight
   # scales are not vectors. Host builds (tests on x86) are not affected.
+  # Without BUDDY_RISCV_VLEN the build is a generic RVV one, valid on any
+  # VLEN: the A210 kernels are fixed-length vectors with no VIR
+  # (test_a210_w4_kernels.py), which llc lowers for any VLEN of at least 128
+  # when it is not told an exact one; the model has no VLEN check then.
   if(MDL_VARIANT STREQUAL "w4g32" AND MDL_W4_KERNELS STREQUAL "a210" AND
      (IS_RVV_CROSSCOMPILE OR HAVE_LOCAL_RVV))
     if(BUDDY_RISCV_VLEN AND NOT BUDDY_RISCV_VLEN EQUAL 128)

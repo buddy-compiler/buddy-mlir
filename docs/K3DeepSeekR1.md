@@ -85,7 +85,9 @@ one (`/proc/set_ai_thread`) before `buddy-cli` starts, so that all its threads
 run there. The model library checks the VLEN of the CPU when it loads
 (`runtime/rvv/BuddyRvvVlen.c`, in every RISC-V model built for an exact VLEN):
 started on the X100 cores (VLEN 256), it stops with a message instead of
-computing wrong results.
+computing wrong results. It checks the core of the thread that loads the
+library, once: a last guard, not a check of every thread, which the AI
+process mode keeps on the A100 cores.
 
 ```bash
 sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --prompt "..."'
