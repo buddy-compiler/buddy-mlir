@@ -22,7 +22,7 @@ func.func @copy_at(%a: memref<3x2x6xf32>, %o: memref<2x5xf32>) {
 }
 
 // IR-LABEL: func.func @copy_at
-// IR: affine.for %[[R:.*]] = {{.*}} {
+// IR: scf.parallel (%[[R:.*]]) = {{.*}} {
 // IR: affine.for %[[I:.*]] = {{.*}} step 4 {
 // IR:   %[[ROW:.*]] = arith.addi %[[R]], %c0{{.*}} : index
 // IR:   %[[COL:.*]] = arith.addi %[[I]], %c1{{.*}} : index
@@ -41,7 +41,7 @@ func.func @copy_rank3(%b: memref<2x2x5xf32>, %o: memref<2x5xf32>) {
 }
 
 // IR-LABEL: func.func @copy_rank3
-// IR: affine.for %[[R:.*]] = {{.*}} {
+// IR: scf.parallel (%[[R:.*]]) = {{.*}} {
 // IR: affine.for %[[I:.*]] = {{.*}} step 4 {
 // IR:   vector.load %{{.*}}[%c0{{.*}}, %[[R]], %[[I]]] : memref<2x2x5xf32>, vector<4xf32>
 

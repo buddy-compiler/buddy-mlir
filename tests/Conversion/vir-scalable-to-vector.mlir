@@ -83,7 +83,7 @@ func.func @copy2d(%a: memref<2x100xf32>, %b: memref<2x100xf32>) {
 }
 
 // CHECK-LABEL: func.func @copy2d
-// CHECK: affine.for %[[D:.*]] = #map(%{{.*}}) to #map(%{{.*}}) {
+// CHECK: scf.parallel (%[[D:.*]]) = (%{{.*}}) to (%{{.*}}) step (%{{.*}}) {
 // CHECK:   %[[END:.*]] = arith.subi
 // CHECK:   scf.for %[[I:.*]] = %{{.*}} to %[[END]] step %{{.*}} {
 // CHECK:     vector.load %{{.*}}[%[[D]], %[[I]]] : memref<2x100xf32>, vector<[4]xf32>

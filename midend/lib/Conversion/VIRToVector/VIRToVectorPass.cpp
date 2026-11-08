@@ -2172,29 +2172,21 @@ private:
     if (leadingStaticDims.empty()) {
       emitVectorAndTail(rewriter, /*leadingIVs=*/{});
     } else {
-      // Build nested loops over the leading static dims.
-      SmallVector<Value> ivs;
-      std::function<void(unsigned, OpBuilder &)> emitOuter = [&](unsigned dim,
-                                                                 OpBuilder &b) {
-        if (dim == leadingStaticDims.size()) {
-          emitVectorAndTail(b, ivs);
-          return;
-        }
-        int64_t ub = leadingStaticDims[dim];
-        Value c0 = arith::ConstantIndexOp::create(b, loc, 0);
-        Value cub = arith::ConstantIndexOp::create(b, loc, ub);
-        affine::AffineForOp::create(
-            b, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
-            ValueRange{cub}, rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/ValueRange{},
-            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-              ivs.push_back(iv);
-              emitOuter(dim + 1, bb);
-              ivs.pop_back();
-              affine::AffineYieldOp::create(bb, bodyLoc);
-            });
-      };
-      emitOuter(/*dim=*/0, rewriter);
+      // One loop over the leading static dims, in parallel: the rows are
+      // lanes of the dynamic vectors, which the region computes
+      // independently (no value flows between them).
+      Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+      Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+      SmallVector<Value> lbs, ubs, steps;
+      for (int64_t ub : leadingStaticDims) {
+        lbs.push_back(c0);
+        ubs.push_back(arith::ConstantIndexOp::create(rewriter, loc, ub));
+        steps.push_back(c1);
+      }
+      scf::ParallelOp::create(rewriter, loc, lbs, ubs, steps,
+                              [&](OpBuilder &b, Location, ValueRange ivs) {
+                                emitVectorAndTail(b, SmallVector<Value>(ivs));
+                              });
     }
 
     rewriter.eraseOp(op);
