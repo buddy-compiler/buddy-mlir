@@ -2452,6 +2452,193 @@ struct LinalgContractionNamedToVIRPattern : public RewritePattern {
   }
 };
 
+/// The output pixels of a row that share each filter load of a convolution.
+constexpr int64_t kConvPixels = 4;
+
+/// linalg.conv_2d_nhwc_hwcf / conv_2d_nhwc_fhwc to VIR, vectorized along the
+/// output channels F (the last dim of the output and of an HWCF filter):
+///
+///   out[n, oh, ow, :] += in[n, oh * sh + kh * dh, ow * sw + kw * dw, c]
+///                        * w[kh, kw, c, :]
+///
+/// one broadcast input element and one fma per (kh, kw, c): every vector
+/// access is contiguous and no reduction crosses lanes. An FHWC filter is
+/// copied into an HWCF buffer first. The rows (n, oh) of the output run in
+/// parallel, each in a vir.set_vl of F lanes; in a row, kConvPixels output
+/// pixels are accumulated together, so that they share each filter load.
+static LogicalResult lowerConv2DNhwcToVIR(linalg::LinalgOp op, bool fhwc,
+                                          DenseIntElementsAttr strides,
+                                          DenseIntElementsAttr dilations,
+                                          PatternRewriter &rewriter) {
+  if (!op.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+  Location loc = op.getLoc();
+  Value in = op.getDpsInputs()[0];
+  Value w = op.getDpsInputs()[1];
+  Value out = op.getDpsInits()[0];
+  auto inTy = dyn_cast<MemRefType>(in.getType());
+  auto wTy = dyn_cast<MemRefType>(w.getType());
+  auto outTy = dyn_cast<MemRefType>(out.getType());
+  if (!inTy || !wTy || !outTy)
+    return rewriter.notifyMatchFailure(op, "expected memref operands");
+  Type elemTy = outTy.getElementType();
+  if (!isa<FloatType>(elemTy) || inTy.getElementType() != elemTy ||
+      wTy.getElementType() != elemTy)
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+  int64_t sh = strides.getValues<int64_t>()[0];
+  int64_t sw = strides.getValues<int64_t>()[1];
+  int64_t dh = dilations.getValues<int64_t>()[0];
+  int64_t dw = dilations.getValues<int64_t>()[1];
+
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  // the filter dims [f, kh, kw, c] (FHWC) or [kh, kw, c, f] (HWCF)
+  unsigned fDim = fhwc ? 0 : 3, khDim = fhwc ? 1 : 0;
+  Value f = dimOrConstant(rewriter, loc, w, fDim);
+  Value kh = dimOrConstant(rewriter, loc, w, khDim);
+  Value kw = dimOrConstant(rewriter, loc, w, khDim + 1);
+  Value c = dimOrConstant(rewriter, loc, w, khDim + 2);
+  Value batch = dimOrConstant(rewriter, loc, out, 0);
+  Value oh = dimOrConstant(rewriter, loc, out, 1);
+  Value ow = dimOrConstant(rewriter, loc, out, 2);
+
+  // An FHWC filter as HWCF: filter[kh, kw, c, f] = w[f, kh, kw, c].
+  Value filter = w;
+  if (fhwc) {
+    SmallVector<int64_t> shape;
+    SmallVector<Value> dynSizes;
+    for (unsigned d : {1u, 2u, 3u, 0u}) {
+      shape.push_back(wTy.getDimSize(d));
+      if (wTy.isDynamicDim(d))
+        dynSizes.push_back(memref::DimOp::create(rewriter, loc, w, d));
+    }
+    filter = memref::AllocOp::create(rewriter, loc,
+                                     MemRefType::get(shape, elemTy), dynSizes);
+    scf::ParallelOp::create(
+        rewriter, loc, ValueRange{c0, c0, c0}, ValueRange{kh, kw, c},
+        ValueRange{c1, c1, c1}, [&](OpBuilder &b, Location l, ValueRange ivs) {
+          scf::ForOp::create(
+              b, l, c0, f, c1, ValueRange{},
+              [&](OpBuilder &fb, Location fl, Value fi, ValueRange) {
+                Value v = memref::LoadOp::create(
+                    fb, fl, w, ValueRange{fi, ivs[0], ivs[1], ivs[2]});
+                memref::StoreOp::create(fb, fl, v, filter,
+                                        ValueRange{ivs[0], ivs[1], ivs[2], fi});
+                scf::YieldOp::create(fb, fl);
+              });
+        });
+  }
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  scf::ParallelOp::create(
+      rewriter, loc, ValueRange{c0, c0}, ValueRange{batch, oh},
+      ValueRange{c1, c1}, [&](OpBuilder &, Location l, ValueRange nh) {
+        Value n = nh[0], row = nh[1];
+        buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, l, f);
+        auto idx = [&](OpBuilder &b, int64_t v) {
+          return arith::ConstantIndexOp::create(b, l, v).getResult();
+        };
+        Value z = idx(rewriter, 0), one = idx(rewriter, 1);
+        Value ih0 = arith::MulIOp::create(rewriter, l, row, idx(rewriter, sh));
+        // `pixels` output pixels from ow0 on, accumulated together
+        auto emitPixels = [&](OpBuilder &b, Value ow0, int64_t pixels) {
+          SmallVector<Value> owi, iw0, accs;
+          for (int64_t p = 0; p < pixels; ++p) {
+            Value o =
+                p == 0
+                    ? ow0
+                    : arith::AddIOp::create(b, l, ow0, idx(b, p)).getResult();
+            owi.push_back(o);
+            iw0.push_back(arith::MulIOp::create(b, l, o, idx(b, sw)));
+            accs.push_back(buddy::vir::LoadOp::create(b, l, vecTy, out,
+                                                      ValueRange{n, row, o, z})
+                               .getResult());
+          }
+          auto loopKh = scf::ForOp::create(
+              b, l, z, kh, one, accs,
+              [&](OpBuilder &hb, Location, Value khi, ValueRange hAccs) {
+                Value ih = arith::AddIOp::create(
+                    hb, l, ih0, arith::MulIOp::create(hb, l, khi, idx(hb, dh)));
+                auto loopKw = scf::ForOp::create(
+                    hb, l, z, kw, one, hAccs,
+                    [&](OpBuilder &wb, Location, Value kwi, ValueRange wAccs) {
+                      Value kwOff =
+                          arith::MulIOp::create(wb, l, kwi, idx(wb, dw));
+                      SmallVector<Value> iw;
+                      for (Value v : iw0)
+                        iw.push_back(arith::AddIOp::create(wb, l, v, kwOff));
+                      auto loopC = scf::ForOp::create(
+                          wb, l, z, c, one, wAccs,
+                          [&](OpBuilder &cb, Location, Value ci,
+                              ValueRange cAccs) {
+                            Value wv = buddy::vir::LoadOp::create(
+                                           cb, l, vecTy, filter,
+                                           ValueRange{khi, kwi, ci, z})
+                                           .getResult();
+                            SmallVector<Value> next;
+                            for (int64_t p = 0; p < pixels; ++p) {
+                              Value x = memref::LoadOp::create(
+                                  cb, l, in, ValueRange{n, ih, iw[p], ci});
+                              Value xv = buddy::vir::BroadcastOp::create(
+                                             cb, l, vecTy, x)
+                                             .getResult();
+                              next.push_back(buddy::vir::FMAOp::create(
+                                                 cb, l, vecTy, xv, wv, cAccs[p])
+                                                 .getResult());
+                            }
+                            scf::YieldOp::create(cb, l, next);
+                          });
+                      scf::YieldOp::create(wb, l, loopC.getResults());
+                    });
+                scf::YieldOp::create(hb, l, loopKw.getResults());
+              });
+          for (int64_t p = 0; p < pixels; ++p)
+            buddy::vir::StoreOp::create(b, l, loopKh.getResult(p), out,
+                                        ValueRange{n, row, owi[p], z});
+        };
+        // the blocks of kConvPixels pixels, then the pixels left one by one
+        Value owMain = arith::SubIOp::create(
+            rewriter, l, ow,
+            arith::RemSIOp::create(rewriter, l, ow,
+                                   idx(rewriter, kConvPixels)));
+        scf::ForOp::create(rewriter, l, z, owMain, idx(rewriter, kConvPixels),
+                           ValueRange{},
+                           [&](OpBuilder &b, Location, Value o, ValueRange) {
+                             emitPixels(b, o, kConvPixels);
+                             scf::YieldOp::create(b, l);
+                           });
+        scf::ForOp::create(rewriter, l, owMain, ow, one, ValueRange{},
+                           [&](OpBuilder &b, Location, Value o, ValueRange) {
+                             emitPixels(b, o, 1);
+                             scf::YieldOp::create(b, l);
+                           });
+        vector::YieldOp::create(rewriter, l);
+        rewriter.setInsertionPointAfter(setVl);
+      });
+  if (fhwc)
+    memref::DeallocOp::create(rewriter, loc, filter);
+  rewriter.eraseOp(op);
+  return success();
+}
+
+struct LinalgConvToVIRPattern : public RewritePattern {
+  LinalgConvToVIRPattern(MLIRContext *ctx)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/3, ctx) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (auto conv = dyn_cast<linalg::Conv2DNhwcHwcfOp>(op))
+      return lowerConv2DNhwcToVIR(conv, /*fhwc=*/false, conv.getStrides(),
+                                  conv.getDilations(), rewriter);
+    if (auto conv = dyn_cast<linalg::Conv2DNhwcFhwcOp>(op))
+      return lowerConv2DNhwcToVIR(conv, /*fhwc=*/true, conv.getStrides(),
+                                  conv.getDilations(), rewriter);
+    return rewriter.notifyMatchFailure(op, "not a supported convolution");
+  }
+};
+
 class LinalgToVIRPass
     : public PassWrapper<LinalgToVIRPass, OperationPass<ModuleOp>> {
 public:
@@ -2469,6 +2656,7 @@ public:
     RewritePatternSet patterns(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
     patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
+    patterns.add<LinalgConvToVIRPattern>(ctx);
     patterns.add<LinalgMatmulToVIRPattern>(ctx);
     patterns.add<LinalgGenericToVIRPattern>(ctx);
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
