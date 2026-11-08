@@ -1,6 +1,8 @@
 # -*- Python -*-
 
 import os
+import platform
+import re
 
 import lit.formats
 import lit.util
@@ -48,6 +50,20 @@ for candidate in openmp_runtime_candidates:
         break
 config.openmp_runtime_dir = openmp_runtime_dir
 config.substitutions.append(("%openmp_runtime_dir", config.openmp_runtime_dir))
+
+# A RISC-V host with the vector extension (V in the base ISA of
+# /proc/cpuinfo): tests that run RVV code natively.
+if platform.machine() == "riscv64":
+    try:
+        with open("/proc/cpuinfo") as f:
+            isa = next(
+                (l.split(":", 1)[1].strip() for l in f if l.startswith("isa")),
+                "",
+            )
+        if re.match(r"rv64[a-z]*v", isa.split("_")[0]):
+            config.available_features.add("riscv-vector")
+    except OSError:
+        pass
 
 llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 

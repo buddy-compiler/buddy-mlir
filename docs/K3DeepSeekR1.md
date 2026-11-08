@@ -33,13 +33,17 @@ python3 tools/buddy-codegen/build_model.py \
 # -> build/models/deepseek_r1/deepseek_r1.rax (2.5 GB, payload embedded)
 ```
 
-- `BUDDY_RISCV_VLEN=1024` tells llc the exact VLEN (`+zvl1024b`,
-  `-riscv-v-vector-bits-max=1024`): a weight tile is then one e8 register and
-  a 512-byte load is one `vl4r`. The decode attention (VIR dialect, below)
-  is compiled for this VLEN and runs on it only; the A100 code of
-  `prefill_ime` is compiled for VLEN 1024 anyway. Without an exact VLEN (a
-  generic RVV build), the decode attention of the `kernels` pipeline does not
-  compile: no code of it is valid on every VLEN.
+- `BUDDY_RISCV_VLEN=1024` is the exact VLEN of the build, its one VLEN
+  setting (`tools/buddy-codegen/cmake/buddy_rvv_vlen.cmake`): it gives llc
+  V and the exact VLEN (`+v,+zvl1024b`, `-riscv-v-vector-bits-max=1024`;
+  llc options of a model, `LLC_ATTRS`, must not set one), so that a weight
+  tile is one e8 register and a 512-byte load is one `vl4r`; the VIR
+  lowering, the checks
+  below and the VLEN check of the model library at load follow it. The
+  decode attention (VIR dialect, below) is compiled for this VLEN and runs on
+  it only. `prefill_ime` (the A100 code) needs `BUDDY_RISCV_VLEN=1024`.
+  Without an exact VLEN (a generic RVV build), the decode attention of the
+  `kernels` pipeline does not compile: no code of it is valid on every VLEN.
 - `BUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`: the weight scales are f16 vectors.
 
 The spec (`models/deepseek_r1/specs/k3_w4g32.json`):
@@ -78,7 +82,12 @@ HuggingFace config.
 
 The K3 kernel only lets "AI" threads run on the A100 cores: make the process
 one (`/proc/set_ai_thread`) before `buddy-cli` starts, so that all its threads
-run there.
+run there. The model library checks the VLEN of the CPU when it loads
+(`runtime/rvv/BuddyRvvVlen.c`, in every RISC-V model built for an exact VLEN):
+started on the X100 cores (VLEN 256), it stops with a message instead of
+computing wrong results. It checks the core of the thread that loads the
+library, once: a last guard, not a check of every thread, which the AI
+process mode keeps on the A100 cores.
 
 ```bash
 sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --prompt "..."'
@@ -99,7 +108,7 @@ sh -c 'echo 0 > /proc/set_ai_thread && exec buddy-cli --model deepseek_r1.rax --
 | `prefill_ime`: the IME weight layout, the prefill tiles on the matrix engine (`ime.intr.vmadot.hp` of the IME dialect) and their step, in a module of their own | `k3_w4.py` (`pack_ime`, `_ime_tile_fn`, `_ime_step_fn`, `build_kernels(..., "ime")`) |
 | `prefill_ime`: the activations of the IME tiles copied into the TCM of every core pair (`/dev/tcm`), in passes over K that fit in it | `k3_w4.py` (`_ime_stage`, `_ime_pass_groups`), `runtime/spacemit/BuddySpacemitTcm.c` |
 | `prefill_ime`: the prefill attention with Q K^T and P V on the matrix engine (`ime.intr.vfmadot`, fp16); its two matrix loops are in the IME module | `k3_w4.py` (`_attn_prefill_ime_fn`, `_attn_mma_fns`) |
-| Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024`: the exact VLEN of the A100 is part of the pipeline, a build for another `BUDDY_RISCV_VLEN` is refused) | `compile_pipeline.py` (pipeline `kernels_ime`, `a100_llc_args`) |
+| Its compilation for the A100 (`-lower-ime target=k3`, `buddy-translate`, `llc` with the build's options and `-mattr=+xsmtvdotii -mcpu=spacemit-a100 -misched-prera-direction=topdown`: the build's VLEN must be the A100's, `BUDDY_RISCV_VLEN=1024`, or the build is refused) | `compile_pipeline.py` (pipeline `kernels_ime`, `a100_llc_args`) |
 
 Weight layout: the columns of a weight `[K, N]` are split into tiles of 128
 (one e8 register at VLEN 1024), each one contiguous block, group by group:
@@ -283,7 +292,7 @@ disagree are an error):
 
 | Target (llc options) | VIR lowering |
 | --- | --- |
-| RVV of an exact VLEN (`+zvlVb` and `-riscv-v-vector-bits-max=V`; the A100 pipelines: 1024) | scalable vectors for that VLEN (`rvv-vlen=V use-scalable=true`), valid on it only |
+| RVV of an exact VLEN (`+zvlVb` and `-riscv-v-vector-bits-max=V`, from `BUDDY_RISCV_VLEN`; the A100 pipelines: 1024 only) | scalable vectors for that VLEN (`rvv-vlen=V use-scalable=true`), valid on it only |
 | RVV of no exact VLEN | scalable vectors for any VLEN (`use-scalable=true`, no `rvv-vlen`): strip-mined regions valid on any VLEN, a `set_vl` with results rejected |
 | x86, Arm NEON, SVE (not sized by the pass yet), the host tests | fixed vectors for the host's registers |
 
