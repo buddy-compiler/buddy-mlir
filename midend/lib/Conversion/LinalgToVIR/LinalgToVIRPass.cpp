@@ -345,21 +345,39 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
 static Value dimOrConstant(OpBuilder &builder, Location loc, Value memref,
                            int64_t dim);
 
-/// Whether lowerReduceToScalarLoop has a case for the ranks and dimensions
-/// of `reduceOp` (rank-1 -> rank-0, rank-2 -> rank-1, rank-3 -> rank-2
-/// dimensions=[0]).
-static bool hasScalarLoopReduceCase(linalg::ReduceOp reduceOp) {
-  if (reduceOp.getInputs().size() != 1 || reduceOp.getInits().size() != 1)
+/// Whether lowerReduceToScalarLoop lowers `reduceOp`: f32, an addf or
+/// maxnumf combiner, and rank-1 -> rank-0 dimensions=[0], rank-2 -> rank-1
+/// dimensions=[1], or with static shapes rank-2 -> rank-1 or rank-3 ->
+/// rank-2 dimensions=[0]. The other reductions that keep the last dim go to
+/// lowerReduceKeepingLastDim.
+static bool hasScalarLoopReduceCase(linalg::ReduceOp reduceOp,
+                                    PatternRewriter &rewriter) {
+  if (!reduceOp.hasPureBufferSemantics() || reduceOp.getInputs().size() != 1 ||
+      reduceOp.getInits().size() != 1)
     return false;
   auto inTy = dyn_cast<MemRefType>((*reduceOp.getInputs().begin()).getType());
   auto outTy = dyn_cast<MemRefType>((*reduceOp.getInits().begin()).getType());
-  if (!inTy || !outTy)
+  if (!inTy || !outTy || !inTy.getElementType().isF32() ||
+      !outTy.getElementType().isF32() ||
+      failed(getSupportedReduceCombinerKind(reduceOp, rewriter)))
     return false;
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
-  return (inTy.getRank() == 1 && outTy.getRank() == 0) ||
-         (inTy.getRank() == 2 && outTy.getRank() == 1) ||
-         (inTy.getRank() == 3 && outTy.getRank() == 2 && dims.size() == 1 &&
-          dims[0] == 0);
+  ArrayRef<int64_t> in = inTy.getShape(), out = outTy.getShape();
+  auto sameStatic = [](int64_t a, int64_t b) {
+    return ShapedType::isDynamic(a) || ShapedType::isDynamic(b) || a == b;
+  };
+  if (dims.size() != 1)
+    return false;
+  if (inTy.getRank() == 1 && outTy.getRank() == 0)
+    return dims[0] == 0;
+  if (inTy.getRank() == 2 && outTy.getRank() == 1)
+    return dims[0] == 1 ? sameStatic(in[0], out[0])
+                        : inTy.hasStaticShape() && outTy.hasStaticShape() &&
+                              in[1] == out[0];
+  if (inTy.getRank() == 3 && outTy.getRank() == 2)
+    return dims[0] == 0 && inTy.hasStaticShape() && outTy.hasStaticShape() &&
+           in.drop_front() == out;
+  return false;
 }
 
 /// A linalg.reduce that keeps the last dim (the reduced dims before it),
@@ -2511,7 +2529,7 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
     auto reduceOp = dyn_cast<linalg::ReduceOp>(op);
     if (!reduceOp)
       return rewriter.notifyMatchFailure(op, "expected linalg.reduce");
-    if (!hasScalarLoopReduceCase(reduceOp) &&
+    if (!hasScalarLoopReduceCase(reduceOp, rewriter) &&
         succeeded(lowerReduceKeepingLastDim(reduceOp, rewriter)))
       return success();
     if (succeeded(lowerReduceToScalarLoop(reduceOp, rewriter)))
