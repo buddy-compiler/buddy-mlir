@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s -lower-vir-to-vector="rvv-vlen=1024 use-scalable=true" -cse | FileCheck %s --check-prefix=IR
-// RUN: buddy-opt %s -lower-vir-to-vector -cse --convert-linalg-to-loops --convert-vector-to-scf --expand-strided-metadata --lower-affine --convert-scf-to-cf --convert-cf-to-llvm --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts | mlir-runner -O0 -e main -entry-point-result=i32 -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
+// RUN: buddy-opt %s -lower-vir-to-vector -cse --convert-linalg-to-loops --convert-vector-to-scf --expand-strided-metadata --lower-affine --convert-scf-to-cf --convert-cf-to-llvm --convert-vector-to-llvm --finalize-memref-to-llvm --convert-math-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts | mlir-runner -O0 -e main -entry-point-result=i32 -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
 
 // In a vir.set_vl without results, a loop whose iterations write elements
 // of their own and share a vector load of an inner loop runs iterations

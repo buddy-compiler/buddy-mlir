@@ -20,6 +20,10 @@
 // However, since VIR requires dynamic shape representations, memref
 // transformations are performed first to align the shapes appropriately.
 //
+// The multiply-adds of the matmuls and convolutions become vir.fma: one
+// rounding each, not the two of the arith.mulf and arith.addf of the linalg
+// body.
+//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"

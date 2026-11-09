@@ -683,11 +683,10 @@ private:
               op.emitError("FMA operands not found in symbol table");
               return;
             }
+            // One rounding in every lane: the tail as the vector.
             if (isTailLoop) {
-              auto mulResult = arith::MulFOp::create(builder, loc, lhs, rhs);
-              auto addResult =
-                  arith::AddFOp::create(builder, loc, mulResult, acc);
-              virSymbolTable[op.getResult()] = addResult;
+              virSymbolTable[op.getResult()] =
+                  math::FmaOp::create(builder, loc, lhs, rhs, acc);
             } else {
               auto vectorFMAOp =
                   vector::FMAOp::create(builder, loc, lhs, rhs, acc);

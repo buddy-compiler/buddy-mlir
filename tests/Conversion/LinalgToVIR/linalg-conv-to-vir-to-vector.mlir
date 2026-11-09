@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s -lower-linalg-to-vir | FileCheck %s --check-prefix=VIR
-// RUN: buddy-opt %s -lower-linalg-to-vir -lower-vir-to-vector="vector-width=4" -cse --convert-vector-to-scf --lower-affine --expand-strided-metadata --convert-scf-to-cf --convert-cf-to-llvm --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts | mlir-runner -O0 -e main -entry-point-result=i32 -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
+// RUN: buddy-opt %s -lower-linalg-to-vir -lower-vir-to-vector="vector-width=4" -cse --convert-vector-to-scf --lower-affine --expand-strided-metadata --convert-scf-to-cf --convert-cf-to-llvm --convert-vector-to-llvm --finalize-memref-to-llvm --convert-math-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts | mlir-runner -O0 -e main -entry-point-result=i32 -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
 
 // The 2-D convolutions over NHWC inputs: vectorized along the output
 // channels, the rows of the output in parallel, an FHWC filter copied into
@@ -62,6 +62,17 @@ func.func @conv_fhwc_d2(%in: memref<1x5x7x3xf32>, %w: memref<5x2x2x3xf32>,
   return
 }
 
+// 1 x 1, one input channel: out[f] += in * w[f], one multiply-add each, as
+// vir.fma (one rounding, as the matmuls of -lower-linalg-to-vir).
+func.func @conv_fused(%in: memref<1x1x1x1xf32>, %w: memref<1x1x1x5xf32>,
+                      %out: memref<1x1x1x5xf32>) {
+  linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : tensor<2xi64>,
+                             strides = dense<1> : tensor<2xi64>}
+    ins(%in, %w : memref<1x1x1x1xf32>, memref<1x1x1x5xf32>)
+    outs(%out : memref<1x1x1x5xf32>)
+  return
+}
+
 func.func @main() -> i32 {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
@@ -103,6 +114,24 @@ func.func @main() -> i32 {
   %p3 = memref.cast %o3 : memref<1x3x5x5xf32> to memref<*xf32>
   call @printMemrefF32(%p3) : (memref<*xf32>) -> ()
 
+  // (1 + 2^-23) (1 - 2^-23) - 1: -2^-46 fused, 0 with the product rounded,
+  // in the vector of 4 lanes and in the lane left.
+  %a = arith.constant 0x3F800001 : f32
+  %b = arith.constant 0x3F7FFFFE : f32
+  %i4 = memref.alloc() : memref<1x1x1x1xf32>
+  linalg.fill ins(%a : f32) outs(%i4 : memref<1x1x1x1xf32>)
+  %w4 = memref.alloc() : memref<1x1x1x5xf32>
+  linalg.fill ins(%b : f32) outs(%w4 : memref<1x1x1x5xf32>)
+  %o4 = memref.alloc() : memref<1x1x1x5xf32>
+  linalg.fill ins(%minus1 : f32) outs(%o4 : memref<1x1x1x5xf32>)
+  call @conv_fused(%i4, %w4, %o4)
+    : (memref<1x1x1x1xf32>, memref<1x1x1x5xf32>, memref<1x1x1x5xf32>) -> ()
+  %p4 = memref.cast %o4 : memref<1x1x1x5xf32> to memref<*xf32>
+  call @printMemrefF32(%p4) : (memref<*xf32>) -> ()
+
+  memref.dealloc %i4 : memref<1x1x1x1xf32>
+  memref.dealloc %w4 : memref<1x1x1x5xf32>
+  memref.dealloc %o4 : memref<1x1x1x5xf32>
   memref.dealloc %o1 : memref<1x3x5x5xf32>
   memref.dealloc %o2 : memref<1x2x3x6xf32>
   memref.dealloc %o3 : memref<1x3x5x5xf32>
@@ -148,6 +177,8 @@ func.func @main() -> i32 {
   // CHECK-NEXT{LITERAL}: [11, -3, -10, 11, -17],
   // CHECK-NEXT{LITERAL}: [-19, 0, -9, -11, 15],
   // CHECK-NEXT{LITERAL}: [16, -12, 2, 2, 2]]]]
+  // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 4 offset = 0 sizes = \[1, 1, 1, 5\]}}
+  // CHECK-NEXT{LITERAL}: [[[[-1.42109e-14, -1.42109e-14, -1.42109e-14, -1.42109e-14, -1.42109e-14]]]]
   %ret = arith.constant 0 : i32
   return %ret : i32
 }
