@@ -75,6 +75,9 @@ using namespace buddy;
 // Rewrite Pattern
 //===----------------------------------------------------------------------===//
 
+/// Whether the rows of a strip-mined vir.set_vl may run in parallel.
+static bool rowsAreIndependent(vir::SetVLOp op, size_t rows);
+
 namespace {
 
 // Constants for better readability
@@ -2179,10 +2182,9 @@ private:
 
     if (leadingStaticDims.empty()) {
       emitVectorAndTail(rewriter, /*leadingIVs=*/{});
-    } else {
-      // One loop over the leading static dims, in parallel: the rows are
-      // lanes of the dynamic vectors, which the region computes
-      // independently (no value flows between them).
+    } else if (rowsAreIndependent(op, leadingStaticDims.size())) {
+      // One loop over the leading static dims, in parallel: each row writes
+      // elements of its own and reads no element another row writes.
       Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
       SmallVector<Value> lbs, ubs, steps;
@@ -2195,6 +2197,30 @@ private:
                               [&](OpBuilder &b, Location, ValueRange ivs) {
                                 emitVectorAndTail(b, SmallVector<Value>(ivs));
                               });
+    } else {
+      // Nested serial loops over the leading static dims.
+      SmallVector<Value> ivs;
+      std::function<void(unsigned, OpBuilder &)> emitOuter = [&](unsigned dim,
+                                                                 OpBuilder &b) {
+        if (dim == leadingStaticDims.size()) {
+          emitVectorAndTail(b, ivs);
+          return;
+        }
+        int64_t ub = leadingStaticDims[dim];
+        Value c0 = arith::ConstantIndexOp::create(b, loc, 0);
+        Value cub = arith::ConstantIndexOp::create(b, loc, ub);
+        affine::AffineForOp::create(
+            b, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{cub}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              ivs.push_back(iv);
+              emitOuter(dim + 1, bb);
+              ivs.pop_back();
+              affine::AffineYieldOp::create(bb, bodyLoc);
+            });
+      };
+      emitOuter(/*dim=*/0, rewriter);
     }
 
     rewriter.eraseOp(op);
@@ -2303,6 +2329,62 @@ static LogicalResult collectAccesses(Block &body,
   return failure(walk.wasInterrupted());
 }
 
+/// Whether no two elements of a memref of `type` share an address: the
+/// identity layout, or static strides and sizes whose dims nest (sorted by
+/// stride, each stride at least the extent of the dims below it).
+static bool hasDistinctElements(MemRefType type) {
+  if (type.getLayout().isIdentity())
+    return true;
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  if (failed(type.getStridesAndOffset(strides, offset)))
+    return false;
+  SmallVector<std::pair<int64_t, int64_t>> dims; // (stride, size)
+  for (auto [stride, size] : llvm::zip(strides, type.getShape())) {
+    if (size == 1)
+      continue;
+    if (ShapedType::isDynamic(stride) || ShapedType::isDynamic(size) ||
+        stride <= 0)
+      return false;
+    dims.push_back({stride, size});
+  }
+  llvm::sort(dims);
+  int64_t extent = 1;
+  for (auto [stride, size] : dims) {
+    if (stride < extent)
+      return false;
+    extent = stride * size;
+  }
+  return true;
+}
+
+/// Whether the rows of the dynamic vectors of `op` (`rows` leading static
+/// dims) may run in parallel: each write is a vir.store of a vector with
+/// these rows, to a memref whose elements are distinct, so that each row
+/// writes elements of its own; and every access to a memref that may
+/// overlap a written one is at the same base, indices and rank, so that a
+/// row reads only elements it writes. A scalar memref.store, executed once
+/// per row at the same address, keeps the rows serial.
+static bool rowsAreIndependent(vir::SetVLOp op, size_t rows) {
+  SmallVector<JamAccess> accesses;
+  if (failed(collectAccesses(op.getRegion().front(), accesses)))
+    return false;
+  AliasAnalysis aa(op);
+  for (const JamAccess &w : accesses) {
+    if (!w.write)
+      continue;
+    if (w.vectorRank != int64_t(rows) + 1 ||
+        !hasDistinctElements(cast<MemRefType>(w.base.getType())))
+      return false;
+    for (const JamAccess &a : accesses)
+      if (!areDisjoint(a.base, w.base, aa) &&
+          (a.base != w.base || a.indices != w.indices ||
+           a.vectorRank != w.vectorRank))
+        return false;
+  }
+  return true;
+}
+
 /// Whether `v` may differ from one iteration of `loop` to the next. The
 /// inner loops have the same bounds in every iteration (isJammable); their
 /// iteration arguments, and the results of other ops with regions, are
@@ -2359,11 +2441,13 @@ static bool isJammable(scf::ForOp loop, AliasAnalysis &aa) {
       continue;
     ArrayRef<Value> own = ArrayRef(w.indices).drop_back(
         std::min<size_t>(w.vectorRank, w.indices.size()));
-    if (!llvm::is_contained(own, iv))
+    if (!llvm::is_contained(own, iv) ||
+        !hasDistinctElements(cast<MemRefType>(w.base.getType())))
       return false;
     for (const JamAccess &a : accesses)
       if (!areDisjoint(a.base, w.base, aa) &&
-          (a.base != w.base || a.indices != w.indices))
+          (a.base != w.base || a.indices != w.indices ||
+           a.vectorRank != w.vectorRank))
         return false;
   }
 
