@@ -10,8 +10,10 @@
 
 // IR-LABEL: func.func @jam
 // IR: %[[C8:.*]] = arith.constant 8 : index
-// IR: %[[REM:.*]] = arith.remsi %{{.*}}, %[[C8]] : index
-// IR: %[[MAIN:.*]] = arith.subi %c10, %[[REM]] : index
+// IR: %[[N:.*]] = arith.maxsi
+// IR: %[[REM:.*]] = arith.remsi %[[N]], %[[C8]] : index
+// IR: %[[JAM:.*]] = arith.subi %[[N]], %[[REM]] : index
+// IR: %[[MAIN:.*]] = arith.addi %c0, %[[JAM]] : index
 // IR: scf.for %{{.*}} = %c0 to %[[MAIN]] step %[[C8]] {
 // IR: scf.for {{.*}} iter_args({{.*}}) -> (vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>) {
 // IR-NEXT: vector.load %arg1
@@ -29,6 +31,18 @@
 
 // iteration o writes out[o + 1], which iteration o + 1 reads: not jammed.
 // IR-NOT: iter_args({{[^)]*}},
+// IR-LABEL: func.func @jam_step2
+
+// for o = 0 to 7 step 2: its 4 iterations (no more) jam, in one block of
+// the main loop: lb + (4 - 4 % 4) * 2 = 8.
+// IR: %[[D:.*]] = arith.divsi
+// IR: %[[REM2:.*]] = arith.remsi %[[D]], %c4
+// IR: %[[J2:.*]] = arith.subi %[[D]], %[[REM2]]
+// IR: %[[S2:.*]] = arith.muli %[[J2]], %c2
+// IR: %[[MAIN2:.*]] = arith.addi %c0, %[[S2]]
+// IR: scf.for %{{.*}} = %c0 to %[[MAIN2]] step %c8 {
+// IR: iter_args({{.*}}) -> (vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>)
+// IR: scf.for %{{.*}} = %[[MAIN2]] to %c7 step %c2 {
 // IR-LABEL: func.func @call_alias
 
 // The shared load reads the result of a call, which may be the allocated
@@ -115,6 +129,34 @@ func.func @dependence(%in: memref<10x3xf32>, %w: memref<3x16xf32>) -> memref<11x
   return %out : memref<11x16xf32>
 }
 
+func.func @jam_step2(%in: memref<10x3xf32>, %w: memref<3x16xf32>) -> memref<10x16xf32> {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %c3 = arith.constant 3 : index
+  %c7 = arith.constant 7 : index
+  %c10 = arith.constant 10 : index
+  %c16 = arith.constant 16 : index
+  %zero = arith.constant 0.0 : f32
+  %out = memref.alloc() : memref<10x16xf32>
+  linalg.fill ins(%zero : f32) outs(%out : memref<10x16xf32>)
+  vir.set_vl %c16 : index {
+    scf.for %o = %c0 to %c7 step %c2 {
+      %acc = vir.load %out[%o, %c0] : memref<10x16xf32> -> !vir.vec<?xf32>
+      %r = scf.for %c = %c0 to %c3 step %c1 iter_args(%a = %acc) -> (!vir.vec<?xf32>) {
+        %wv = vir.load %w[%c, %c0] : memref<3x16xf32> -> !vir.vec<?xf32>
+        %x = memref.load %in[%o, %c] : memref<10x3xf32>
+        %xv = vir.broadcast %x : f32 -> !vir.vec<?xf32>
+        %n = vir.fma %xv, %wv, %a : !vir.vec<?xf32>
+        scf.yield %n : !vir.vec<?xf32>
+      }
+      vir.store %r, %out[%o, %c0] : !vir.vec<?xf32> -> memref<10x16xf32>
+    }
+    vector.yield
+  }
+  return %out : memref<10x16xf32>
+}
+
 func.func private @identity(%m: memref<10x16xf32>) -> memref<10x16xf32> {
   return %m : memref<10x16xf32>
 }
@@ -167,6 +209,22 @@ func.func @main() -> i32 {
   // CHECK-NEXT: [18, 27, 36, 45, 54, 63, 72, 81, 90, 99, 108, 117, 126, 135, 144, 162]
   call @printMemrefF32(%p) : (memref<*xf32>) -> ()
   memref.dealloc %out : memref<10x16xf32>
+  %out2 = call @jam_step2(%in, %w) : (memref<10x3xf32>, memref<3x16xf32>) -> memref<10x16xf32>
+  %p2 = memref.cast %out2 : memref<10x16xf32> to memref<*xf32>
+  // rows 0, 2, 4, 6 as above, the others 0
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [10, 16] strides = [16, 1] data =
+  // CHECK-NEXT: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  // CHECK-NEXT: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  // CHECK-NEXT: [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36]
+  // CHECK-NEXT: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  // CHECK-NEXT: [8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72]
+  // CHECK-NEXT: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  // CHECK-NEXT: [12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 84, 90, 96, 108]
+  // CHECK-NEXT: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  // CHECK-NEXT: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  // CHECK-NEXT: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  call @printMemrefF32(%p2) : (memref<*xf32>) -> ()
+  memref.dealloc %out2 : memref<10x16xf32>
   %ret = arith.constant 0 : i32
   return %ret : i32
 }

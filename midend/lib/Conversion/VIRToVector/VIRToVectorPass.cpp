@@ -2536,11 +2536,27 @@ static void jamLoop(scf::ForOp loop, int64_t factor) {
   int64_t step = *getConstantIntValue(loop.getStep());
   Value lb = loop.getLowerBound(), ub = loop.getUpperBound();
   Value block = arith::ConstantIndexOp::create(b, loc, step * factor);
-  // ub - (ub - lb) % (step * factor)
-  Value mainUb = arith::SubIOp::create(
-      b, loc, ub,
-      arith::RemSIOp::create(b, loc, arith::SubIOp::create(b, loc, ub, lb),
-                             block));
+  // the iterations: max(ub - lb, 0) ceildiv step
+  Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+  Value trips = arith::MaxSIOp::create(
+      b, loc, arith::SubIOp::create(b, loc, ub, lb), zero);
+  if (step != 1)
+    trips = arith::DivSIOp::create(
+        b, loc,
+        arith::AddIOp::create(b, loc, trips,
+                              arith::ConstantIndexOp::create(b, loc, step - 1)),
+        arith::ConstantIndexOp::create(b, loc, step));
+  // lb + (trips - trips % factor) * step
+  Value jammed = arith::SubIOp::create(
+      b, loc, trips,
+      arith::RemSIOp::create(b, loc, trips,
+                             arith::ConstantIndexOp::create(b, loc, factor)));
+  Value mainUb = arith::AddIOp::create(
+      b, loc, lb,
+      step == 1
+          ? jammed
+          : Value(arith::MulIOp::create(
+                b, loc, jammed, arith::ConstantIndexOp::create(b, loc, step))));
   scf::ForOp::create(
       b, loc, lb, mainUb, block, ValueRange{},
       [&](OpBuilder &mb, Location l, Value iv, ValueRange) {
@@ -2596,8 +2612,12 @@ static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
       continue;
     // the factor with the most lanes per shared load (the least of equals),
     // its vectors live at once in the registers
+    // (no more than the iterations, when they are known)
+    int64_t maxFactor = kMaxJamFactor;
+    if (std::optional<APInt> trips = loop.getStaticTripCount())
+      maxFactor = std::clamp<int64_t>(trips->getZExtValue(), 1, kMaxJamFactor);
     int64_t best = 1, bestLanes = 0;
-    for (int64_t factor = 1; factor <= kMaxJamFactor; ++factor) {
+    for (int64_t factor = 1; factor <= maxFactor; ++factor) {
       OpBuilder b(setVL);
       IRMapping m;
       Operation *trial = b.clone(*setVL, m);
