@@ -2602,9 +2602,6 @@ struct LinalgContractionNamedToVIRPattern : public RewritePattern {
   }
 };
 
-/// The output pixels of a row that share each filter load of a convolution.
-constexpr int64_t kConvPixels = 4;
-
 /// linalg.conv_2d_nhwc_hwcf / conv_2d_nhwc_fhwc to VIR, vectorized along the
 /// output channels F (the last dim of the output and of an HWCF filter):
 ///
@@ -2614,8 +2611,9 @@ constexpr int64_t kConvPixels = 4;
 /// one broadcast input element and one fma per (kh, kw, c): every vector
 /// access is contiguous and no reduction crosses lanes. An FHWC filter is
 /// copied into an HWCF buffer first. The rows (n, oh) of the output run in
-/// parallel, each in a vir.set_vl of F lanes; in a row, kConvPixels output
-/// pixels are accumulated together, so that they share each filter load.
+/// parallel, each in a vir.set_vl of F lanes, one output pixel after the
+/// other (-lower-vir-to-vector jams the pixels that share each filter load,
+/// as many as the registers hold).
 static LogicalResult lowerConv2DNhwcToVIR(linalg::LinalgOp op, bool fhwc,
                                           DenseIntElementsAttr strides,
                                           DenseIntElementsAttr dilations,
@@ -2692,78 +2690,49 @@ static LogicalResult lowerConv2DNhwcToVIR(linalg::LinalgOp op, bool fhwc,
         };
         Value z = idx(rewriter, 0), one = idx(rewriter, 1);
         Value ih0 = arith::MulIOp::create(rewriter, l, row, idx(rewriter, sh));
-        // `pixels` output pixels from ow0 on, accumulated together
-        auto emitPixels = [&](OpBuilder &b, Value ow0, int64_t pixels) {
-          SmallVector<Value> owi, iw0, accs;
-          for (int64_t p = 0; p < pixels; ++p) {
-            Value o =
-                p == 0
-                    ? ow0
-                    : arith::AddIOp::create(b, l, ow0, idx(b, p)).getResult();
-            owi.push_back(o);
-            iw0.push_back(arith::MulIOp::create(b, l, o, idx(b, sw)));
-            accs.push_back(buddy::vir::LoadOp::create(b, l, vecTy, out,
-                                                      ValueRange{n, row, o, z})
-                               .getResult());
-          }
-          auto loopKh = scf::ForOp::create(
-              b, l, z, kh, one, accs,
-              [&](OpBuilder &hb, Location, Value khi, ValueRange hAccs) {
-                Value ih = arith::AddIOp::create(
-                    hb, l, ih0, arith::MulIOp::create(hb, l, khi, idx(hb, dh)));
-                auto loopKw = scf::ForOp::create(
-                    hb, l, z, kw, one, hAccs,
-                    [&](OpBuilder &wb, Location, Value kwi, ValueRange wAccs) {
-                      Value kwOff =
-                          arith::MulIOp::create(wb, l, kwi, idx(wb, dw));
-                      SmallVector<Value> iw;
-                      for (Value v : iw0)
-                        iw.push_back(arith::AddIOp::create(wb, l, v, kwOff));
-                      auto loopC = scf::ForOp::create(
-                          wb, l, z, c, one, wAccs,
-                          [&](OpBuilder &cb, Location, Value ci,
-                              ValueRange cAccs) {
-                            Value wv = buddy::vir::LoadOp::create(
-                                           cb, l, vecTy, filter,
-                                           ValueRange{khi, kwi, ci, z})
-                                           .getResult();
-                            SmallVector<Value> next;
-                            for (int64_t p = 0; p < pixels; ++p) {
-                              Value x = memref::LoadOp::create(
-                                  cb, l, in, ValueRange{n, ih, iw[p], ci});
-                              Value xv = buddy::vir::BroadcastOp::create(
-                                             cb, l, vecTy, x)
-                                             .getResult();
-                              next.push_back(buddy::vir::FMAOp::create(
-                                                 cb, l, vecTy, xv, wv, cAccs[p])
-                                                 .getResult());
-                            }
-                            scf::YieldOp::create(cb, l, next);
-                          });
-                      scf::YieldOp::create(wb, l, loopC.getResults());
-                    });
-                scf::YieldOp::create(hb, l, loopKw.getResults());
-              });
-          for (int64_t p = 0; p < pixels; ++p)
-            buddy::vir::StoreOp::create(b, l, loopKh.getResult(p), out,
-                                        ValueRange{n, row, owi[p], z});
-        };
-        // the blocks of kConvPixels pixels, then the pixels left one by one
-        Value owMain = arith::SubIOp::create(
-            rewriter, l, ow,
-            arith::RemSIOp::create(rewriter, l, ow,
-                                   idx(rewriter, kConvPixels)));
-        scf::ForOp::create(rewriter, l, z, owMain, idx(rewriter, kConvPixels),
-                           ValueRange{},
-                           [&](OpBuilder &b, Location, Value o, ValueRange) {
-                             emitPixels(b, o, kConvPixels);
-                             scf::YieldOp::create(b, l);
-                           });
-        scf::ForOp::create(rewriter, l, owMain, ow, one, ValueRange{},
-                           [&](OpBuilder &b, Location, Value o, ValueRange) {
-                             emitPixels(b, o, 1);
-                             scf::YieldOp::create(b, l);
-                           });
+        // each output pixel of the row, accumulated in a vector
+        scf::ForOp::create(
+            rewriter, l, z, ow, one, ValueRange{},
+            [&](OpBuilder &b, Location, Value o, ValueRange) {
+              Value iw0 = arith::MulIOp::create(b, l, o, idx(b, sw));
+              Value acc = buddy::vir::LoadOp::create(b, l, vecTy, out,
+                                                     ValueRange{n, row, o, z});
+              auto loopKh = scf::ForOp::create(
+                  b, l, z, kh, one, acc,
+                  [&](OpBuilder &hb, Location, Value khi, ValueRange hAcc) {
+                    Value ih = arith::AddIOp::create(
+                        hb, l, ih0,
+                        arith::MulIOp::create(hb, l, khi, idx(hb, dh)));
+                    auto loopKw = scf::ForOp::create(
+                        hb, l, z, kw, one, hAcc,
+                        [&](OpBuilder &wb, Location, Value kwi,
+                            ValueRange wAcc) {
+                          Value iw = arith::AddIOp::create(
+                              wb, l, iw0,
+                              arith::MulIOp::create(wb, l, kwi, idx(wb, dw)));
+                          auto loopC = scf::ForOp::create(
+                              wb, l, z, c, one, wAcc,
+                              [&](OpBuilder &cb, Location, Value ci,
+                                  ValueRange cAcc) {
+                                Value wv = buddy::vir::LoadOp::create(
+                                    cb, l, vecTy, filter,
+                                    ValueRange{khi, kwi, ci, z});
+                                Value x = memref::LoadOp::create(
+                                    cb, l, in, ValueRange{n, ih, iw, ci});
+                                Value xv = buddy::vir::BroadcastOp::create(
+                                    cb, l, vecTy, x);
+                                Value next = buddy::vir::FMAOp::create(
+                                    cb, l, vecTy, xv, wv, cAcc[0]);
+                                scf::YieldOp::create(cb, l, next);
+                              });
+                          scf::YieldOp::create(wb, l, loopC.getResults());
+                        });
+                    scf::YieldOp::create(hb, l, loopKw.getResults());
+                  });
+              buddy::vir::StoreOp::create(b, l, loopKh.getResult(0), out,
+                                          ValueRange{n, row, o, z});
+              scf::YieldOp::create(b, l);
+            });
         vector::YieldOp::create(rewriter, l);
         rewriter.setInsertionPointAfter(setVl);
       });

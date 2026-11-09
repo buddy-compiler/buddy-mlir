@@ -30,7 +30,7 @@ memref.global "private" constant @w3 : memref<5x2x2x3xf32> = dense<[[[[-3.0, 2.0
 
 func.func private @printMemrefF32(memref<*xf32>) attributes { llvm.emit_c_interface }
 
-// 3 x 3, stride 1: 5 output pixels a row (a block of 4, then 1), 5 output
+// 3 x 3, stride 1: 5 output pixels a row, 5 output
 // channels (a vector of 4, then 1), accumulated into the output
 // (out[..., f] = f before).
 func.func @conv_fhwc(%in: memref<1x5x7x3xf32>, %w: memref<5x3x3x3xf32>,
