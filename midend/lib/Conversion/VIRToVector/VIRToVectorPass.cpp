@@ -308,31 +308,66 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
     return isa<vir::DynamicVectorType>(v.getType()) &&
            !(rvvVlen > 0 && isScalarOperand(v));
   };
+  // the live range in each block of its dynamic vectors, as
+  // LivenessBlockInfo::currentlyLiveValues has them, found once per block
+  using LiveRange = std::tuple<Value, Operation *, Operation *>;
+  DenseMap<Block *, SmallVector<LiveRange>> liveRanges;
+  auto liveRangesIn = [&](Block *block) -> ArrayRef<LiveRange> {
+    auto [it, inserted] = liveRanges.try_emplace(block);
+    if (!inserted)
+      return it->second;
+    const LivenessBlockInfo *info = liveness.getLiveness(block);
+    auto add = [&](Value v) {
+      if (!isDynamic(v))
+        return;
+      Operation *start = info->isLiveIn(v) || isa<BlockArgument>(v)
+                             ? &block->front()
+                             : block->findAncestorOpInBlock(*v.getDefiningOp());
+      Operation *end =
+          info->isLiveOut(v) ? &block->back() : info->getEndOperation(v, start);
+      it->second.emplace_back(v, start, end);
+    };
+    for (Value arg : block->getArguments())
+      add(arg);
+    for (Value in : info->in())
+      add(in);
+    for (Operation &op : *block)
+      for (Value result : op.getResults())
+        add(result);
+    return it->second;
+  };
+  // the values live across each loop, the same at all its ops
+  DenseMap<Operation *, SmallVector<Value>> liveAcross;
+  auto liveAcrossLoop = [&](Operation *loop) -> ArrayRef<Value> {
+    auto [it, inserted] = liveAcross.try_emplace(loop);
+    if (!inserted)
+      return it->second;
+    const LivenessBlockInfo *info = liveness.getLiveness(loop->getBlock());
+    for (Value v : info->currentlyLiveValues(loop)) {
+      if (!isDynamic(v) || v.getDefiningOp() == loop)
+        continue;
+      bool usedInside = llvm::any_of(v.getUsers(), [&](Operation *user) {
+        return loop->isProperAncestor(user);
+      });
+      if (llvm::is_contained(loop->getOperands(), v) && !usedInside &&
+          liveness.isDeadAfter(v, loop))
+        continue;
+      it->second.push_back(v);
+    }
+    return it->second;
+  };
   unsigned maxActiveVectors = 0;
   srcRegion.walk([&](Operation *op) {
     // an op with regions is measured at the ops of its blocks
     if (op->getNumRegions() != 0)
       return;
     DenseSet<Value> live;
-    for (Value v :
-         liveness.getLiveness(op->getBlock())->currentlyLiveValues(op))
-      if (isDynamic(v))
+    for (auto [v, start, end] : liveRangesIn(op->getBlock()))
+      if (!op->isBeforeInBlock(start) && !end->isBeforeInBlock(op))
         live.insert(v);
     for (Operation *loop = op->getParentOp(); loop != setVL;
-         loop = loop->getParentOp()) {
-      const LivenessBlockInfo *info = liveness.getLiveness(loop->getBlock());
-      for (Value v : info->currentlyLiveValues(loop)) {
-        if (!isDynamic(v) || v.getDefiningOp() == loop)
-          continue;
-        bool usedInside = llvm::any_of(v.getUsers(), [&](Operation *user) {
-          return loop->isProperAncestor(user);
-        });
-        if (llvm::is_contained(loop->getOperands(), v) && !usedInside &&
-            liveness.isDeadAfter(v, loop))
-          continue;
-        live.insert(v);
-      }
-    }
+         loop = loop->getParentOp())
+      live.insert_range(liveAcrossLoop(loop));
     if (verbose) {
       llvm::outs() << "  " << live.size() << " live at ";
       op->print(llvm::outs(), OpPrintingFlags().skipRegions());
