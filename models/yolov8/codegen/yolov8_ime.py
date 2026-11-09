@@ -629,7 +629,8 @@ def _flat_epilogue(f: _Body, c: Conv, loop_res, nt, qt, q0, op, rp):
 
 def _tcm_copy(f: _Body, c: Conv, wp):
     """Copy the weights of c into the TCM of every core pair, once per
-    weight address (the global of the kernel keeps the last one)."""
+    weight address (the global of the kernel keeps the last one, and
+    buddy_yolov8_tcm_invalidate clears it when weights are loaded)."""
     g = f.op(f"llvm.mlir.addressof @{c.name}_tcm : {PTR}", "p")
     prev = f.load(g, "i64", 8)
     src = f.op(f"llvm.ptrtoint {wp} : {PTR} to i64")
@@ -1298,8 +1299,25 @@ def gen_kernels(kernels) -> str:
                 for c in tcm
             ]
             + parts
+            # last: the kernels keep their addresses (and alignment)
+            + [_tcm_invalidate(tcm)]
         )
     return "module {\n" + "\n".join(parts) + "}\n"
+
+
+def _tcm_invalidate(tcm) -> str:
+    """buddy_yolov8_tcm_invalidate(): forget the weight addresses of the
+    TCM copies (_tcm_copy), so that the next call copies the weights again.
+    The runner calls it after it loads weights: new weights may be at the
+    address of freed ones."""
+    lines = ["llvm.func @buddy_yolov8_tcm_invalidate() {"]
+    lines.append("  %zero = llvm.mlir.constant(0 : i64) : i64")
+    for i, c in enumerate(tcm):
+        lines.append(f"  %g{i} = llvm.mlir.addressof @{c.name}_tcm : {PTR}")
+        lines.append(f"  llvm.store %zero, %g{i} : i64, {PTR}")
+    lines.append("  llvm.return")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------

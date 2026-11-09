@@ -6,7 +6,8 @@
 # layout read back, and that every kind of kernel (each convolution variant:
 # 2 x 2 on the space-to-depth image, 3 x 3 stride 1 in row tiles and in flat
 # tiles, stride 2, 1 x 1 with a residual, a partial last tile, the
-# transposed NCHW head tiles, weights in the TCM; and the space-to-depth,
+# transposed NCHW head tiles, weights in the TCM and their invalidation;
+# and the space-to-depth,
 # column-parity split, upsample, concatenation, SPPF and head decode)
 # lowers as models/yolov8/codegen/lower_to_obj.sh lowers them, down to a
 # riscv64 object for the A100. models/yolov8/README.md gives the check of
@@ -107,6 +108,12 @@ with tempfile.TemporaryDirectory() as tmp:
         if f"@_mlir_ciface_{name}(" not in ll:
             print("missing", name)
     print("vfmadot", "@llvm.riscv.ime.vfmadot" in ll)
+    # The runner forgets the TCM copies when it loads weights.
+    print(
+        "invalidate",
+        "define void @buddy_yolov8_tcm_invalidate()" in ll
+        and "store i64 0, ptr @yolo_conv_tcm_tcm" in ll,
+    )
     obj = os.path.join(tmp, "kernels.o")
     subprocess.run(
         [
@@ -129,4 +136,5 @@ with tempfile.TemporaryDirectory() as tmp:
     print("object", os.path.getsize(obj) > 0)
 # CHECK-NOT: missing
 # CHECK: vfmadot True
+# CHECK: invalidate True
 # CHECK: object True

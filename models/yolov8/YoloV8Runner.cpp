@@ -341,6 +341,12 @@ void YoloV8Runner::run(const RunConfig &cfg) {
         " bytes, the model reads " + std::to_string(paramsSize) + " f32");
   MemRef<float, 1> params(std::vector<size_t>{paramsSize});
   loadWeights(weightsPath, params);
+  // The IME kernels keep copies of some weights in the TCM, valid for the
+  // weights they were copied from: these are new ones (maybe at the same
+  // address).
+  if (auto invalidate = reinterpret_cast<void (*)()>(
+          dlsym(model, "buddy_yolov8_tcm_invalidate")))
+    invalidate();
   const double loadSeconds = secondsSince(loadStart);
   const std::vector<std::string> labels =
       loadLabels(labelsPath, opt.numClasses);
