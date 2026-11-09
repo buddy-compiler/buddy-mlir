@@ -20,9 +20,11 @@
 // However, since VIR requires dynamic shape representations, memref
 // transformations are performed first to align the shapes appropriately.
 //
-// The multiply-adds of the matmuls and convolutions become vir.fma: one
+// The multiply-adds of the matmuls and convolutions (floating point; an
+// integer multiply-add is the same fused or not) become vir.fma: one
 // rounding each, not the two of the arith.mulf and arith.addf of the linalg
-// body.
+// body. This is the contract of the pass, as of the other vectorizing passes
+// of buddy-mlir (-conv-nhwc-fhwc-optimize, the matmul optimizations).
 //
 //===----------------------------------------------------------------------===//
 
