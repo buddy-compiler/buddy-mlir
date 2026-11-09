@@ -18,6 +18,8 @@
 #include "buddy/runtime/models/WhisperAudioTranscriptionModel.h"
 
 #include <cassert>
+#include <cstddef>
+#include <dlfcn.h>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -34,6 +36,34 @@ void expectThrows(Callable &&callable) {
     threw = true;
   }
   assert(threw);
+}
+
+using CallCountFn = std::size_t (*)();
+
+/// Reads a call counter from the fake kernel the runtime has already loaded.
+std::size_t fakeKernelCalls(const buddy::runtime::WhisperRuntime &runtime,
+                            const char *counter) {
+  void *handle = dlopen(runtime.modelSoPath().c_str(),
+                        RTLD_NOW | RTLD_NOLOAD | RTLD_LOCAL);
+  if (!handle)
+    throw std::runtime_error("fake kernel is not loaded");
+  auto count = reinterpret_cast<CallCountFn>(dlsym(handle, counter));
+  if (!count) {
+    dlclose(handle);
+    throw std::runtime_error("fake kernel has no call counter");
+  }
+  const std::size_t calls = count();
+  dlclose(handle);
+  return calls;
+}
+
+/// Fails in every build type, unlike assert().
+void expectCalls(const char *what, std::size_t actual, std::size_t expected) {
+  if (actual == expected)
+    return;
+  std::cerr << "FAIL: " << what << " calls: expected " << expected << ", got "
+            << actual << "\n";
+  std::exit(1);
 }
 
 buddy::runtime::AudioInput wavInput(const std::string &path) {
@@ -67,7 +97,7 @@ int main(int argc, char **argv) {
   assert(runtime.modelName() == "whisper_runtime_test");
   assert(runtime.maxTokenLength() == 4);
 
-  for (int request = 0; request < 2; ++request) {
+  for (std::size_t request = 0; request < 2; ++request) {
     std::vector<int> progressTokens;
     const auto result = runtime.transcribe(
         audio, 3, [&](const buddy::runtime::WhisperProgress &progress) {
@@ -80,6 +110,16 @@ int main(int argc, char **argv) {
     assert(result.timings.preprocessMs >= 0.0);
     assert(result.timings.inferenceMs >= 0.0);
     assert(result.timings.totalMs >= result.timings.inferenceMs);
+    assert(result.timings.inferenceMs >=
+           result.timings.encoderMs + result.timings.decoderMs - 1e-6);
+
+    // Two decode steps per request, but only one encoder run.
+    expectCalls("encoder",
+                fakeKernelCalls(runtime, "whisper_fake_encoder_calls"),
+                request + 1);
+    expectCalls("decoder",
+                fakeKernelCalls(runtime, "whisper_fake_decoder_calls"),
+                (request + 1) * 2);
   }
 
   expectThrows<std::invalid_argument>([&] { runtime.transcribe(audio, 0); });

@@ -53,6 +53,9 @@ struct AudioTranscriptionTimings {
   double preprocessMs = 0.0;
   double inferenceMs = 0.0;
   double totalMs = 0.0;
+  // Parts of inferenceMs for models with separate encoder and decoder graphs.
+  double encoderMs = 0.0;
+  double decoderMs = 0.0;
 };
 
 struct AudioTranscriptionResult {

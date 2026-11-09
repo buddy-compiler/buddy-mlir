@@ -4,6 +4,7 @@
   "variant": "base",
   "model_id": "whisper_base",
   "params_size": 72593920,
+  "encoder_params_size": 20590592,
   "vocab_size": 51865,
   "max_token_len": 448,
   "mel_bins": 80,
