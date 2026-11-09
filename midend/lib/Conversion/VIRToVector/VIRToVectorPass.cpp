@@ -27,6 +27,7 @@
 
 #include <numeric>
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
@@ -42,9 +43,13 @@
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/ADT/DenseMap.h"
@@ -70,6 +75,9 @@ using namespace buddy;
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
 //===----------------------------------------------------------------------===//
+
+/// Whether the rows of a strip-mined vir.set_vl may run in parallel.
+static bool rowsAreIndependent(vir::SetVLOp op, size_t rows);
 
 namespace {
 
@@ -196,10 +204,12 @@ static int hostRvvVlen() {
 /// target with 32 registers of that VLEN, whatever the host; otherwise the
 /// host's registers. With `useScalable` (RVV only), the vector is scalable,
 /// of the register group it is at VLEN `rvvVlen`. An index element has
-/// `indexBitWidth` bits.
+/// `indexBitWidth` bits. `fits`, when given, is set to whether the vectors
+/// live at once fit in the registers.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose, int rvvVlen,
-                            unsigned indexBitWidth, int64_t rows = 1) {
+                            unsigned indexBitWidth, int64_t rows = 1,
+                            bool *fits = nullptr) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
@@ -298,31 +308,66 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
     return isa<vir::DynamicVectorType>(v.getType()) &&
            !(rvvVlen > 0 && isScalarOperand(v));
   };
+  // the live range in each block of its dynamic vectors, as
+  // LivenessBlockInfo::currentlyLiveValues has them, found once per block
+  using LiveRange = std::tuple<Value, Operation *, Operation *>;
+  DenseMap<Block *, SmallVector<LiveRange>> liveRanges;
+  auto liveRangesIn = [&](Block *block) -> ArrayRef<LiveRange> {
+    auto [it, inserted] = liveRanges.try_emplace(block);
+    if (!inserted)
+      return it->second;
+    const LivenessBlockInfo *info = liveness.getLiveness(block);
+    auto add = [&](Value v) {
+      if (!isDynamic(v))
+        return;
+      Operation *start = info->isLiveIn(v) || isa<BlockArgument>(v)
+                             ? &block->front()
+                             : block->findAncestorOpInBlock(*v.getDefiningOp());
+      Operation *end =
+          info->isLiveOut(v) ? &block->back() : info->getEndOperation(v, start);
+      it->second.emplace_back(v, start, end);
+    };
+    for (Value arg : block->getArguments())
+      add(arg);
+    for (Value in : info->in())
+      add(in);
+    for (Operation &op : *block)
+      for (Value result : op.getResults())
+        add(result);
+    return it->second;
+  };
+  // the values live across each loop, the same at all its ops
+  DenseMap<Operation *, SmallVector<Value>> liveAcross;
+  auto liveAcrossLoop = [&](Operation *loop) -> ArrayRef<Value> {
+    auto [it, inserted] = liveAcross.try_emplace(loop);
+    if (!inserted)
+      return it->second;
+    const LivenessBlockInfo *info = liveness.getLiveness(loop->getBlock());
+    for (Value v : info->currentlyLiveValues(loop)) {
+      if (!isDynamic(v) || v.getDefiningOp() == loop)
+        continue;
+      bool usedInside = llvm::any_of(v.getUsers(), [&](Operation *user) {
+        return loop->isProperAncestor(user);
+      });
+      if (llvm::is_contained(loop->getOperands(), v) && !usedInside &&
+          liveness.isDeadAfter(v, loop))
+        continue;
+      it->second.push_back(v);
+    }
+    return it->second;
+  };
   unsigned maxActiveVectors = 0;
   srcRegion.walk([&](Operation *op) {
     // an op with regions is measured at the ops of its blocks
     if (op->getNumRegions() != 0)
       return;
     DenseSet<Value> live;
-    for (Value v :
-         liveness.getLiveness(op->getBlock())->currentlyLiveValues(op))
-      if (isDynamic(v))
+    for (auto [v, start, end] : liveRangesIn(op->getBlock()))
+      if (!op->isBeforeInBlock(start) && !end->isBeforeInBlock(op))
         live.insert(v);
     for (Operation *loop = op->getParentOp(); loop != setVL;
-         loop = loop->getParentOp()) {
-      const LivenessBlockInfo *info = liveness.getLiveness(loop->getBlock());
-      for (Value v : info->currentlyLiveValues(loop)) {
-        if (!isDynamic(v) || v.getDefiningOp() == loop)
-          continue;
-        bool usedInside = llvm::any_of(v.getUsers(), [&](Operation *user) {
-          return loop->isProperAncestor(user);
-        });
-        if (llvm::is_contained(loop->getOperands(), v) && !usedInside &&
-            liveness.isDeadAfter(v, loop))
-          continue;
-        live.insert(v);
-      }
-    }
+         loop = loop->getParentOp())
+      live.insert_range(liveAcrossLoop(loop));
     if (verbose) {
       llvm::outs() << "  " << live.size() << " live at ";
       op->print(llvm::outs(), OpPrintingFlags().skipRegions());
@@ -332,6 +377,8 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   });
 
   int reqGroup = (maxActiveVectors == 0) ? 1 : maxActiveVectors;
+  if (fits)
+    *fits = reqGroup <= totalVectorRegs;
   VERBOSE_ANALYSIS_INFO("Final Max Active Vectors (Req_Group): " << reqGroup
                                                                  << "\n");
 
@@ -672,11 +719,10 @@ private:
               op.emitError("FMA operands not found in symbol table");
               return;
             }
+            // One rounding in every lane: the tail as the vector.
             if (isTailLoop) {
-              auto mulResult = arith::MulFOp::create(builder, loc, lhs, rhs);
-              auto addResult =
-                  arith::AddFOp::create(builder, loc, mulResult, acc);
-              virSymbolTable[op.getResult()] = addResult;
+              virSymbolTable[op.getResult()] =
+                  math::FmaOp::create(builder, loc, lhs, rhs, acc);
             } else {
               auto vectorFMAOp =
                   vector::FMAOp::create(builder, loc, lhs, rhs, acc);
@@ -2171,8 +2217,23 @@ private:
 
     if (leadingStaticDims.empty()) {
       emitVectorAndTail(rewriter, /*leadingIVs=*/{});
+    } else if (rowsAreIndependent(op, leadingStaticDims.size())) {
+      // One loop over the leading static dims, in parallel: each row writes
+      // elements of its own and reads no element another row writes.
+      Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+      Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+      SmallVector<Value> lbs, ubs, steps;
+      for (int64_t ub : leadingStaticDims) {
+        lbs.push_back(c0);
+        ubs.push_back(arith::ConstantIndexOp::create(rewriter, loc, ub));
+        steps.push_back(c1);
+      }
+      scf::ParallelOp::create(rewriter, loc, lbs, ubs, steps,
+                              [&](OpBuilder &b, Location, ValueRange ivs) {
+                                emitVectorAndTail(b, SmallVector<Value>(ivs));
+                              });
     } else {
-      // Build nested loops over the leading static dims.
+      // Nested serial loops over the leading static dims.
       SmallVector<Value> ivs;
       std::function<void(unsigned, OpBuilder &)> emitOuter = [&](unsigned dim,
                                                                  OpBuilder &b) {
@@ -2212,6 +2273,412 @@ void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
   // clang-format off
   patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact);
   // clang-format on
+}
+
+//===----------------------------------------------------------------------===//
+// Unroll-and-jam in strip-mined regions
+//===----------------------------------------------------------------------===//
+//
+// In a vir.set_vl without results, a loop whose iterations are independent
+// and share a vector load of an inner loop (the output pixels of a row of a
+// convolution: the filter vector of each (kh, kw, c)) runs `factor`
+// iterations jammed together: their inner loops as one, the shared load
+// once. The factor is the one whose vectors, sized for the register pressure
+// as the region is lowered (vectorTypeHelper), compute the most lanes per
+// shared load.
+
+namespace {
+/// The most iterations jammed together, a bound on the code size.
+constexpr int64_t kMaxJamFactor = 8;
+
+/// A memory access in a loop: the memref, the indices of a known load or
+/// store (else none), the rank of the vector it accesses (0: a scalar), and
+/// whether it writes.
+struct JamAccess {
+  Value base;
+  SmallVector<Value> indices;
+  int64_t vectorRank;
+  bool write;
+};
+} // namespace
+
+/// The buffer a memref is a view of.
+static Value underlyingBuffer(Value v) {
+  while (auto view = v.getDefiningOp<ViewLikeOpInterface>())
+    v = view.getViewSource();
+  return v;
+}
+
+/// Whether two memrefs cannot overlap: by the alias analysis, or as views of
+/// different buffers that are both allocated, or one allocated and the other
+/// memory that existed before the allocation (an argument of the function, a
+/// global). A buffer of another origin, e.g. the result of a call, may be an
+/// allocated one.
+static bool areDisjoint(Value a, Value b, AliasAnalysis &aa) {
+  if (aa.alias(a, b).isNo())
+    return true;
+  Value ra = underlyingBuffer(a), rb = underlyingBuffer(b);
+  if (ra == rb)
+    return false;
+  auto allocated = [](Value v) {
+    auto iface = v.getDefiningOp<MemoryEffectOpInterface>();
+    return iface && iface.getEffectOnValue<MemoryEffects::Allocate>(v);
+  };
+  auto existing = [](Value v) {
+    if (v.getDefiningOp<memref::GetGlobalOp>())
+      return true;
+    auto arg = dyn_cast<BlockArgument>(v);
+    return arg && arg.getOwner()->isEntryBlock() &&
+           isa<FunctionOpInterface>(arg.getOwner()->getParentOp());
+  };
+  return (allocated(ra) && (allocated(rb) || existing(rb))) ||
+         (allocated(rb) && existing(ra));
+}
+
+/// The memory accesses of the ops in `body`. Fails on another memory effect,
+/// or an op whose effects are unknown (a VIR op other than vir.load and
+/// vir.store has none).
+static LogicalResult collectAccesses(Block &body,
+                                     SmallVectorImpl<JamAccess> &accesses) {
+  WalkResult walk = body.walk([&](Operation *op) {
+    if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      return WalkResult::advance();
+    auto iface = dyn_cast<MemoryEffectOpInterface>(op);
+    if (!iface)
+      return isa<vir::VIRDialect>(op->getDialect()) && !isa<vir::SetVLOp>(op)
+                 ? WalkResult::advance()
+                 : WalkResult::interrupt();
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    iface.getEffects(effects);
+    for (MemoryEffects::EffectInstance &effect : effects) {
+      Value base = effect.getValue();
+      bool write = isa<MemoryEffects::Write>(effect.getEffect());
+      if (!base || !isa<MemRefType>(base.getType()) ||
+          !(write || isa<MemoryEffects::Read>(effect.getEffect())))
+        return WalkResult::interrupt();
+      JamAccess access{base, {}, 0, write};
+      if (auto load = dyn_cast<vir::LoadOp>(op)) {
+        access.indices = llvm::to_vector(load.getIndices());
+        access.vectorRank = load.getResult().getType().getShape().size();
+      } else if (auto store = dyn_cast<vir::StoreOp>(op)) {
+        access.indices = llvm::to_vector(store.getIndices());
+        access.vectorRank = store.getValue().getType().getShape().size();
+      } else if (auto load = dyn_cast<memref::LoadOp>(op)) {
+        access.indices = llvm::to_vector(load.getIndices());
+      } else if (auto store = dyn_cast<memref::StoreOp>(op)) {
+        access.indices = llvm::to_vector(store.getIndices());
+      }
+      accesses.push_back(std::move(access));
+    }
+    return WalkResult::advance();
+  });
+  return failure(walk.wasInterrupted());
+}
+
+/// Whether no two elements of a memref of `type` share an address: the
+/// identity layout, or static strides and sizes whose dims nest (sorted by
+/// stride, each stride at least the extent of the dims below it).
+static bool hasDistinctElements(MemRefType type) {
+  if (type.getLayout().isIdentity())
+    return true;
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  if (failed(type.getStridesAndOffset(strides, offset)))
+    return false;
+  SmallVector<std::pair<int64_t, int64_t>> dims; // (stride, size)
+  for (auto [stride, size] : llvm::zip(strides, type.getShape())) {
+    if (size == 1)
+      continue;
+    if (ShapedType::isDynamic(stride) || ShapedType::isDynamic(size) ||
+        stride <= 0)
+      return false;
+    dims.push_back({stride, size});
+  }
+  llvm::sort(dims);
+  int64_t extent = 1;
+  for (auto [stride, size] : dims) {
+    if (stride < extent)
+      return false;
+    extent = stride * size;
+  }
+  return true;
+}
+
+/// Whether the rows of the dynamic vectors of `op` (`rows` leading static
+/// dims) may run in parallel: each write is a vir.store of a vector with
+/// these rows, to a memref whose elements are distinct, so that each row
+/// writes elements of its own; and every access to a memref that may
+/// overlap a written one is at the same base, indices and rank, so that a
+/// row reads only elements it writes. A scalar memref.store, executed once
+/// per row at the same address, keeps the rows serial.
+static bool rowsAreIndependent(vir::SetVLOp op, size_t rows) {
+  SmallVector<JamAccess> accesses;
+  if (failed(collectAccesses(op.getRegion().front(), accesses)))
+    return false;
+  AliasAnalysis aa(op);
+  for (const JamAccess &w : accesses) {
+    if (!w.write)
+      continue;
+    if (w.vectorRank != int64_t(rows) + 1 ||
+        !hasDistinctElements(cast<MemRefType>(w.base.getType())))
+      return false;
+    for (const JamAccess &a : accesses)
+      if (!areDisjoint(a.base, w.base, aa) &&
+          (a.base != w.base || a.indices != w.indices ||
+           a.vectorRank != w.vectorRank))
+        return false;
+  }
+  return true;
+}
+
+/// Whether `v` may differ from one iteration of `loop` to the next. The
+/// inner loops have the same bounds in every iteration (isJammable); their
+/// iteration arguments, and the results of other ops with regions, are
+/// taken to differ.
+static bool dependsOnIteration(Value v, scf::ForOp loop,
+                               DenseMap<Value, bool> &memo) {
+  if (loop.isDefinedOutsideOfLoop(v))
+    return false;
+  if (v == loop.getInductionVar())
+    return true;
+  if (auto it = memo.find(v); it != memo.end())
+    return it->second;
+  bool depends;
+  if (auto arg = dyn_cast<BlockArgument>(v)) {
+    auto inner = dyn_cast<scf::ForOp>(arg.getOwner()->getParentOp());
+    depends = !inner || arg != inner.getInductionVar();
+  } else {
+    Operation *def = v.getDefiningOp();
+    depends = def->getNumRegions() != 0 ||
+              llvm::any_of(def->getOperands(), [&](Value operand) {
+                return dependsOnIteration(operand, loop, memo);
+              });
+  }
+  memo[v] = depends;
+  return depends;
+}
+
+/// Whether the iterations of `loop` may run jammed together, and share a
+/// vector load: the loop has no results and a constant step; its inner
+/// loops have the same bounds in every iteration; each iteration writes
+/// elements of its own (at indices with the induction variable, not in the
+/// dims a vector spans), which every access of a memref that may overlap
+/// uses too; and a vector load of an inner loop is the same in every
+/// iteration.
+static bool isJammable(scf::ForOp loop, AliasAnalysis &aa) {
+  if (loop.getNumResults() != 0 || !getConstantIntValue(loop.getStep()))
+    return false;
+  bool hasInnerLoop = false, invariantBounds = true;
+  loop.getBody()->walk([&](scf::ForOp inner) {
+    hasInnerLoop = true;
+    for (Value v :
+         {inner.getLowerBound(), inner.getUpperBound(), inner.getStep()})
+      invariantBounds &= loop.isDefinedOutsideOfLoop(v);
+  });
+  if (!hasInnerLoop || !invariantBounds)
+    return false;
+
+  SmallVector<JamAccess> accesses;
+  if (failed(collectAccesses(*loop.getBody(), accesses)))
+    return false;
+  Value iv = loop.getInductionVar();
+  for (const JamAccess &w : accesses) {
+    if (!w.write)
+      continue;
+    ArrayRef<Value> own = ArrayRef(w.indices).drop_back(
+        std::min<size_t>(w.vectorRank, w.indices.size()));
+    if (!llvm::is_contained(own, iv) ||
+        !hasDistinctElements(cast<MemRefType>(w.base.getType())))
+      return false;
+    for (const JamAccess &a : accesses)
+      if (!areDisjoint(a.base, w.base, aa) &&
+          (a.base != w.base || a.indices != w.indices ||
+           a.vectorRank != w.vectorRank))
+        return false;
+  }
+
+  DenseMap<Value, bool> memo;
+  WalkResult shared = loop.getBody()->walk([&](vir::LoadOp load) {
+    if (load->getParentOp() == loop ||
+        llvm::any_of(load->getOperands(), [&](Value v) {
+          return dependsOnIteration(v, loop, memo);
+        }))
+      return WalkResult::advance();
+    return WalkResult::interrupt();
+  });
+  return shared.wasInterrupted();
+}
+
+/// Emits the ops of `body` but its terminator for `maps.size()` iterations
+/// jammed together, `maps[k]` mapping the values of the body to those of the
+/// k-th: an inner scf.for once, carrying the iteration arguments of all; an
+/// op without regions or writes that computes the same in all, once; any
+/// other op for each.
+static void emitJammed(OpBuilder &b, Block &body,
+                       MutableArrayRef<IRMapping> maps) {
+  for (Operation &op : body.without_terminator()) {
+    if (auto inner = dyn_cast<scf::ForOp>(&op)) {
+      unsigned n = inner.getNumRegionIterArgs();
+      SmallVector<Value> inits;
+      for (IRMapping &m : maps)
+        for (Value v : inner.getInitArgs())
+          inits.push_back(m.lookupOrDefault(v));
+      auto jammed = scf::ForOp::create(
+          b, inner.getLoc(), inner.getLowerBound(), inner.getUpperBound(),
+          inner.getStep(), inits,
+          [&](OpBuilder &ib, Location loc, Value iv, ValueRange args) {
+            SmallVector<IRMapping> innerMaps(maps.begin(), maps.end());
+            for (auto [k, m] : llvm::enumerate(innerMaps)) {
+              m.map(inner.getInductionVar(), iv);
+              m.map(inner.getRegionIterArgs(), args.slice(k * n, n));
+            }
+            emitJammed(ib, *inner.getBody(), innerMaps);
+            SmallVector<Value> yields;
+            for (IRMapping &m : innerMaps)
+              for (Value v : inner.getBody()->getTerminator()->getOperands())
+                yields.push_back(m.lookupOrDefault(v));
+            scf::YieldOp::create(ib, loc, yields);
+          });
+      for (auto [k, m] : llvm::enumerate(maps))
+        m.map(inner.getResults(), jammed.getResults().slice(k * n, n));
+      continue;
+    }
+    auto iface = dyn_cast<MemoryEffectOpInterface>(&op);
+    bool shared =
+        op.getNumRegions() == 0 &&
+        !(iface && iface.hasEffect<MemoryEffects::Write>()) &&
+        llvm::all_of(op.getOperands(), [&](Value v) {
+          return llvm::all_of(maps, [&](IRMapping &m) {
+            return m.lookupOrDefault(v) == maps.front().lookupOrDefault(v);
+          });
+        });
+    if (!shared) {
+      for (IRMapping &m : maps)
+        b.clone(op, m);
+      continue;
+    }
+    Operation *clone = b.clone(op, maps.front());
+    for (IRMapping &m : maps.drop_front())
+      m.map(op.getResults(), clone->getResults());
+  }
+}
+
+/// Jams `factor` iterations of `loop` together (isJammable); the iterations
+/// left, fewer than `factor`, stay in `loop`.
+static void jamLoop(scf::ForOp loop, int64_t factor) {
+  OpBuilder b(loop);
+  Location loc = loop.getLoc();
+  int64_t step = *getConstantIntValue(loop.getStep());
+  Value lb = loop.getLowerBound(), ub = loop.getUpperBound();
+  Value block = arith::ConstantIndexOp::create(b, loc, step * factor);
+  // the iterations: max(ub - lb, 0) ceildiv step
+  Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+  Value trips = arith::MaxSIOp::create(
+      b, loc, arith::SubIOp::create(b, loc, ub, lb), zero);
+  if (step != 1)
+    trips = arith::DivSIOp::create(
+        b, loc,
+        arith::AddIOp::create(b, loc, trips,
+                              arith::ConstantIndexOp::create(b, loc, step - 1)),
+        arith::ConstantIndexOp::create(b, loc, step));
+  // lb + (trips - trips % factor) * step
+  Value jammed = arith::SubIOp::create(
+      b, loc, trips,
+      arith::RemSIOp::create(b, loc, trips,
+                             arith::ConstantIndexOp::create(b, loc, factor)));
+  Value mainUb = arith::AddIOp::create(
+      b, loc, lb,
+      step == 1
+          ? jammed
+          : Value(arith::MulIOp::create(
+                b, loc, jammed, arith::ConstantIndexOp::create(b, loc, step))));
+  scf::ForOp::create(
+      b, loc, lb, mainUb, block, ValueRange{},
+      [&](OpBuilder &mb, Location l, Value iv, ValueRange) {
+        SmallVector<IRMapping> maps(factor);
+        maps[0].map(loop.getInductionVar(), iv);
+        for (int64_t k = 1; k < factor; ++k)
+          maps[k].map(
+              loop.getInductionVar(),
+              arith::AddIOp::create(
+                  mb, l, iv, arith::ConstantIndexOp::create(mb, l, k * step))
+                  .getResult());
+        emitJammed(mb, *loop.getBody(), maps);
+        scf::YieldOp::create(mb, l);
+      });
+  loop.getLowerBoundMutable().assign(mainUb);
+}
+
+/// The element type of the first dynamic vector of a region, as
+/// VIRSetVLLowering finds its anchor type.
+static Type anchorTypeOf(Region &region) {
+  Type anchor;
+  region.walk<WalkOrder::PreOrder>([&](Operation *op) {
+    for (Value result : op->getResults())
+      if (auto dyn = dyn_cast<vir::DynamicVectorType>(result.getType());
+          dyn && !dyn.getScalingFactor()) {
+        anchor = dyn.getElementType();
+        return WalkResult::interrupt();
+      }
+    return WalkResult::advance();
+  });
+  return anchor;
+}
+
+/// Jams the loops of the strip-mined regions of `module` (see above). The
+/// vectors are sized as vectorTypeHelper sizes them with these arguments.
+static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
+                               unsigned indexBitWidth) {
+  AliasAnalysis aa(module);
+  SmallVector<std::pair<vir::SetVLOp, scf::ForOp>> loops;
+  module.walk([&](vir::SetVLOp setVL) {
+    if (setVL->getNumResults() != 0)
+      return;
+    setVL.getRegion().walk<WalkOrder::PreOrder>([&](scf::ForOp loop) {
+      if (!isJammable(loop, aa))
+        return WalkResult::advance();
+      loops.emplace_back(setVL, loop);
+      return WalkResult::skip();
+    });
+  });
+  for (auto [setVL, loop] : loops) {
+    Type anchor = anchorTypeOf(setVL.getRegion());
+    if (!anchor)
+      continue;
+    // the factor with the most lanes per shared load (the least of equals),
+    // its vectors live at once in the registers
+    // (no more than the iterations, when they are known)
+    int64_t maxFactor = kMaxJamFactor;
+    if (std::optional<APInt> trips = loop.getStaticTripCount())
+      maxFactor = std::clamp<int64_t>(trips->getZExtValue(), 1, kMaxJamFactor);
+    int64_t best = 1, bestLanes = 0;
+    for (int64_t factor = 1; factor <= maxFactor; ++factor) {
+      OpBuilder b(setVL);
+      IRMapping m;
+      Operation *trial = b.clone(*setVL, m);
+      if (factor > 1)
+        jamLoop(cast<scf::ForOp>(m.lookup(loop.getOperation())), factor);
+      bool fits = false;
+      VectorType type;
+      {
+        ScopedDiagnosticHandler quiet(module.getContext(),
+                                      [](Diagnostic &) { return success(); });
+        type = vectorTypeHelper(trial->getRegion(0), anchor, useScalable,
+                                /*verbose=*/false, rvvVlen, indexBitWidth,
+                                /*rows=*/1, &fits);
+      }
+      trial->erase();
+      if (!type)
+        break;
+      int64_t lanes = factor * type.getShape()[0];
+      if (fits && lanes > bestLanes) {
+        best = factor;
+        bestLanes = lanes;
+      }
+    }
+    if (best > 1)
+      jamLoop(loop, best);
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -2329,6 +2796,11 @@ void VIRToVectorPass::runOnOperation() {
     if (verbose && vlen)
       llvm::outs() << "--- RISC-V Vector host: VLEN " << vlen << " ---\n";
   }
+  // the loops of strip-mined regions jammed for the vectors sized for the
+  // register pressure (not for a given vector-width)
+  if (!useCustomVecWid)
+    jamStripMinedLoops(module, useScalable, vlen,
+                       converter.getIndexTypeBitwidth());
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
                                         vectorWidth, verbose, useCustomVecWid,
                                         vlen, exactVlen);

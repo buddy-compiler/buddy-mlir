@@ -4,7 +4,8 @@
 // In a vir.set_vl without results (a strip-mined loop over vl, in loops over
 // the rows), a !vir.vec<2x?xf32> access is as vector.load: the lanes along
 // the last memref dim, the rows along the dim before it, both from the
-// indices on.
+// indices on. The rows run serially here, as %o may overlap %a and %b
+// (vir-rows-parallel-to-vector.mlir: when they run in parallel).
 
 func.func private @printMemrefF32(memref<*xf32>)
 
