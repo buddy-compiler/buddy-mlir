@@ -77,7 +77,9 @@ change** from f32 (see below).
   exp and `vfrec7` reciprocal, residual) interleaves two accumulators for the
   in-order core.
 
-Without `"ime"`, `codegen/lower_to_obj.sh` lowers the f32 TOSA graph and
+Without `"ime"` (`"ime": false` in a spec builds the f32 model: the spec's
+`params_size` is the f32 parameter count, `ime_params_size` that of the
+packed IME weights), `codegen/lower_to_obj.sh` lowers the f32 TOSA graph and
 runs the parallel loops on the thread pool of the spec (any RVV target). The
 linalg ops go through VIR (`-lower-linalg-to-vir`; the convolutions
 vectorized along the output channels, the output rows in parallel), the
@@ -92,6 +94,10 @@ the threads run on the A100 cores:
 ```bash
 sh -c 'echo 0 > /proc/set_ai_thread && exec ./buddy-cli --model yolov8.rax --image bus.jpg'
 ```
+
+The runner takes the model as a `.rax` only: its manifest gives the classes,
+keypoints and input size the library was compiled for, and the parameter
+count, which the weight file must match.
 
 ```
 [0] class_id=0 label=person score=0.8468 box=(45.2, 389.6, 237.1, 905.3)

@@ -36,6 +36,11 @@ def normalize_uri(raw: str) -> str:
     return f"file:{s}"
 
 
+def spec_params_size(spec: dict) -> int:
+    """The f32 slots of arg0.data: the IME kernels pack their weights."""
+    return int(spec["ime_params_size" if spec.get("ime") else "params_size"])
+
+
 def gen_manifest(
     spec: dict,
     runner_library: str,
@@ -44,7 +49,7 @@ def gen_manifest(
     version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
-    params_size = int(spec["params_size"])
+    params_size = spec_params_size(spec)
     img_size = int(spec["img_size"])
     num_classes = int(spec["num_classes"])
     num_keypoints = int(spec.get("num_keypoints", 0))
@@ -64,6 +69,7 @@ def gen_manifest(
     p(f'    num_classes = "{num_classes}",')
     p(f'    num_keypoints = "{num_keypoints}",')
     p(f'    num_anchors = "{num_anchors}",')
+    p(f'    params_size = "{params_size}",')
     p(f'    conf_threshold = "{float(spec.get("conf_threshold", 0.25))}",')
     p(f'    iou_threshold = "{float(spec.get("iou_threshold", 0.7))}",')
     p(f'    max_detections = "{int(spec.get("max_detections", 300))}",')

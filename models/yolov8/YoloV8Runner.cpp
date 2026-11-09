@@ -282,36 +282,39 @@ void YoloV8Runner::run(const RunConfig &cfg) {
   mallopt(M_TRIM_THRESHOLD, 1 << 30);
 #endif
 
-  std::string soPath = cfg.modelSoPath;
-  std::string weightsPath = cfg.weightsPath;
-  std::string labelsPath = cfg.vocabPath;
-  std::vector<std::string> deps;
-  Options opt;
-  std::string modelName = "yolov8";
-  if (!cfg.raxPath.empty()) {
-    ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
-    soPath = manifest.soPath;
-    for (const auto &constant : manifest.constants)
-      if (constant.name == "params")
-        weightsPath = constant.path;
-    if (weightsPath.empty() && !manifest.weightPaths.empty())
-      weightsPath = manifest.weightPaths.front();
-    labelsPath = manifest.vocabPath;
-    deps = manifest.dependentSoPaths;
-    if (!manifest.modelName.empty())
-      modelName = manifest.modelName;
-    opt.imgSize = sizeAttr(manifest, "img_size", opt.imgSize);
-    opt.numClasses = sizeAttr(manifest, "num_classes", opt.numClasses);
-    opt.numKeypoints = sizeAttr(manifest, "num_keypoints", opt.numKeypoints);
-    opt.numAnchors = sizeAttr(manifest, "num_anchors", opt.numAnchors);
-    opt.confThreshold =
-        floatAttr(manifest, "conf_threshold", opt.confThreshold);
-    opt.iouThreshold = floatAttr(manifest, "iou_threshold", opt.iouThreshold);
-    opt.maxDetections = sizeAttr(manifest, "max_detections", opt.maxDetections);
-  }
-  if (soPath.empty() || weightsPath.empty())
+  // The model library is compiled for one variant: its parameter count,
+  // input size and outputs. The .rax manifest says which; a library and a
+  // weight file passed on their own say nothing, and are not taken.
+  if (cfg.raxPath.empty())
     throw std::runtime_error(
-        "YoloV8Runner: pass --model <.rax>, or --model-so and --weights");
+        "YoloV8Runner: pass --model <.rax> (the model library is run with "
+        "the parameters and options of its manifest)");
+  ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
+  std::string soPath = manifest.soPath;
+  std::string weightsPath;
+  for (const auto &constant : manifest.constants)
+    if (constant.name == "params")
+      weightsPath = constant.path;
+  if (weightsPath.empty() && !manifest.weightPaths.empty())
+    weightsPath = manifest.weightPaths.front();
+  const std::string labelsPath = manifest.vocabPath;
+  const std::vector<std::string> deps = manifest.dependentSoPaths;
+  const std::string modelName =
+      manifest.modelName.empty() ? "yolov8" : manifest.modelName;
+  Options opt;
+  opt.imgSize = sizeAttr(manifest, "img_size", opt.imgSize);
+  opt.numClasses = sizeAttr(manifest, "num_classes", opt.numClasses);
+  opt.numKeypoints = sizeAttr(manifest, "num_keypoints", opt.numKeypoints);
+  opt.numAnchors = sizeAttr(manifest, "num_anchors", opt.numAnchors);
+  opt.confThreshold = floatAttr(manifest, "conf_threshold", opt.confThreshold);
+  opt.iouThreshold = floatAttr(manifest, "iou_threshold", opt.iouThreshold);
+  opt.maxDetections = sizeAttr(manifest, "max_detections", opt.maxDetections);
+  // The f32 slots the compiled model reads its parameters from.
+  const size_t paramsSize = sizeAttr(manifest, "params_size", 0);
+  if (soPath.empty() || weightsPath.empty() || paramsSize == 0)
+    throw std::runtime_error(
+        "YoloV8Runner: the manifest of " + cfg.raxPath +
+        " lacks the model library, the weights or params_size (rebuild it)");
 
   for (const std::string &dep : deps)
     if (!dlopen(dep.c_str(), RTLD_NOW | RTLD_GLOBAL))
@@ -329,11 +332,14 @@ void YoloV8Runner::run(const RunConfig &cfg) {
                              std::string(err));
 
   const auto loadStart = std::chrono::steady_clock::now();
+  // The model reads paramsSize f32 at fixed offsets: a shorter file would
+  // have it read past the buffer.
   const uintmax_t bytes = std::filesystem::file_size(weightsPath);
-  if (bytes == 0 || bytes % sizeof(float) != 0)
-    throw std::runtime_error("YoloV8Runner: weight file is not f32-aligned");
-  MemRef<float, 1> params(
-      std::vector<size_t>{static_cast<size_t>(bytes / sizeof(float))});
+  if (bytes != paramsSize * sizeof(float))
+    throw std::runtime_error(
+        "YoloV8Runner: " + weightsPath + " has " + std::to_string(bytes) +
+        " bytes, the model reads " + std::to_string(paramsSize) + " f32");
+  MemRef<float, 1> params(std::vector<size_t>{paramsSize});
   loadWeights(weightsPath, params);
   const double loadSeconds = secondsSince(loadStart);
   const std::vector<std::string> labels =

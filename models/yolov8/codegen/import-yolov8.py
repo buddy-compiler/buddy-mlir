@@ -120,10 +120,11 @@ def import_yolov8(spec: dict, output_dir: str) -> None:
     all_param = numpy.concatenate(
         [param.detach().cpu().numpy().reshape([-1]) for param in params]
     )
-    if all_param.size != int(spec["params_size"]):
+    # f32 slots: the IME kernels pack their weights (ime_params_size)
+    key = "ime_params_size" if spec.get("ime") else "params_size"
+    if all_param.size != int(spec[key]):
         raise RuntimeError(
-            f"imported {all_param.size} parameters, spec says "
-            f"{spec['params_size']}"
+            f"imported {all_param.size} parameters, spec {key} says {spec[key]}"
         )
     all_param.tofile(os.path.join(output_dir, "arg0.data"))
     print(
