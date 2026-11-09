@@ -22,7 +22,9 @@
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
+#include <mlir/Dialect/ControlFlow/IR/ControlFlowOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/LLVMIR/LLVMDialect.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
@@ -317,8 +319,9 @@ static std::optional<Int4UnpackInfo> findInt4UnpackChain(Value i8Weight) {
 
 class MatMulVectorizationBLISPattern : public ConversionPattern {
 public:
-  explicit MatMulVectorizationBLISPattern(MLIRContext *context)
-      : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, context) {}
+  explicit MatMulVectorizationBLISPattern(MLIRContext *context, int64_t width)
+      : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, context),
+        width(width) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
@@ -356,8 +359,8 @@ public:
         rewriter, loc, rewriter.getIndexAttr(64)); // mc = 64
     const Value mr = arith::ConstantOp::create(
         rewriter, loc, rewriter.getIndexAttr(8)); // mr = 8
-    const Value nr = arith::ConstantOp::create(
-        rewriter, loc, rewriter.getIndexAttr(32)); // nr = 32
+    const Value nr =
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(width));
 
     // Get input A, B, C
     Value A = op->getOperand(0);
@@ -381,9 +384,9 @@ public:
     ShapedType CTy = cast<ShapedType>(C.getType());
     Type accEleTy = CTy.getElementType();
     bool isInteger = isa<IntegerType>(eleTy);
-    VectorType vectorTy = VectorType::get({32}, eleTy);
+    VectorType vectorTy = VectorType::get({width}, eleTy);
     VectorType accVecTy =
-        isInteger ? VectorType::get({32}, accEleTy) : vectorTy;
+        isInteger ? VectorType::get({width}, accEleTy) : vectorTy;
 
     // Pre-create constants for int4 unpack (scalar) and scale indexing.
     Value i8Mask15 = nullptr;
@@ -605,14 +608,14 @@ public:
                                           loc, nIdxBound, nIdxEnd, nrActual);
                                           auto colsToProcess = arith::SubIOp::create(builder,
                                           loc, nIdxActualEnd, nIdx);
-                                          // Check if we can vectorize (at least 32 columns)
+                                          // Use SIMD only for a complete microkernel width.
                                           auto canVectorize = arith::CmpIOp::create(builder,
                                               loc, arith::CmpIPredicate::sge, colsToProcess, nr);
 
                                           scf::IfOp::create(builder,
                                               loc, canVectorize,
                                               [&](OpBuilder &builder, Location loc) {
-                                                // Vectorized path 32
+                                                // Vectorized path.
                                                 scf::ForOp::create(builder,
                                                     loc, c0, mcActual, mr, ValueRange{},
                                                     [&](OpBuilder &builder, Location loc, Value ir, ValueRange) {
@@ -1064,6 +1067,9 @@ public:
 
     return success();
   }
+
+private:
+  int64_t width;
 };
 } // end anonymous namespace
 
@@ -1078,17 +1084,30 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulVectorizationBLISPass)
   StringRef getArgument() const final { return "matmul-vectorization-blis"; }
   StringRef getDescription() const final {
-    return "BLIS-style MatMul Vectorization with fixed blocking parameters.";
+    return "BLIS-style MatMul Vectorization with configurable microkernel "
+           "width.";
   }
   MatMulVectorizationBLISPass() = default;
-  MatMulVectorizationBLISPass(const MatMulVectorizationBLISPass &) {}
+  MatMulVectorizationBLISPass(const MatMulVectorizationBLISPass &other)
+      : PassWrapper(other) {}
+
+  Option<int64_t> vectorSize{
+      *this, "vector-size",
+      llvm::cl::desc("Microkernel N width; a power of two in [8, 128]"),
+      llvm::cl::init(32)};
+  Option<int64_t> targetVlenBits{
+      *this, "target-vlen-bits",
+      llvm::cl::desc(
+          "Require this exact hardware VLEN at runtime (0 disables check)"),
+      llvm::cl::init(0)};
 
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
         .insert<linalg::LinalgDialect, scf::SCFDialect, affine::AffineDialect,
-                VectorDialect, memref::MemRefDialect, arith::ArithDialect>();
+                VectorDialect, memref::MemRefDialect, arith::ArithDialect,
+                cf::ControlFlowDialect, LLVM::LLVMDialect>();
   }
 };
 } // end anonymous namespace.
@@ -1097,17 +1116,47 @@ void MatMulVectorizationBLISPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
+  if (vectorSize < 8 || vectorSize > 128 || (vectorSize & (vectorSize - 1)) ||
+      targetVlenBits < 0 ||
+      (targetVlenBits && (targetVlenBits < 128 || targetVlenBits > 65536 ||
+                          (targetVlenBits & (targetVlenBits - 1))))) {
+    module.emitError("invalid BLIS vector-size or target-vlen-bits");
+    return signalPassFailure();
+  }
+  if (targetVlenBits) {
+    module.walk([&](func::FuncOp function) {
+      if (function.isDeclaration())
+        return;
+      OpBuilder builder = OpBuilder::atBlockBegin(&function.front());
+      Location loc = function.getLoc();
+      Value bytes =
+          LLVM::InlineAsmOp::create(builder, loc, builder.getI64Type(),
+                                    ValueRange{}, "csrr $0, vlenb", "=r", true,
+                                    false, LLVM::TailCallKind::None, false,
+                                    LLVM::AsmDialectAttr{}, ArrayAttr{})
+              .getRes();
+      Value expected =
+          arith::ConstantIntOp::create(builder, loc, targetVlenBits / 8, 64);
+      Value valid = arith::CmpIOp::create(
+          builder, loc, arith::CmpIPredicate::eq, bytes, expected);
+      cf::AssertOp::create(builder, loc, valid,
+                           "Prefill model requires its configured RISC-V VLEN; "
+                           "use the correct CPU core group");
+    });
+  }
+
   ConversionTarget target(*context);
   target
       .addLegalDialect<arith::ArithDialect, affine::AffineDialect,
                        scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
+  target.addLegalDialect<cf::ControlFlowDialect, LLVM::LLVMDialect>();
   target.addLegalOp<linalg::FillOp>();
   target.addDynamicallyLegalOp<linalg::MatmulOp>(
       [](linalg::MatmulOp op) { return !hasDefaultMatmulIndexingMaps(op); });
 
   RewritePatternSet patterns(context);
-  patterns.add<MatMulVectorizationBLISPattern>(context);
+  patterns.add<MatMulVectorizationBLISPattern>(context, vectorSize);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
