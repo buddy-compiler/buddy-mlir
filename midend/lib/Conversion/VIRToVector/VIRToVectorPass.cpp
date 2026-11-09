@@ -48,6 +48,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
@@ -2273,8 +2274,11 @@ static Value underlyingBuffer(Value v) {
   return v;
 }
 
-/// Whether two memrefs cannot overlap: views of different buffers, one of
-/// them allocated (it does not overlap the memory that existed before it).
+/// Whether two memrefs cannot overlap: by the alias analysis, or as views of
+/// different buffers that are both allocated, or one allocated and the other
+/// memory that existed before the allocation (an argument of the function, a
+/// global). A buffer of another origin, e.g. the result of a call, may be an
+/// allocated one.
 static bool areDisjoint(Value a, Value b, AliasAnalysis &aa) {
   if (aa.alias(a, b).isNo())
     return true;
@@ -2285,7 +2289,15 @@ static bool areDisjoint(Value a, Value b, AliasAnalysis &aa) {
     auto iface = v.getDefiningOp<MemoryEffectOpInterface>();
     return iface && iface.getEffectOnValue<MemoryEffects::Allocate>(v);
   };
-  return allocated(ra) || allocated(rb);
+  auto existing = [](Value v) {
+    if (v.getDefiningOp<memref::GetGlobalOp>())
+      return true;
+    auto arg = dyn_cast<BlockArgument>(v);
+    return arg && arg.getOwner()->isEntryBlock() &&
+           isa<FunctionOpInterface>(arg.getOwner()->getParentOp());
+  };
+  return (allocated(ra) && (allocated(rb) || existing(rb))) ||
+         (allocated(rb) && existing(ra));
 }
 
 /// The memory accesses of the ops in `body`. Fails on another memory effect,

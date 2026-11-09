@@ -29,6 +29,11 @@
 
 // iteration o writes out[o + 1], which iteration o + 1 reads: not jammed.
 // IR-NOT: iter_args({{[^)]*}},
+// IR-LABEL: func.func @call_alias
+
+// The shared load reads the result of a call, which may be the allocated
+// out: not jammed.
+// IR-NOT: iter_args({{[^)]*}},
 // IR-LABEL: func.func @main
 
 memref.global "private" constant @in : memref<10x3xf32> = dense<[[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [3.0, 3.0, 3.0], [4.0, 4.0, 4.0], [5.0, 5.0, 5.0], [6.0, 6.0, 6.0], [7.0, 7.0, 7.0], [8.0, 8.0, 8.0], [9.0, 9.0, 9.0]]>
@@ -108,6 +113,39 @@ func.func @dependence(%in: memref<10x3xf32>, %w: memref<3x16xf32>) -> memref<11x
     vector.yield
   }
   return %out : memref<11x16xf32>
+}
+
+func.func private @identity(%m: memref<10x16xf32>) -> memref<10x16xf32> {
+  return %m : memref<10x16xf32>
+}
+
+func.func @call_alias(%in: memref<10x3xf32>, %w: memref<3x16xf32>) -> memref<10x16xf32> {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %c3 = arith.constant 3 : index
+  %c7 = arith.constant 7 : index
+  %c10 = arith.constant 10 : index
+  %c16 = arith.constant 16 : index
+  %zero = arith.constant 0.0 : f32
+  %out = memref.alloc() : memref<10x16xf32>
+  linalg.fill ins(%zero : f32) outs(%out : memref<10x16xf32>)
+  %v = call @identity(%out) : (memref<10x16xf32>) -> memref<10x16xf32>
+  vir.set_vl %c16 : index {
+    scf.for %o = %c0 to %c10 step %c1 {
+      %acc = vir.load %out[%o, %c0] : memref<10x16xf32> -> !vir.vec<?xf32>
+      %r = scf.for %c = %c0 to %c3 step %c1 iter_args(%a = %acc) -> (!vir.vec<?xf32>) {
+        %wv = vir.load %v[%c, %c0] : memref<10x16xf32> -> !vir.vec<?xf32>
+        %x = memref.load %in[%o, %c] : memref<10x3xf32>
+        %xv = vir.broadcast %x : f32 -> !vir.vec<?xf32>
+        %n = vir.fma %xv, %wv, %a : !vir.vec<?xf32>
+        scf.yield %n : !vir.vec<?xf32>
+      }
+      vir.store %r, %out[%o, %c0] : !vir.vec<?xf32> -> memref<10x16xf32>
+    }
+    vector.yield
+  }
+  return %out : memref<10x16xf32>
 }
 
 func.func @main() -> i32 {
