@@ -35,7 +35,7 @@ def testDynamicVectorType():
         s = vir.DynamicVectorType.get(
             [dyn], ir.IntegerType.get_signless(8), scaling_factor=m2
         )
-        # CHECK: !vir.vec<?xi8, #vir.sf<m2>>
+        # CHECK: !vir.vec<?xi8, m2>
         print(s)
         # CHECK: True
         print(ir.Type.parse("!vir.vec<?xi8, m2>") == s)
