@@ -72,7 +72,7 @@ $ export WHISPER_MODEL_PATH=/path-to-whisper-model/
 // For example:
 $ export WHISPER_MODEL_PATH=/home/xxx/whisper-base
 ```
-Alternatively, you can leave the path blank, and import-whisper.py will automatically download the model for you.
+Alternatively, you can leave the path blank, and import_whisper.py will automatically download the model for you.
 
 4. Build and run the WHISPER example
 

@@ -33,7 +33,7 @@ seeds, repeated clears, clearing after MMA, subsequent MMA, inactive elements,
 padding, and guards. Its separate no-clear image fails as expected. This
 compiler change does not extend those board measurements to larger tiles.
 
-`tests/Conversion/BOSCAME/ame-zero-acc.py` checks the production encoder,
+`tests/Conversion/BOSCAME/ame_zero_acc.py` checks the production encoder,
 rejects unequal register fields, checks fence insertion, and executes exact
 tile semantics with poisoned SPM and guarded output. It additionally covers
 4×40, 32×64, and 64×64 by simulation. Dialect, lowering/LLVM/assembly, and

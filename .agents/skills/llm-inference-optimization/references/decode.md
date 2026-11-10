@@ -49,7 +49,7 @@ costs little more than one row:
   several times a one-row step, which makes speculation a loss (measured
   case: `spacemit-k3-rejected-ideas.md`). A matrix unit that computes
   several rows per instruction anyway is the right tool for verification.
-- Estimate acceptance before building: `scripts/prompt-lookup-sim.py` on
+- Estimate acceptance before building: `scripts/prompt_lookup_sim.py` on
   greedy outputs of realistic prompts. Exclude degenerate repetition loops
   (they inflate acceptance). Long reasoning outputs accept more than short
   ones.

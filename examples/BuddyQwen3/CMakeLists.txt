@@ -27,7 +27,7 @@ add_custom_command(
           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_0_6b.mlir
           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_0_6b.mlir
           ${CMAKE_CURRENT_BINARY_DIR}/arg0_0_6b.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-qwen3.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import_qwen3.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
           --precision f32
   DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}

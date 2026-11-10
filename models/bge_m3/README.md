@@ -26,7 +26,7 @@ vector from the encoder output and applies L2 normalization before printing the
 Use the same `tools/buddy-codegen/build_model.py` entry point as the other
 packaged models. It reads `model_family = "bge_m3"` from the spec, configures
 CMake through `buddy_add_model(MODEL_KIND single_forward)` with BGE-M3's own
-importer/manifest generator (`codegen/import-bge-m3.py` /
+importer/manifest generator (`codegen/import_bge_m3.py` /
 `codegen/gen_bge_m3_manifest.py`, the same pluggable
 `IMPORT_SCRIPT`/`MANIFEST_SCRIPT` mechanism Whisper uses), compiles and links
 the kernels, builds the runner plugin, and stages `bge_m3.rax`:

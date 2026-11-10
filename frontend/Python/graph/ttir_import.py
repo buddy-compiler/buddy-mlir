@@ -296,7 +296,7 @@ def append_ttir_forward_with_packed_weights(
     defines ``subgraph_func_name`` (e.g. ``subgraph0``).
 
     This mirrors the native Buddy LeNet split: one 1-D packed weight buffer
-    (same layout as ``arg0.data`` from ``buddy-lenet-import.py``) plus the
+    (same layout as ``arg0.data`` from ``buddy_lenet_import.py``) plus the
     user input tensor, unpack weights with ``ttir.slice_static`` / ``ttir.reshape``,
     then ``func.call`` the subgraph.
 

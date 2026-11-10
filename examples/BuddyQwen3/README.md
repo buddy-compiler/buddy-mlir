@@ -72,7 +72,7 @@ $ export Qwen3_0_6B_MODEL_PATH=/path-to-qwen3-model/
 // For example:
 $ export QWEN3_0_6B_MODEL_PATH=/home/xxx/QWEN3_0_6B_MODEL
 ```
-Alternatively, you can leave the path blank, and import-qwen3.py will automatically download the model for you.
+Alternatively, you can leave the path blank, and import_qwen3.py will automatically download the model for you.
 
 4. Build and run the QWEN3 example
 

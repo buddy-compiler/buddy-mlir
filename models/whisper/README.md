@@ -16,7 +16,7 @@ conda run -n buddy-mlir python tools/buddy-codegen/build_model.py \
 ```
 
 `build_model.py` is a CMake wrapper; the model import itself is performed by
-`models/whisper/codegen/import-whisper.py`. The importer requires PyTorch,
+`models/whisper/codegen/import_whisper.py`. The importer requires PyTorch,
 Transformers, and the Buddy Python package, and generates the MLIR and parameter
 data consumed by the native build.
 

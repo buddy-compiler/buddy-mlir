@@ -74,7 +74,7 @@ $ export GEMMA4_E2B_MODEL_PATH=/path-to-gemma4-model/
 // For example:
 $ export GEMMA4_E2B_MODEL_PATH=/home/xxx/gemma-4-E2B-it
 ```
-Alternatively, you can leave the path blank, and import-gemma4.py will automatically download the model for you.
+Alternatively, you can leave the path blank, and import_gemma4.py will automatically download the model for you.
 
 4. Build and run the Gemma4 example
 

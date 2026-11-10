@@ -19,7 +19,7 @@ buddy_add_model(
   RUNNER_PLUGIN_SRC YoloV8RunnerPlugin.cpp
   LOCAL_MODEL "${BUDDY_YOLOV8_CHECKPOINT}"
   LOCAL_MODEL_ENV YOLOV8_MODEL_PATH
-  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-yolov8.py"
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import_yolov8.py"
   LOWER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/lower_to_obj.sh"
   MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_yolov8_manifest.py"
   MODEL_SO_NAME yolov8_model.so

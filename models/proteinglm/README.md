@@ -138,7 +138,7 @@ runner and packer are updated to resolve it portably.
 ## Key Files
 
 - `specs/base.json`: model family, shape, vocab, and artifact names
-- `codegen/import-proteinglm.py`: PyTorch import to `forward.mlir`,
+- `codegen/import_proteinglm.py`: PyTorch import to `forward.mlir`,
   `subgraph0.mlir`, and `arg0.data`
 - `codegen/gen_proteinglm_manifest.py`: RHAL manifest generation
 - `ProteinGLMRunner.cpp`: runtime loading, tokenization, forward call, top-k

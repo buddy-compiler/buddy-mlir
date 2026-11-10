@@ -1,8 +1,8 @@
 // RUN: buddy-opt %s --lower-bosc-ame | buddy-translate --buddy-to-llvmir > %t.ll
 // RUN: llc -mtriple=riscv64 -mattr=+m,+a,+f,+d,+c,-v,+xboscame -verify-machineinstrs < %t.ll > %t.nov.s
 // RUN: llc -mtriple=riscv64 -mattr=+m,+a,+f,+d,+c,+v,+xboscame -verify-machineinstrs < %t.ll > %t.v.s
-// RUN: %PYTHON %S/Inputs/check-ordered-tiles.py %t.nov.s
-// RUN: %PYTHON %S/Inputs/check-ordered-tiles.py %t.v.s
+// RUN: %PYTHON %S/Inputs/check_ordered_tiles.py %t.nov.s
+// RUN: %PYTHON %S/Inputs/check_ordered_tiles.py %t.v.s
 
 // Two defining clears and loop-carried ACCs must remain distinct. A is reused
 // across the two MMAs; loading B1 must not overwrite B0 before its MMA. All

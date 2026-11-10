@@ -45,10 +45,10 @@ platform gets optimization work.
 
 ## Scripts
 
-- `scripts/spacemit-k3-w4-kernel-bench.py`: builds the `w4g32` matmul
+- `scripts/spacemit_k3_w4_kernel_bench.py`: builds the `w4g32` matmul
   kernels for 1..N rows and the decode attention for a board
   microbenchmark (template for other kernels and targets).
-- `scripts/prompt-lookup-sim.py`: estimates speculative decoding with
+- `scripts/prompt_lookup_sim.py`: estimates speculative decoding with
   prompt lookup from greedy outputs (tokens accepted per verification step,
   speedup for a given verification cost).
 - `performance-optimization/scripts/ab_cli.py`: model-level A/B.
