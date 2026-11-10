@@ -28,7 +28,7 @@ buddy_add_model(
   RUNNER_HDR include/buddy/runtime/models/ProteinGLMRunner.h
   LOCAL_MODEL "${BUDDY_PROTEINGLM_MODEL_PATH}"
   LOCAL_MODEL_ENV PROTEINGLM_MODEL_PATH
-  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-proteinglm.py"
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import_proteinglm.py"
   MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_proteinglm_manifest.py"
   MODEL_SO_NAME proteinglm_model.so
   ASSET_FILES

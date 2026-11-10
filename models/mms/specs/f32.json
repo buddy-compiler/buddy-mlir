@@ -8,6 +8,7 @@
   "max_seq_len": 30,
   "hidden_size": 192,
   "flow_size": 192,
+  "sample_rate": 16000,
   "spectrogram_bins": 513,
   "upsample_rates": [8, 8, 2, 2],
   "num_hidden_layers": 6,

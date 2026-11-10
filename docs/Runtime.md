@@ -168,6 +168,62 @@ build-runtime/bin/rax-inspect <file.rax>
 
 ---
 
+## Shared generation API
+
+`buddy_runtime_llm` provides `runServingGeneration` through
+`buddy/runtime/llm/ServingGeneration.h`. Callers supply either an `LLMSession`
+with host sampling or a `ServingTokenSource` whose callbacks perform execution
+and token selection. A `ServingTextCodec` supplies complete prompt encoding,
+raw token bytes, the context length, and an optional decodable vocabulary prefix.
+Encoding must preserve the prompt; adapters apply templates and merge model
+stop IDs into `SamplingParams::stopTokenIds` before calling the controller.
+Token sources must reject sampling options they cannot implement.
+
+`SamplingParams::maxNewTokens` limits newly selected tokens, including the first
+prediction and EOS/stop tokens. Zero performs prefill without selecting a token;
+`-1` uses the remaining context. Oversized prompts are rejected without
+truncation or context shifting. Usage counts the full prompt and every selected
+token, including stop tokens whose bytes are omitted from the returned content.
+String stops match raw bytes across token boundaries before UTF-8 decoding;
+incomplete trailing text is repaired when output is finished.
+
+`seedPolicy` selects random sampling or an explicit `fixedSeed`, including zero.
+It is independent of the legacy `SamplerConfig::seed` convention; `UINT32_MAX`
+is reserved for random selection. The host sampler uses the existing sampling
+formulas and applies repetition penalties to unique IDs in the requested
+history window. Sampling scalars, stop strings, static codec configuration, and
+required callback presence are validated before any source or codec callback
+runs. The controller then resets the source before token validation, encoding,
+and prefill. After these checks, cancellation or an exception, including an
+initial reset failure, triggers a best-effort cleanup reset. The source must
+support repeated reset attempts after partial failure. Cleanup failures
+preserve the original exception but do not guarantee source reuse.
+
+Streaming callbacks receive deltas and a terminal summary. Returning false
+from a delta cancels immediately without a terminal summary. Returning false
+from the terminal summary resets the source but keeps the finalized result
+and its Stop/Length reason consistent with that summary.
+Callback exceptions propagate after cleanup.
+
+For `runServingGeneration`, `prefillMs` includes prefill execution and the first
+token selection; a zero token budget measures prefill alone. `decodeMs` sums
+each subsequent decode and its token selection. `tokensPerSecond` is the number
+of these subsequent selected tokens times 1000 divided by `decodeMs`, or zero
+if no decode occurs or elapsed decode time is zero. EOS/stop tokens count as
+selection work, and cancellation retains the work already completed. For
+example, selecting two tokens with 12 ms of prefill/first selection and 8 ms of
+decode/second selection reports 125 tokens/s. Timings include work inside these
+source callbacks but exclude reset, codec calls, controller-side token
+validation, text/stop processing, and transport callbacks. They are not HTTP
+end-to-end throughput.
+
+The existing `runGeneration` API continues to provide the CLI's historical
+total-token budget and stdout/JSONL behavior. Production CLI and server entry
+points retain their existing generation paths; `runServingGeneration` is an
+additional library interface.
+
+---
+
 ## Perplexity
 
 `buddy-cli --perplexity <ids>` reports the perplexity of a model over a file of

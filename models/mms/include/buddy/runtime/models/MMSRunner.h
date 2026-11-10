@@ -19,6 +19,9 @@
 
 #include "buddy/runtime/core/InferenceRunner.h"
 
+#include <memory>
+#include <vector>
+
 namespace buddy {
 namespace runtime {
 
@@ -28,7 +31,19 @@ namespace runtime {
 /// (spectrogram latent -> waveform).  See MMSRunner.cpp for the ABI.
 class MMSRunner : public InferenceRunner {
 public:
+  MMSRunner();
+  ~MMSRunner() override;
+
+  /// Load once and reuse the same weights and compiled kernel for serving.
+  void load(const RunConfig &cfg);
+  std::vector<float> synthesize(const float *latents, size_t count);
+  size_t latentCount() const;
+  unsigned sampleRate() const;
   void run(const RunConfig &cfg) override;
+
+private:
+  struct State;
+  std::unique_ptr<State> state;
 };
 
 } // namespace runtime

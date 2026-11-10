@@ -58,3 +58,29 @@ func.func @set_vl_block_arg(%o: memref<2x8xf32>) {
   }) : (index) -> ()
   return
 }
+
+// -----
+
+// The region has one block: the lowerings lower the ops of a single block.
+func.func @set_vl_two_blocks(%a: memref<8xf32>, %o: memref<8xf32>) {
+  %vl = arith.constant 8 : index
+  // expected-error @below {{'vir.set_vl' op region #0 ('region') failed to verify constraint: region with 1 blocks}}
+  "vir.set_vl"(%vl) ({
+    cf.br ^bb1
+  ^bb1:
+    %x = vir.load %a[] : memref<8xf32> -> !vir.vec<?xf32>
+    vir.store %x, %o[] : !vir.vec<?xf32> -> memref<8xf32>
+    vector.yield
+  }) : (index) -> ()
+  return
+}
+
+// -----
+
+func.func @set_vl_no_block() {
+  %vl = arith.constant 8 : index
+  // expected-error @below {{'vir.set_vl' op region #0 ('region') failed to verify constraint: region with 1 blocks}}
+  "vir.set_vl"(%vl) ({
+  }) : (index) -> ()
+  return
+}

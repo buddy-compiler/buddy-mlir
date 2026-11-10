@@ -15,7 +15,11 @@
 #
 # ===---------------------------------------------------------------------------
 
-"""Local half of the NR FPGA runner.
+"""Local half of the NR FPGA runner: SSH upload, detach remote worker, UART relay.
+
+Inputs: image.bin path plus --fpga and SSH/workdir options (or FPGA_SSH_HOST / FPGA_REMOTE_DIR).
+Outputs: UART on stdout, status on stderr, local copy of result.json/logs; exit 0 on load/capture success.
+When used: Developer machine entry via examples/BOSCAMEFPGA/fpga_run.sh after building a .bin.
 
 Uploads a .bin over one managed SSH session to ssh-host:remote-dir, launches
 the remote worker (fpga_remote.py copied as runner.py), and relays UART bytes

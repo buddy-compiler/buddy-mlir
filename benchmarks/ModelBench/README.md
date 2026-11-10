@@ -49,7 +49,7 @@ python3 benchmarks/ModelBench/run_model_bench.py deepseek-r1 --skip-import --ski
 python3 benchmarks/ModelBench/run_model_bench.py deepseek-r1 --run-only
 ```
 
-The importer follows `examples/BuddyDeepSeekR1/import-deepseek-r1.py`, so
+The importer follows `examples/BuddyDeepSeekR1/import_deepseek_r1.py`, so
 `DEEPSEEKR1_MODEL_PATH` may point at a local HuggingFace model directory.  If it
 is not set, the importer uses `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`.
 

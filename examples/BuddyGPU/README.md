@@ -9,7 +9,7 @@ The `matmul-cubin.mlir` provides a lowered file, in case the pipeline is not wor
 Run the following command to compile and run the program:
 ```
   make buddy-gpu-matmul
-  python run-module-gpu.py --source matmul.mlir --target matmul-cubin.mlir --llvm_dir ../../llvm
+  python run_module_gpu.py --source matmul.mlir --target matmul-cubin.mlir --llvm_dir ../../llvm
 ```
 
 The result should be:
@@ -36,5 +36,5 @@ As the tensorcore doesn't support fp32 computation, the operands are converted t
 ### Profiling
 You need to install nsight compute first.
 ```
-ncu -o profile-result --set full python run-module-gpu.py --source matmul.mlir --target matmul-cubin.mlir --llvm_dir ../../llvm
+ncu -o profile-result --set full python run_module_gpu.py --source matmul.mlir --target matmul-cubin.mlir --llvm_dir ../../llvm
 ```

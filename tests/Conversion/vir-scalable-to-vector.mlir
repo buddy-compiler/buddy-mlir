@@ -71,7 +71,7 @@ func.func @loop(%a: memref<100xf32>, %lb: i8, %ub: i8, %step: i8) {
 // CHECK:   memref.store %[[RS]]
 
 // With a leading static dim, the main and tail loops are inside the loop
-// over that dim.
+// over that dim (serial: %b may overlap %a).
 func.func @copy2d(%a: memref<2x100xf32>, %b: memref<2x100xf32>) {
   %vl = arith.constant 100 : index
   vir.set_vl %vl : index {

@@ -50,8 +50,24 @@ void VIRDialect::registerTypes() {
 // DynamicVectorType
 //===----------------------------------------------------------------------===//
 
-// TODO: Add emit error.
+LogicalResult
+DynamicVectorType::verify(function_ref<InFlightDiagnostic()> emitError,
+                          ArrayRef<int64_t> shape, Type elementType,
+                          ScalingFactorAttr scalingFactor) {
+  // static dims, then the dynamic one
+  if (shape.empty() || shape.back() != ShapedType::kDynamic)
+    return emitError() << "the last dim of a dynamic vector is the dynamic "
+                          "one";
+  for (int64_t dim : shape.drop_back())
+    if (dim <= 0)
+      return emitError() << "the dims before the last one of a dynamic "
+                            "vector are static and positive, not "
+                         << dim;
+  return success();
+}
+
 ::mlir::Type DynamicVectorType::parse(::mlir::AsmParser &parser) {
+  SMLoc loc = parser.getCurrentLocation();
   ::llvm::SmallVector<int64_t> shape;
   ::mlir::Type elementType;
   ScalingFactorAttr scalingFactor;
@@ -97,36 +113,23 @@ void VIRDialect::registerTypes() {
   if (parser.parseType(elementType))
     return {};
 
-  // Parse optional ", <scaling-factor-attr>".
+  // Parse optional ", <scaling-factor>": m2, or the attribute #vir.sf<m2>.
   if (succeeded(parser.parseOptionalComma())) {
+    SMLoc attrLoc = parser.getCurrentLocation();
     ::mlir::Attribute attr;
-    // If attribute is parsed successfully, it must be ScalingFactorAttr.
     auto attrResult = parser.parseOptionalAttribute(attr);
     if (attrResult.has_value()) {
-      if (!llvm::isa<ScalingFactorAttr>(attr)) {
-        return parser.emitError(
-                   parser.getNameLoc(),
-                   "expected scaling attribute of type '#vir.sf<...>'"),
-               ::mlir::Type();
-      }
-      scalingFactor = llvm::cast<ScalingFactorAttr>(attr);
-    } else {
-      llvm::StringRef tok;
-      if (parser.parseKeyword(&tok))
+      if (failed(*attrResult))
         return {};
-
-      StringRef ratio = tok.take_front(1);
-      if (!(ratio == "m" || ratio == "f"))
-        return parser.emitError(parser.getNameLoc(),
-                                "scaling ratio must be 'm' or 'f'"),
+      scalingFactor = llvm::dyn_cast<ScalingFactorAttr>(attr);
+      if (!scalingFactor)
+        return parser.emitError(attrLoc, "expected a scaling factor (e.g. m2 "
+                                         "or #vir.sf<m2>)"),
                ::mlir::Type();
-
-      int64_t val;
-      if (tok.drop_front(1).getAsInteger(10, val))
-        return parser.emitError(parser.getNameLoc(), "invalid scaling value"),
-               ::mlir::Type();
-
-      scalingFactor = ScalingFactorAttr::get(parser.getContext(), ratio, val);
+    } else {
+      scalingFactor = ScalingFactorAttr::parseKeyword(parser);
+      if (!scalingFactor)
+        return {};
     }
   }
 
@@ -134,7 +137,9 @@ void VIRDialect::registerTypes() {
   if (parser.parseGreater())
     return {};
 
-  return DynamicVectorType::get(shape, elementType, scalingFactor);
+  return DynamicVectorType::getChecked([&] { return parser.emitError(loc); },
+                                       parser.getContext(), shape, elementType,
+                                       scalingFactor);
 }
 
 void DynamicVectorType::print(::mlir::AsmPrinter &printer) const {
@@ -160,9 +165,10 @@ void DynamicVectorType::print(::mlir::AsmPrinter &printer) const {
   // Print element type.
   printer << getElementType();
 
-  // Print optional scaling factor attribute.
+  // Print the optional scaling factor as the syntax has it, m2 (not the
+  // attribute, #vir.sf<m2>).
   if (ScalingFactorAttr sf = getScalingFactor()) {
-    printer << ", " << sf;
+    printer << ", " << sf.str();
   }
 
   printer << ">";

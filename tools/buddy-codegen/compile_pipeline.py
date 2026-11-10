@@ -84,39 +84,118 @@ BUFFER_DEALLOCATION = [
 
 # The matrix-engine code of the SpacemiT K3 A100 cores (pipeline
 # "kernels_ime") is written for exactly this VLEN: vscale 16, at which
-# vector<[8]xi8> is one 8 x 16 int8 tile of smt.vmadot.
+# vector<[8]xi8> is one 8 x 16 int8 tile of smt.vmadot. Not a setting: the
+# VLEN of a build is BUDDY_RISCV_VLEN's (in the llc options), which the A100
+# pipelines check against it.
 A100_VLEN = 1024
 
 
-# -lower-vir-to-vector of the generated kernels (the decode attention of the
-# K3 kernels, k3_w4._attn_decode_vir_fn): the vectors of a VIR region sized
-# for the 32 registers of the A100's VLEN, fixed vectors (one vector<128xf32>
-# per head of 128 at LMUL 4).
-KERNELS_LOWER_VIR = (
-    f"-lower-vir-to-vector=rvv-vlen={A100_VLEN} use-scalable=false"
-)
+def rvv_enabled(llc_args: list[str]) -> bool:
+    """Whether the llc options `llc_args` enable RVV by a +v of -mattr (the
+    last of +v / -v, as llc applies them). A V that only an -mcpu implies is
+    not seen: the RVV builds of buddy_model.cmake give +v with the VLEN of
+    BUDDY_RISCV_VLEN (buddy_rvv_vlen.cmake)."""
+    v = [
+        f
+        for a in llc_args
+        if a.startswith("-mattr=")
+        for f in a[len("-mattr=") :].split(",")
+        if f in ("+v", "-v")
+    ]
+    return v[-1:] == ["+v"]
+
+
+def exact_rvv_vlen(llc_args: list[str]) -> int | None:
+    """The exact RVV VLEN of the llc options `llc_args`, or None: not RVV
+    (no +v, rvv_enabled), or no exact VLEN.
+
+    The VLEN options are read as llc reads them: the minimum VLEN is the
+    zvl (+v: 128), or -riscv-v-vector-bits-min when it is positive (-1 and 0
+    leave the zvl); -riscv-v-vector-bits-max is the maximum, 0 none. The VLEN
+    is exact when both are equal. Options that disagree are an error:
+    several +zvlNb, or a -riscv-v-vector-bits-min / -max below the zvl or
+    the max below the min."""
+    features = [
+        f
+        for a in llc_args
+        if a.startswith("-mattr=")
+        for f in a[len("-mattr=") :].split(",")
+    ]
+
+    def option(name):
+        values = {
+            int(a.split("=", 1)[1])
+            for a in llc_args
+            if a.startswith(name + "=")
+        }
+        if len(values) > 1:
+            raise ValueError(f"llc options of several {name}: {sorted(values)}")
+        return next(iter(values), None)
+
+    zvl = {
+        int(m[1]) for f in features if (m := re.fullmatch(r"\+zvl(\d+)b", f))
+    }
+    if len(zvl) > 1:
+        raise ValueError(f"llc options of several VLEN: +zvl{sorted(zvl)}b")
+    vmin = next(iter(zvl), 128 if rvv_enabled(llc_args) else 0)
+    bits_min = option("-riscv-v-vector-bits-min") or -1
+    bits_max = option("-riscv-v-vector-bits-max") or 0
+    for name, bits in (("min", bits_min), ("max", bits_max)):
+        if 0 < bits < vmin:
+            raise ValueError(
+                f"llc options of a -riscv-v-vector-bits-{name}={bits} "
+                f"below the VLEN of +zvl{vmin}b"
+            )
+    vmin = max(vmin, bits_min)
+    if 0 < bits_max < vmin:
+        raise ValueError(
+            f"llc options of a maximum VLEN below the minimum {vmin}: "
+            f"-riscv-v-vector-bits-max={bits_max}"
+        )
+    if not rvv_enabled(llc_args) or vmin != bits_max:
+        return None
+    return vmin
+
+
+def kernels_lower_vir(llc_args: list[str]) -> str:
+    """-lower-vir-to-vector of the generated kernels (the decode attention of
+    the K3 kernels, k3_w4._attn_decode_vir_fn) for the target of the llc
+    options `llc_args`:
+
+    - RVV (+v) of an exact VLEN V (exact_rvv_vlen): scalable vectors for it
+      (rvv-vlen=V; the A100: one vector<[8]xf32> of 128 lanes per head, LMUL
+      4), valid on that VLEN only;
+    - RVV of no exact VLEN: use-scalable without rvv-vlen, code valid on
+      any VLEN (a vir.set_vl with results is rejected);
+    - other targets (x86, Arm NEON; SVE, whose scalable vectors the pass
+      does not size yet): fixed vectors sized for the host's registers.
+
+    VLEN options that disagree are an error (exact_rvv_vlen)."""
+    vlen = exact_rvv_vlen(llc_args)
+    if vlen is not None:
+        return f"-lower-vir-to-vector=rvv-vlen={vlen} use-scalable=true"
+    if not rvv_enabled(llc_args):
+        return "-lower-vir-to-vector"
+    return "-lower-vir-to-vector=use-scalable=true"
 
 
 def a100_llc_args(llc_base_args: list[str]) -> list[str]:
     """llc options of the A100 code, on top of the build's: the IME
-    extension, the exact VLEN (whatever BUDDY_RISCV_VLEN gives the other
-    kernels; an option llc accepts once is not repeated) and the A100
-    scheduling model, top down (it issues the weight load of an IME step
-    first and unpacks it while the activations load)."""
-    vmax = f"-riscv-v-vector-bits-max={A100_VLEN}"
-    given = [
-        a for a in llc_base_args if a.startswith("-riscv-v-vector-bits-max=")
-    ]
-    if any(a != vmax for a in given):
+    extension and the A100 scheduling model, top down (it issues the weight
+    load of an IME step first and unpacks it while the activations load).
+    The build's options must be of the exact VLEN of the A100 (A100_VLEN):
+    the VLEN of a build is set in one place, BUDDY_RISCV_VLEN."""
+    vlen = exact_rvv_vlen(llc_base_args)
+    if vlen != A100_VLEN:
         raise ValueError(
-            f"the A100 IME kernels need VLEN {A100_VLEN}, the build gives "
-            f"{given[-1]}"
+            f"the A100 code needs the exact VLEN {A100_VLEN} "
+            f"(BUDDY_RISCV_VLEN={A100_VLEN}); the build's llc options give "
+            f"{'no exact VLEN' if vlen is None else f'VLEN {vlen}'}"
         )
     return [
-        f"-mattr=+xsmtvdotii,+zvl{A100_VLEN}b",
+        "-mattr=+xsmtvdotii",
         "-mcpu=spacemit-a100",
         "-misched-prera-direction=topdown",
-        *([] if given else [vmax]),
     ]
 
 
@@ -174,6 +253,9 @@ def build_stages(
         # attention at position 900: 332 -> 284 us); the same results.
         ime = pipeline_type == "kernels_ime"
         a100 = pipeline_type != "kernels"
+        llc_args = llc_base_args + (
+            a100_llc_args(llc_base_args) if a100 else []
+        )
         lower = lower_to_llvm(arena)
         i = lower.index("-convert-vector-to-llvm") + 1
         stages.append(
@@ -181,7 +263,7 @@ def build_stages(
                 "buddy-opt",
                 (["-lower-ime=target=k3"] if ime else [])
                 + [
-                    KERNELS_LOWER_VIR,
+                    kernels_lower_vir(llc_args),
                     f"-convert-scf-to-openmp=num-threads={num_threads}",
                     "-expand-strided-metadata",
                     "-convert-vector-to-scf",
@@ -202,9 +284,7 @@ def build_stages(
         stages.append(
             (
                 "llc",
-                llc_base_args
-                + (a100_llc_args(llc_base_args) if a100 else [])
-                + ["-filetype=obj", "-relocation-model=pic", "-O3"],
+                llc_args + ["-filetype=obj", "-relocation-model=pic", "-O3"],
             )
         )
         return stages
@@ -989,6 +1069,13 @@ def main():
     )
     parser.add_argument("--cxx", default="c++", help="C++ compiler for linking")
     parser.add_argument(
+        "--extra-obj",
+        action="append",
+        default=[],
+        help="Another object file to link (repeatable), e.g. the VLEN check "
+        "of runtime/rvv/BuddyRvvVlen.c",
+    )
+    parser.add_argument(
         "--llvm-lib-dir", default="", help="LLVM library directory"
     )
     parser.add_argument(
@@ -1042,7 +1129,7 @@ def main():
                 obj_files.append(os.path.join(args.output_dir, obj_name))
 
             link_shared_lib(
-                obj_files=obj_files,
+                obj_files=obj_files + args.extra_obj,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
@@ -1074,7 +1161,8 @@ def main():
                     args.output_dir,
                     config,
                     prefill_only=args.partitioned_prefill_only,
-                ),
+                )
+                + args.extra_obj,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,

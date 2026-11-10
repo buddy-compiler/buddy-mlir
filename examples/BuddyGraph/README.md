@@ -19,5 +19,5 @@
 3. Run the Examples
 ```
 (buddy)$ cd examples/BuddyGraph
-(buddy)$ python import-dynamo-break.py
+(buddy)$ python import_dynamo_break.py
 ```

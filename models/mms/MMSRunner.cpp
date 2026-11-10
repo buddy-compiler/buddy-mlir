@@ -137,7 +137,20 @@ void loadLatents(const std::string &path, MemRef<float, 3> &latents) {
 
 } // namespace
 
-void MMSRunner::run(const RunConfig &cfg) {
+struct MMSRunner::State {
+  std::unique_ptr<void, decltype(&dlclose)> library{nullptr, &dlclose};
+  ForwardFn forward = nullptr;
+  MemRef<float, 1> params{{1}};
+  size_t maxSeqLen = 0;
+  size_t flowSize = 0;
+  size_t audioBufferSize = 0;
+  unsigned sampleRate = 16000;
+};
+
+MMSRunner::MMSRunner() = default;
+MMSRunner::~MMSRunner() = default;
+
+void MMSRunner::load(const RunConfig &cfg) {
   namespace fs = std::filesystem;
   const bool suppress = cfg.suppressStats;
 
@@ -147,6 +160,7 @@ void MMSRunner::run(const RunConfig &cfg) {
   size_t flowSize = kDefaultFlowSize;
   size_t audioRate = kDefaultAudioRate;
   size_t paramsSize = kDefaultParamsSize;
+  unsigned sampleRate = 16000;
 
   if (!cfg.raxPath.empty()) {
     ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
@@ -160,6 +174,13 @@ void MMSRunner::run(const RunConfig &cfg) {
     flowSize = parseSizeAttr(manifest, "flow_size");
     audioRate = parseSizeAttr(manifest, "audio_rate");
     paramsSize = parseSizeAttr(manifest, "params_size");
+    // Existing CLI-only packages predate this attribute and use the MMS rate.
+    if (manifest.moduleAttrs.count("sample_rate")) {
+      const size_t rate = parseSizeAttr(manifest, "sample_rate");
+      if (rate != 16000)
+        throw std::runtime_error("MMSRunner: expected a 16000 Hz MMS package");
+      sampleRate = static_cast<unsigned>(rate);
+    }
     if (parseSizeAttr(manifest, "audio_buffer_size") !=
         checkedProduct(maxSeqLen, audioRate))
       throw std::runtime_error(
@@ -202,6 +223,60 @@ void MMSRunner::run(const RunConfig &cfg) {
   loadWeights(weightsPath, paramsContainer);
   printLog("Weights loaded", suppress);
 
+  auto loaded = std::make_unique<State>();
+  loaded->library = std::move(handle);
+  loaded->forward = forward;
+  loaded->params = std::move(paramsContainer);
+  loaded->maxSeqLen = maxSeqLen;
+  loaded->flowSize = flowSize;
+  loaded->audioBufferSize = audioBufferSize;
+  loaded->sampleRate = sampleRate;
+  state = std::move(loaded);
+}
+
+size_t MMSRunner::latentCount() const {
+  if (!state)
+    throw std::logic_error("MMSRunner: model is not loaded");
+  return state->flowSize * state->maxSeqLen;
+}
+
+unsigned MMSRunner::sampleRate() const {
+  if (!state)
+    throw std::logic_error("MMSRunner: model is not loaded");
+  return state->sampleRate;
+}
+
+std::vector<float> MMSRunner::synthesize(const float *input, size_t count) {
+  if (!input || count != latentCount())
+    throw std::invalid_argument(
+        "MMSRunner: latents must match 1 x flow_size x max_seq_len");
+  for (size_t i = 0; i < count; ++i)
+    if (!std::isfinite(input[i]))
+      throw std::invalid_argument("MMSRunner: latents must be finite float32");
+  MemRef<float, 3> latents(input, {1, state->flowSize, state->maxSeqLen});
+  MemRef<float, 2> waveform({1, state->audioBufferSize}, false, 0);
+  state->forward(&waveform, &state->params, &latents);
+  if (waveform.getSizes()[0] != 1 ||
+      waveform.getSizes()[1] != static_cast<intptr_t>(state->audioBufferSize) ||
+      waveform.getStrides()[1] != 1 || !waveform.getData())
+    throw std::runtime_error(
+        "MMSRunner: compiled waveform has an unexpected shape or layout");
+  std::vector<float> result(state->audioBufferSize);
+  for (size_t i = 0; i < result.size(); ++i) {
+    result[i] = waveform[i];
+    if (!std::isfinite(result[i]))
+      throw std::runtime_error(
+          "MMSRunner: compiled waveform contains non-finite values");
+  }
+  return result;
+}
+
+void MMSRunner::run(const RunConfig &cfg) {
+  load(cfg);
+  const bool suppress = cfg.suppressStats;
+  const size_t maxSeqLen = state->maxSeqLen;
+  const size_t flowSize = state->flowSize;
+  const size_t audioBufferSize = state->audioBufferSize;
   // Latent spectrogram input (1 x flow_size x max_seq_len).
   MemRef<float, 3> latents({1, flowSize, maxSeqLen});
   if (!cfg.prompt.empty()) {
@@ -212,20 +287,14 @@ void MMSRunner::run(const RunConfig &cfg) {
     std::fill(latents.getData(), latents.getData() + latents.getSize(), 0.0f);
   }
 
-  MemRef<float, 2> waveform({1, audioBufferSize}, false, 0);
-
   const auto t0 = std::chrono::high_resolution_clock::now();
   printLog("Calling _mlir_ciface_forward", suppress);
-  forward(&waveform, &paramsContainer, &latents);
+  const auto waveform = synthesize(latents.getData(), latents.getSize());
   const auto t1 = std::chrono::high_resolution_clock::now();
   printLog("Forward complete", suppress);
 
   const double seconds = std::chrono::duration<double>(t1 - t0).count();
-  const float *data = waveform.getData();
-  if (!data || waveform.getSizes()[0] != 1 ||
-      waveform.getSizes()[1] != static_cast<intptr_t>(audioBufferSize))
-    throw std::runtime_error(
-        "MMSRunner: compiled waveform has an unexpected shape");
+  const float *data = waveform.data();
 
   if (!suppress) {
     std::cerr << "\033[33;1mMMS Vocoder Output\033[0m\n";
@@ -237,7 +306,7 @@ void MMSRunner::run(const RunConfig &cfg) {
 
   // Emit a compact JSON summary of the generated waveform.
   double min = 0.0, max = 0.0, sum = 0.0, sumSq = 0.0;
-  size_t n = waveform.getSize();
+  size_t n = waveform.size();
   if (n > 0) {
     min = max = data[0];
     for (size_t i = 0; i < n; ++i) {

@@ -15,6 +15,7 @@ spec_path = root / "models/mms/specs/f32.json"
 spec = json.loads(spec_path.read_text())
 
 with tempfile.TemporaryDirectory() as directory:
+    directory = str(Path(directory).resolve())
     result = subprocess.run(
         [
             sys.executable,
@@ -45,6 +46,7 @@ for attribute, value in (
     ("flow_size", spec["flow_size"]),
     ("params_size", spec["params_size"]),
     ("audio_rate", 256),
+    ("sample_rate", 16000),
     ("audio_buffer_size", spec["max_seq_len"] * 256),
 ):
     assert f'{attribute} = "{value}"' in manifest, attribute
@@ -81,6 +83,26 @@ manifest_cli = subprocess.run(
 )
 assert manifest_cli.stdout == with_dependencies
 
+server_manifest = generator.gen_manifest(
+    spec, "mms_runner.so", model_library="mms_server.so"
+)
+assert 'model_library = "file:mms_server.so"' in server_manifest
+assert "model_library" not in manifest
+server_cli = subprocess.run(
+    [
+        sys.executable,
+        str(root / "models/mms/codegen/gen_mms_manifest.py"),
+        "--spec",
+        str(spec_path),
+        "--model-library",
+        "mms_server.so",
+    ],
+    text=True,
+    capture_output=True,
+    check=True,
+)
+assert server_cli.stdout == server_manifest
+
 # A second input length must change both the runtime metadata and the ABI.
 short_spec = dict(spec, max_seq_len=7)
 short_manifest = generator.gen_manifest(short_spec, "mms_runner.so")
@@ -93,6 +115,8 @@ for changes in (
     {"max_seq_len": 0},
     {"flow_size": -1},
     {"params_size": 0},
+    {"sample_rate": 22050},
+    {"sample_rate": 16000.0},
     {"upsample_rates": []},
     {"upsample_rates": [8, 8, 0, 2]},
 ):

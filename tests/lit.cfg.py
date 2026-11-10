@@ -1,6 +1,8 @@
 # -*- Python -*-
 
 import os
+import platform
+import re
 
 import lit.formats
 import lit.util
@@ -49,6 +51,20 @@ for candidate in openmp_runtime_candidates:
 config.openmp_runtime_dir = openmp_runtime_dir
 config.substitutions.append(("%openmp_runtime_dir", config.openmp_runtime_dir))
 
+# A RISC-V host with the vector extension (V in the base ISA of
+# /proc/cpuinfo): tests that run RVV code natively.
+if platform.machine() == "riscv64":
+    try:
+        with open("/proc/cpuinfo") as f:
+            isa = next(
+                (l.split(":", 1)[1].strip() for l in f if l.startswith("isa")),
+                "",
+            )
+        if re.match(r"rv64[a-z]*v", isa.split("_")[0]):
+            config.available_features.add("riscv-vector")
+    except OSError:
+        pass
+
 llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 
 llvm_config.use_default_substitutions()
@@ -74,7 +90,11 @@ config.test_exec_root = os.path.join(config.buddy_obj_root, "tests")
 # config.buddy_tools_dir = os.path.join(config.buddy_obj_root, 'bin')
 
 # Tweak the PATH to include the tools dir.
+llvm_config.with_environment("PATH", config.buddy_tools_dir, append_path=True)
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
+config.environment["BUDDY_OPT"] = os.path.join(
+    config.buddy_tools_dir, "buddy-opt"
+)
 
 # So The execution engine in frontend can find out-of-tree llvm librarys
 config.environment["LLVM_LIBS_DIR"] = config.mlir_runner_utils_dir
@@ -83,6 +103,7 @@ config.environment["BUDDY_SRC_ROOT"] = config.buddy_src_root
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     "buddy-opt",
+    "buddy-kernel-contract-policy-test",
     "buddy-translate",
     "buddy-llc",
     "buddy-container-test",
@@ -92,6 +113,8 @@ tools = [
     "buddy-sampler-test",
     "buddy-perplexity-test",
     "buddy-text-generation-test",
+    "buddy-legacy-generation-test",
+    "buddy-serving-generation-test",
     "mlir-runner",
 ]
 

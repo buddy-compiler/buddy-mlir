@@ -18,9 +18,16 @@ buddy_add_model(
   SPEC "${BUDDY_MMS_SPEC}"
   RUNNER_SRC MMSRunner.cpp
   RUNNER_PLUGIN_SRC MMSRunnerPlugin.cpp
+  MODEL_PLUGIN_SRC MMSServerModelPlugin.cpp
   LOCAL_MODEL "${BUDDY_MMS_MODEL_PATH}"
   LOCAL_MODEL_ENV MMS_MODEL_PATH
   IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-mms.py"
   MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_mms_manifest.py"
   MODEL_SO_NAME mms_model.so
 )
+
+# Explicit real-data validation; this target does not substitute a model fixture.
+if(BUDDY_ENABLE_TESTS)
+  add_executable(mms-server-abi-test validate_server_abi.cpp)
+  target_link_libraries(mms-server-abi-test PRIVATE buddy-server-core)
+endif()

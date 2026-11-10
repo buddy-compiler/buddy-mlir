@@ -36,7 +36,7 @@ Measure before optimizing for it, and write
    several cores per cluster).
 3. Instructions: throughput and latency of the vector / matrix instructions
    the kernels use, at the element widths and register groupings they use
-   (`scripts/spacemit-k3-insn-bench.py` is a template).
+   (`scripts/spacemit_k3_insn_bench.py` is a template).
 4. On-chip memories and DMA engines: size, who can reach them at what cost,
    how user space gets them.
 

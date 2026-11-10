@@ -200,15 +200,15 @@ class RVV_BinaryAAXNoMask_IntrOp<string mnemonic,
 def RVVIntrSetVlIOp : RVV_VSetVlI_IntrOp<"vsetvli">,
   Arguments<(ins AnyInteger, AnyInteger, AnyInteger)>;
 def RVVIntrLoadEleOp : RVV_USLoad_IntrOp<"vle">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, LLVM_AnyPointer, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, LLVM_AnyPointer, AnyInteger)>;
 def RVVIntrStoreEleOp : RVV_USStore_IntrOp<"vse">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, LLVM_AnyPointer, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, LLVM_AnyPointer, AnyInteger)>;
 def IntrFrsqrt7Op : RVV_UnaryNoMask_IntrOp<"vfrsqrt7">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, ScalableVectorOfAnyRank<[AnyType]>, AnyInteger)>;
 
 def RVVIntrAddOp : RVV_BinaryAAXNoMask_IntrOp<"vadd">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, ScalableVectorOfAnyRank<[AnyType]>, AnyType, AnyInteger)>;
 def RVVIntrMulOp : RVV_BinaryAAXNoMask_IntrOp<"vmul">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, ScalableVectorOfAnyRank<[AnyType]>, AnyType, AnyInteger)>;
 
 #endif // RVV_OPS

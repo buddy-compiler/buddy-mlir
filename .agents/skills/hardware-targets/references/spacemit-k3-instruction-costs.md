@@ -1,7 +1,7 @@
 # SpacemiT K3 A100: instruction costs
 
 Measured October 2026 on one A100 core (AI process mode) with
-`scripts/spacemit-k3-insn-bench.py`: loops of 16 instructions, independent
+`scripts/spacemit_k3_insn_bench.py`: loops of 16 instructions, independent
 destinations unless noted; ns per instruction.
 
 ## RVV, e32, LMUL 4 (one `vector<128xf32>` at VLEN 1024)
@@ -43,3 +43,43 @@ LMUL 8: fewer, larger loads are better.
   core alone; ~62.8 ns per group in the 8-core model prefill with the
   activations in TCM; 101.7 ns with everything in DDR; 56.9 ns with
   everything in TCM.
+- `smt.vfwmadot` (fp16 8 x 8 times 8 x 8 into f32, 512 multiply-adds;
+  `ime.intr.vfmadot`): 0.557 ns per instruction with 12 independent
+  accumulators on one core (~920 multiply-adds per ns), 5.57 ns as a
+  dependent chain; 1.11 ns each when both cores of a pair run it, 0.557
+  ns on cores of different pairs. `smt.vmadot` (int8) also 0.557 ns.
+- A tile with one LMUL-4 and one LMUL-8 load per 16 `vfwmadot` (1.5 KiB):
+  1.97 ns per `vfwmadot` on one core, 4.3 ns on 4 or 8 cores (the cluster
+  load path): convolutions on the IME are bound by their operand loads,
+  not by the matrix unit (`models/yolov8`, ~55 ns per K step of 768 bytes
+  and 8 `vfwmadot` with 8 cores).
+
+## Memory access patterns and others (October 2026, one A100 core)
+
+| Operation | ns |
+| --- | --- |
+| `vle64.v` m2 (32 e64, contiguous) | 7.9 |
+| `vluxei64.v` m2 (32-element gather) | 306 |
+| `vlse64.v` (16 e64, stride 32 bytes) | 151 |
+| `vlsseg2e64.v` (8 segments, stride 32 bytes) | 89 |
+| `vcompress.vm` e64 m2 | 80 |
+| `vrgather.vv` e64 m1 | 38.5 |
+| `vsse16.v` (64 e16, stride 64 bytes) | 82 |
+| `vsseg8e16.v` (8 x 64 e16) | 289 |
+| `vlseg8e32.v` (8 x 32 e32) | 2425 |
+| `vsuxei64.v` e32 m2, lanes 8 at a time contiguous | 90 |
+| `vsuxei64.v` e32 m2, every lane in another 6.4 KB plane | 676 |
+| `vfdiv.vv` e32 m2 | 26.8 |
+| `vfmul.vv` e32 m2 | 2.8 |
+| `vfrec7.v` e32 m2 | 4.5 |
+
+- Indexed and strided accesses cost ~2-10 ns per element: lay data out so
+  that kernels load and store contiguously (`models/yolov8`: column-parity
+  split for stride 2, space-to-depth for the first layer).
+- An indexed store's cost follows the cache lines its lanes touch; order the
+  lanes so that neighbours are contiguous. `llvm.masked.scatter` lowers to
+  the ordered `vsoxei`; the RVV intrinsic `llvm.riscv.vsuxei.mask` is
+  unordered.
+- `vfdiv` is ~10 multiplies: `vfrec7` and Newton steps are cheaper.
+- `arith.maximumf` / `minimumf` lower to NaN-propagating sequences
+  (`vmfeq` + `vmerge`); `maxnumf` / `minnumf` to one `vfmax` / `vfmin`.

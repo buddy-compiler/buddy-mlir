@@ -66,6 +66,9 @@ def VIR_DynamicVectorType : TypeDef<VIR_Dialect, "DynamicVector",
     vec<?xf64, f2>
     vec<?xf32, m2>
     ```
+
+    The scaling factor is printed as above; `#vir.sf<m2>` (the attribute)
+    is also accepted.
   }];
 
   let parameters = (ins
@@ -89,6 +92,7 @@ def VIR_DynamicVectorType : TypeDef<VIR_Dialect, "DynamicVector",
   ];
 
   let hasCustomAssemblyFormat = 1;
+  let genVerifyDecl = 1;
 
   let extraClassDeclaration = [{
     /// Returns if this type is ranked (always true).

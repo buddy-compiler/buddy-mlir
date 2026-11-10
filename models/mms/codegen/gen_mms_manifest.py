@@ -44,6 +44,7 @@ def gen_manifest(
     runner_library: str,
     dep_shared_libs: list[str] | None = None,
     version: str = "0.1.0",
+    model_library: str | None = None,
 ) -> str:
     model_family = spec["model_family"]
     variant = spec.get("variant", "f32")
@@ -62,6 +63,9 @@ def gen_manifest(
     for r in upsample_rates:
         audio_rate *= r
     audio_buffer_size = max_seq_len * audio_rate
+    sample_rate = spec.get("sample_rate", 16000)
+    if type(sample_rate) is not int or sample_rate != 16000:
+        raise ValueError("MMS requires a 16000 Hz sample rate")
     so_name = spec.get("so_name", f"{model_family}_model.so")
     weight_file = spec.get("weight_file", "arg0.data")
 
@@ -74,6 +78,9 @@ def gen_manifest(
     p(f'    flow_size = "{flow_size}",')
     p(f'    params_size = "{params_size}",')
     p(f'    audio_rate = "{audio_rate}",')
+    p(f'    sample_rate = "{sample_rate}",')
+    if model_library:
+        p(f'    model_library = "{normalize_uri(model_library)}",')
     p(f'    audio_buffer_size = "{audio_buffer_size}",')
     p(f'    runner_library = "{normalize_uri(runner_library)}"}} {{')
     p("")
@@ -118,6 +125,7 @@ def main() -> int:
     )
     parser.add_argument("--spec", required=True)
     parser.add_argument("--runner-library", default="mms_runner.so")
+    parser.add_argument("--model-library")
     parser.add_argument("--version", default="0.1.0")
     parser.add_argument("--dep-shared-lib", action="append", default=[])
     parser.add_argument("-o", "--output", default="-")
@@ -127,7 +135,11 @@ def main() -> int:
         spec = json.load(f)
 
     text = gen_manifest(
-        spec, args.runner_library, args.dep_shared_lib, args.version
+        spec,
+        args.runner_library,
+        args.dep_shared_lib,
+        args.version,
+        args.model_library,
     )
 
     if args.output == "-":

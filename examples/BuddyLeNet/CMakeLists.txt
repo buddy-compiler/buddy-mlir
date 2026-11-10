@@ -2,7 +2,7 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/buddy-lenet-import.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/buddy_lenet_import.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"

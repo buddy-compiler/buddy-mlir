@@ -59,7 +59,12 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     yielded. Dynamic vectors may be loop-carried values of those loops.
     The lowering splits each dynamic vector into vl / w vectors of the
     target width w and vl % w scalars; a `vir.reduce` combines them in that
-    order.
+    order. With `reassoc`, its vectors are first added lane by lane, as
+    LLVM splits the reduction of a vector wider than its registers (n
+    pieces widened to the next power of two h, piece p added to piece
+    p + h / 2 if there is one, until one is left), then reduced once: one
+    horizontal reduction, and, when vl is a multiple of w, the bits of
+    `vector.reduction` of the whole vector as LLVM lowers it.
 
     The dynamic vectors of a region with results have one static layout,
     e.g. `!vir.vec<2x?xf32>`: a dynamic vector holds its rows of vl lanes
@@ -69,11 +74,13 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     does; the memref must hold the rows one after the other (its last dim
     has vl elements, the dims between match the layout), so that an access
     is one access of rows * vl lanes.
+
+    The region has one block, without arguments.
   }];
   let arguments = (ins Index:$vl);
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
-  // TODO: Determine the region limitation.
-  let regions = (region AnyRegion:$region);
+  // one block: the lowerings lower the ops of a single block
+  let regions = (region SizedRegion<1>:$region);
   // the lowering maps the values of the region, not entry block arguments
   let hasVerifier = 1;
 
@@ -178,8 +185,11 @@ def VIR_ShuffleOp : VIR_Op<"shuffle",
     per row. RoPE's rotate_half of a head as two rows `x` is
     `vir.shuffle %neg_x, %x [1, 2]`, i.e. `[-x[1], x[0]]`.
 
-    It is only supported in a `vir.set_vl` with results, whose dynamic
-    vectors must lower to one vector each.
+    It is only supported in a `vir.set_vl` with results. With fixed vectors,
+    each dynamic vector of the region lowers to one vector of all its lanes;
+    with scalable vectors, every lane is known (vscale = rvv-vlen / 64) and
+    a dynamic vector can lower to several vectors (pieces): the rows move
+    between them.
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$v1,

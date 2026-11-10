@@ -17,7 +17,7 @@
 # Prepare the host-side artifacts required by the native C++ TT runtime.
 #
 # We re-run the Buddy ``DynamoCompiler`` for prefill and decode under the
-# same configuration as ``buddy-llama31-lower-ttir.py --static-cache
+# same configuration as ``buddy_llama31_lower_ttir.py --static-cache
 # --max-cache-len 1024``, then snapshot for each phase:
 #
 #   - ``slot_roles.json``: per-``@subgraph0``-input role tag.  Roles include
@@ -108,7 +108,7 @@ def _parse_args() -> argparse.Namespace:
         "--full-align-wrapper",
         action="store_true",
         help=(
-            "Prepare artifacts for buddy-llama31-lower-ttir.py "
+            "Prepare artifacts for buddy_llama31_lower_ttir.py "
             "--full-align-wrapper. This uses the explicit StaticCache wrapper "
             "and official-alignment graph flags."
         ),
@@ -483,7 +483,7 @@ def _make_static_cache(
 
 
 class _FullLMAlignedWrapper(torch.nn.Module):
-    """Mirror of buddy-llama31-lower-ttir.py::_FullLMAlignedWrapper."""
+    """Mirror of buddy_llama31_lower_ttir.py::_FullLMAlignedWrapper."""
 
     def __init__(self, inner: torch.nn.Module) -> None:
         super().__init__()
@@ -528,7 +528,7 @@ class _FullLMAlignedWrapper(torch.nn.Module):
 
 
 class _ArgmaxHeadWrapper(torch.nn.Module):
-    """Mirror of buddy-llama31-lower-ttir.py::_ArgmaxHeadWrapper.
+    """Mirror of buddy_llama31_lower_ttir.py::_ArgmaxHeadWrapper.
 
     Keeps placeholder ordering identical between the lowering script (which
     produced the flatbuffer) and this prepare step (which dumps weights and

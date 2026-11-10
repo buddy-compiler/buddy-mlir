@@ -1,5 +1,19 @@
-//====-- BOSCAME.td - BOSCAME dialect operation definitions --- tablegen --===//
+//===- BOSCAME.td - BOSCAME dialect operation definitions -----------------===//
 //
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+
 // This SSA-based version models BOSC AME matrix registers as MLIR matrix tile
 // values. Physical TR/ACC register numbers are intentionally absent here; they
 // are selected later by LLVM instruction selection and register allocation.
@@ -9,6 +23,7 @@
 #ifndef BOSCAME_DIALECT
 #define BOSCAME_DIALECT
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -22,11 +37,22 @@ include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 def BOSCAME_Dialect : Dialect {
   let name = "bosc_ame";
   let cppNamespace = "::buddy::boscame";
+  // The SPM/DMA operations carry their configuration as inherent attributes
+  // (`channel`, `bank`, `offset`, ...) and expose them through `attr-dict`.
+  // LLVM 3845a205 turned `useStrictPropertiesInAssemblyFormat` on by default,
+  // which rejects that combination; keep the documented legacy behaviour so
+  // the existing custom assembly formats (and their tests) stay valid until
+  // they are migrated to `prop-dict`.
+  let useStrictPropertiesInAssemblyFormat = 0;
   let description = [{
     The BOSCAME dialect provides operations for the RISC-V Matrix Extension (RVA23 profile).
     BOSCAME provides matrix multiply-accumulate instructions with tile-based computation,
     supporting various data types and widening modes for AI/ML workloads.
   }];
+  // `#bosc_ame.spm<bank>` and `!bosc_ame.dma_token<channel>` use the generic
+  // attribute/type printers driven by their own `assemblyFormat`.
+  let useDefaultAttributePrinterParser = 1;
+  let useDefaultTypePrinterParser = 1;
 }
 
 // High-level BOSC AME tiles are ordinary MLIR vectors.  For example,
@@ -41,6 +67,459 @@ def BOSCAME_MatrixType : Type<
 
 class BOSCAME_Op<string mnemonic, list<Trait> traits = []> :
   Op<BOSCAME_Dialect, mnemonic, traits> {}
+
+//===----------------------------------------------------------------------===//
+// SPM storage space and DMA request handle
+//===----------------------------------------------------------------------===//
+
+// Memory space attribute attached to a `memref` type.  It answers "where do
+// these bytes live", which is orthogonal to "which DMA engine moves them".
+// The bank is static type information, never a runtime SSA value: a value whose
+// storage space could change at run time cannot be verified statically.
+def BOSCAME_SPMAttr : AttrDef<BOSCAME_Dialect, "SPM"> {
+  let mnemonic = "spm";
+  let summary = "Storage space of one on-chip SPM bank";
+  let description = [{
+    Marks the storage space of a `memref` as one of the two SPM banks of the
+    patch7 platform:
+
+    ```mlir
+    memref<4096xi8, #bosc_ame.spm<0>>   // 4096 bytes in SPM0
+    memref<64x64xi8, #bosc_ame.spm<1>>  // the same storage, a 2-D logical view
+    ```
+
+    `bank` must be 0 or 1.  The attribute says nothing about whether the SSA
+    addresses inside that memref are physical or virtual; that is a runtime
+    address-mode property (see the SPM/DMA design notes).  It also says nothing
+    about element type or layout, so it never replaces the memref shape.
+  }];
+  let parameters = (ins "int64_t":$bank);
+  let assemblyFormat = [{
+    `<` $bank `>`
+  }];
+  let genVerifyDecl = 1;
+}
+
+// Handle of one in-flight DMA request.  The channel is part of the type so that
+// `bosc_ame.dma.wait` can recover the register block (and therefore the
+// completion-barrier address) from its operand alone.
+def BOSCAME_DMATokenType : TypeDef<BOSCAME_Dialect, "DMAToken"> {
+  let mnemonic = "dma_token";
+  let summary = "Handle of an in-flight DMA request on one channel";
+  let description = [{
+    `!bosc_ame.dma_token<channel>` is the result type of
+    `bosc_ame.dma.start`.  `channel` must be 0 or 1 and matches the `channel`
+    attribute of the request that produced it.
+
+    A token is a single-use request handle, not a value that can be stored,
+    duplicated or transported: it must be consumed by exactly one
+    `bosc_ame.dma.wait` in the block that produced it.  The compiler-internal
+    shape of the type is deliberately opaque so that no other operation can
+    manufacture or inspect a live request.
+  }];
+  let parameters = (ins "int64_t":$channel);
+  let assemblyFormat = [{
+    `<` $channel `>`
+  }];
+  let genVerifyDecl = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// SPM / DMA operations
+//===----------------------------------------------------------------------===//
+
+def SpmViewOp : BOSCAME_Op<"spm.view", [Pure]> {
+  let summary = "View a byte range of an SPM bank as a memref";
+  let description = [{
+    Describes an SPM byte range as a standard `memref` so that ordinary
+    memory operations (including the existing matrix load/store operations) can
+    access it:
+
+    ```mlir
+    %b = bosc_ame.spm.view {bank = 0 : i32, offset = 4096 : i64}
+        : memref<64x64xi8, #bosc_ame.spm<0>>
+    ```
+
+    `offset` is the byte offset of the range inside the bank and is applied
+    exactly once.  The result type must carry `#bosc_ame.spm<bank>` with the
+    same bank, and its total element size (`product(shape) * size(element)`)
+    must keep `offset + size` inside the 128 KiB bank.
+
+    Element types are restricted to `i8/i16/i32/i64/f16/bf16/f32/f64` so the
+    byte size of the range is unambiguous.  The operation itself never
+    addresses or moves data: `-lower-bosc-ame` compiles the fixed bank base
+    address (`0x20000000` for bank 0, `0x20400000` for bank 1) plus `offset`
+    into the pointer, so no workspace root argument is needed and the kernel
+    ABI stays free of SPM parameters.
+  }];
+  let arguments = (ins I32Attr:$bank, I64Attr:$offset);
+  let results = (outs AnyMemRef:$view);
+  let assemblyFormat = "attr-dict `:` type($view)";
+  let hasVerifier = 1;
+}
+
+// Managed invocation-local storage in the platform DDR operand window.
+def DDRFrameOp : BOSCAME_Op<"ddr.frame", [MemoryEffects<[MemAlloc]>]> {
+  let summary = "Acquire a bounded invocation-private DDR frame";
+  let results = (outs AnyMemRef:$frame);
+  let assemblyFormat = "attr-dict `:` type($frame)";
+  let hasVerifier = 1;
+}
+
+def DDRReleaseOp : BOSCAME_Op<"ddr.release", [MemoryEffects<[MemFree]>]> {
+  let summary = "Release a private DDR frame after its final use";
+  let arguments = (ins AnyMemRef:$frame);
+  let assemblyFormat = "$frame attr-dict `:` type($frame)";
+  let hasVerifier = 1;
+}
+
+def DmaStartOp : BOSCAME_Op<"dma.start",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Start an asynchronous contiguous DMA transfer";
+  let description = [{
+    Starts one contiguous transfer on a DMA channel and returns a request
+    handle:
+
+    ```mlir
+    %t = bosc_ame.dma.start %src, %dst, %bytes {channel = 0 : i32}
+        : (memref<4096xi8>, memref<4096xi8, #bosc_ame.spm<0>>, index)
+          -> !bosc_ame.dma_token<0>
+    ```
+
+    `bytes` is a byte count, not an element count.  Both endpoints must be
+    1-D typed memrefs with unit element stride and a static length. Supported
+    elements are i8/i16/i32/i64/f16/bf16/f32/f64. Endpoint capacity is
+    elementCount * elementBytes; at least one endpoint must be in an SPM bank.
+    The transfer starts at the effective address of
+    the memref (descriptor offset included) and is legal when:
+
+      * `bytes` is a positive multiple of 64,
+      * both effective addresses are 64 B aligned,
+      * both endpoints are at least `bytes` long,
+      * the SPM endpoint lies inside a single bank,
+      * the two ranges do not overlap.
+
+    *Where the alignment comes from.*  The effective address is the storage
+    aligned pointer plus descriptorOffset * elementBytes, including every
+    `memref.view` byte shift on the view chain. The root is anchored (a 64 B
+    aligned SPM bank, an explicitly aligned allocation, or a DDR argument
+    covered by `bosc_ame.dma.abi`). The descriptor offset and view shifts
+    require alignment proofs: a static multiple of the granularity, or a
+    runtime expression whose divisibility follows from SSA operations.
+    A `memref.view` shift is accepted either as a
+    static multiple of 64 or as a runtime value the compiler can *prove* to be
+    one (a constant, a sum/product of provable factors, a widening cast, or a
+    loop induction variable with provably aligned lower bound and step).  A
+    shift nothing can be proven about is rejected. A subview adds its offsets
+    times source strides; reinterpret_cast replaces the descriptor offset.
+
+    The operation does not wait: the request completes when the matching
+    `bosc_ame.dma.wait` executes the completion barrier.  It therefore has
+    memory effects (a device write plus a conservative ordering barrier) and is
+    never `Pure`, so it cannot be moved, duplicated or dead-code eliminated.
+  }];
+  let arguments = (ins AnyMemRef:$src, AnyMemRef:$dst, Index:$bytes,
+                       I32Attr:$channel);
+  let results = (outs BOSCAME_DMATokenType:$token);
+  let assemblyFormat =
+      "$src `,` $dst `,` $bytes attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
+def DmaWaitOp : BOSCAME_Op<"dma.wait",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Wait for a DMA request and check its hardware status";
+  let description = [{
+    Completes the request started by the `bosc_ame.dma.start` that produced
+    `token`:
+
+    ```mlir
+    bosc_ame.dma.wait %t : !bosc_ame.dma_token<0>
+    ```
+
+    The operation executes the completion barrier (SRC write-back, fence, one
+    volatile `STATUS` read, fence) and then *checks* the status.  A normal
+    return means "the transfer completed and succeeded".  On failure the
+    runtime takes its error path (the shipped runtime traps); the operation
+    itself has no result, so a caller cannot accidentally ignore a failed
+    transfer and consume the destination as if it were data.
+
+    The channel and the completion barrier are recovered from the token type,
+    which is why a token may not be stored, duplicated or transported.  The
+    channel is busy exactly while it has an outstanding request; a new
+    `bosc_ame.dma.start` on the same channel is only legal after the previous
+    `bosc_ame.dma.wait` has completed it.
+
+    `STATUS` is live data, not a sticky done flag: bit 0 is `busy` and bit 1 is
+    `bus_error`.  The runtime rejects `bus_error` and an observable `busy`
+    after the barrier, an invalid channel, the `start` "not launched" sentinel
+    (token 0) and a token that does not match the channel's current `SRC`.
+  }];
+  let arguments = (ins BOSCAME_DMATokenType:$token);
+  let assemblyFormat = "$token attr-dict `:` qualified(type($token))";
+}
+
+//===----------------------------------------------------------------------===//
+// Tile operations: SPM <-> AME matrix register file
+//===----------------------------------------------------------------------===//
+//
+// These five operations are the *only* interface between an SPM buffer and the
+// AME matrix register file.  A kernel never names a physical matrix register,
+// an `mtype` value or a tile size: the shapes and element types of the tile
+// values carry that information, and `-lower-bosc-ame` derives the hardware
+// configuration (`msettilem/m/n/k`, `msettype`) from them.
+//
+// Matrix values are ordinary MLIR vectors whose 2-D shape is the *logical*
+// tile shape of the matrix multiply, e.g. `vector<64x64xi8>`.  The scalable
+// register type the backend actually uses is an implementation detail of the
+// lowering, so a kernel reads as matrix algebra and stays portable across
+// AME/W8A8 schedules.
+
+def TileLoadAOp : BOSCAME_Op<"tile.load_a",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Load the A (left) matrix tile from SPM into the tile register file";
+  let description = [{
+    Loads one `M x K` A tile from an SPM buffer and returns it as a matrix
+    value:
+
+    ```mlir
+    %a = bosc_ame.tile.load_a %spm_a
+        : memref<64x64xi8, #bosc_ame.spm<0>> -> vector<64x64xi8>
+    ```
+
+    The operation reads `source` (declared as a `Read` effect, so the
+    SPM/DMA checker can reject a load of a buffer a DMA transfer is still
+    filling) and has no other operands: stride, element type and tile shape all
+    come from the operand and result types.
+
+    The memref must be a ranked, statically shaped, 2-D memref in
+    `#bosc_ame.spm<bank>` whose layout keeps K contiguous:
+
+      * `strides[1] == 1` (the K dimension is the innermost one),
+      * `strides[0] >= K` (rows may be further apart than K, e.g. a pitched
+        subview).
+
+    The byte stride the AME load instruction needs is the *physical row*
+    stride, i.e. `strides[0] * elementBytes`.  `strides[0] == K` is the
+    compact row-major A layout the reference kernel stages with DMA.
+
+    First version: signed `i8` A tiles with `1 <= M, K <= 64`.
+  }];
+  let arguments = (ins AnyMemRef:$source);
+  let results = (outs BOSCAME_MatrixType:$matrix);
+  let assemblyFormat = "$source attr-dict `:` type($source) `->` type($matrix)";
+  let hasVerifier = 1;
+}
+
+def TileLoadBOp : BOSCAME_Op<"tile.load_b",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Load the B (right) matrix tile from SPM into the tile register file";
+  let description = [{
+    Loads one `K x N` B tile from an SPM buffer and returns it as a matrix
+    value:
+
+    ```mlir
+    %b = bosc_ame.tile.load_b %spm_b
+        : memref<64x64xi8, #bosc_ame.spm<1>, strided<[1, 64]>> -> vector<64x64xi8>
+    ```
+
+    **Logical vs. physical layout.**  The AME hardware stores B as an
+    `N x K` buffer with K contiguous, i.e. the *physical* row of the staged
+    buffer is an N-indexed row of K bytes.  Matrix algebra wants `B[K, N]`, so
+    the operand is the same storage described logically:
+
+      * `shape  = [K, N]`   (logical shape, matching `vector<KxNxi8>`),
+      * `strides[0] == 1`   (K is contiguous inside a physical row),
+      * `strides[1] >= K`   (the pitch between two physical rows).
+
+    The AME load instruction therefore uses `strides[1] * elementBytes` as its
+    byte stride, *not* `strides[0] * elementBytes`.  A `strided<[N, 1]>`
+    row-major `[K, N]` buffer is the *transposed* B layout this hardware load
+    does not implement, and is rejected instead of being silently loaded with
+    transposed results.  The transposed instruction (`mlbte8.m`) is not part of
+    the first version; a kernel that needs it must transpose B before staging
+    it, and DMA never transposes.
+
+    First version: signed `i8` B tiles with `1 <= K, N <= 64`.
+  }];
+  let arguments = (ins AnyMemRef:$source);
+  let results = (outs BOSCAME_MatrixType:$matrix);
+  let assemblyFormat = "$source attr-dict `:` type($source) `->` type($matrix)";
+  let hasVerifier = 1;
+}
+
+def TileLoadAccOp : BOSCAME_Op<"tile.load_acc",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Load the accumulator tile from SPM into the accumulator register file";
+  let description = [{
+    Seeds an `M x N` accumulator matrix value from SPM:
+
+    ```mlir
+    %acc = bosc_ame.tile.load_acc %spm_acc
+        : memref<64x64xi32, #bosc_ame.spm<0>> -> vector<64x64xi32>
+    ```
+
+    The accumulator memory is raw `i32` on this target (no conversion, no
+    packing): the value is the exact `M x N` INT32 tile that
+    `bosc_ame.tile.store_acc` writes back.  The layout keeps N contiguous:
+
+      * `strides[1] == 1`,
+      * `strides[0] >= N`.
+
+    The byte stride is the physical row stride `strides[0] * elementBytes`.
+
+    First version: `i32` accumulators with `1 <= M, N <= 64`.
+  }];
+  let arguments = (ins AnyMemRef:$source);
+  let results = (outs BOSCAME_MatrixType:$matrix);
+  let assemblyFormat = "$source attr-dict `:` type($source) `->` type($matrix)";
+  let hasVerifier = 1;
+}
+
+def TileZeroAccOp : BOSCAME_Op<"tile.zero_acc", [Pure]> {
+  let summary = "Create an i32 zero accumulator without reading memory or old contents";
+  let description = [{
+    Returns an `M x N` all-zero i32 accumulator. The operation has no input
+    accumulator or memory operand, so it introduces no old-content dependency.
+    It initializes a reduction; it must not replace an accumulated value at
+    a later K block.
+
+    ```mlir
+    %zero = bosc_ame.tile.zero_acc : vector<64x64xi32>
+    ```
+
+    The NR backend configures the effective M/N and 16-bit widening mode, then
+    emits only the verified `mwsub.mm` or `mwsub.h.mm` self-clear with
+    `dst == src1 == src2`. Register choice is a backend detail. This operation
+    does not expose general accumulator subtraction and reads no zero buffer.
+    Subsequent MMA and stores program their own mtype. First version:
+    `i32`, `1 <= M, N <= 64`.
+  }];
+  let results = (outs BOSCAME_MatrixType:$matrix);
+  let assemblyFormat = "attr-dict `:` type($matrix)";
+  let hasVerifier = 1;
+}
+
+def TileMmaOp : BOSCAME_Op<"tile.mma", [Pure]> {
+  let summary = "Accumulate A x B into C on the AME matrix multiply-accumulate unit";
+  let description = [{
+    Computes one `M x N x K` matrix multiply-accumulate:
+
+    ```mlir
+    %c1 = bosc_ame.tile.mma %c0, %a, %b
+        : vector<64x64xi32>, vector<64x64xi8>, vector<64x64xi8>
+          -> vector<64x64xi32>
+    ```
+
+    Mathematical semantics:
+
+    ```
+    C_out[m, n] = C_in[m, n] + sum_k (A[m, k] * B[k, n])
+    ```
+
+    The operand order is fixed: accumulator, A, B.  The accumulator is an SSA
+    value, so a chain of reductions is expressed by feeding the result of one
+    `tile.mma` into the next instead of relying on implicit hardware register
+    state:
+
+    ```mlir
+    %c1 = bosc_ame.tile.mma %c0, %a0, %b0 : ...
+    %c2 = bosc_ame.tile.mma %c1, %a1, %b1 : ...
+    ```
+
+    The accumulator element type is the *wider* one: inputs are signed `i8`,
+    the product is accumulated in `i32` with wrapping two's-complement
+    arithmetic (the AME accumulator is a plain integer adder, there is no
+    saturation on this datapath).  Reinterpreting the result as `i8` is
+    therefore never allowed.
+
+    Shape rules: `A` is `M x K`, `B` is `K x N` and `C` is `M x N`; the inner
+    dimension of `A` and the outer dimension of `B` must agree, and `C` must
+    use the same tile shape before and after the operation.
+
+    The op is `Pure` at this level: the accumulator dependency is carried by
+    SSA.  The LLVM intrinsic the lowering emits is `IntrWriteMem`, so the
+    hardware update survives even if a result is not used.
+
+    First version: signed `i8 x i8 -> i32`, `1 <= M, N, K <= 64`.
+  }];
+  let arguments = (ins BOSCAME_MatrixType:$acc, BOSCAME_MatrixType:$lhs,
+                       BOSCAME_MatrixType:$rhs);
+  let results = (outs BOSCAME_MatrixType:$matrix);
+  let assemblyFormat =
+      "$acc `,` $lhs `,` $rhs attr-dict `:` type($acc) `,` type($lhs) `,` "
+      "type($rhs) `->` type($matrix)";
+  let hasVerifier = 1;
+}
+
+def TileStoreAccOp : BOSCAME_Op<"tile.store_acc",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Write an accumulator tile back from the register file to SPM";
+  let description = [{
+    Stores an `M x N` INT32 accumulator tile into SPM:
+
+    ```mlir
+    bosc_ame.tile.store_acc %acc, %spm_acc
+        : vector<64x64xi32>, memref<64x64xi32, #bosc_ame.spm<0>>
+    ```
+
+    The accumulator memory is raw `i32`: this is the *same* representation
+    `bosc_ame.tile.load_acc` reads, so a store/load round trip is bit-exact.
+    Write-back paths that convert to another element type are a different
+    datapath (e.g. the W8A8 `i32 -> f32` final store) and are deliberately not
+    part of this operation.
+
+    The operation writes `dest` (declared as a `Write` effect, so the SPM/DMA
+    checker rejects a store that overlaps an in-flight transfer) and returns
+    nothing: the result of the computation is the memory it writes.  The
+    layout rules are those of `bosc_ame.tile.load_acc`:
+    `strides[1] == 1`, `strides[0] >= N`, byte stride
+    `strides[0] * elementBytes`.
+
+    First version: `i32` accumulators with `1 <= M, N <= 64`.
+  }];
+  let arguments = (ins BOSCAME_MatrixType:$matrix, AnyMemRef:$dest);
+  let assemblyFormat = "$matrix `,` $dest attr-dict `:` type($matrix) `,` "
+                       "type($dest)";
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Exact matrix-register memory transport
+//===----------------------------------------------------------------------===//
+
+def MatrixCopyOp : BOSCAME_Op<"matrix.copy",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Copy an exact rectangle through one raw NR ACC32 register";
+  let description = [{
+    Copies an exact byte rectangle between DDR and SPM, or between independent
+    nonoverlapping SPM windows, without arithmetic,
+    conversion or transposition. Offsets are bytes from each original
+    endpoint's effective pointer; pitches and row_bytes are also bytes.
+    Logical i8/i16/i32/i64 and floating-point storage can share the raw e32
+    memory path only when every address and row range is word aligned.
+
+    The bounded NR subset requires instruction_bits=32, register_count=1,
+    register_class="acc", mtype=65602, at most 64 rows and 256 bytes per row.
+    It reserves ACC0 for a single ordered config/load/store bundle enclosed
+    by fence rw,rw. No matrix value or runtime call crosses the bundle.
+    The ordinary mlce32/msce32 pair accesses only its configured effective
+    rectangle; whole-register operations and rounded-up tails are forbidden.
+    Internal copies retain both logical buffers in SPM and use ACC0 only for
+    the duration of this bundle. They allocate no additional SPM window.
+    Complete endpoint ranges, rather than just each tile, must be disjoint.
+    Physical TR/ACC SSA values are not memref endpoints; this operation does
+    not implement register-class conversion or persistent register copies.
+  }];
+  let arguments = (ins AnyMemRef:$source, AnyMemRef:$target,
+                       I64Attr:$source_offset, I64Attr:$target_offset,
+                       I64Attr:$rows, I64Attr:$row_bytes,
+                       I64Attr:$source_pitch, I64Attr:$target_pitch,
+                       I64Attr:$instruction_bits, I64Attr:$register_count,
+                       I64Attr:$mtype, StrAttr:$register_class);
+  let assemblyFormat = "$source `,` $target attr-dict `:` type($source) `,` type($target)";
+  let hasVerifier = 1;
+}
 
 //===----------------------------------------------------------------------===//
 // Matrix Configuration Operations (with register)
@@ -670,13 +1149,13 @@ class BOSCAME_IntrOpBase<string mnemonic, int numRes = 0,
                          list<int> overloadedResults = [],
                          list<int> overloadedOperands = [],
                          list<Trait> traits = []> :
-  LLVM_IntrOpBase</*Dialect dialect=*/BOSCAME_Dialect,
-                  /*string opName=*/"intr." # mnemonic,
-                  /*string enumName=*/"riscv_bosc_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/overloadedResults,
-                  /*list<int> overloadedOperands=*/overloadedOperands,
-                  /*list<Trait> traits=*/traits,
-                  /*int numResults=*/numRes>;
+  LLVM_IntrOpBase<BOSCAME_Dialect,
+                  "intr." # mnemonic,
+                  "riscv_bosc_" # !subst(".", "_", mnemonic),
+                  overloadedResults,
+                  overloadedOperands,
+                  traits,
+                  numRes>;
 
 // Configuration intrinsics (with immediate value)
 def BOSCAME_Msettypei_IntrOp : BOSCAME_IntrOpBase<"msettypei", 1, [0]>,
