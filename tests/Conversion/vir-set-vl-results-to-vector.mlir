@@ -2,8 +2,9 @@
 // RUN: | FileCheck %s
 
 // A vir.set_vl with results computes on whole vectors of its constant vl:
-// 10 lanes lower to two vectors of 4 and two scalars. The reduce folds the
-// pieces in order, its result is used in the region and yielded, and the
+// 10 lanes lower to two vectors of 4 and two scalars. The reduce (reassoc)
+// adds the two vectors lane by lane, reduces them once, then adds the
+// scalars in order; its result is used in the region and yielded, and the
 // loop carries every piece of its dynamic vector.
 func.func @dot_then_scale(%a: memref<10xf32>, %b: memref<10xf32>,
                           %o: memref<10xf32>) -> f32 {
@@ -34,8 +35,8 @@ func.func @dot_then_scale(%a: memref<10xf32>, %b: memref<10xf32>,
 // CHECK-DAG: %[[X1:.*]] = vector.load %{{.*}}[%c4] : memref<10xf32>, vector<4xf32>
 // CHECK-DAG: %[[X2:.*]] = memref.load %{{.*}}[%c8] : memref<10xf32>
 // CHECK-DAG: %[[X3:.*]] = memref.load %{{.*}}[%c9] : memref<10xf32>
-// CHECK: %[[R0:.*]] = vector.reduction <add>, %{{.*}}, %{{.*}} fastmath<reassoc> : vector<4xf32> into f32
-// CHECK: %[[R1:.*]] = vector.reduction <add>, %{{.*}}, %[[R0]] fastmath<reassoc> : vector<4xf32> into f32
+// CHECK: %[[P01:.*]] = arith.addf %{{.*}}, %{{.*}} : vector<4xf32>
+// CHECK: %[[R1:.*]] = vector.reduction <add>, %[[P01]], %{{.*}} fastmath<reassoc> : vector<4xf32> into f32
 // CHECK: %[[R2:.*]] = arith.addf %[[R1]], %{{.*}} : f32
 // CHECK: %[[S:.*]] = arith.addf %[[R2]], %{{.*}} : f32
 // CHECK: %[[SV:.*]] = vector.broadcast %[[S]] : f32 to vector<4xf32>

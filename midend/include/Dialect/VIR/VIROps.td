@@ -59,7 +59,12 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     yielded. Dynamic vectors may be loop-carried values of those loops.
     The lowering splits each dynamic vector into vl / w vectors of the
     target width w and vl % w scalars; a `vir.reduce` combines them in that
-    order.
+    order. With `reassoc`, its vectors are first added lane by lane, as
+    LLVM splits the reduction of a vector wider than its registers (n
+    pieces widened to the next power of two h, piece p added to piece
+    p + h / 2 if there is one, until one is left), then reduced once: one
+    horizontal reduction, and, when vl is a multiple of w, the bits of
+    `vector.reduction` of the whole vector as LLVM lowers it.
 
     The dynamic vectors of a region with results have one static layout,
     e.g. `!vir.vec<2x?xf32>`: a dynamic vector holds its rows of vl lanes

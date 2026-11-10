@@ -1448,9 +1448,10 @@ private:
 
   /// Lowers the ops of `block` but its terminator for a set_vl with results:
   /// each op on dynamic vectors applies to every piece, a vir.reduce folds
-  /// the pieces in order and loops carry all pieces of their dynamic vector
-  /// values. `map` maps a value of the region to its pieces (one for a
-  /// value that is not a dynamic vector).
+  /// the pieces in order (with reassoc, its vector pieces added lane by lane
+  /// first) and loops carry all pieces of their dynamic vector values. `map`
+  /// maps a value of the region to its pieces (one for a value that is not a
+  /// dynamic vector).
   LogicalResult lowerBlockInPieces(OpBuilder &b, Location loc, Block *block,
                                    PieceMap &map, const Pieces &pieces) const {
     auto isDyn = [](Type t) { return isa<vir::DynamicVectorType>(t); };
@@ -1795,16 +1796,40 @@ private:
                                          : vector::CombiningKind::MAXNUMF;
         auto fastmath = reduce.getReassoc() ? arith::FastMathFlags::reassoc
                                             : arith::FastMathFlags::none;
-        Value acc = one(reduce.getAcc());
-        for (Value piece : get(reduce.getInput())) {
-          if (isa<VectorType>(piece.getType()))
-            acc = vector::ReductionOp::create(b, loc, combineKind, piece, acc,
-                                              fastmath);
-          else if (kind == "add")
-            acc = arith::AddFOp::create(b, loc, acc, piece);
-          else
-            acc = arith::MaxNumFOp::create(b, loc, acc, piece);
+        auto combine = [&](Value x, Value y) -> Value {
+          if (kind == "add")
+            return arith::AddFOp::create(b, loc, x, y);
+          return arith::MaxNumFOp::create(b, loc, x, y);
+        };
+        SmallVector<Value, 4> in = get(reduce.getInput());
+        // With reassoc, the vector pieces are combined lane by lane first,
+        // as LLVM splits the reduction of a vector wider than its registers:
+        // widened to a power of two of pieces (the added ones neutral), its
+        // halves added, until one piece is left, then reduced. One reduction
+        // instead of one per piece, and the bits of the reduction of the
+        // whole vector when there are no scalar pieces.
+        if (reduce.getReassoc() && pieces.numVectors > 1) {
+          SmallVector<Value, 4> vecs(in.begin(),
+                                     in.begin() + pieces.numVectors);
+          while (vecs.size() > 1) {
+            // piece i with piece i + half, if any
+            size_t half = llvm::PowerOf2Ceil(vecs.size()) / 2;
+            SmallVector<Value, 4> next;
+            for (size_t i = 0; i < half; ++i)
+              next.push_back(i + half < vecs.size()
+                                 ? combine(vecs[i], vecs[i + half])
+                                 : vecs[i]);
+            vecs = next;
+          }
+          in.erase(in.begin() + 1, in.begin() + pieces.numVectors);
+          in.front() = vecs.front();
         }
+        Value acc = one(reduce.getAcc());
+        for (Value piece : in)
+          acc = isa<VectorType>(piece.getType())
+                    ? Value(vector::ReductionOp::create(b, loc, combineKind,
+                                                        piece, acc, fastmath))
+                    : combine(acc, piece);
         map[reduce.getResult()] = {acc};
       } else if (auto select = dyn_cast<vir::SelectOp>(op)) {
         SmallVector<Value, 4> cond = get(select.getCondition()),
