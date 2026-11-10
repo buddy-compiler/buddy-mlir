@@ -69,11 +69,13 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     does; the memref must hold the rows one after the other (its last dim
     has vl elements, the dims between match the layout), so that an access
     is one access of rows * vl lanes.
+
+    The region has one block, without arguments.
   }];
   let arguments = (ins Index:$vl);
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
-  // TODO: Determine the region limitation.
-  let regions = (region AnyRegion:$region);
+  // one block: the lowerings lower the ops of a single block
+  let regions = (region SizedRegion<1>:$region);
   // the lowering maps the values of the region, not entry block arguments
   let hasVerifier = 1;
 
