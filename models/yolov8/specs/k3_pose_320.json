@@ -1,0 +1,21 @@
+{
+  "model_family": "yolov8",
+  "variant": "n_pose_320",
+  "model_id": "yolov8n_pose_320",
+  "checkpoint": "yolov8n-pose.pt",
+  "img_size": 320,
+  "num_classes": 1,
+  "num_keypoints": 17,
+  "num_anchors": 2100,
+  "params_size": 3296264,
+  "ime_params_size": 1738220,
+  "conf_threshold": 0.25,
+  "iou_threshold": 0.7,
+  "max_detections": 300,
+  "ime": true,
+  "num_threads": 8,
+  "thread_pool": true,
+  "weight_file": "arg0.data",
+  "so_name": "yolov8_model.so",
+  "labels_file": "labels.txt"
+}
