@@ -23,11 +23,9 @@ import os
 import numpy
 import torch
 import torchvision
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
-
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 model = torchvision.models.resnet18()
 model = model.eval()

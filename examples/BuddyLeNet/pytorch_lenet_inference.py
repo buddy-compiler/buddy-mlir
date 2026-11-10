@@ -19,10 +19,9 @@
 # ===---------------------------------------------------------------------------
 
 import torch
-from torchvision import transforms
-from PIL import Image
-
 from model import LeNet
+from PIL import Image
+from torchvision import transforms
 
 # Load model
 model = LeNet()

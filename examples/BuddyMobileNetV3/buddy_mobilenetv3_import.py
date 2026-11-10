@@ -18,18 +18,18 @@
 #
 # ===---------------------------------------------------------------------------
 
+import argparse
 import os
 from pathlib import Path
-import argparse
+
 import numpy as np
 import torch
 import torchvision.models as models
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments.
 parser = argparse.ArgumentParser(description="MobileNetV3 model AOT importer")
@@ -37,7 +37,7 @@ parser.add_argument(
     "--output-dir",
     type=str,
     default="./",
-    help="Directory to save output files."
+    help="Directory to save output files.",
 )
 args = parser.parse_args()
 

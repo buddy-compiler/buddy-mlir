@@ -75,7 +75,9 @@ MaxTokenLength = 512
 
 # Load the full multimodal model and extract language model weights.
 print("Loading full model from:", model_path)
-full_model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.float32, low_cpu_mem_usage=True)
+full_model = AutoModelForCausalLM.from_pretrained(
+    model_path, dtype=torch.float32, low_cpu_mem_usage=True
+)
 full_sd = full_model.state_dict()
 
 causal_sd = {}
@@ -85,7 +87,10 @@ for k, v in full_sd.items():
     elif k.startswith("lm_head."):
         causal_sd[k] = v
 
-if "lm_head.weight" not in causal_sd and "model.embed_tokens.weight" in causal_sd:
+if (
+    "lm_head.weight" not in causal_sd
+    and "model.embed_tokens.weight" in causal_sd
+):
     causal_sd["lm_head.weight"] = causal_sd["model.embed_tokens.weight"]
 
 full_config = AutoConfig.from_pretrained(model_path)
@@ -98,7 +103,9 @@ del full_model, full_sd, causal_sd
 
 # Pre-initialize StaticCache to avoid Dynamo graph breaks.
 print("Pre-initializing StaticCache for prefill...")
-cache_prefill = StaticCache(config=tc, max_cache_len=MaxTokenLength, batch_size=1)
+cache_prefill = StaticCache(
+    config=tc, max_cache_len=MaxTokenLength, batch_size=1
+)
 with torch.no_grad():
     model(
         input_ids=torch.zeros((1, 1), dtype=torch.int64),
@@ -136,7 +143,9 @@ with torch.no_grad():
     )
 
     print("Pre-initializing StaticCache for decode...")
-    cache_decode = StaticCache(config=tc, max_cache_len=MaxTokenLength, batch_size=1)
+    cache_decode = StaticCache(
+        config=tc, max_cache_len=MaxTokenLength, batch_size=1
+    )
     model(
         input_ids=torch.zeros((1, 1), dtype=torch.int64),
         past_key_values=cache_decode,
@@ -164,15 +173,23 @@ with torch.no_grad():
         past_key_values=cache_decode,
     )
 
-assert len(graphs_prefill) == 1, f"Expected 1 prefill graph, got {len(graphs_prefill)}"
-assert len(graphs_decode) == 1, f"Expected 1 decode graph, got {len(graphs_decode)}"
+assert len(graphs_prefill) == 1, (
+    f"Expected 1 prefill graph, got {len(graphs_prefill)}"
+)
+assert len(graphs_decode) == 1, (
+    f"Expected 1 decode graph, got {len(graphs_decode)}"
+)
 graph_prefill = graphs_prefill[0]
 graph_decode = graphs_decode[0]
 
 params = dynamo_compiler_prefill.imported_params[graph_prefill]
 
-graphs_prefill[0].perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
-graphs_decode[0].perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+graphs_prefill[0].perform(
+    [eliminate_transpose, eliminate_matmul_transpose_reshape]
+)
+graphs_decode[0].perform(
+    [eliminate_transpose, eliminate_matmul_transpose_reshape]
+)
 pattern_list_prefill = [
     simply_fuse,
     apply_classic_fusion,
@@ -188,10 +205,14 @@ pattern_list_decode = [
 graphs_prefill[0].fuse_ops(pattern_list_prefill)
 graphs_decode[0].fuse_ops(pattern_list_decode)
 
-graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop("subgraph0")
+graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
+    "subgraph0"
+)
 graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
 
-graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop("subgraph0")
+graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop(
+    "subgraph0"
+)
 graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 
 driver_prefill = GraphDriver(graphs_prefill[0])
@@ -200,16 +221,26 @@ driver_prefill.subgraphs[0].lower_to_top_level_ir()
 driver_decode = GraphDriver(graphs_decode[0])
 driver_decode.subgraphs[0].lower_to_top_level_ir()
 
-with open(os.path.join(output_dir, "subgraph0_prefill_e2b.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, "subgraph0_prefill_e2b.mlir"), "w"
+) as module_file:
     print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(output_dir, "forward_prefill_e2b.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, "forward_prefill_e2b.mlir"), "w"
+) as module_file:
     print(driver_prefill.construct_main_graph(True), file=module_file)
-all_param = numpy.concatenate([param.detach().numpy().reshape([-1]) for param in params])
+all_param = numpy.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params]
+)
 all_param.tofile(os.path.join(output_dir, "arg0_e2b.data"))
 
-with open(os.path.join(output_dir, "subgraph0_decode_e2b.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, "subgraph0_decode_e2b.mlir"), "w"
+) as module_file:
     print(driver_decode.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(output_dir, "forward_decode_e2b.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, "forward_decode_e2b.mlir"), "w"
+) as module_file:
     print(driver_decode.construct_main_graph(True), file=module_file)
 
 # Export vocabulary file for the C++ tokenizer.

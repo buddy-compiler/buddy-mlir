@@ -26,14 +26,12 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch._inductor.lowering
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from ultralytics import YOLO
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
-
+from torch._inductor.decomposition import decompositions as inductor_decomp
+from ultralytics import YOLO
 
 parser = argparse.ArgumentParser(description="yolo26n model AOT importer")
 parser.add_argument(

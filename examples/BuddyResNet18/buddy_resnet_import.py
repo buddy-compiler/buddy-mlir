@@ -18,20 +18,20 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
+import os
 from pathlib import Path
+
 import numpy as np
 import torch
-import torchvision.models as models
 import torch._inductor.lowering
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from torch._decomp import remove_decompositions
-
+import torchvision.models as models
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
+from torch._decomp import remove_decompositions
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="ResNet18 model AOT importer")
@@ -39,7 +39,7 @@ parser.add_argument(
     "--output-dir",
     type=str,
     default="./",
-    help="Directory to save output files."
+    help="Directory to save output files.",
 )
 args = parser.parse_args()
 

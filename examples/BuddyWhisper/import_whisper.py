@@ -18,18 +18,18 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
-import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import WhisperForConditionalGeneration
-import numpy
+import os
 
+import numpy
+import torch
+import torch._dynamo as dynamo  # noqa: F401
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import WhisperForConditionalGeneration
 
 # Parse command-line arguments for output directory.
 parser = argparse.ArgumentParser(description="Whisper model AOT importer")

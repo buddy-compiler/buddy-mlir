@@ -21,10 +21,9 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
-
 from model import LeNet
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 # Initialize model, loss function, and optimizer
 model = LeNet()
@@ -52,7 +51,9 @@ for epoch in range(epochs):
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
-    print(f"Epoch {epoch+1}/{epochs} - Loss: {running_loss/len(train_loader)}")
+    print(
+        f"Epoch {epoch + 1}/{epochs} - Loss: {running_loss / len(train_loader)}"
+    )
 
 # Save the complete model
 torch.save(model, "lenet-model.pth")

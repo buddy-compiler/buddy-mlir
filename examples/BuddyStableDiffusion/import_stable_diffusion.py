@@ -18,21 +18,21 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
+import os
 from pathlib import Path
+
 import numpy
 import torch
-import torchvision.models as models
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
+import torchvision.models as models  # noqa: F401
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.operation import *
+from buddy.compiler.graph.transform import simply_fuse  # noqa: F401
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
-from buddy.compiler.graph.operation import *
 from diffusers import StableDiffusionPipeline
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments for output directory
 parser = argparse.ArgumentParser(

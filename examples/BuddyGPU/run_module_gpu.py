@@ -19,14 +19,15 @@
 #
 # ===----------------------------------------------------------------------===//
 
-import mlir.dialects.func as func
-from mlir.passmanager import *
-from mlir.execution_engine import *
-from mlir import runtime as rt
-from mlir.ir import *
-import numpy as np
-import ctypes
 import argparse as ap
+import ctypes
+
+import mlir.dialects.func as func
+import numpy as np
+from mlir import runtime as rt
+from mlir.execution_engine import *
+from mlir.ir import *
+from mlir.passmanager import *
 
 
 def to_numpy(element_type: str) -> np.dtype:
@@ -95,8 +96,8 @@ def get_memref_descriptors(args: list[Type]):
 
 def test(source, target, llvm_dir):
     with Context() as ctx:
-        file = open(source, "r")
-        module: Module = Module.parse(file.read())
+        with open(source) as file:
+            module: Module = Module.parse(file.read())
         funcOp: func.FuncOp = (
             module.operation.regions[0].blocks[0].operations[0]
         )
@@ -105,9 +106,9 @@ def test(source, target, llvm_dir):
         args_type: list[Type] = [arg.type for arg in funcOp.arguments]
         res_type = funcOp.type.results
 
-        file = open(target, "r")
         # newModule = lower_to_llvm_cpu(module)
-        newModule = Module.parse(file.read())
+        with open(target) as file:
+            newModule = Module.parse(file.read())
         memref_ptrs = get_memref_descriptors(res_type + args_type)
 
         engine = ExecutionEngine(
@@ -132,7 +133,7 @@ def test(source, target, llvm_dir):
             numpy_out = np.matmul(input1, input2)
             print(numpy_out)
             print(
-                f"MLIR equal to NumPy? {np.allclose(out, numpy_out,rtol=1e-03, atol=1e-03)}"
+                f"MLIR equal to NumPy? {np.allclose(out, numpy_out, rtol=1e-03, atol=1e-03)}"
             )
 
 

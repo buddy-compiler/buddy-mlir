@@ -18,13 +18,14 @@
 #
 # ===---------------------------------------------------------------------------
 
+import argparse
 import os
 import sys
-import argparse
-import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
+
 import numpy
+import torch
+import torch._dynamo as dynamo  # noqa: F401
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Add the parent directory for 'buddy' packages
 sys.path.append(
@@ -38,17 +39,27 @@ sys.path.append(
 # Add MLIR Python bindings path
 mlir_python_path = os.path.abspath(
     os.path.join(
-        os.path.dirname(__file__), "..", "..", "llvm", "build", "tools", "mlir", "python_packages", "mlir_core"
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "llvm",
+        "build",
+        "tools",
+        "mlir",
+        "python_packages",
+        "mlir_core",
     )
 )
 sys.path.append(mlir_python_path)
 
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
-
-from transformer_model import create_transformer_model, create_sample_inputs
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from transformer_model import (  # noqa: E402
+    create_sample_inputs,
+    create_transformer_model,
+)
 
 
 def main():
@@ -121,7 +132,7 @@ def main():
 
         for i, node in enumerate(graph.body):
             node_type = type(node).__name__.replace("Op", "")
-            print(f"Node {i+1}: {node.name} | {node_type}", file=graph_file)
+            print(f"Node {i + 1}: {node.name} | {node_type}", file=graph_file)
 
             # Extract output shape if available
             if hasattr(node, "tensor_meta") and node.tensor_meta:
@@ -161,7 +172,7 @@ def main():
 
         for i, node in enumerate(graph.body):
             node_type = type(node).__name__.replace("Op", "")
-            print(f"Node {i+1}: {node.name} | {node_type}", file=fused_file)
+            print(f"Node {i + 1}: {node.name} | {node_type}", file=fused_file)
 
             # Extract output shape if available
             if hasattr(node, "tensor_meta") and node.tensor_meta:
@@ -192,7 +203,7 @@ def main():
     all_param.tofile(os.path.join(output_dir, "arg0.data"))
 
     print(f"Generated f32 MLIR files and parameters in {output_dir}")
-    print(f"Generated Buddy Graph logs: graph.log and graph_fused.log")
+    print("Generated Buddy Graph logs: graph.log and graph_fused.log")
 
     # Print summary information
     print(f"Model parameters: {sum(p.numel() for p in params)} elements")
