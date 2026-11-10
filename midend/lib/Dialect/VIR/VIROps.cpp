@@ -35,7 +35,8 @@ using namespace mlir;
 using namespace buddy::vir;
 
 LogicalResult SetVLOp::verify() {
-  if (!getRegion().empty() && getRegion().front().getNumArguments() != 0)
+  // the region has one block (SizedRegion<1>, verified before)
+  if (getRegion().front().getNumArguments() != 0)
     return emitOpError("region must not have block arguments");
   return success();
 }
