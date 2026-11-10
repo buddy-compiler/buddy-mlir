@@ -22,7 +22,7 @@ buddy_add_model(
   MODEL_PLUGIN_SRC BgeM3EmbeddingModelPlugin.cpp
   LOCAL_MODEL "${BUDDY_BGE_M3_MODEL_PATH}"
   LOCAL_MODEL_ENV BUDDY_LOCAL_MODEL_PATH
-  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-bge-m3.py"
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import_bge_m3.py"
   MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_bge_m3_manifest.py"
   MODEL_SO_NAME bge_m3_model.so
   ASSET_FILES

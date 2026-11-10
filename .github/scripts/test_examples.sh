@@ -5,7 +5,7 @@ arch="${1:?usage: .github/scripts/test_examples.sh <arch>}"
 
 export PYTHONPATH="$PWD/build/python_packages:${PYTHONPATH:-}"
 
-# Gemma4 is skipped for now: import-gemma4.py patches the decode MLIR with a
+# Gemma4 is skipped for now: import_gemma4.py patches the decode MLIR with a
 # pattern the current lowering no longer emits, and the patch script exits
 # non-zero when it applies nothing.
 

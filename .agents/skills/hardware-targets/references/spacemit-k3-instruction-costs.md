@@ -1,7 +1,7 @@
 # SpacemiT K3 A100: instruction costs
 
 Measured October 2026 on one A100 core (AI process mode) with
-`scripts/spacemit-k3-insn-bench.py`: loops of 16 instructions, independent
+`scripts/spacemit_k3_insn_bench.py`: loops of 16 instructions, independent
 destinations unless noted; ns per instruction.
 
 ## RVV, e32, LMUL 4 (one `vector<128xf32>` at VLEN 1024)

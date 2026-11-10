@@ -311,7 +311,7 @@ add_custom_command(
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill5.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill169.mlir
   COMMAND ${Python3_EXECUTABLE}
-  ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/import_deepseek_r1.py
   --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph.mlir and arg0.data..."

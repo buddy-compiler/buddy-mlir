@@ -372,7 +372,7 @@ add_custom_command(
           bash "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
   DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/_env.sh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/buddy-llama31-lower-ttir.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/buddy_llama31_lower_ttir.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_prepare.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
     "${CMAKE_SOURCE_DIR}/tools/buddy-codegen/gen_tenstorrent_manifest.py"
@@ -507,7 +507,7 @@ function(_buddy_llama31_add_fixed_batch_package batch_size)
             bash "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
     DEPENDS
       "${CMAKE_CURRENT_SOURCE_DIR}/_env.sh"
-      "${CMAKE_CURRENT_SOURCE_DIR}/buddy-llama31-lower-ttir.py"
+      "${CMAKE_CURRENT_SOURCE_DIR}/buddy_llama31_lower_ttir.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_prepare.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/pack_decode_qkv_ttnn.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
@@ -747,7 +747,7 @@ add_custom_command(
           bash "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
   DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/_env.sh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/buddy-llama31-lower-ttir.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/buddy_llama31_lower_ttir.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_prepare.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/pack_decode_qkv_ttnn.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
@@ -868,7 +868,7 @@ function(_buddy_llama32_add_fixed_batch_package batch_size)
             bash "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
     DEPENDS
       "${CMAKE_CURRENT_SOURCE_DIR}/_env.sh"
-      "${CMAKE_CURRENT_SOURCE_DIR}/buddy-llama31-lower-ttir.py"
+      "${CMAKE_CURRENT_SOURCE_DIR}/buddy_llama31_lower_ttir.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_prepare.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/pack_decode_qkv_ttnn.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"

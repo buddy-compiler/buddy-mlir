@@ -20,7 +20,7 @@ You should convert LLaMA2 model which download from meta ai to HuggingFace forma
 
 ```
 $ cd examples/BuddyLlama
-$ python llama2-to-hf.py --input_dir path-to-llama2-model --model_size 7B --output_dir path-to-save-llama-hf-model
+$ python llama2_to_hf.py --input_dir path-to-llama2-model --model_size 7B --output_dir path-to-save-llama-hf-model
 ```
 
 Such as you have a 7B LLaMA2 model, in your input_dir path-to-llama-model, you should have a tokenizer.model and a directory named "7B". You should put your 7B LLaMA2 model inside the "7B" directory.

@@ -7,7 +7,7 @@ Activate your python environment.
 ```bash
 $ cd buddy-mlir
 $ cd examples/BuddyLeNet
-$ python pytorch-lenet-train.py
+$ python pytorch_lenet_train.py
 ```
 
 ## LeNet Model Inference

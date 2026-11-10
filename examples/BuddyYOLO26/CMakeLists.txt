@@ -1,4 +1,4 @@
-set(YOLO26N_IMPORT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/import-yolo26n.py)
+set(YOLO26N_IMPORT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/import_yolo26n.py)
 if(TARGET BuddyMLIRPythonModules)
   list(APPEND YOLO26N_IMPORT_DEPENDS BuddyMLIRPythonModules)
 endif()
@@ -8,7 +8,7 @@ add_custom_command(
          ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
   COMMAND ${Python3_EXECUTABLE}
-          ${CMAKE_CURRENT_SOURCE_DIR}/import-yolo26n.py
+          ${CMAKE_CURRENT_SOURCE_DIR}/import_yolo26n.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${YOLO26N_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files for YOLO26n"

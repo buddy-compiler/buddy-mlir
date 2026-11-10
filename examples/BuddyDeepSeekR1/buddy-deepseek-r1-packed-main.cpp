@@ -339,7 +339,7 @@ void loadParameters(const std::string &paramFilePath,
   // Fail loudly on a size mismatch. Reading fewer floats than the file holds
   // is otherwise completely silent: the model still runs, just on weights
   // sliced at the wrong offsets. This is the failure mode when the packed
-  // buffer's size constant drifts from what import-deepseek-r1.py actually
+  // buffer's size constant drifts from what import_deepseek_r1.py actually
   // wrote (it prints the element count).
   const auto expectedBytes =
       static_cast<std::streamsize>(sizeof(float) * params.getSize());

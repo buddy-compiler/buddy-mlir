@@ -17,8 +17,8 @@
 # ===----------------------------------------------------------------------===//
 #
 # Unified replacement for former per-variant scripts, e.g.:
-#   - examples/BuddyDeepSeekR1/import-deepseek-r1-w8a16.py
-#   - examples/BuddyDeepSeekR1/import-deepseek-r1-w8a32.py
+#   - examples/BuddyDeepSeekR1/import_deepseek_r1_w8a16.py
+#   - examples/BuddyDeepSeekR1/import_deepseek_r1_w8a32.py
 #   - etc.
 #
 # All variant-specific behaviour is driven by the full config JSON.
@@ -1192,7 +1192,7 @@ def extract_quantized_weights(
     activation = config["precision"]["activation_type"]
     num_original = len(original_params)
     # W4A16: int4 range [-8, 7], scales use amax/7; weights packed 2 nibbles/byte (see
-    # examples/BuddyDeepSeekR1/import-deepseek-r1-w4a16.py). W8A*: int8 [-128,127].
+    # examples/BuddyDeepSeekR1/import_deepseek_r1_w4a16.py). W8A*: int8 [-128,127].
     is_w4a16 = variant == "w4a16"
     quant_max = 7.0 if is_w4a16 else 127.0
 

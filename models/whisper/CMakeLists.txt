@@ -27,7 +27,7 @@ buddy_add_model(
     WhisperAudioTranscriptionModel.cpp
   LOCAL_MODEL "${BUDDY_WHISPER_MODEL_PATH}"
   LOCAL_MODEL_ENV WHISPER_MODEL_PATH
-  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-whisper.py"
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import_whisper.py"
   MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_whisper_manifest.py"
   MODEL_SO_NAME whisper_model.so
   ASSET_FILES
