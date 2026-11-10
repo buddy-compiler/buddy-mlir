@@ -58,10 +58,16 @@ def VIR_ScalingFactorAttr : AttrDef<VIR_Dialect, "ScalingFactor"> {
     }]>
   ];
 
+  let genVerifyDecl = 1;
+
   let extraClassDeclaration = [{
     std::string str() const {
       return (getRatio() + std::to_string(getValue())).str();
     }
+
+    /// Parses the keyword of a scaling factor, e.g. m2 (also the form of
+    /// a !vir.vec); null after an error.
+    static ScalingFactorAttr parseKeyword(mlir::AsmParser &parser);
   }];
 }
 

@@ -24,6 +24,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/MathExtras.h"
 
 #include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
@@ -45,26 +46,43 @@ void VIRDialect::registerAttrs() {
 // Custom parse/print for ScalingFactorAttr (hasCustomAssemblyFormat = 1).
 //===----------------------------------------------------------------------===//
 
-Attribute ScalingFactorAttr::parse(AsmParser &parser, Type) {
-  if (parser.parseLess())
-    return {};
+LogicalResult
+ScalingFactorAttr::verify(function_ref<InFlightDiagnostic()> emitError,
+                          StringRef ratio, int64_t value) {
+  if (ratio != "m" && ratio != "f")
+    return emitError() << "the ratio of a scaling factor is 'm' (multiplier) "
+                          "or 'f' (fraction), not '"
+                       << ratio << "'";
+  if (value < 2 || value > 64 || !llvm::isPowerOf2_64(value))
+    return emitError() << "the value of a scaling factor is 2, 4, 8, 16, 32 "
+                          "or 64, not "
+                       << value;
+  return success();
+}
 
+ScalingFactorAttr ScalingFactorAttr::parseKeyword(AsmParser &parser) {
+  SMLoc loc = parser.getCurrentLocation();
   StringRef token;
   if (parser.parseKeyword(&token))
     return {};
-
-  StringRef ratio = token.take_front(1);
-  if (!(ratio == "m" || ratio == "f"))
-    return {};
-
   int64_t value;
-  if (token.drop_front(1).getAsInteger(10, value))
+  if (token.drop_front(1).getAsInteger(10, value)) {
+    parser.emitError(loc, "expected a scaling factor, 'm' or 'f' and its "
+                          "value (e.g. m2), not '")
+        << token << "'";
     return {};
+  }
+  return getChecked([&] { return parser.emitError(loc); }, parser.getContext(),
+                    token.take_front(1), value);
+}
 
-  if (parser.parseGreater())
+Attribute ScalingFactorAttr::parse(AsmParser &parser, Type) {
+  if (parser.parseLess())
     return {};
-
-  return get(parser.getContext(), ratio, value);
+  ScalingFactorAttr attr = parseKeyword(parser);
+  if (!attr || parser.parseGreater())
+    return {};
+  return attr;
 }
 
 void ScalingFactorAttr::print(AsmPrinter &printer) const {
