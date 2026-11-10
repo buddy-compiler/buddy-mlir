@@ -19,11 +19,23 @@ description: Prepare a Buddy-MLIR commit and pull request - scope, tests, docs, 
    the touched area (e.g. `tests/Python/test_k3_w4_*.py`,
    `tests/Runtime/...`). Add or extend a test for new behavior; a test of a
    contract must fail without the change (check it).
-2. Formatting on the changed files only:
+2. Test every torch version CI tests when the change touches code that
+   depends on how torch traces a model (the frontend importer, graph
+   rewrites such as `frontend/Python/graph/transform/*.py`, model imports).
+   `requirements.txt` pins the oldest version, but CI
+   (`.github/workflows/TestBuild.yml`, `torch_versions`) runs the whole
+   suite with the newest first and stops at the first failure. Traced
+   graphs differ between versions: torch 2.10 decomposes `silu(x)` as
+   `mul(x, sigmoid(x))`, torch 2.14 as `div(x, add(exp(neg(x)), 1))`,
+   and a pattern written for one form silently misses the other.
+   `scripts/torch-matrix.sh [build-dir]` (from the repository root) runs
+   the same matrix locally in a scratch venv, without touching the build's
+   own venv. Match patterns on every form seen, not on one version's.
+3. Formatting on the changed files only:
    `pre-commit run --files <changed files>`.
-3. Update the docs the change touches (`docs/*.md`), including numbers that
+4. Update the docs the change touches (`docs/*.md`), including numbers that
    the change makes stale.
-4. Do not commit the `llvm` submodule pointer, build directories, local
+5. Do not commit the `llvm` submodule pointer, build directories, local
    scripts, secrets or machine-specific paths. Stage files explicitly.
 
 ## Commit message
