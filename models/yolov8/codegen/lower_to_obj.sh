@@ -16,8 +16,11 @@
 # With the "ime" spec option the importer also writes yolov8_kernels.mlir
 # next to subgraph0.mlir (codegen/yolov8_ime.py: the convolutions on the
 # matrix engine of the A100 cores). It is lowered with the IME dialect,
-# linked with the subgraph, and the whole object compiled for the A100
-# (-mcpu=spacemit-a100, VLEN 1024, the IME extension), scheduled top down.
+# linked with the subgraph, and the whole object compiled for the A100 with
+# the llc options of the A100 code of the other models
+# (compile_pipeline.a100_llc_args: the IME extension, -mcpu=spacemit-a100,
+# scheduled top down), on top of the build's, which must give the exact VLEN
+# 1024 (BUDDY_RISCV_VLEN=1024).
 #
 # Usage: lower_to_obj.sh <buddy-opt> <llvm-bin-dir> <in.mlir> <out.o> [threads] [llc-attrs...]
 set -euo pipefail
@@ -31,6 +34,19 @@ CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
 LOWER_VIR="$("${PYTHON:-python3}" -c 'import sys; sys.path.insert(0, sys.argv[1]); from compile_pipeline import kernels_lower_vir; print(kernels_lower_vir(sys.argv[2:]))' "$CODEGEN" "${LLC_ATTRS[@]}")"
 BUDDY_TRANSLATE="$(dirname "$BUDDY_OPT")/buddy-translate"
 KERNELS="$(dirname "$IN")/yolov8_kernels.mlir"
+A100_LLC_ATTRS=()
+if [[ -f "$KERNELS" ]]; then
+  A100="$("${PYTHON:-python3}" -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from compile_pipeline import a100_llc_args
+try:
+    print("\n".join(a100_llc_args(sys.argv[2:])))
+except ValueError as e:
+    sys.exit(f"lower_to_obj.sh: {e}")
+' "$CODEGEN" "${LLC_ATTRS[@]}")"
+  mapfile -t A100_LLC_ATTRS <<< "$A100"
+fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -62,14 +78,6 @@ if [[ ! -f "$KERNELS" ]]; then
   exit 0
 fi
 
-# The IME kernels need exactly VLEN 1024 (vscale 16).
-for a in "${LLC_ATTRS[@]}"; do
-  if [[ "$a" == -riscv-v-vector-bits-max=* && "$a" != -riscv-v-vector-bits-max=1024 ]]; then
-    echo "lower_to_obj.sh: the IME kernels need VLEN 1024, the build gives $a" >&2
-    exit 1
-  fi
-done
-
 "$BUDDY_OPT" "$KERNELS" \
     -lower-ime=target=k3 -convert-scf-to-openmp \
     -expand-strided-metadata -convert-vector-to-scf -lower-affine \
@@ -82,7 +90,5 @@ done
   | "$BUDDY_TRANSLATE" --buddy-to-llvmir -o "$TMP/kernels.ll"
 
 "$LLVM_BIN/llvm-link" "$TMP/subgraph.ll" "$TMP/kernels.ll" -o "$TMP/all.bc"
-"$LLVM_BIN/llc" "${LLC_ATTRS[@]}" \
-    -mattr=+xsmtvdotii,+zvl1024b -mcpu=spacemit-a100 \
-    -misched-prera-direction=topdown -riscv-v-vector-bits-max=1024 \
+"$LLVM_BIN/llc" "${LLC_ATTRS[@]}" "${A100_LLC_ATTRS[@]}" \
     -filetype=obj -relocation-model=pic -O3 -o "$OUT" "$TMP/all.bc"
