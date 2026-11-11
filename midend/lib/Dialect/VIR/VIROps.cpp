@@ -38,7 +38,37 @@ LogicalResult SetVLOp::verify() {
   // the region has one block (SizedRegion<1>, verified before)
   if (getRegion().front().getNumArguments() != 0)
     return emitOpError("region must not have block arguments");
-  return success();
+  if (getNumResults() != 0)
+    return success();
+  // Without results the region runs once per chunk of lanes, chunks the
+  // lowering chooses: a scalar it writes to memory from outside the region
+  // must not depend on them, so it is the result of a vir.reduce (which
+  // adds its chunk to an accumulator).
+  WalkResult walk = getRegion().walk([&](Operation *op) {
+    auto effects = dyn_cast<MemoryEffectOpInterface>(op);
+    if (!effects || isa<VIRDialect>(op->getDialect()))
+      return WalkResult::advance();
+    SmallVector<MemoryEffects::EffectInstance> writes;
+    effects.getEffects<MemoryEffects::Write>(writes);
+    bool outside = llvm::any_of(writes, [&](auto &w) {
+      Value target = w.getValue();
+      return !target || !getRegion().isAncestor(target.getParentRegion());
+    });
+    if (!outside)
+      return WalkResult::advance();
+    for (Value v : op->getOperands()) {
+      Type t = v.getType();
+      if (!isa<IntegerType, FloatType>(t) || v.getDefiningOp<ReduceOp>())
+        continue;
+      op->emitOpError("writes a scalar that is not the result of a "
+                      "vir.reduce in a vir.set_vl without results: the "
+                      "region runs once per chunk of lanes, chunks the "
+                      "lowering chooses");
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  return failure(walk.wasInterrupted());
 }
 
 // One index per memref dim or none, and a dim of the memref per dim of the

@@ -2211,13 +2211,19 @@ private:
       // The lanes past the main loop, fewer than its step, first in vectors
       // of half its width, then a quarter, ...: each at most once, in the
       // order of the lanes, with no mask; the lanes left go to the scalar
-      // tail loop. A part has at least 512 bits (16 f32): smaller ones cost
-      // about as much as the scalar lanes they replace, plus their code and
-      // vtype changes (on VLEN 128, parts of 2 to 8 lanes made the f32
-      // YOLOv8 2.5% slower than the scalar tail; from 16 lanes on, the same
-      // as it). Fixed vectors need a constant vl (the bounds of the affine
+      // tail loop. Fixed vectors need a constant vl (the bounds of the affine
       // tail loop stay affine); scalable ones test the rest at run time,
       // their lanes counted at the VLEN of rvv-vlen, else the least (128).
+      //
+      // A part has at least 512 bits: a heuristic from measurements, not a
+      // cost model. On the f32 YOLOv8 (16 f32 per part) on three RISC-V
+      // cores, parts of 2 to 8 lanes cost about as much as the scalar lanes
+      // they replace, plus their code and vtype changes (VLEN 128: 2.5%
+      // slower than the scalar tail; from 16 lanes on, the same), while
+      // parts of 16 lanes and more were the gain on VLEN 256 and 1024.
+      // 512 bits are 64 i8, 32 f16, 8 f64 lanes: other element types,
+      // instructions and cores may have another best size, for a target
+      // cost model to give.
       {
         auto vecTy = cast<VectorType>(targetVectorType);
         bool scalable = vecTy.isScalable();
