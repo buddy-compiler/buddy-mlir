@@ -4,8 +4,10 @@
 // RUN: | FileCheck %s --check-prefix=FIXED
 
 // A vector<[4]xf32> has 4 * vscale lanes: the main loop steps by 4 * vscale
-// up to vl - vl % (4 * vscale), where the scalar tail loop starts. Both are
-// scf.for, since that end is not a valid affine symbol inside other loops.
+// up to vl - vl % (4 * vscale). The rest goes to a vector<[2]xf32> and a
+// vector<[1]xf32> when it has as many lanes (tested at run time), then to
+// the scalar tail loop. The loops are scf.for, since their bounds are not
+// valid affine symbols inside other loops.
 func.func @sum(%a: memref<100xf32>, %o: memref<1xf32>) {
   %vl = arith.constant 100 : index
   %c0 = arith.constant 0 : index
@@ -29,15 +31,29 @@ func.func @sum(%a: memref<100xf32>, %o: memref<1xf32>) {
 // CHECK:   vector.load %{{.*}}[%[[I]]] : memref<100xf32>, vector<[4]xf32>
 // CHECK:   vector.reduction <add>, %{{.*}}, %{{.*}} : vector<[4]xf32> into f32
 // CHECK: }
+// CHECK: %[[REST2:.*]] = arith.subi %{{.*}}, %[[END]] : index
+// CHECK: %[[FITS2:.*]] = arith.cmpi sge, %[[REST2]], %{{.*}} : index
+// CHECK: scf.if %[[FITS2]] {
+// CHECK:   vector.load %{{.*}}[%[[END]]] : memref<100xf32>, vector<[2]xf32>
+// CHECK:   vector.reduction <add>, %{{.*}}, %{{.*}} : vector<[2]xf32> into f32
+// CHECK: }
+// CHECK: %[[AT1:.*]] = arith.select %[[FITS2]], %{{.*}}, %[[END]] : index
+// CHECK: %[[FITS1:.*]] = arith.cmpi sge
+// CHECK: scf.if %[[FITS1]] {
+// CHECK:   vector.load %{{.*}}[%[[AT1]]] : memref<100xf32>, vector<[1]xf32>
+// CHECK: }
+// CHECK: %[[AT0:.*]] = arith.select %[[FITS1]], %{{.*}}, %[[AT1]] : index
 // CHECK: %[[C1:.*]] = arith.constant 1 : index
-// CHECK: scf.for %{{.*}} = %[[END]] to %{{.*}} step %[[C1]] {
+// CHECK: scf.for %{{.*}} = %[[AT0]] to %{{.*}} step %[[C1]] {
 // CHECK:   memref.load
 // CHECK:   arith.addf
 
-// Fixed vectors keep the constant step.
+// Fixed vectors keep the constant step; 100 lanes are 25 vectors of 4, none
+// left.
 // FIXED-LABEL: func.func @sum
 // FIXED: affine.for %{{.*}} = #map(%{{.*}}) to #map(%{{.*}}) step 4 {
 // FIXED:   vector.load %{{.*}} : memref<100xf32>, vector<4xf32>
+// FIXED-NOT: vector<2xf32>
 
 // An scf.for in a region without results carries dynamic vectors: in the
 // main loop as vectors, in the tail loop as scalars; an unsigned loop stays
@@ -87,7 +103,12 @@ func.func @copy2d(%a: memref<2x100xf32>, %b: memref<2x100xf32>) {
 // CHECK:   %[[END:.*]] = arith.subi
 // CHECK:   scf.for %[[I:.*]] = %{{.*}} to %[[END]] step %{{.*}} {
 // CHECK:     vector.load %{{.*}}[%[[D]], %[[I]]] : memref<2x100xf32>, vector<[4]xf32>
-// CHECK:   scf.for %[[J:.*]] = %[[END]] to %{{.*}} step %{{.*}} {
+// CHECK:   scf.if
+// CHECK:     vector.load %{{.*}}[%[[D]], %[[END]]] : memref<2x100xf32>, vector<[2]xf32>
+// CHECK:   scf.if
+// CHECK:     vector.load %{{.*}} : memref<2x100xf32>, vector<[1]xf32>
+// CHECK:   %[[AT:.*]] = arith.select
+// CHECK:   scf.for %[[J:.*]] = %[[AT]] to %{{.*}} step %{{.*}} {
 // CHECK:     memref.load %{{.*}}[%[[D]], %[[J]]] : memref<2x100xf32>
 
 // An index computed in an scf.for of the region is used through its lowered

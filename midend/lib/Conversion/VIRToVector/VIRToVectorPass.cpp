@@ -2208,6 +2208,54 @@ private:
         tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
       }
 
+      // The lanes past the main loop, fewer than its step, first in vectors
+      // of half its width, then a quarter, ...: each at most once, in the
+      // order of the lanes, with no mask; only those fewer than the smallest
+      // (2 lanes, or [1] scalable) go to the scalar tail loop. Fixed vectors
+      // need a constant vl (the bounds of the affine tail loop stay affine);
+      // scalable ones test the rest at run time.
+      {
+        auto vecTy = cast<VectorType>(targetVectorType);
+        bool scalable = vecTy.isScalable();
+        std::optional<int64_t> constVl = getConstantIntValue(vlValue);
+        auto lowerPart = [&](OpBuilder &bb, Location bodyLoc, Value at,
+                             int64_t w) {
+          DenseMap<Value, Value> virSymbolTable;
+          lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, at,
+                     leadingIVs,
+                     VectorType::get({w}, vecTy.getElementType(),
+                                     vecTy.getScalableDims()),
+                     /*isTailLoop=*/false);
+        };
+        if (scalable) {
+          Value vscale = vector::VectorScaleOp::create(b, loc);
+          for (int64_t w = vectorWid / 2; w >= 1; w /= 2) {
+            Value step = arith::MulIOp::create(
+                b, loc, arith::ConstantIndexOp::create(b, loc, w), vscale);
+            Value rest = arith::SubIOp::create(b, loc, vlValue, tailStart);
+            Value fits = arith::CmpIOp::create(
+                b, loc, arith::CmpIPredicate::sge, rest, step);
+            Value at = tailStart;
+            scf::IfOp::create(b, loc, fits,
+                              [&](OpBuilder &bb, Location bodyLoc) {
+                                lowerPart(bb, bodyLoc, at, w);
+                                scf::YieldOp::create(bb, bodyLoc);
+                              });
+            tailStart = arith::SelectOp::create(
+                b, loc, fits, arith::AddIOp::create(b, loc, tailStart, step),
+                tailStart);
+          }
+        } else if (constVl) {
+          int64_t at = *constVl - *constVl % vectorWid;
+          for (int64_t w = vectorWid / 2; w >= 2; w /= 2)
+            if (*constVl - at >= w) {
+              lowerPart(b, loc, arith::ConstantIndexOp::create(b, loc, at), w);
+              at += w;
+            }
+          tailStart = arith::ConstantIndexOp::create(b, loc, at);
+        }
+      }
+
       auto lowerTail = [&](OpBuilder &bb, Location bodyLoc, Value iv) {
         DenseMap<Value, Value> virSymbolTable;
         lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv, leadingIVs,
