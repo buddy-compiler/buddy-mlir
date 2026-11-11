@@ -157,22 +157,89 @@ static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
 }
 
 // A memref of i1 holds a byte per element, a vector of i1 a bit per lane:
-// fixed i1 accesses are scalarized per lane, which a scalable vector
-// (N * vscale lanes) cannot be yet.
-static LogicalResult rejectI1Accesses(Region &region) {
-  WalkResult i1Access = region.walk([](Operation *access) {
-    Value base;
-    if (auto load = dyn_cast<vir::LoadOp>(access))
-      base = load.getBase();
-    else if (auto store = dyn_cast<vir::StoreOp>(access))
-      base = store.getBase();
-    if (!base ||
-        !cast<MemRefType>(base.getType()).getElementType().isInteger(1))
-      return WalkResult::advance();
-    access->emitError("a memref of i1 needs fixed vectors");
-    return WalkResult::interrupt();
-  });
-  return failure(i1Access.wasInterrupted());
+// fixed i1 accesses are scalarized per lane. A scalable vector (N * vscale
+// lanes) is read and written as the bytes of the memref, a vector<[N]xi8>
+// at the address of the first element, truncated to / extended from the i1
+// lanes: a plain load / store when the elements are contiguous (a static
+// unit stride along the lanes), else a strided one (the VP intrinsics, all
+// lanes on).
+static bool isScalableI1(VectorType vecTy) {
+  return vecTy && vecTy.isScalable() && vecTy.getRank() == 1 &&
+         vecTy.getElementType().isInteger(1);
+}
+
+namespace {
+/// A scalable access of a memref of i1: the address of its first element
+/// and what a strided access needs.
+struct I1Bytes {
+  VectorType type; // vector<[N]xi8>
+  Value pointer;   // of the first element
+  bool contiguous;
+  Value stride, mask, evl; // when not contiguous
+};
+} // namespace
+
+static I1Bytes i1Bytes(OpBuilder &builder, Location loc, VectorType vecTy,
+                       Value base, ArrayRef<Value> indices) {
+  I1Bytes bytes;
+  bytes.type = VectorType::get(vecTy.getShape(), builder.getI8Type(),
+                               vecTy.getScalableDims());
+  // the aligned pointer plus the linear index of the element, in bytes
+  auto metadata = memref::ExtractStridedMetadataOp::create(builder, loc, base);
+  Value linear = metadata.getOffset();
+  for (auto [index, stride] : llvm::zip(indices, metadata.getStrides()))
+    linear = arith::AddIOp::create(
+        builder, loc, linear,
+        arith::MulIOp::create(builder, loc, index, stride));
+  Value address = arith::AddIOp::create(
+      builder, loc,
+      memref::ExtractAlignedPointerAsIndexOp::create(builder, loc, base),
+      linear);
+  Type i64 = builder.getI64Type();
+  Value bits = arith::IndexCastOp::create(builder, loc, i64, address);
+  bytes.pointer = LLVM::IntToPtrOp::create(
+      builder, loc, LLVM::LLVMPointerType::get(builder.getContext()), bits);
+  bytes.contiguous = hasStaticallyUnitStrideInVectorizedDim(base);
+  if (!bytes.contiguous) {
+    bytes.stride = arith::IndexCastOp::create(builder, loc, i64,
+                                              metadata.getStrides().back());
+    Value on =
+        arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true));
+    bytes.mask = broadcastTo(builder, loc, vecTy, on);
+    Value lanes = arith::MulIOp::create(
+        builder, loc,
+        arith::ConstantIndexOp::create(builder, loc, vecTy.getShape()[0]),
+        vector::VectorScaleOp::create(builder, loc));
+    bytes.evl =
+        arith::IndexCastOp::create(builder, loc, builder.getI32Type(), lanes);
+  }
+  return bytes;
+}
+
+static Value buildScalableI1VectorLoad(OpBuilder &builder, Location loc,
+                                       VectorType vecTy, Value base,
+                                       ArrayRef<Value> indices) {
+  I1Bytes at = i1Bytes(builder, loc, vecTy, base, indices);
+  Value bytes =
+      at.contiguous
+          ? Value(LLVM::LoadOp::create(builder, loc, at.type, at.pointer,
+                                       /*alignment=*/1))
+          : Value(LLVM::VPStridedLoadOp::create(
+                builder, loc, at.type, at.pointer, at.stride, at.mask, at.evl));
+  return arith::TruncIOp::create(builder, loc, vecTy, bytes);
+}
+
+static void buildScalableI1VectorStore(OpBuilder &builder, Location loc,
+                                       Value vectorValue, Value base,
+                                       ArrayRef<Value> indices) {
+  auto vecTy = cast<VectorType>(vectorValue.getType());
+  I1Bytes at = i1Bytes(builder, loc, vecTy, base, indices);
+  Value bytes = arith::ExtUIOp::create(builder, loc, at.type, vectorValue);
+  if (at.contiguous)
+    LLVM::StoreOp::create(builder, loc, bytes, at.pointer, /*alignment=*/1);
+  else
+    LLVM::VPStridedStoreOp::create(builder, loc, bytes, at.pointer, at.stride,
+                                   at.mask, at.evl);
 }
 
 static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
@@ -417,6 +484,10 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   // index as the LLVM lowering has it
   unsigned elementBitWidth =
       anchorType.isIndex() ? indexBitWidth : anchorType.getIntOrFloatBitWidth();
+  // an i1 lane is a byte of its memref (and of the vector<[N]xi8> a scalable
+  // access reads): the vectors of a region of i1 are sized for bytes
+  if (elementBitWidth == 1)
+    elementBitWidth = 8;
   if (elementBitWidth == 0) {
     srcRegion.getParentOp()->emitError(
         "Anchor type is not a valid integer or float type.");
@@ -667,6 +738,11 @@ private:
                     builder, loc, *vecTyOr, base, destIndices);
                 return;
               }
+              if (isScalableI1(*vecTyOr)) {
+                virSymbolTable[op.getResult()] = buildScalableI1VectorLoad(
+                    builder, loc, *vecTyOr, base, destIndices);
+                return;
+              }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
                 auto vectorLoadOp = vector::LoadOp::create(
                     builder, loc, *vecTyOr, base, destIndices);
@@ -699,6 +775,11 @@ private:
                   shouldScalarizeI1VectorMemoryOp(vecTy)) {
                 buildScalarizedI1VectorStore(builder, loc, valueToStore, base,
                                              destIndices);
+                return;
+              }
+              if (isScalableI1(dyn_cast<VectorType>(valueToStore.getType()))) {
+                buildScalableI1VectorStore(builder, loc, valueToStore, base,
+                                           destIndices);
                 return;
               }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
@@ -1608,7 +1689,10 @@ private:
             if (!hasStaticallyUnitStrideInVectorizedDim(base))
               return op->emitError("a vir.set_vl with results on scalable "
                                    "vectors needs unit-stride accesses");
-            out.push_back(vector::LoadOp::create(b, loc, vecTy, base, idx));
+            out.push_back(
+                isScalableI1(vecTy)
+                    ? buildScalableI1VectorLoad(b, loc, vecTy, base, idx)
+                    : Value(vector::LoadOp::create(b, loc, vecTy, base, idx)));
           } else if (shouldScalarizeI1VectorMemoryOp(vecTy))
             out.push_back(
                 buildScalarizedI1VectorLoad(b, loc, vecTy, base, idx));
@@ -1634,7 +1718,10 @@ private:
             if (!hasStaticallyUnitStrideInVectorizedDim(base))
               return op->emitError("a vir.set_vl with results on scalable "
                                    "vectors needs unit-stride accesses");
-            vector::StoreOp::create(b, loc, values[p], base, idx);
+            if (isScalableI1(cast<VectorType>(values[p].getType())))
+              buildScalableI1VectorStore(b, loc, values[p], base, idx);
+            else
+              vector::StoreOp::create(b, loc, values[p], base, idx);
           } else if (shouldScalarizeI1VectorMemoryOp(
                          cast<VectorType>(values[p].getType())))
             buildScalarizedI1VectorStore(b, loc, values[p], base, idx);
@@ -2052,8 +2139,6 @@ private:
       return op.emitError("a vir.set_vl with results lowers to more than 64 "
                           "pieces; increase vector-width");
     Location loc = op.getLoc();
-    if (useScalable && failed(rejectI1Accesses(op.getRegion())))
-      return failure();
     PieceMap map;
     Block &block = op.getRegion().front();
     if (failed(lowerBlockInPieces(rewriter, loc, &block, map, pieces)))
@@ -2186,9 +2271,6 @@ private:
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
-    if (targetVectorType.isScalable() && failed(rejectI1Accesses(region)))
-      return failure();
-
     //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
     //===------------------------------------------------------------------===//
@@ -2268,6 +2350,8 @@ private:
         int64_t elemBits = elem.isIndex()
                                ? getTypeConverter()->getIndexTypeBitwidth()
                                : elem.getIntOrFloatBitWidth();
+        // (an i1 lane is a byte, as for the size of the vectors)
+        elemBits = std::max<int64_t>(elemBits, 8);
         int64_t lanesPerWidth =
             scalable ? (rvvVlen > 0 ? rvvVlen : 128) / 64 : 1;
         auto bigEnough = [&](int64_t w) {
