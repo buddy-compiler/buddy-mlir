@@ -179,6 +179,45 @@ struct I1Bytes {
 };
 } // namespace
 
+/// The LLVM address space of the memory space of `type` (an integer, or
+/// none for 0), or nothing.
+static std::optional<unsigned> addressSpaceOf(MemRefType type) {
+  Attribute space = type.getMemorySpace();
+  if (!space)
+    return 0;
+  if (auto integer = dyn_cast<IntegerAttr>(space))
+    return integer.getInt();
+  return std::nullopt;
+}
+
+/// A scalable access of a memref of i1 addresses its bytes from the strided
+/// metadata of the memref: it needs a strided layout and an integer memory
+/// space (the address space of the pointer).
+static LogicalResult checkScalableI1Accesses(Region &region) {
+  WalkResult walk = region.walk([](Operation *access) {
+    Value base;
+    if (auto load = dyn_cast<vir::LoadOp>(access))
+      base = load.getBase();
+    else if (auto store = dyn_cast<vir::StoreOp>(access))
+      base = store.getBase();
+    auto type = base ? cast<MemRefType>(base.getType()) : MemRefType();
+    if (!type || !type.getElementType().isInteger(1))
+      return WalkResult::advance();
+    if (!type.isStrided()) {
+      access->emitError("a scalable access of a memref of i1 needs a strided "
+                        "layout");
+      return WalkResult::interrupt();
+    }
+    if (!addressSpaceOf(type)) {
+      access->emitError("a scalable access of a memref of i1 needs an "
+                        "integer memory space");
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  return failure(walk.wasInterrupted());
+}
+
 static I1Bytes i1Bytes(OpBuilder &builder, Location loc, VectorType vecTy,
                        Value base, ArrayRef<Value> indices) {
   I1Bytes bytes;
@@ -197,8 +236,11 @@ static I1Bytes i1Bytes(OpBuilder &builder, Location loc, VectorType vecTy,
       linear);
   Type i64 = builder.getI64Type();
   Value bits = arith::IndexCastOp::create(builder, loc, i64, address);
+  // (checkScalableI1Accesses: an integer memory space)
+  unsigned space = *addressSpaceOf(cast<MemRefType>(base.getType()));
   bytes.pointer = LLVM::IntToPtrOp::create(
-      builder, loc, LLVM::LLVMPointerType::get(builder.getContext()), bits);
+      builder, loc, LLVM::LLVMPointerType::get(builder.getContext(), space),
+      bits);
   bytes.contiguous = hasStaticallyUnitStrideInVectorizedDim(base);
   if (!bytes.contiguous) {
     bytes.stride = arith::IndexCastOp::create(builder, loc, i64,
@@ -277,6 +319,33 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
                                              OpFoldResult(laneIdx));
     memref::StoreOp::create(builder, loc, scalar, base, laneIndices);
   }
+}
+
+/// The element type of the dynamic vectors of `region` with the most bits
+/// (the first of equals), an i1 counted as a byte (its memref's element, and
+/// what a scalable access of it reads) and an index as `indexBitWidth`: the
+/// vectors are sized for it, so that none needs more than a group of
+/// registers (an i1 or f16 first, then f32 vectors, would otherwise size
+/// those for the narrower type, beyond LMUL 8).
+static Type widestElementType(Region &region, unsigned indexBitWidth) {
+  Type widest;
+  unsigned widestBits = 0;
+  region.walk([&](Operation *op) {
+    for (Value result : op->getResults()) {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(result.getType());
+      if (!dyn || dyn.getScalingFactor())
+        continue;
+      Type elem = dyn.getElementType();
+      unsigned bits = elem.isIndex()
+                          ? indexBitWidth
+                          : std::max(8u, elem.getIntOrFloatBitWidth());
+      if (bits > widestBits) {
+        widest = elem;
+        widestBits = bits;
+      }
+    }
+  });
+  return widest;
 }
 
 /// The VLEN in bits of the host when it is a RISC-V CPU with V, else 0. The
@@ -2139,6 +2208,8 @@ private:
       return op.emitError("a vir.set_vl with results lowers to more than 64 "
                           "pieces; increase vector-width");
     Location loc = op.getLoc();
+    if (useScalable && failed(checkScalableI1Accesses(op.getRegion())))
+      return failure();
     PieceMap map;
     Block &block = op.getRegion().front();
     if (failed(lowerBlockInPieces(rewriter, loc, &block, map, pieces)))
@@ -2163,6 +2234,9 @@ private:
     unsupportedOp = false;
     Region &region = op.getRegion();
     Type anchorType = findAnchorTypeRecursive(region);
+    if (anchorType)
+      anchorType =
+          widestElementType(region, getTypeConverter()->getIndexTypeBitwidth());
     if (!anchorType) {
       return op.emitError(
           "No anchor type found in the dynamic vector region. "
@@ -2270,6 +2344,10 @@ private:
                            getTypeConverter()->getIndexTypeBitwidth());
       vectorWid = int(targetVectorType.getShape()[0]);
     }
+
+    if (targetVectorType.isScalable() &&
+        failed(checkScalableI1Accesses(region)))
+      return failure();
 
     //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
@@ -2823,22 +2901,6 @@ static void jamLoop(scf::ForOp loop, int64_t factor) {
   loop.getLowerBoundMutable().assign(mainUb);
 }
 
-/// The element type of the first dynamic vector of a region, as
-/// VIRSetVLLowering finds its anchor type.
-static Type anchorTypeOf(Region &region) {
-  Type anchor;
-  region.walk<WalkOrder::PreOrder>([&](Operation *op) {
-    for (Value result : op->getResults())
-      if (auto dyn = dyn_cast<vir::DynamicVectorType>(result.getType());
-          dyn && !dyn.getScalingFactor()) {
-        anchor = dyn.getElementType();
-        return WalkResult::interrupt();
-      }
-    return WalkResult::advance();
-  });
-  return anchor;
-}
-
 /// Jams the loops of the strip-mined regions of `module` (see above). The
 /// vectors are sized as vectorTypeHelper sizes them with these arguments.
 static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
@@ -2856,7 +2918,8 @@ static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
     });
   });
   for (auto [setVL, loop] : loops) {
-    Type anchor = anchorTypeOf(setVL.getRegion());
+    // as VIRSetVLLowering finds its anchor type
+    Type anchor = widestElementType(setVL.getRegion(), indexBitWidth);
     if (!anchor)
       continue;
     // the factor with the most lanes per shared load (the least of equals),
