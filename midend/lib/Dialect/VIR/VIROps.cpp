@@ -41,16 +41,16 @@ LogicalResult SetVLOp::verify() {
   if (getNumResults() != 0)
     return success();
   // Without results the region runs once per chunk of lanes, chunks the
-  // lowering chooses, so what it writes to memory from outside the region
-  // must not depend on them. A scalar is written only as an accumulator:
-  // memref.store of the result of a vir.reduce whose accumulator is a
-  // memref.load, in the region, of the same element (each chunk combines its
-  // lanes with what the chunks before stored). An op of unknown memory
-  // effects is rejected.
+  // lowering chooses, so its memory effects must not depend on them. Only
+  // these ops may have one: VIR ops (vir.store writes its own lanes), reads,
+  // loops (their ops are checked), and the memref.store of an accumulator:
+  // the result of a vir.reduce whose accumulator is a memref.load, in the
+  // region, of the same memref value and indices (each chunk combines its
+  // lanes with what the chunks before stored). Any other write, allocation
+  // or free, and an op of unknown memory effects, is rejected: whatever the
+  // memory it reaches (a view made in the region may alias memory from
+  // outside), and the lowering of the chunks does not handle it.
   Region &region = getRegion();
-  auto inRegion = [&](Value v) {
-    return region.isAncestor(v.getParentRegion());
-  };
   auto reject = [&](Operation *op, const Twine &why) {
     op->emitOpError(why) << " in a vir.set_vl without results: the region "
                             "runs once per chunk of lanes, chunks the "
@@ -64,26 +64,21 @@ LogicalResult SetVLOp::verify() {
     auto effects = dyn_cast<MemoryEffectOpInterface>(op);
     if (!effects)
       return reject(op, "has unknown memory effects");
-    SmallVector<MemoryEffects::EffectInstance> writes;
-    effects.getEffects<MemoryEffects::Write>(writes);
-    bool outside = llvm::any_of(writes, [&](auto &w) {
-      Value target = w.getValue();
-      return !target || !inRegion(target);
-    });
-    if (!outside)
-      return WalkResult::advance();
-    bool scalar = llvm::any_of(op->getOperandTypes(), [](Type t) {
-      return isa<IntegerType, FloatType>(t);
-    });
-    if (!scalar)
+    SmallVector<MemoryEffects::EffectInstance> all;
+    effects.getEffects(all);
+    if (llvm::all_of(all, [](auto &e) {
+          return isa<MemoryEffects::Read>(e.getEffect());
+        }))
       return WalkResult::advance();
     auto store = dyn_cast<memref::StoreOp>(op);
-    auto reduce = store ? store.getValue().getDefiningOp<ReduceOp>() : nullptr;
+    if (!store)
+      return reject(op, "writes, allocates or frees memory");
+    auto reduce = store.getValue().getDefiningOp<ReduceOp>();
     if (!reduce)
-      return reject(op, "writes a scalar that is not the result of a "
+      return reject(op, "stores a value that is not the result of a "
                         "vir.reduce");
     auto load = reduce.getAcc().getDefiningOp<memref::LoadOp>();
-    if (!load || !inRegion(load.getResult()) ||
+    if (!load || !region.isAncestor(load->getParentRegion()) ||
         load.getMemRef() != store.getMemRef() ||
         load.getIndices() != store.getIndices())
       return reject(op, "stores a vir.reduce whose accumulator is not a "
