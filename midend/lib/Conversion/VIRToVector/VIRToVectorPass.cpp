@@ -492,6 +492,8 @@ private:
   // rvvVlen is the VLEN of the target, not only its minimum (use-scalable
   // without rvv-vlen)
   bool rvvVlenExact;
+  // set when lowerBlock meets an op it does not lower
+  mutable bool unsupportedOp = false;
 
   /// Recursively search for anchor type within a given Region and its nested
   Type findAnchorTypeRecursive(Region &region) const {
@@ -1409,8 +1411,13 @@ private:
                 math::RoundOp, math::TanhOp, math::ErfOp, math::PowFOp>(
               [&](Operation *op) { cloneMappedOp(op); })
           .Default([&](Operation *op) {
-            emitWarning(loc, "Unsupported operation during lowering: " +
-                                 op->getName().getStringRef());
+            // dropping it would drop its effect: fail the lowering (once
+            // per region, which is lowered once per chunk)
+            if (!unsupportedOp)
+              op->emitError("unsupported operation in a strip-mined "
+                            "vir.set_vl: ")
+                  << op->getName();
+            unsupportedOp = true;
           });
     }
   }
@@ -2040,6 +2047,7 @@ private:
     //===------------------------------------------------------------------===//
     // Step 1: Recursive search for anchor type.
     //===------------------------------------------------------------------===//
+    unsupportedOp = false;
     Region &region = op.getRegion();
     Type anchorType = findAnchorTypeRecursive(region);
     if (!anchorType) {
@@ -2350,6 +2358,8 @@ private:
       emitOuter(/*dim=*/0, rewriter);
     }
 
+    if (unsupportedOp)
+      return failure();
     rewriter.eraseOp(op);
     return success();
   }

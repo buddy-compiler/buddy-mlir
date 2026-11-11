@@ -146,6 +146,27 @@ func.func @local(%a: memref<51xf32>, %o: memref<51xf32>) {
 
 // -----
 
+// An op with nested ops the lowering of the chunks does not lower: its
+// accumulator would be dropped.
+func.func @if(%a: memref<51xf32>, %s: memref<1xf32>, %n: index) {
+  %vl = arith.constant 51 : index
+  %zero = arith.constant 0 : index
+  vir.set_vl %vl : index {
+    %cond = arith.cmpi sgt, %n, %zero : index
+    // expected-error @below {{'scf.if' op has nested ops the lowering does not handle}}
+    scf.if %cond {
+      %x = vir.load %a[] : memref<51xf32> -> !vir.vec<?xf32>
+      %acc = memref.load %s[%zero] : memref<1xf32>
+      %r = vir.reduce %x, %acc {kind = "add"} : !vir.vec<?xf32>, f32 -> f32
+      memref.store %r, %s[%zero] : memref<1xf32>
+    }
+    vector.yield
+  }
+  return
+}
+
+// -----
+
 // An accumulator through a view made in the region.
 func.func @accumulate_view(%a: memref<51xf32>, %s: memref<2xf32>) {
   %vl = arith.constant 51 : index

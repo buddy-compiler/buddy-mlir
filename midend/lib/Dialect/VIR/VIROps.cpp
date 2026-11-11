@@ -43,7 +43,8 @@ LogicalResult SetVLOp::verify() {
   // Without results the region runs once per chunk of lanes, chunks the
   // lowering chooses, so its memory effects must not depend on them. Only
   // these ops may have one: VIR ops (vir.store writes its own lanes), reads,
-  // loops (their ops are checked), and the memref.store of an accumulator:
+  // scf.for / affine.for (their ops are checked; other ops with nested ops,
+  // e.g. scf.if, are not lowered), and the memref.store of an accumulator:
   // the result of a vir.reduce whose accumulator is a memref.load, in the
   // region, of the same memref value and indices (each chunk combines its
   // lanes with what the chunks before stored). Any other write, allocation
@@ -58,9 +59,15 @@ LogicalResult SetVLOp::verify() {
     return WalkResult::interrupt();
   };
   WalkResult walk = region.walk([&](Operation *op) {
-    if (isa<VIRDialect>(op->getDialect()) ||
-        op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+    if (isa<VIRDialect>(op->getDialect()))
       return WalkResult::advance();
+    // the loops the lowering of the chunks lowers (their ops are checked)
+    if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+      StringRef name = op->getName().getStringRef();
+      if (name == "scf.for" || name == "affine.for")
+        return WalkResult::advance();
+      return reject(op, "has nested ops the lowering does not handle");
+    }
     auto effects = dyn_cast<MemoryEffectOpInterface>(op);
     if (!effects)
       return reject(op, "has unknown memory effects");
