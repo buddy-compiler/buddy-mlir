@@ -3,6 +3,9 @@
 // RUN: buddy-opt %s -split-input-file \
 // RUN:     -lower-vir-to-vector='rvv-vlen=1024 verbose=true' \
 // RUN: | FileCheck %s --check-prefix=VLEN1024
+// RUN: buddy-opt %s -split-input-file \
+// RUN:     -lower-vir-to-vector='rvv-vlen=256 use-scalable=true' \
+// RUN: | FileCheck %s --check-prefix=SCALABLE
 
 // The register pressure of a region (Req_Group) counts the dynamic vectors
 // live at every op, those in nested loops included, and gives the vector
@@ -47,11 +50,17 @@ func.func @loop_carried(%q: memref<4x256xf32>, %k: memref<64x256xf32>,
   return %r0 : f32
 }
 
+// A set_vl with results of 256 lanes needs 4 groups of 8 registers per
+// vector at VLEN 256: the values cannot all stay in registers, and LMUL 4
+// replaces the LMUL 2 of the liveness.
 // CHECK: 10 live at %{{.*}} = vir.fma
 // CHECK: Final Max Active Vectors (Req_Group): 10
 // CHECK: Calculated LMUL = 2, Size_vec = (2 * 256) / 32 = 16
+// CHECK: set_vl with results: 256 lanes need several groups of 8 registers: LMUL 4, width 32
 // CHECK-LABEL: func.func @loop_carried
-// CHECK: vector.fma {{.*}} : vector<16xf32>
+// CHECK: vector.fma {{.*}} : vector<32xf32>
+// SCALABLE-LABEL: func.func @loop_carried
+// SCALABLE: vector.fma {{.*}} : vector<[8]xf32>
 
 // -----
 

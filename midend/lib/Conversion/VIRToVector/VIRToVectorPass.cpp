@@ -1954,6 +1954,27 @@ private:
                                getTypeConverter()->getIndexTypeBitwidth(),
                                llvm::product_of(layout))
                   .getShape()[0];
+    // RVV: a dynamic vector of more lanes than a group of 8 registers holds
+    // needs several groups, so the values of the region cannot all stay in
+    // registers, whatever the LMUL. Groups smaller than 4 then only add
+    // instructions and spills: on the decode attention of the K3 kernels
+    // (128 lanes of f32), LMUL 4 was the fastest, against the LMUL 2 of the
+    // liveness (8% on VLEN 256, 35% at 1000 keys on VLEN 128), and LMUL 8
+    // slower.
+    if (rvvVlen > 0 && !useCustomVecWid) {
+      int64_t sew = anchorType.isIndex()
+                        ? getTypeConverter()->getIndexTypeBitwidth()
+                        : anchorType.getIntOrFloatBitWidth();
+      int64_t lmul4 = useScalable ? 4 * 64 / sew : 4 * int64_t(rvvVlen) / sew;
+      if (lanes * sew > 8 * int64_t(rvvVlen) && width < lmul4) {
+        width = lmul4;
+        if (verbose)
+          llvm::outs() << "set_vl with results: " << lanes
+                       << " lanes need several groups of 8 registers: LMUL "
+                          "4, width "
+                       << width << "\n";
+      }
+    }
     // Scalable vectors have width * vscale lanes at the vscale of the
     // target, rvv-vlen / 64: the code is for that VLEN only. Without it, a
     // vector<[N]xT> has more lanes than the ones it is cut for on a larger
