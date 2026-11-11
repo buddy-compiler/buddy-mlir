@@ -2210,14 +2210,27 @@ private:
 
       // The lanes past the main loop, fewer than its step, first in vectors
       // of half its width, then a quarter, ...: each at most once, in the
-      // order of the lanes, with no mask; only those fewer than the smallest
-      // (2 lanes, or [1] scalable) go to the scalar tail loop. Fixed vectors
-      // need a constant vl (the bounds of the affine tail loop stay affine);
-      // scalable ones test the rest at run time.
+      // order of the lanes, with no mask; the lanes left go to the scalar
+      // tail loop. A part has at least 512 bits (16 f32): smaller ones cost
+      // about as much as the scalar lanes they replace, plus their code and
+      // vtype changes (on VLEN 128, parts of 2 to 8 lanes made the f32
+      // YOLOv8 2.5% slower than the scalar tail; from 16 lanes on, the same
+      // as it). Fixed vectors need a constant vl (the bounds of the affine
+      // tail loop stay affine); scalable ones test the rest at run time,
+      // their lanes counted at the VLEN of rvv-vlen, else the least (128).
       {
         auto vecTy = cast<VectorType>(targetVectorType);
         bool scalable = vecTy.isScalable();
         std::optional<int64_t> constVl = getConstantIntValue(vlValue);
+        Type elem = vecTy.getElementType();
+        int64_t elemBits = elem.isIndex()
+                               ? getTypeConverter()->getIndexTypeBitwidth()
+                               : elem.getIntOrFloatBitWidth();
+        int64_t lanesPerWidth =
+            scalable ? (rvvVlen > 0 ? rvvVlen : 128) / 64 : 1;
+        auto bigEnough = [&](int64_t w) {
+          return w * lanesPerWidth * elemBits >= 512;
+        };
         auto lowerPart = [&](OpBuilder &bb, Location bodyLoc, Value at,
                              int64_t w) {
           DenseMap<Value, Value> virSymbolTable;
@@ -2229,7 +2242,7 @@ private:
         };
         if (scalable) {
           Value vscale = vector::VectorScaleOp::create(b, loc);
-          for (int64_t w = vectorWid / 2; w >= 1; w /= 2) {
+          for (int64_t w = vectorWid / 2; w >= 1 && bigEnough(w); w /= 2) {
             Value step = arith::MulIOp::create(
                 b, loc, arith::ConstantIndexOp::create(b, loc, w), vscale);
             Value rest = arith::SubIOp::create(b, loc, vlValue, tailStart);
@@ -2247,7 +2260,7 @@ private:
           }
         } else if (constVl) {
           int64_t at = *constVl - *constVl % vectorWid;
-          for (int64_t w = vectorWid / 2; w >= 2; w /= 2)
+          for (int64_t w = vectorWid / 2; w >= 2 && bigEnough(w); w /= 2)
             if (*constVl - at >= w) {
               lowerPart(b, loc, arith::ConstantIndexOp::create(b, loc, at), w);
               at += w;
