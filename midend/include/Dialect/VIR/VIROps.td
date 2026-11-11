@@ -48,9 +48,20 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     for hardware-agnostic vector computations.
 
     Without results, the region is lowered to a strip-mined loop: it runs
-    once per vector of the target width (then once per remaining element),
-    so no value flows from one part of the vectors to the next and the
-    region computes what it stores.
+    once per chunk of lanes, each chunk a vector of the target width, then
+    vectors of half, a quarter, ... of it for the lanes left, then single
+    lanes; the lowering chooses the chunks, so no value flows from one
+    chunk to the next and the region computes what it stores. Its memory
+    effects must not depend on the chunks: besides VIR ops (`vir.store`
+    writes the lanes of its chunk) and reads, the only write is that of an
+    accumulator, a `memref.store` of a `vir.reduce` whose accumulator is a
+    `memref.load` of the same memref value and indices in the region, so
+    that each chunk combines its lanes with what the chunks before stored
+    (an ordered reduction sees the lanes in order whatever the chunks). The
+    verifier rejects any other write, allocation or free (e.g. a count of
+    the runs of the region, also through a view, an accumulator loaded
+    before the region, `memref.copy`, `memref.alloca`), and ops of unknown
+    memory effects.
 
     With results (`vector.yield %a, ... : f32, ...`), the region computes on
     whole vectors of length `vl`, which must be a constant: a `vir.reduce`

@@ -38,7 +38,61 @@ LogicalResult SetVLOp::verify() {
   // the region has one block (SizedRegion<1>, verified before)
   if (getRegion().front().getNumArguments() != 0)
     return emitOpError("region must not have block arguments");
-  return success();
+  if (getNumResults() != 0)
+    return success();
+  // Without results the region runs once per chunk of lanes, chunks the
+  // lowering chooses, so its memory effects must not depend on them. Only
+  // these ops may have one: VIR ops (vir.store writes its own lanes), reads,
+  // scf.for / affine.for (their ops are checked; other ops with nested ops,
+  // e.g. scf.if, are not lowered), and the memref.store of an accumulator:
+  // the result of a vir.reduce whose accumulator is a memref.load, in the
+  // region, of the same memref value and indices (each chunk combines its
+  // lanes with what the chunks before stored). Any other write, allocation
+  // or free, and an op of unknown memory effects, is rejected: whatever the
+  // memory it reaches (a view made in the region may alias memory from
+  // outside), and the lowering of the chunks does not handle it.
+  Region &region = getRegion();
+  auto reject = [&](Operation *op, const Twine &why) {
+    op->emitOpError(why) << " in a vir.set_vl without results: the region "
+                            "runs once per chunk of lanes, chunks the "
+                            "lowering chooses";
+    return WalkResult::interrupt();
+  };
+  WalkResult walk = region.walk([&](Operation *op) {
+    if (isa<VIRDialect>(op->getDialect()))
+      return WalkResult::advance();
+    // the loops the lowering of the chunks lowers (their ops are checked)
+    if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+      StringRef name = op->getName().getStringRef();
+      if (name == "scf.for" || name == "affine.for")
+        return WalkResult::advance();
+      return reject(op, "has nested ops the lowering does not handle");
+    }
+    auto effects = dyn_cast<MemoryEffectOpInterface>(op);
+    if (!effects)
+      return reject(op, "has unknown memory effects");
+    SmallVector<MemoryEffects::EffectInstance> all;
+    effects.getEffects(all);
+    if (llvm::all_of(all, [](auto &e) {
+          return isa<MemoryEffects::Read>(e.getEffect());
+        }))
+      return WalkResult::advance();
+    auto store = dyn_cast<memref::StoreOp>(op);
+    if (!store)
+      return reject(op, "writes, allocates or frees memory");
+    auto reduce = store.getValue().getDefiningOp<ReduceOp>();
+    if (!reduce)
+      return reject(op, "stores a value that is not the result of a "
+                        "vir.reduce");
+    auto load = reduce.getAcc().getDefiningOp<memref::LoadOp>();
+    if (!load || !region.isAncestor(load->getParentRegion()) ||
+        load.getMemRef() != store.getMemRef() ||
+        load.getIndices() != store.getIndices())
+      return reject(op, "stores a vir.reduce whose accumulator is not a "
+                        "memref.load in the region of the element stored");
+    return WalkResult::advance();
+  });
+  return failure(walk.wasInterrupted());
 }
 
 // One index per memref dim or none, and a dim of the memref per dim of the

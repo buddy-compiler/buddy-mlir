@@ -492,6 +492,8 @@ private:
   // rvvVlen is the VLEN of the target, not only its minimum (use-scalable
   // without rvv-vlen)
   bool rvvVlenExact;
+  // set when lowerBlock meets an op it does not lower
+  mutable bool unsupportedOp = false;
 
   /// Recursively search for anchor type within a given Region and its nested
   Type findAnchorTypeRecursive(Region &region) const {
@@ -1409,8 +1411,13 @@ private:
                 math::RoundOp, math::TanhOp, math::ErfOp, math::PowFOp>(
               [&](Operation *op) { cloneMappedOp(op); })
           .Default([&](Operation *op) {
-            emitWarning(loc, "Unsupported operation during lowering: " +
-                                 op->getName().getStringRef());
+            // dropping it would drop its effect: fail the lowering (once
+            // per region, which is lowered once per chunk)
+            if (!unsupportedOp)
+              op->emitError("unsupported operation in a strip-mined "
+                            "vir.set_vl: ")
+                  << op->getName();
+            unsupportedOp = true;
           });
     }
   }
@@ -2040,6 +2047,7 @@ private:
     //===------------------------------------------------------------------===//
     // Step 1: Recursive search for anchor type.
     //===------------------------------------------------------------------===//
+    unsupportedOp = false;
     Region &region = op.getRegion();
     Type anchorType = findAnchorTypeRecursive(region);
     if (!anchorType) {
@@ -2208,6 +2216,73 @@ private:
         tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
       }
 
+      // The lanes past the main loop, fewer than its step, first in vectors
+      // of half its width, then a quarter, ...: each at most once, in the
+      // order of the lanes, with no mask; the lanes left go to the scalar
+      // tail loop. Fixed vectors need a constant vl (the bounds of the affine
+      // tail loop stay affine); scalable ones test the rest at run time,
+      // their lanes counted at the VLEN of rvv-vlen, else the least (128).
+      //
+      // A part has at least 512 bits: a heuristic from measurements, not a
+      // cost model. On the f32 YOLOv8 (16 f32 per part) on three RISC-V
+      // cores, parts of 2 to 8 lanes cost about as much as the scalar lanes
+      // they replace, plus their code and vtype changes (VLEN 128: 2.5%
+      // slower than the scalar tail; from 16 lanes on, the same), while
+      // parts of 16 lanes and more were the gain on VLEN 256 and 1024.
+      // 512 bits are 64 i8, 32 f16, 8 f64 lanes: other element types,
+      // instructions and cores may have another best size, for a target
+      // cost model to give.
+      {
+        auto vecTy = cast<VectorType>(targetVectorType);
+        bool scalable = vecTy.isScalable();
+        std::optional<int64_t> constVl = getConstantIntValue(vlValue);
+        Type elem = vecTy.getElementType();
+        int64_t elemBits = elem.isIndex()
+                               ? getTypeConverter()->getIndexTypeBitwidth()
+                               : elem.getIntOrFloatBitWidth();
+        int64_t lanesPerWidth =
+            scalable ? (rvvVlen > 0 ? rvvVlen : 128) / 64 : 1;
+        auto bigEnough = [&](int64_t w) {
+          return w * lanesPerWidth * elemBits >= 512;
+        };
+        auto lowerPart = [&](OpBuilder &bb, Location bodyLoc, Value at,
+                             int64_t w) {
+          DenseMap<Value, Value> virSymbolTable;
+          lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, at,
+                     leadingIVs,
+                     VectorType::get({w}, vecTy.getElementType(),
+                                     vecTy.getScalableDims()),
+                     /*isTailLoop=*/false);
+        };
+        if (scalable) {
+          Value vscale = vector::VectorScaleOp::create(b, loc);
+          for (int64_t w = vectorWid / 2; w >= 1 && bigEnough(w); w /= 2) {
+            Value step = arith::MulIOp::create(
+                b, loc, arith::ConstantIndexOp::create(b, loc, w), vscale);
+            Value rest = arith::SubIOp::create(b, loc, vlValue, tailStart);
+            Value fits = arith::CmpIOp::create(
+                b, loc, arith::CmpIPredicate::sge, rest, step);
+            Value at = tailStart;
+            scf::IfOp::create(b, loc, fits,
+                              [&](OpBuilder &bb, Location bodyLoc) {
+                                lowerPart(bb, bodyLoc, at, w);
+                                scf::YieldOp::create(bb, bodyLoc);
+                              });
+            tailStart = arith::SelectOp::create(
+                b, loc, fits, arith::AddIOp::create(b, loc, tailStart, step),
+                tailStart);
+          }
+        } else if (constVl) {
+          int64_t at = *constVl - *constVl % vectorWid;
+          for (int64_t w = vectorWid / 2; w >= 2 && bigEnough(w); w /= 2)
+            if (*constVl - at >= w) {
+              lowerPart(b, loc, arith::ConstantIndexOp::create(b, loc, at), w);
+              at += w;
+            }
+          tailStart = arith::ConstantIndexOp::create(b, loc, at);
+        }
+      }
+
       auto lowerTail = [&](OpBuilder &bb, Location bodyLoc, Value iv) {
         DenseMap<Value, Value> virSymbolTable;
         lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv, leadingIVs,
@@ -2283,6 +2358,8 @@ private:
       emitOuter(/*dim=*/0, rewriter);
     }
 
+    if (unsupportedOp)
+      return failure();
     rewriter.eraseOp(op);
     return success();
   }
