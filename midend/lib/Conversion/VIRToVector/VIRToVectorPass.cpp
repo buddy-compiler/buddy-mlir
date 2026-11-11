@@ -121,6 +121,36 @@ static Value broadcastTo(OpBuilder &builder, Location loc, VectorType vecTy,
   return vector::ScalableExtractOp::create(builder, loc, vecTy, wide, 0);
 }
 
+/// The reduction of `vec` into `acc`. vector.reduction takes vector<[1]xT>
+/// for a vector of one element: its canonicalization
+/// (ElideSingleElementReduction, VectorOps.cpp) rewrites the reduction to
+/// vector.extract of lane 0 and drops the other vscale - 1 lanes. The
+/// reduction of a floating-point vector<[1]xT> is therefore built from the
+/// LLVM intrinsics vector.reduction lowers to; this can go once the pattern
+/// leaves scalable vectors alone.
+static Value reduceVector(OpBuilder &builder, Location loc,
+                          vector::CombiningKind kind, Value vec, Value acc,
+                          arith::FastMathFlags fastmath) {
+  auto vecTy = cast<VectorType>(vec.getType());
+  Type elem = vecTy.getElementType();
+  bool one = vecTy.getRank() == 1 && vecTy.getShape()[0] == 1 &&
+             vecTy.isScalable() && isa<FloatType>(elem);
+  if (one && (kind == vector::CombiningKind::ADD ||
+              kind == vector::CombiningKind::MAXNUMF)) {
+    bool reassoc =
+        arith::bitEnumContainsAll(fastmath, arith::FastMathFlags::reassoc);
+    auto fmf = LLVM::FastmathFlagsAttr::get(
+        builder.getContext(),
+        reassoc ? LLVM::FastmathFlags::reassoc : LLVM::FastmathFlags::none);
+    if (kind == vector::CombiningKind::ADD)
+      return LLVM::vector_reduce_fadd::create(builder, loc, elem, acc, vec,
+                                              fmf);
+    Value max = LLVM::vector_reduce_fmax::create(builder, loc, elem, vec, fmf);
+    return arith::MaxNumFOp::create(builder, loc, max, acc);
+  }
+  return vector::ReductionOp::create(builder, loc, kind, vec, acc, fastmath);
+}
+
 static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
   return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
          vecTy.getElementType().isInteger(1);
@@ -777,11 +807,10 @@ private:
               return;
             }
 
-            auto reduced = vector::ReductionOp::create(
-                builder, loc, combineKind, input, acc,
-                op.getReassoc() ? arith::FastMathFlags::reassoc
-                                : arith::FastMathFlags::none);
-            virSymbolTable[op.getResult()] = reduced.getResult();
+            virSymbolTable[op.getResult()] =
+                reduceVector(builder, loc, combineKind, input, acc,
+                             op.getReassoc() ? arith::FastMathFlags::reassoc
+                                             : arith::FastMathFlags::none);
           })
           .Case<vir::SelectOp>([&](vir::SelectOp op) {
             Value cond = findValue(op.getCondition());
@@ -1834,8 +1863,7 @@ private:
         Value acc = one(reduce.getAcc());
         for (Value piece : in)
           acc = isa<VectorType>(piece.getType())
-                    ? Value(vector::ReductionOp::create(b, loc, combineKind,
-                                                        piece, acc, fastmath))
+                    ? reduceVector(b, loc, combineKind, piece, acc, fastmath)
                     : combine(acc, piece);
         map[reduce.getResult()] = {acc};
       } else if (auto select = dyn_cast<vir::SelectOp>(op)) {
