@@ -31,15 +31,17 @@ func.func @strided(%a: memref<128xf32, strided<[2]>>) -> f32 {
 
 // -----
 
-func.func @i1(%a: memref<128xf32>, %b: memref<128xi1>) -> f32 {
+// A memref of i1 whose elements are not contiguous along the lanes, as any
+// other strided access.
+func.func @i1(%a: memref<128xf32>, %b: memref<128xi1, strided<[2]>>) -> f32 {
   %vl = arith.constant 128 : index
   %z = arith.constant 0.0 : f32
   %r = vir.set_vl %vl : index {
     %x = vir.load %a[] : memref<128xf32> -> !vir.vec<?xf32>
     %zv = vir.broadcast %z : f32 -> !vir.vec<?xf32>
     %m = arith.cmpf ogt, %x, %zv : !vir.vec<?xf32>
-    // expected-error @below {{a memref of i1 needs fixed vectors}}
-    vir.store %m, %b[] : !vir.vec<?xi1> -> memref<128xi1>
+    // expected-error @below {{a vir.set_vl with results on scalable vectors needs unit-stride accesses}}
+    vir.store %m, %b[] : !vir.vec<?xi1> -> memref<128xi1, strided<[2]>>
     %s = vir.reduce %x, %z {kind = "add"} : !vir.vec<?xf32>, f32 -> f32
     vector.yield %s : f32
   } -> f32

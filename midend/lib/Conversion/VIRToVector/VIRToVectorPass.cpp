@@ -157,22 +157,131 @@ static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
 }
 
 // A memref of i1 holds a byte per element, a vector of i1 a bit per lane:
-// fixed i1 accesses are scalarized per lane, which a scalable vector
-// (N * vscale lanes) cannot be yet.
-static LogicalResult rejectI1Accesses(Region &region) {
-  WalkResult i1Access = region.walk([](Operation *access) {
+// fixed i1 accesses are scalarized per lane. A scalable vector (N * vscale
+// lanes) is read and written as the bytes of the memref, a vector<[N]xi8>
+// at the address of the first element, truncated to / extended from the i1
+// lanes: a plain load / store when the elements are contiguous (a static
+// unit stride along the lanes), else a strided one (the VP intrinsics, all
+// lanes on).
+static bool isScalableI1(VectorType vecTy) {
+  return vecTy && vecTy.isScalable() && vecTy.getRank() == 1 &&
+         vecTy.getElementType().isInteger(1);
+}
+
+namespace {
+/// A scalable access of a memref of i1: the address of its first element
+/// and what a strided access needs.
+struct I1Bytes {
+  VectorType type; // vector<[N]xi8>
+  Value pointer;   // of the first element
+  bool contiguous;
+  Value stride, mask, evl; // when not contiguous
+};
+} // namespace
+
+/// The LLVM address space of the memory space of `type` (an integer, or
+/// none for 0), or nothing.
+static std::optional<unsigned> addressSpaceOf(MemRefType type) {
+  Attribute space = type.getMemorySpace();
+  if (!space)
+    return 0;
+  if (auto integer = dyn_cast<IntegerAttr>(space))
+    return integer.getInt();
+  return std::nullopt;
+}
+
+/// A scalable access of a memref of i1 addresses its bytes from the strided
+/// metadata of the memref: it needs a strided layout and an integer memory
+/// space (the address space of the pointer).
+static LogicalResult checkScalableI1Accesses(Region &region) {
+  WalkResult walk = region.walk([](Operation *access) {
     Value base;
     if (auto load = dyn_cast<vir::LoadOp>(access))
       base = load.getBase();
     else if (auto store = dyn_cast<vir::StoreOp>(access))
       base = store.getBase();
-    if (!base ||
-        !cast<MemRefType>(base.getType()).getElementType().isInteger(1))
+    auto type = base ? cast<MemRefType>(base.getType()) : MemRefType();
+    if (!type || !type.getElementType().isInteger(1))
       return WalkResult::advance();
-    access->emitError("a memref of i1 needs fixed vectors");
-    return WalkResult::interrupt();
+    if (!type.isStrided()) {
+      access->emitError("a scalable access of a memref of i1 needs a strided "
+                        "layout");
+      return WalkResult::interrupt();
+    }
+    if (!addressSpaceOf(type)) {
+      access->emitError("a scalable access of a memref of i1 needs an "
+                        "integer memory space");
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
   });
-  return failure(i1Access.wasInterrupted());
+  return failure(walk.wasInterrupted());
+}
+
+static I1Bytes i1Bytes(OpBuilder &builder, Location loc, VectorType vecTy,
+                       Value base, ArrayRef<Value> indices) {
+  I1Bytes bytes;
+  bytes.type = VectorType::get(vecTy.getShape(), builder.getI8Type(),
+                               vecTy.getScalableDims());
+  // the aligned pointer plus the linear index of the element, in bytes
+  auto metadata = memref::ExtractStridedMetadataOp::create(builder, loc, base);
+  Value linear = metadata.getOffset();
+  for (auto [index, stride] : llvm::zip(indices, metadata.getStrides()))
+    linear = arith::AddIOp::create(
+        builder, loc, linear,
+        arith::MulIOp::create(builder, loc, index, stride));
+  Value address = arith::AddIOp::create(
+      builder, loc,
+      memref::ExtractAlignedPointerAsIndexOp::create(builder, loc, base),
+      linear);
+  Type i64 = builder.getI64Type();
+  Value bits = arith::IndexCastOp::create(builder, loc, i64, address);
+  // (checkScalableI1Accesses: an integer memory space)
+  unsigned space = *addressSpaceOf(cast<MemRefType>(base.getType()));
+  bytes.pointer = LLVM::IntToPtrOp::create(
+      builder, loc, LLVM::LLVMPointerType::get(builder.getContext(), space),
+      bits);
+  bytes.contiguous = hasStaticallyUnitStrideInVectorizedDim(base);
+  if (!bytes.contiguous) {
+    bytes.stride = arith::IndexCastOp::create(builder, loc, i64,
+                                              metadata.getStrides().back());
+    Value on =
+        arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true));
+    bytes.mask = broadcastTo(builder, loc, vecTy, on);
+    Value lanes = arith::MulIOp::create(
+        builder, loc,
+        arith::ConstantIndexOp::create(builder, loc, vecTy.getShape()[0]),
+        vector::VectorScaleOp::create(builder, loc));
+    bytes.evl =
+        arith::IndexCastOp::create(builder, loc, builder.getI32Type(), lanes);
+  }
+  return bytes;
+}
+
+static Value buildScalableI1VectorLoad(OpBuilder &builder, Location loc,
+                                       VectorType vecTy, Value base,
+                                       ArrayRef<Value> indices) {
+  I1Bytes at = i1Bytes(builder, loc, vecTy, base, indices);
+  Value bytes =
+      at.contiguous
+          ? Value(LLVM::LoadOp::create(builder, loc, at.type, at.pointer,
+                                       /*alignment=*/1))
+          : Value(LLVM::VPStridedLoadOp::create(
+                builder, loc, at.type, at.pointer, at.stride, at.mask, at.evl));
+  return arith::TruncIOp::create(builder, loc, vecTy, bytes);
+}
+
+static void buildScalableI1VectorStore(OpBuilder &builder, Location loc,
+                                       Value vectorValue, Value base,
+                                       ArrayRef<Value> indices) {
+  auto vecTy = cast<VectorType>(vectorValue.getType());
+  I1Bytes at = i1Bytes(builder, loc, vecTy, base, indices);
+  Value bytes = arith::ExtUIOp::create(builder, loc, at.type, vectorValue);
+  if (at.contiguous)
+    LLVM::StoreOp::create(builder, loc, bytes, at.pointer, /*alignment=*/1);
+  else
+    LLVM::VPStridedStoreOp::create(builder, loc, bytes, at.pointer, at.stride,
+                                   at.mask, at.evl);
 }
 
 static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
@@ -210,6 +319,33 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
                                              OpFoldResult(laneIdx));
     memref::StoreOp::create(builder, loc, scalar, base, laneIndices);
   }
+}
+
+/// The element type of the dynamic vectors of `region` with the most bits
+/// (the first of equals), an i1 counted as a byte (its memref's element, and
+/// what a scalable access of it reads) and an index as `indexBitWidth`: the
+/// vectors are sized for it, so that none needs more than a group of
+/// registers (an i1 or f16 first, then f32 vectors, would otherwise size
+/// those for the narrower type, beyond LMUL 8).
+static Type widestElementType(Region &region, unsigned indexBitWidth) {
+  Type widest;
+  unsigned widestBits = 0;
+  region.walk([&](Operation *op) {
+    for (Value result : op->getResults()) {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(result.getType());
+      if (!dyn || dyn.getScalingFactor())
+        continue;
+      Type elem = dyn.getElementType();
+      unsigned bits = elem.isIndex()
+                          ? indexBitWidth
+                          : std::max(8u, elem.getIntOrFloatBitWidth());
+      if (bits > widestBits) {
+        widest = elem;
+        widestBits = bits;
+      }
+    }
+  });
+  return widest;
 }
 
 /// The VLEN in bits of the host when it is a RISC-V CPU with V, else 0. The
@@ -417,6 +553,10 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   // index as the LLVM lowering has it
   unsigned elementBitWidth =
       anchorType.isIndex() ? indexBitWidth : anchorType.getIntOrFloatBitWidth();
+  // an i1 lane is a byte of its memref (and of the vector<[N]xi8> a scalable
+  // access reads): the vectors of a region of i1 are sized for bytes
+  if (elementBitWidth == 1)
+    elementBitWidth = 8;
   if (elementBitWidth == 0) {
     srcRegion.getParentOp()->emitError(
         "Anchor type is not a valid integer or float type.");
@@ -667,6 +807,11 @@ private:
                     builder, loc, *vecTyOr, base, destIndices);
                 return;
               }
+              if (isScalableI1(*vecTyOr)) {
+                virSymbolTable[op.getResult()] = buildScalableI1VectorLoad(
+                    builder, loc, *vecTyOr, base, destIndices);
+                return;
+              }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
                 auto vectorLoadOp = vector::LoadOp::create(
                     builder, loc, *vecTyOr, base, destIndices);
@@ -699,6 +844,11 @@ private:
                   shouldScalarizeI1VectorMemoryOp(vecTy)) {
                 buildScalarizedI1VectorStore(builder, loc, valueToStore, base,
                                              destIndices);
+                return;
+              }
+              if (isScalableI1(dyn_cast<VectorType>(valueToStore.getType()))) {
+                buildScalableI1VectorStore(builder, loc, valueToStore, base,
+                                           destIndices);
                 return;
               }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
@@ -1608,7 +1758,10 @@ private:
             if (!hasStaticallyUnitStrideInVectorizedDim(base))
               return op->emitError("a vir.set_vl with results on scalable "
                                    "vectors needs unit-stride accesses");
-            out.push_back(vector::LoadOp::create(b, loc, vecTy, base, idx));
+            out.push_back(
+                isScalableI1(vecTy)
+                    ? buildScalableI1VectorLoad(b, loc, vecTy, base, idx)
+                    : Value(vector::LoadOp::create(b, loc, vecTy, base, idx)));
           } else if (shouldScalarizeI1VectorMemoryOp(vecTy))
             out.push_back(
                 buildScalarizedI1VectorLoad(b, loc, vecTy, base, idx));
@@ -1634,7 +1787,10 @@ private:
             if (!hasStaticallyUnitStrideInVectorizedDim(base))
               return op->emitError("a vir.set_vl with results on scalable "
                                    "vectors needs unit-stride accesses");
-            vector::StoreOp::create(b, loc, values[p], base, idx);
+            if (isScalableI1(cast<VectorType>(values[p].getType())))
+              buildScalableI1VectorStore(b, loc, values[p], base, idx);
+            else
+              vector::StoreOp::create(b, loc, values[p], base, idx);
           } else if (shouldScalarizeI1VectorMemoryOp(
                          cast<VectorType>(values[p].getType())))
             buildScalarizedI1VectorStore(b, loc, values[p], base, idx);
@@ -2052,7 +2208,7 @@ private:
       return op.emitError("a vir.set_vl with results lowers to more than 64 "
                           "pieces; increase vector-width");
     Location loc = op.getLoc();
-    if (useScalable && failed(rejectI1Accesses(op.getRegion())))
+    if (useScalable && failed(checkScalableI1Accesses(op.getRegion())))
       return failure();
     PieceMap map;
     Block &block = op.getRegion().front();
@@ -2078,6 +2234,9 @@ private:
     unsupportedOp = false;
     Region &region = op.getRegion();
     Type anchorType = findAnchorTypeRecursive(region);
+    if (anchorType)
+      anchorType =
+          widestElementType(region, getTypeConverter()->getIndexTypeBitwidth());
     if (!anchorType) {
       return op.emitError(
           "No anchor type found in the dynamic vector region. "
@@ -2186,7 +2345,8 @@ private:
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
-    if (targetVectorType.isScalable() && failed(rejectI1Accesses(region)))
+    if (targetVectorType.isScalable() &&
+        failed(checkScalableI1Accesses(region)))
       return failure();
 
     //===------------------------------------------------------------------===//
@@ -2268,6 +2428,8 @@ private:
         int64_t elemBits = elem.isIndex()
                                ? getTypeConverter()->getIndexTypeBitwidth()
                                : elem.getIntOrFloatBitWidth();
+        // (an i1 lane is a byte, as for the size of the vectors)
+        elemBits = std::max<int64_t>(elemBits, 8);
         int64_t lanesPerWidth =
             scalable ? (rvvVlen > 0 ? rvvVlen : 128) / 64 : 1;
         auto bigEnough = [&](int64_t w) {
@@ -2739,22 +2901,6 @@ static void jamLoop(scf::ForOp loop, int64_t factor) {
   loop.getLowerBoundMutable().assign(mainUb);
 }
 
-/// The element type of the first dynamic vector of a region, as
-/// VIRSetVLLowering finds its anchor type.
-static Type anchorTypeOf(Region &region) {
-  Type anchor;
-  region.walk<WalkOrder::PreOrder>([&](Operation *op) {
-    for (Value result : op->getResults())
-      if (auto dyn = dyn_cast<vir::DynamicVectorType>(result.getType());
-          dyn && !dyn.getScalingFactor()) {
-        anchor = dyn.getElementType();
-        return WalkResult::interrupt();
-      }
-    return WalkResult::advance();
-  });
-  return anchor;
-}
-
 /// Jams the loops of the strip-mined regions of `module` (see above). The
 /// vectors are sized as vectorTypeHelper sizes them with these arguments.
 static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
@@ -2772,7 +2918,8 @@ static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
     });
   });
   for (auto [setVL, loop] : loops) {
-    Type anchor = anchorTypeOf(setVL.getRegion());
+    // as VIRSetVLLowering finds its anchor type
+    Type anchor = widestElementType(setVL.getRegion(), indexBitWidth);
     if (!anchor)
       continue;
     // the factor with the most lanes per shared load (the least of equals),
