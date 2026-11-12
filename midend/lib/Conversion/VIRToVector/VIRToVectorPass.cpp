@@ -3190,16 +3190,26 @@ static Value elementPointer(OpBuilder &b, Location loc, Value base,
 /// broadcasts, constants, selects and scalable extracts and inserts move the
 /// bits. Each lane is as with Zvfbfmin, NaNs included, in the default
 /// floating-point environment (rounding to nearest even, which LLVM assumes
-/// for fptrunc).
-static LogicalResult lowerScalableBF16ToBits(ModuleOp module) {
-  auto isBF16Vec = [](Type t) {
-    auto vecTy = dyn_cast<VectorType>(t);
-    return vecTy && vecTy.isScalable() && vecTy.getElementType().isBF16();
-  };
+/// for fptrunc). Only the ops of the lowering are rewritten: those of
+/// `before`, the ops on scalable bf16 vectors before it, are left as they
+/// are; a scalable bf16 vector from them (or from a block argument) in an op
+/// of the lowering is an error.
+static bool isScalableBF16Vector(Type t) {
+  auto vecTy = dyn_cast<VectorType>(t);
+  return vecTy && vecTy.isScalable() && vecTy.getElementType().isBF16();
+}
+
+static bool hasScalableBF16Vector(Operation *op) {
+  return llvm::any_of(op->getOperandTypes(), isScalableBF16Vector) ||
+         llvm::any_of(op->getResultTypes(), isScalableBF16Vector);
+}
+
+static LogicalResult
+lowerScalableBF16ToBits(ModuleOp module, const DenseSet<Operation *> &before) {
+  auto isBF16Vec = isScalableBF16Vector;
   SmallVector<Operation *> ops;
   module.walk([&](Operation *op) {
-    if (llvm::any_of(op->getOperandTypes(), isBF16Vec) ||
-        llvm::any_of(op->getResultTypes(), isBF16Vec))
+    if (!before.contains(op) && hasScalableBF16Vector(op))
       ops.push_back(op);
   });
   DenseMap<Value, Value> bitsOf;
@@ -3207,6 +3217,12 @@ static LogicalResult lowerScalableBF16ToBits(ModuleOp module) {
     return cast<VectorType>(t).clone(IntegerType::get(t.getContext(), 16));
   };
   for (Operation *op : ops) {
+    // the bits of every bf16 vector operand, before the op is rewritten
+    for (Value v : op->getOperands())
+      if (isBF16Vec(v.getType()) && !bitsOf.contains(v))
+        return op->emitError("a scalable vector of bf16 from outside the "
+                             "lowered vir.set_vl regions, without Zvfbfmin "
+                             "(rvv-mattr)");
     OpBuilder b(op);
     Location loc = op->getLoc();
     auto bits = [&](Value v) { return bitsOf.lookup(v); };
@@ -3265,11 +3281,6 @@ static LogicalResult lowerScalableBF16ToBits(ModuleOp module) {
                            "(rvv-mattr) in an op it is not lowered for: ")
              << op->getName();
     }
-    if (llvm::any_of(op->getOperands(), [&](Value v) {
-          return isBF16Vec(v.getType()) && !bits(v);
-        }))
-      return op->emitError("a scalable vector of bf16 without Zvfbfmin "
-                           "from an op it is not lowered for");
     bitsOf[op->getResult(0)] = result;
   }
   // the ops on bf16 vectors, users first
@@ -3426,6 +3437,14 @@ void VIRToVectorPass::runOnOperation() {
     if (verbose && vlen)
       llvm::outs() << "--- RISC-V Vector host: VLEN " << vlen << " ---\n";
   }
+  // the ops on scalable bf16 vectors before the lowering, which the bits
+  // lowering of bf16 (without Zvfbfmin) leaves as they are
+  DenseSet<Operation *> bf16OpsBefore;
+  if (useScalable && !zvfbfmin)
+    module.walk([&](Operation *op) {
+      if (hasScalableBF16Vector(op))
+        bf16OpsBefore.insert(op);
+    });
   // the loops of strip-mined regions jammed for the vectors sized for the
   // register pressure (not for a given vector-width)
   if (!useCustomVecWid)
@@ -3442,7 +3461,7 @@ void VIRToVectorPass::runOnOperation() {
     return signalPassFailure();
   if (useScalable) {
     scalarizeScalableMath(module);
-    if (!zvfbfmin && failed(lowerScalableBF16ToBits(module)))
+    if (!zvfbfmin && failed(lowerScalableBF16ToBits(module, bf16OpsBefore)))
       return signalPassFailure();
   }
 }
