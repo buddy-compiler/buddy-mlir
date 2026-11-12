@@ -289,6 +289,30 @@ def VIR_ExtFOp : VIR_Op<"extf"> {
   let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
 }
 
+def VIR_ExtSIOp : VIR_Op<"extsi"> {
+  let summary = "Signed integer extend for dynamic vector IR.";
+  let description = [{
+    The `extsi` operation sign-extends the integer elements of a dynamic
+    vector to a wider integer type, elementwise.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
+def VIR_ExtUIOp : VIR_Op<"extui"> {
+  let summary = "Unsigned integer extend for dynamic vector IR.";
+  let description = [{
+    The `extui` operation zero-extends the integer elements of a dynamic
+    vector to a wider integer type, elementwise.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
 def VIR_TruncFOp : VIR_Op<"truncf"> {
   let summary = "Floating-point truncate for dynamic vector IR.";
   let description = [{
