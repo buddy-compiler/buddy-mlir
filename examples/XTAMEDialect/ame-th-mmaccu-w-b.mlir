@@ -6,6 +6,7 @@
 // RUN:   -convert-scf-to-cf \
 // RUN:   -convert-cf-to-llvm \
 // RUN:   -expand-strided-metadata \
+// RUN:   -lower-affine \
 // RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-math-to-llvm \
 // RUN:   -convert-func-to-llvm \

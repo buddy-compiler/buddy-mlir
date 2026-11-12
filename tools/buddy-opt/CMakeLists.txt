@@ -52,6 +52,7 @@ target_link_libraries(buddy-opt
   LowerGemminiPass
   LowerLinalgToBOSCAMEPass
   BuddyKernelContract
+  LowerLinalgToXTAMEPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
   BuddyIME
