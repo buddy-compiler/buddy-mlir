@@ -118,6 +118,29 @@ LogicalResult StoreOp::verify() {
                       getValue().getType());
 }
 
+LogicalResult ReduceOp::verify() {
+  Type elem = getInput().getType().getElementType();
+  if (getAcc().getType() != elem || getResult().getType() != elem)
+    return emitOpError("expects the accumulator and the result of the "
+                       "element type of the input, ")
+           << elem;
+  StringRef kind = getKind();
+  bool isFloat = isa<FloatType>(elem);
+  bool isInt = isa<IntegerType>(elem);
+  if (llvm::is_contained({"add", "mul"}, kind) && (isFloat || isInt))
+    return success();
+  if (llvm::is_contained(
+          {"minsi", "minui", "maxsi", "maxui", "and", "or", "xor"}, kind))
+    return isInt ? success()
+                 : emitOpError("expects integers for kind ") << kind;
+  if (llvm::is_contained({"minnumf", "maxnumf", "minimumf", "maximumf",
+                          "minimumnumf", "maximumnumf", "maxnum"},
+                         kind))
+    return isFloat ? success()
+                   : emitOpError("expects floats for kind ") << kind;
+  return emitOpError("unknown kind ") << kind;
+}
+
 LogicalResult ShuffleOp::verify() {
   ArrayRef<int64_t> shape = getV1().getType().getShape();
   if (shape.size() < 2)

@@ -315,9 +315,17 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal);
 
-enum class SupportedReduceCombinerKind { AddF, MaxNumF };
+/// Whether vir.reduce reduces vectors of `type`: integers (not index) and
+/// f16, f32, f64. (bf16 and f8 sums would be computed by LLVM in another
+/// precision.)
+static bool isReducibleElementType(Type type) {
+  return isa<IntegerType>(type) || type.isF16() || type.isF32() || type.isF64();
+}
 
-static FailureOr<SupportedReduceCombinerKind>
+/// The vir.reduce kind (a vector::CombiningKind) of the combiner of
+/// `reduceOp`: one binary arith op of its two block arguments, in either
+/// order (the ops are commutative), yielded.
+static FailureOr<StringRef>
 getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
                                PatternRewriter &rewriter) {
   Block *body = reduceOp.getBody();
@@ -334,21 +342,54 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
       return failure();
     combiner = &inner;
   }
-  if (!combiner || yield.getOperand(0) != combiner->getResult(0))
+  if (!combiner || yield.getOperand(0) != combiner->getResult(0) ||
+      combiner->getNumOperands() != 2)
+    return failure();
+  Value a = body->getArgument(0), b = body->getArgument(1);
+  Value x = combiner->getOperand(0), y = combiner->getOperand(1);
+  if (!((x == a && y == b) || (x == b && y == a)))
     return failure();
 
-  if (isa<arith::AddFOp>(combiner))
-    return SupportedReduceCombinerKind::AddF;
-  if (isa<arith::MaxNumFOp>(combiner))
-    return SupportedReduceCombinerKind::MaxNumF;
-  return failure();
+  return llvm::TypeSwitch<Operation *, FailureOr<StringRef>>(combiner)
+      .Case<arith::AddFOp, arith::AddIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("add"); })
+      .Case<arith::MulFOp, arith::MulIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("mul"); })
+      .Case<arith::MaxNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maxnumf"); })
+      .Case<arith::MinNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minnumf"); })
+      .Case<arith::MaximumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maximumf"); })
+      .Case<arith::MinimumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minimumf"); })
+      .Case<arith::MaximumNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maximumnumf"); })
+      .Case<arith::MinimumNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minimumnumf"); })
+      .Case<arith::MaxSIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maxsi"); })
+      .Case<arith::MinSIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minsi"); })
+      .Case<arith::MaxUIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maxui"); })
+      .Case<arith::MinUIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minui"); })
+      .Case<arith::AndIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("and"); })
+      .Case<arith::OrIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("or"); })
+      .Case<arith::XOrIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("xor"); })
+      .Default([](Operation *) -> FailureOr<StringRef> { return failure(); });
 }
 
 static Value dimOrConstant(OpBuilder &builder, Location loc, Value memref,
                            int64_t dim);
 
-/// Whether lowerReduceToScalarLoop lowers `reduceOp`: f32, an addf or
-/// maxnumf combiner, and rank-1 -> rank-0 dimensions=[0], rank-2 -> rank-1
+/// Whether lowerReduceToScalarLoop lowers `reduceOp`: an element type of
+/// isReducibleElementType, a combiner of getSupportedReduceCombinerKind,
+/// and rank-1 -> rank-0 dimensions=[0], rank-2 -> rank-1
 /// dimensions=[1], or with static shapes rank-2 -> rank-1 or rank-3 ->
 /// rank-2 dimensions=[0]. The other reductions that keep the last dim go to
 /// lowerReduceKeepingLastDim.
@@ -359,8 +400,8 @@ static bool hasScalarLoopReduceCase(linalg::ReduceOp reduceOp,
     return false;
   auto inTy = dyn_cast<MemRefType>((*reduceOp.getInputs().begin()).getType());
   auto outTy = dyn_cast<MemRefType>((*reduceOp.getInits().begin()).getType());
-  if (!inTy || !outTy || !inTy.getElementType().isF32() ||
-      !outTy.getElementType().isF32() ||
+  if (!inTy || !outTy || inTy.getElementType() != outTy.getElementType() ||
+      !isReducibleElementType(inTy.getElementType()) ||
       failed(getSupportedReduceCombinerKind(reduceOp, rewriter)))
     return false;
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
@@ -385,9 +426,9 @@ static bool hasScalarLoopReduceCase(linalg::ReduceOp reduceOp,
 /// A linalg.reduce that keeps the last dim (the reduced dims before it),
 /// e.g. tensor<1x16x4x2100xf32> dimensions = [1]: vectorized along the last
 /// dim, each output vector the elementwise combination (the combiner of the
-/// body: one floating-point binary op) of the input vectors along the
-/// reduced dims, in their order. Every access is contiguous and no reduction
-/// crosses lanes.
+/// body: one binary op of getSupportedReduceCombinerKind) of the input
+/// vectors along the reduced dims, in their order. Every access is
+/// contiguous and no reduction crosses lanes.
 static LogicalResult lowerReduceKeepingLastDim(linalg::ReduceOp reduceOp,
                                                PatternRewriter &rewriter) {
   if (!reduceOp.hasPureBufferSemantics())
@@ -400,10 +441,12 @@ static LogicalResult lowerReduceKeepingLastDim(linalg::ReduceOp reduceOp,
   Value init = *reduceOp.getInits().begin();
   auto inTy = dyn_cast<MemRefType>(input.getType());
   auto outTy = dyn_cast<MemRefType>(init.getType());
-  if (!inTy || !outTy || !isa<FloatType>(inTy.getElementType()) ||
+  if (!inTy || !outTy ||
+      !(isa<FloatType>(inTy.getElementType()) ||
+        isa<IntegerType>(inTy.getElementType())) ||
       inTy.getElementType() != outTy.getElementType())
     return rewriter.notifyMatchFailure(
-        reduceOp, "expected floating-point memrefs of one element type");
+        reduceOp, "expected integer or float memrefs of one element type");
   int64_t rank = inTy.getRank();
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
   if (rank < 2 || llvm::is_contained(dims, rank - 1))
@@ -415,11 +458,9 @@ static LogicalResult lowerReduceKeepingLastDim(linalg::ReduceOp reduceOp,
                             ? yield.getOperand(0).getDefiningOp()
                             : nullptr;
   if (!combiner || combiner->getBlock() != body ||
-      body->getOperations().size() != 2 ||
-      !isa<arith::AddFOp, arith::MulFOp, arith::MaxNumFOp, arith::MinNumFOp,
-           arith::MaximumFOp, arith::MinimumFOp>(combiner))
+      failed(getSupportedReduceCombinerKind(reduceOp, rewriter)))
     return rewriter.notifyMatchFailure(
-        reduceOp, "expected a combiner of one floating-point binary op");
+        reduceOp, "expected a combiner of one binary op of the arguments");
   bool inputFirst = combiner->getOperand(0) == body->getArgument(0);
   if (!(inputFirst ? combiner->getOperand(1) == body->getArgument(1)
                    : combiner->getOperand(0) == body->getArgument(1) &&
@@ -510,16 +551,16 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   auto outTy = dyn_cast<MemRefType>(init.getType());
   if (!inTy || !outTy)
     return rewriter.notifyMatchFailure(reduceOp, "expected memref operands");
-  if (!inTy.getElementType().isF32() || !outTy.getElementType().isF32())
-    return rewriter.notifyMatchFailure(reduceOp,
-                                       "only f32 reduction supported");
+  if (inTy.getElementType() != outTy.getElementType() ||
+      !isReducibleElementType(inTy.getElementType()))
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected an integer or f16/f32/f64 element type");
 
   auto combinerKind = getSupportedReduceCombinerKind(reduceOp, rewriter);
   if (failed(combinerKind))
     return rewriter.notifyMatchFailure(
-        reduceOp,
-        "unsupported reduce combiner (expected single-op addf/maxnumf with "
-        "linalg.yield)");
+        reduceOp, "expected a combiner of one binary arith op of the "
+                  "arguments, yielded");
 
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
 
@@ -527,16 +568,6 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   rewriter.setInsertionPoint(reduceOp);
   Value lower = arith::ConstantIndexOp::create(rewriter, loc, 0);
   Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
-
-  auto kindToString = [&](SupportedReduceCombinerKind k) -> StringRef {
-    switch (k) {
-    case SupportedReduceCombinerKind::AddF:
-      return "add";
-    case SupportedReduceCombinerKind::MaxNumF:
-      return "maxnum";
-    }
-    llvm_unreachable("unknown reduce combiner");
-  };
 
   // Case A: rank-1 -> rank-0, dimensions = [0].
   // Reduce the full 1D buffer into a scalar accumulator.
@@ -560,10 +591,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         buddy::vir::LoadOp::create(rewriter, loc, vecTy, input, ValueRange{c0})
             .getResult();
     Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-    Value reduced = buddy::vir::ReduceOp::create(
-                        rewriter, loc, elemTy, loaded, acc,
-                        rewriter.getStringAttr(kindToString(*combinerKind)))
-                        .getResult();
+    Value reduced =
+        buddy::vir::ReduceOp::create(rewriter, loc, elemTy, loaded, acc,
+                                     rewriter.getStringAttr(*combinerKind))
+            .getResult();
     memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
     vector::YieldOp::create(rewriter, loc);
 
@@ -622,10 +653,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                                ValueRange{i, c0})
                         .getResult();
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-        Value reduced = buddy::vir::ReduceOp::create(
-                            rewriter, loc, elemTy, row, acc,
-                            rewriter.getStringAttr(kindToString(*combinerKind)))
-                            .getResult();
+        Value reduced =
+            buddy::vir::ReduceOp::create(rewriter, loc, elemTy, row, acc,
+                                         rewriter.getStringAttr(*combinerKind))
+                .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
 
@@ -693,10 +724,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                                ValueRange{j, c0})
                         .getResult();
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-        Value reduced = buddy::vir::ReduceOp::create(
-                            rewriter, loc, elemTy, col, acc,
-                            rewriter.getStringAttr(kindToString(*combinerKind)))
-                            .getResult();
+        Value reduced =
+            buddy::vir::ReduceOp::create(rewriter, loc, elemTy, col, acc,
+                                         rewriter.getStringAttr(*combinerKind))
+                .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
 
@@ -787,10 +818,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                                  ValueRange{j, k, c0})
                           .getResult();
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-        Value reduced = buddy::vir::ReduceOp::create(
-                            rewriter, loc, elemTy, slice, acc,
-                            rewriter.getStringAttr(kindToString(*combinerKind)))
-                            .getResult();
+        Value reduced =
+            buddy::vir::ReduceOp::create(rewriter, loc, elemTy, slice, acc,
+                                         rewriter.getStringAttr(*combinerKind))
+                .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
 
@@ -2531,19 +2562,21 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
     auto reduceOp = dyn_cast<linalg::ReduceOp>(op);
     if (!reduceOp)
       return rewriter.notifyMatchFailure(op, "expected linalg.reduce");
-    if (!hasScalarLoopReduceCase(reduceOp, rewriter) &&
-        succeeded(lowerReduceKeepingLastDim(reduceOp, rewriter)))
+    // (each lowering checks the form before it changes the IR: a pattern
+    // that fails after a change does not let the greedy driver converge)
+    if (hasScalarLoopReduceCase(reduceOp, rewriter))
+      return lowerReduceToScalarLoop(reduceOp, rewriter);
+    if (succeeded(lowerReduceKeepingLastDim(reduceOp, rewriter)))
       return success();
-    if (succeeded(lowerReduceToScalarLoop(reduceOp, rewriter)))
-      return success();
-    reduceOp.emitError(
+    // left to the other passes (loops)
+    return rewriter.notifyMatchFailure(
+        reduceOp,
         "unsupported linalg.reduce for -lower-linalg-to-vir; supported forms "
         "are rank-1->rank-0 dimensions=[0], rank-2->rank-1 dimensions=[1], "
         "static-shape rank-2->rank-1 dimensions=[0], and static-shape "
-        "rank-3->rank-2 dimensions=[0], all with f32 addf/maxnumf combiner, "
-        "and the reductions that keep the last dim with a floating-point "
-        "binary combiner");
-    return failure();
+        "rank-3->rank-2 dimensions=[0], with integers or f16/f32/f64, and the "
+        "reductions that keep the last dim, each with one binary arith "
+        "combiner");
   }
 };
 

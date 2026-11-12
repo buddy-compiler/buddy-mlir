@@ -121,34 +121,123 @@ static Value broadcastTo(OpBuilder &builder, Location loc, VectorType vecTy,
   return vector::ScalableExtractOp::create(builder, loc, vecTy, wide, 0);
 }
 
+/// The vector.reduction kind of the kind of a vir.reduce: the name of a
+/// vector::CombiningKind, or maxnum for maxnumf.
+static std::optional<vector::CombiningKind> combiningKindOf(StringRef kind) {
+  if (kind == "maxnum")
+    return vector::CombiningKind::MAXNUMF;
+  return vector::symbolizeCombiningKind(kind);
+}
+
 /// The reduction of `vec` into `acc`. vector.reduction takes vector<[1]xT>
 /// for a vector of one element: its canonicalization
 /// (ElideSingleElementReduction, VectorOps.cpp) rewrites the reduction to
 /// vector.extract of lane 0 and drops the other vscale - 1 lanes. The
-/// reduction of a floating-point vector<[1]xT> is therefore built from the
-/// LLVM intrinsics vector.reduction lowers to; this can go once the pattern
-/// leaves scalable vectors alone.
+/// reduction of a vector<[1]xT> is therefore built from the LLVM intrinsics
+/// vector.reduction lowers to; this can go once the pattern leaves scalable
+/// vectors alone.
 static Value reduceVector(OpBuilder &builder, Location loc,
                           vector::CombiningKind kind, Value vec, Value acc,
                           arith::FastMathFlags fastmath) {
   auto vecTy = cast<VectorType>(vec.getType());
   Type elem = vecTy.getElementType();
-  bool one = vecTy.getRank() == 1 && vecTy.getShape()[0] == 1 &&
-             vecTy.isScalable() && isa<FloatType>(elem);
-  if (one && (kind == vector::CombiningKind::ADD ||
-              kind == vector::CombiningKind::MAXNUMF)) {
-    bool reassoc =
-        arith::bitEnumContainsAll(fastmath, arith::FastMathFlags::reassoc);
-    auto fmf = LLVM::FastmathFlagsAttr::get(
-        builder.getContext(),
-        reassoc ? LLVM::FastmathFlags::reassoc : LLVM::FastmathFlags::none);
-    if (kind == vector::CombiningKind::ADD)
-      return LLVM::vector_reduce_fadd::create(builder, loc, elem, acc, vec,
-                                              fmf);
-    Value max = LLVM::vector_reduce_fmax::create(builder, loc, elem, vec, fmf);
-    return arith::MaxNumFOp::create(builder, loc, max, acc);
+  using K = vector::CombiningKind;
+  // LLVM does not lower the maximumnum / minimumnum reduction of a scalable
+  // vector on RVV ("Expanding reductions for scalable vectors is
+  // undefined"): the NaN lanes become -inf (+inf for the minimum), then the
+  // maximumf / minimumf reduction, whose zeros are ordered as maximumnum's
+  // (-0 < +0), and NaN if every lane is one; then the accumulator.
+  if (vecTy.isScalable() &&
+      (kind == K::MAXIMUMNUMF || kind == K::MINIMUMNUMF)) {
+    auto fty = cast<FloatType>(elem);
+    bool isMax = kind == K::MAXIMUMNUMF;
+    Value isNaN = arith::CmpFOp::create(builder, loc, arith::CmpFPredicate::UNO,
+                                        vec, vec);
+    Value inf = arith::ConstantOp::create(
+        builder, loc,
+        builder.getFloatAttr(fty, APFloat::getInf(fty.getFloatSemantics(),
+                                                  /*Negative=*/isMax)));
+    Value lanes = arith::SelectOp::create(
+        builder, loc, isNaN, broadcastTo(builder, loc, vecTy, inf), vec);
+    Value r = reduceVector(builder, loc, isMax ? K::MAXIMUMF : K::MINIMUMF,
+                           lanes, inf, fastmath);
+    Value t =
+        arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true));
+    Value allNaN = reduceVector(builder, loc, K::AND, isNaN, t,
+                                arith::FastMathFlags::none);
+    Value nan = arith::ConstantOp::create(
+        builder, loc,
+        builder.getFloatAttr(fty, APFloat::getQNaN(fty.getFloatSemantics())));
+    r = arith::SelectOp::create(builder, loc, allNaN, nan, r);
+    return vector::makeArithReduction(builder, loc, kind, r, acc);
   }
-  return vector::ReductionOp::create(builder, loc, kind, vec, acc, fastmath);
+  bool one =
+      vecTy.getRank() == 1 && vecTy.getShape()[0] == 1 && vecTy.isScalable();
+  if (!one)
+    return vector::ReductionOp::create(builder, loc, kind, vec, acc, fastmath);
+  bool reassoc =
+      arith::bitEnumContainsAll(fastmath, arith::FastMathFlags::reassoc);
+  auto fmf = LLVM::FastmathFlagsAttr::get(builder.getContext(),
+                                          reassoc ? LLVM::FastmathFlags::reassoc
+                                                  : LLVM::FastmathFlags::none);
+  bool isFloat = isa<FloatType>(elem);
+  // the ordered float sum and product start from the accumulator
+  if (isFloat && kind == K::ADD)
+    return LLVM::vector_reduce_fadd::create(builder, loc, elem, acc, vec, fmf);
+  if (isFloat && kind == K::MUL)
+    return LLVM::vector_reduce_fmul::create(builder, loc, elem, acc, vec, fmf);
+  // the others: the lanes reduced, then combined with the accumulator
+  Value lanes;
+  switch (kind) {
+  case K::ADD:
+    lanes = LLVM::vector_reduce_add::create(builder, loc, elem, vec);
+    break;
+  case K::MUL:
+    lanes = LLVM::vector_reduce_mul::create(builder, loc, elem, vec);
+    break;
+  case K::AND:
+    lanes = LLVM::vector_reduce_and::create(builder, loc, elem, vec);
+    break;
+  case K::OR:
+    lanes = LLVM::vector_reduce_or::create(builder, loc, elem, vec);
+    break;
+  case K::XOR:
+    lanes = LLVM::vector_reduce_xor::create(builder, loc, elem, vec);
+    break;
+  case K::MINSI:
+    lanes = LLVM::vector_reduce_smin::create(builder, loc, elem, vec);
+    break;
+  case K::MAXSI:
+    lanes = LLVM::vector_reduce_smax::create(builder, loc, elem, vec);
+    break;
+  case K::MINUI:
+    lanes = LLVM::vector_reduce_umin::create(builder, loc, elem, vec);
+    break;
+  case K::MAXUI:
+    lanes = LLVM::vector_reduce_umax::create(builder, loc, elem, vec);
+    break;
+  case K::MINNUMF:
+    lanes = LLVM::vector_reduce_fmin::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MAXNUMF:
+    lanes = LLVM::vector_reduce_fmax::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MINIMUMF:
+    lanes = LLVM::vector_reduce_fminimum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MAXIMUMF:
+    lanes = LLVM::vector_reduce_fmaximum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MINIMUMNUMF:
+    lanes =
+        LLVM::vector_reduce_fminimumnum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MAXIMUMNUMF:
+    lanes =
+        LLVM::vector_reduce_fmaximumnum::create(builder, loc, elem, vec, fmf);
+    break;
+  }
+  return vector::makeArithReduction(builder, loc, kind, lanes, acc);
 }
 
 static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
@@ -991,18 +1080,16 @@ private:
             }
             StringRef kind = kindAttr.getValue();
 
+            std::optional<vector::CombiningKind> combineKind =
+                combiningKindOf(kind);
+            if (!combineKind) {
+              op.emitError("unknown vir.reduce kind ") << kind;
+              return;
+            }
             if (isTailLoop) {
-              Value out;
-              if (kind == "add") {
-                out = arith::AddFOp::create(builder, loc, input, acc);
-              } else if (kind == "maxnum") {
-                out = arith::MaxNumFOp::create(builder, loc, input, acc);
-              } else {
-                op.emitError(
-                    "unsupported vir.reduce kind (expected add/maxnum)");
-                return;
-              }
-              virSymbolTable[op.getResult()] = out;
+              // the scalar into the accumulator, in order
+              virSymbolTable[op.getResult()] = vector::makeArithReduction(
+                  builder, loc, *combineKind, input, acc);
               return;
             }
 
@@ -1012,18 +1099,8 @@ private:
               return;
             }
 
-            vector::CombiningKind combineKind;
-            if (kind == "add") {
-              combineKind = vector::CombiningKind::ADD;
-            } else if (kind == "maxnum") {
-              combineKind = vector::CombiningKind::MAXNUMF;
-            } else {
-              op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
-              return;
-            }
-
             virSymbolTable[op.getResult()] =
-                reduceVector(builder, loc, combineKind, input, acc,
+                reduceVector(builder, loc, *combineKind, input, acc,
                              op.getReassoc() ? arith::FastMathFlags::reassoc
                                              : arith::FastMathFlags::none);
           })
@@ -2063,18 +2140,14 @@ private:
                   : Value(math::FmaOp::create(b, loc, lhs[p], rhs[p], acc[p])));
         map[fma.getResult()] = out;
       } else if (auto reduce = dyn_cast<vir::ReduceOp>(op)) {
-        StringRef kind = reduce.getKind();
-        if (kind != "add" && kind != "maxnum")
-          return op->emitError(
-              "unsupported vir.reduce kind (expected add/maxnum)");
-        auto combineKind = kind == "add" ? vector::CombiningKind::ADD
-                                         : vector::CombiningKind::MAXNUMF;
+        std::optional<vector::CombiningKind> combineKind =
+            combiningKindOf(reduce.getKind());
+        if (!combineKind)
+          return op->emitError("unknown vir.reduce kind ") << reduce.getKind();
         auto fastmath = reduce.getReassoc() ? arith::FastMathFlags::reassoc
                                             : arith::FastMathFlags::none;
         auto combine = [&](Value x, Value y) -> Value {
-          if (kind == "add")
-            return arith::AddFOp::create(b, loc, x, y);
-          return arith::MaxNumFOp::create(b, loc, x, y);
+          return vector::makeArithReduction(b, loc, *combineKind, x, y);
         };
         SmallVector<Value, 4> in = get(reduce.getInput());
         // With reassoc, the vector pieces are combined lane by lane first,
@@ -2102,7 +2175,7 @@ private:
         Value acc = one(reduce.getAcc());
         for (Value piece : in)
           acc = isa<VectorType>(piece.getType())
-                    ? reduceVector(b, loc, combineKind, piece, acc, fastmath)
+                    ? reduceVector(b, loc, *combineKind, piece, acc, fastmath)
                     : combine(acc, piece);
         map[reduce.getResult()] = {acc};
       } else if (auto select = dyn_cast<vir::SelectOp>(op)) {
