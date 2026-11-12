@@ -136,3 +136,24 @@ func.func @sum_f64(%in: memref<?xf64>, %out: memref<f64>) {
     }
   return
 }
+
+// maximumnumf: the NaNs are dropped, as maxnumf, but -0 < +0, as maximumf.
+// CHECK-LABEL: func.func @max_num_f32
+// CHECK: vir.reduce %{{.*}}, %{{.*}} {kind = "maximumnumf"} : !vir.vec<?xf32>, f32 -> f32
+// VEC-LABEL: func.func @max_num_f32
+// LLVM has no scalable fmaximumnum reduction on RVV: the NaN lanes become
+// -inf for a maximumf reduction, NaN if all are.
+// VEC: %[[N:.*]] = arith.cmpf uno, %[[V:.*]], %[[V]] : vector<[{{[0-9]+}}]xf32>
+// VEC: vector.reduction <maximumf>, %{{.*}}, %{{.*}} : vector<[{{[0-9]+}}]xf32> into f32
+// VEC: vector.reduction <and>, %[[N]], %{{.*}} : vector<[{{[0-9]+}}]xi1> into i1
+// VEC: arith.maximumnumf %{{.*}}, %{{.*}} : f32
+// ASM-LABEL: max_num_f32:
+// ASM: vfredmax.vs
+func.func @max_num_f32(%in: memref<?xf32>, %out: memref<f32>) {
+  linalg.reduce ins(%in : memref<?xf32>) outs(%out : memref<f32>) dimensions = [0]
+    (%x: f32, %acc: f32) {
+      %r = arith.maximumnumf %x, %acc : f32
+      linalg.yield %r : f32
+    }
+  return
+}

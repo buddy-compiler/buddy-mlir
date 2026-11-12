@@ -133,8 +133,9 @@ LogicalResult ReduceOp::verify() {
           {"minsi", "minui", "maxsi", "maxui", "and", "or", "xor"}, kind))
     return isInt ? success()
                  : emitOpError("expects integers for kind ") << kind;
-  if (llvm::is_contained(
-          {"minnumf", "maxnumf", "minimumf", "maximumf", "maxnum"}, kind))
+  if (llvm::is_contained({"minnumf", "maxnumf", "minimumf", "maximumf",
+                          "minimumnumf", "maximumnumf", "maxnum"},
+                         kind))
     return isFloat ? success()
                    : emitOpError("expects floats for kind ") << kind;
   return emitOpError("unknown kind ") << kind;

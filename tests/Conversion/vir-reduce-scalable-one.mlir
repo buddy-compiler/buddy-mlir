@@ -88,3 +88,25 @@ func.func @prod(%a: memref<16xf32>, %s: memref<f32>) {
   }
   return
 }
+
+// minimumnumf: LLVM has no scalable fminimumnum reduction on RVV, the NaN
+// lanes become +inf for an fminimum reduction (of all lanes too).
+// CHECK-LABEL: func.func @min_num
+// CHECK: %[[X:.*]] = vector.load %{{.*}} : memref<16xf32>, vector<[1]xf32>
+// CHECK-NOT: vector.extract
+// CHECK: %[[N:.*]] = arith.cmpf uno, %[[X]], %[[X]] : vector<[1]xf32>
+// CHECK: %[[L:.*]] = arith.select %[[N]], %{{.*}}, %[[X]] : vector<[1]xi1>, vector<[1]xf32>
+// CHECK: llvm.intr.vector.reduce.fminimum(%[[L]])
+// CHECK: "llvm.intr.vector.reduce.and"(%[[N]])
+// CHECK: arith.minimumnumf %{{.*}}, %{{.*}} : f32
+func.func @min_num(%a: memref<16xf32>, %s: memref<f32>) {
+  %vl = arith.constant 16 : index
+  vir.set_vl %vl : index {
+    %x = vir.load %a[] : memref<16xf32> -> !vir.vec<?xf32>
+    %acc = memref.load %s[] : memref<f32>
+    %r = vir.reduce %x, %acc {kind = "minimumnumf"} : !vir.vec<?xf32>, f32 -> f32
+    memref.store %r, %s[] : memref<f32>
+    vector.yield
+  }
+  return
+}

@@ -29,3 +29,11 @@ func.func @accumulator_type(%v: !vir.vec<?xi32>, %acc: i64) -> i64 {
   %r = vir.reduce %v, %acc {kind = "add"} : !vir.vec<?xi32>, i64 -> i64
   return %r : i64
 }
+
+// -----
+
+func.func @float_num_kind_on_integers(%v: !vir.vec<?xi32>, %acc: i32) -> i32 {
+  // expected-error @+1 {{expects floats for kind maximumnumf}}
+  %r = vir.reduce %v, %acc {kind = "maximumnumf"} : !vir.vec<?xi32>, i32 -> i32
+  return %r : i32
+}

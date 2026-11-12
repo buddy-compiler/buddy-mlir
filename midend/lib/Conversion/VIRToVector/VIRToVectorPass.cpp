@@ -141,6 +141,36 @@ static Value reduceVector(OpBuilder &builder, Location loc,
                           arith::FastMathFlags fastmath) {
   auto vecTy = cast<VectorType>(vec.getType());
   Type elem = vecTy.getElementType();
+  using K = vector::CombiningKind;
+  // LLVM does not lower the maximumnum / minimumnum reduction of a scalable
+  // vector on RVV ("Expanding reductions for scalable vectors is
+  // undefined"): the NaN lanes become -inf (+inf for the minimum), then the
+  // maximumf / minimumf reduction, whose zeros are ordered as maximumnum's
+  // (-0 < +0), and NaN if every lane is one; then the accumulator.
+  if (vecTy.isScalable() &&
+      (kind == K::MAXIMUMNUMF || kind == K::MINIMUMNUMF)) {
+    auto fty = cast<FloatType>(elem);
+    bool isMax = kind == K::MAXIMUMNUMF;
+    Value isNaN = arith::CmpFOp::create(builder, loc, arith::CmpFPredicate::UNO,
+                                        vec, vec);
+    Value inf = arith::ConstantOp::create(
+        builder, loc,
+        builder.getFloatAttr(fty, APFloat::getInf(fty.getFloatSemantics(),
+                                                  /*Negative=*/isMax)));
+    Value lanes = arith::SelectOp::create(
+        builder, loc, isNaN, broadcastTo(builder, loc, vecTy, inf), vec);
+    Value r = reduceVector(builder, loc, isMax ? K::MAXIMUMF : K::MINIMUMF,
+                           lanes, inf, fastmath);
+    Value t =
+        arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true));
+    Value allNaN = reduceVector(builder, loc, K::AND, isNaN, t,
+                                arith::FastMathFlags::none);
+    Value nan = arith::ConstantOp::create(
+        builder, loc,
+        builder.getFloatAttr(fty, APFloat::getQNaN(fty.getFloatSemantics())));
+    r = arith::SelectOp::create(builder, loc, allNaN, nan, r);
+    return vector::makeArithReduction(builder, loc, kind, r, acc);
+  }
   bool one =
       vecTy.getRank() == 1 && vecTy.getShape()[0] == 1 && vecTy.isScalable();
   if (!one)
@@ -150,7 +180,6 @@ static Value reduceVector(OpBuilder &builder, Location loc,
   auto fmf = LLVM::FastmathFlagsAttr::get(builder.getContext(),
                                           reassoc ? LLVM::FastmathFlags::reassoc
                                                   : LLVM::FastmathFlags::none);
-  using K = vector::CombiningKind;
   bool isFloat = isa<FloatType>(elem);
   // the ordered float sum and product start from the accumulator
   if (isFloat && kind == K::ADD)
@@ -198,6 +227,14 @@ static Value reduceVector(OpBuilder &builder, Location loc,
     break;
   case K::MAXIMUMF:
     lanes = LLVM::vector_reduce_fmaximum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MINIMUMNUMF:
+    lanes =
+        LLVM::vector_reduce_fminimumnum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MAXIMUMNUMF:
+    lanes =
+        LLVM::vector_reduce_fmaximumnum::create(builder, loc, elem, vec, fmf);
     break;
   }
   return vector::makeArithReduction(builder, loc, kind, lanes, acc);

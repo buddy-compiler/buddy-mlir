@@ -363,6 +363,10 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
           [](auto) -> FailureOr<StringRef> { return StringRef("maximumf"); })
       .Case<arith::MinimumFOp>(
           [](auto) -> FailureOr<StringRef> { return StringRef("minimumf"); })
+      .Case<arith::MaximumNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maximumnumf"); })
+      .Case<arith::MinimumNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minimumnumf"); })
       .Case<arith::MaxSIOp>(
           [](auto) -> FailureOr<StringRef> { return StringRef("maxsi"); })
       .Case<arith::MinSIOp>(

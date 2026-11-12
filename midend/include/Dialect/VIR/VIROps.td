@@ -242,8 +242,8 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
 
     - `add`, `mul`: integers and floats;
     - `minsi`, `minui`, `maxsi`, `maxui`, `and`, `or`, `xor`: integers;
-    - `minnumf`, `maxnumf`, `minimumf`, `maximumf`: floats (`maxnum` is
-      `maxnumf`).
+    - `minnumf`, `maxnumf`, `minimumf`, `maximumf`, `minimumnumf`,
+      `maximumnumf`: floats (`maxnum` is `maxnumf`).
 
     With `reassoc`, the lanes may be combined in any order (the
     `vector.reduction` it lowers to has `fastmath<reassoc>`: an unordered
