@@ -2522,6 +2522,32 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
   }
 };
 
+/// A linalg.fill of a rank-0 memref (the accumulator of a reduction, most
+/// often): one scalar store, nothing to vectorize; the store the loops
+/// would make of it.
+struct LinalgFillRank0Pattern : public OpRewritePattern<linalg::FillOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::FillOp fillOp,
+                                PatternRewriter &rewriter) const override {
+    if (!fillOp.hasPureBufferSemantics())
+      return rewriter.notifyMatchFailure(fillOp,
+                                         "expected pure buffer semantics");
+    Value out = fillOp.getOutputs()[0];
+    auto outTy = dyn_cast<MemRefType>(out.getType());
+    if (!outTy || outTy.getRank() != 0)
+      return rewriter.notifyMatchFailure(fillOp, "expected a rank-0 memref");
+    Value value = fillOp.getInputs()[0];
+    if (value.getType() != outTy.getElementType())
+      return rewriter.notifyMatchFailure(
+          fillOp, "expected a value of the element type");
+    memref::StoreOp::create(rewriter, fillOp.getLoc(), value, out,
+                            ValueRange{});
+    rewriter.eraseOp(fillOp);
+    return success();
+  }
+};
+
 struct LinalgReduceToVIRPattern : public RewritePattern {
   LinalgReduceToVIRPattern(MLIRContext *ctx)
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/3, ctx) {}
@@ -2797,6 +2823,7 @@ public:
   void runOnOperation() override {
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
+    patterns.add<LinalgFillRank0Pattern>(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
     patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
     patterns.add<LinalgConvToVIRPattern>(ctx);
