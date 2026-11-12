@@ -72,3 +72,17 @@ func.func @f16_f32(%a: memref<4x8xf16>, %b: memref<8x16xf16>, %c: memref<4x16xf3
                 outs(%c : memref<4x16xf32>)
   return
 }
+
+// Booleans: linalg.matmul ands and ors i1 (its mul and add of i1), so
+// that two true products give true (an addi would give false).
+// CHECK-LABEL: func.func @i1_i1
+// CHECK: %[[P:.*]] = arith.andi %{{.*}}, %{{.*}} : !vir.vec<?xi1>
+// CHECK: arith.ori %{{.*}}, %[[P]] : !vir.vec<?xi1>
+// CHECK-NOT: arith.muli
+// CHECK-NOT: arith.addi %{{.*}} : !vir.vec<?xi1>
+// CHECK-NOT: linalg.matmul
+func.func @i1_i1(%a: memref<1x2xi1>, %b: memref<2x16xi1>, %c: memref<1x16xi1>) {
+  linalg.matmul ins(%a, %b : memref<1x2xi1>, memref<2x16xi1>)
+                outs(%c : memref<1x16xi1>)
+  return
+}

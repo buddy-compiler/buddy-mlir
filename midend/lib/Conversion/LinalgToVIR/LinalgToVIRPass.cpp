@@ -1043,7 +1043,8 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   // Floats: one element type, multiply-adds with one rounding (vir.fma).
   // Integers: A and B of one type, extended to the type of C, as wide or
   // wider (the cast of the matmul: sign- or zero-extended), then multiplied
-  // and added (exact), e.g. i8 x i8 -> i32.
+  // and added (exact), e.g. i8 x i8 -> i32; for an i1 C, and-ed and or-ed,
+  // as linalg.matmul does booleans.
   Type elemTy = cTy.getElementType();
   Type inElemTy = aTy.getElementType();
   if (inElemTy != bTy.getElementType())
@@ -1135,15 +1136,21 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
                                                       b, ValueRange{k, c0})
                                .getResult();
               bVec = extend(builderK, kLoc, vecTy, bVec);
-              // accOut = fma(aVec, bVec, accIn), or for integers
-              // accIn + aVec * bVec
-              Value accOut =
-                  isInt
-                      ? Value(arith::AddIOp::create(
-                            builderK, kLoc, accIn,
-                            arith::MulIOp::create(builderK, kLoc, aVec, bVec)))
-                      : Value(buddy::vir::FMAOp::create(builderK, kLoc, vecTy,
-                                                        aVec, bVec, accIn));
+              // accOut = fma(aVec, bVec, accIn); for integers
+              // accIn + aVec * bVec, for i1 accIn | (aVec & bVec), as
+              // linalg.matmul computes booleans (its add and mul of i1)
+              Value accOut;
+              if (elemTy.isInteger(1))
+                accOut = arith::OrIOp::create(
+                    builderK, kLoc, accIn,
+                    arith::AndIOp::create(builderK, kLoc, aVec, bVec));
+              else if (isInt)
+                accOut = arith::AddIOp::create(
+                    builderK, kLoc, accIn,
+                    arith::MulIOp::create(builderK, kLoc, aVec, bVec));
+              else
+                accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy, aVec,
+                                                   bVec, accIn);
               affine::AffineYieldOp::create(builderK, kLoc, accOut);
             });
         Value finalAcc = loopK.getResult(0);
