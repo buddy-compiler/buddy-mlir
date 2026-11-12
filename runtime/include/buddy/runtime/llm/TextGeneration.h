@@ -98,7 +98,7 @@ struct TextCodec {
 
 /// Result of a single generation pass.
 struct GenerationResult {
-  int generatedTokens = 0;
+  int generatedTokens = 0; ///< decode token count
   double prefillSecs = 0.0;
   double decodeSecs = 0.0;
   std::string text;
