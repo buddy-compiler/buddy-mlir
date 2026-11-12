@@ -1137,6 +1137,24 @@ private:
             auto newOp = arith::ExtFOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
+          .Case<vir::ExtSIOp, vir::ExtUIOp>([&](Operation *op) {
+            Value in = findValue(op->getOperand(0));
+            Type outTy = op->getResult(0).getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            Value out =
+                isa<vir::ExtSIOp>(op)
+                    ? Value(arith::ExtSIOp::create(builder, loc, outTy, in))
+                    : Value(arith::ExtUIOp::create(builder, loc, outTy, in));
+            virSymbolTable[op->getResult(0)] = out;
+          })
           .Case<vir::TruncFOp>([&](vir::TruncFOp op) {
             Value in = findValue(op.getIn());
             Type outTy = op.getType();
@@ -2185,14 +2203,22 @@ private:
         for (int64_t p = 0; p < pieces.size(); ++p)
           out.push_back(arith::SelectOp::create(b, loc, cond[p], tv[p], fv[p]));
         map[select.getResult()] = out;
-      } else if (isa<vir::ExtFOp, vir::TruncFOp>(op)) {
+      } else if (isa<vir::ExtFOp, vir::TruncFOp, vir::ExtSIOp, vir::ExtUIOp>(
+                     op)) {
         Type elem = elemOf(op->getResult(0).getType());
         SmallVector<Value, 4> in = get(op->getOperand(0)), out;
         for (int64_t p = 0; p < pieces.size(); ++p) {
           Type t = pieces.type(elem, p);
-          out.push_back(isa<vir::ExtFOp>(op)
-                            ? Value(arith::ExtFOp::create(b, loc, t, in[p]))
-                            : Value(arith::TruncFOp::create(b, loc, t, in[p])));
+          Value v;
+          if (isa<vir::ExtFOp>(op))
+            v = arith::ExtFOp::create(b, loc, t, in[p]);
+          else if (isa<vir::TruncFOp>(op))
+            v = arith::TruncFOp::create(b, loc, t, in[p]);
+          else if (isa<vir::ExtSIOp>(op))
+            v = arith::ExtSIOp::create(b, loc, t, in[p]);
+          else
+            v = arith::ExtUIOp::create(b, loc, t, in[p]);
+          out.push_back(v);
         }
         map[op->getResult(0)] = out;
       } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {

@@ -1071,24 +1071,34 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   if (aTy.getRank() != 2 || bTy.getRank() != 2 || cTy.getRank() != 2)
     return rewriter.notifyMatchFailure(matmulOp, "expected rank-2 memrefs");
 
-  Type elemTy = aTy.getElementType();
-  if (elemTy != bTy.getElementType() || elemTy != cTy.getElementType())
-    return rewriter.notifyMatchFailure(matmulOp, "element types must match");
-  if (!isa<FloatType>(elemTy))
+  // Floats: one element type, multiply-adds with one rounding (vir.fma).
+  // Integers: A and B of one type, extended to the type of C, as wide or
+  // wider (the cast of the matmul: sign- or zero-extended), then multiplied
+  // and added (exact), e.g. i8 x i8 -> i32; for an i1 C, and-ed and or-ed,
+  // as linalg.matmul does booleans.
+  Type elemTy = cTy.getElementType();
+  Type inElemTy = aTy.getElementType();
+  if (inElemTy != bTy.getElementType())
     return rewriter.notifyMatchFailure(matmulOp,
-                                       "only floating-point matmul supported");
+                                       "A and B element types must match");
+  bool isInt = isa<IntegerType>(elemTy);
+  if (isInt) {
+    if (!isa<IntegerType>(inElemTy) ||
+        inElemTy.getIntOrFloatBitWidth() > elemTy.getIntOrFloatBitWidth())
+      return rewriter.notifyMatchFailure(
+          matmulOp, "expected integer inputs no wider than the output");
+  } else if (!isa<FloatType>(elemTy) || inElemTy != elemTy) {
+    return rewriter.notifyMatchFailure(
+        matmulOp, "expected floats of one element type or integers");
+  }
+  bool zeroExtend = matmulOp.getCast() == linalg::TypeFn::cast_unsigned;
 
   // Vectorize along N (the last dimension of B/C).
   Value n = memref::DimOp::create(rewriter, loc, c, 1);
 
-  // Create vir.set_vl region to host vector code.
-  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
-
-  // Constants used inside the region.
-  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-
-  // Determine M/K. Prefer static when available, otherwise take dim from
-  // memref.
+  // Determine M/K, before the region (lower-vir-to-vector lowers the ops of
+  // the region, a memref.dim there too, which the loop bounds then used).
+  // Prefer static when available, otherwise take dim from memref.
   Value mVal;
   if (!ShapedType::isDynamic(cTy.getShape()[0])) {
     mVal = arith::ConstantIndexOp::create(rewriter, loc, cTy.getShape()[0]);
@@ -1103,8 +1113,28 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
     kVal = memref::DimOp::create(rewriter, loc, a, 1);
   }
 
+  // Create vir.set_vl region to host vector code.
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+
+  // Constants used inside the region.
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+
   auto vecTy =
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  auto inVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, inElemTy);
+  // an integer (or a dynamic vector of them) of the input type extended to
+  // the output type
+  auto extend = [&](OpBuilder &bld, Location l, Type to, Value v) -> Value {
+    if (v.getType() == to)
+      return v;
+    if (isa<buddy::vir::DynamicVectorType>(to))
+      return zeroExtend ? Value(buddy::vir::ExtUIOp::create(bld, l, to, v))
+                        : Value(buddy::vir::ExtSIOp::create(bld, l, to, v));
+    if (zeroExtend)
+      return arith::ExtUIOp::create(bld, l, to, v);
+    return arith::ExtSIOp::create(bld, l, to, v);
+  };
 
   auto loopM = affine::AffineForOp::create(
       rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
@@ -1127,18 +1157,31 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
               // aScalar = A[i, k]
               Value aScalar =
                   memref::LoadOp::create(builderK, kLoc, a, ValueRange{i, k});
+              aScalar = extend(builderK, kLoc, elemTy, aScalar);
               // aVec = broadcast(aScalar)
               Value aVec = buddy::vir::BroadcastOp::create(builderK, kLoc,
                                                            vecTy, aScalar)
                                .getResult();
               // bVec = load(B[k, 0:]) as a vector along N.
-              Value bVec = buddy::vir::LoadOp::create(builderK, kLoc, vecTy, b,
-                                                      ValueRange{k, c0})
+              Value bVec = buddy::vir::LoadOp::create(builderK, kLoc, inVecTy,
+                                                      b, ValueRange{k, c0})
                                .getResult();
-              // accOut = fma(aVec, bVec, accIn)
-              Value accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy,
-                                                       aVec, bVec, accIn)
-                                 .getResult();
+              bVec = extend(builderK, kLoc, vecTy, bVec);
+              // accOut = fma(aVec, bVec, accIn); for integers
+              // accIn + aVec * bVec, for i1 accIn | (aVec & bVec), as
+              // linalg.matmul computes booleans (its add and mul of i1)
+              Value accOut;
+              if (elemTy.isInteger(1))
+                accOut = arith::OrIOp::create(
+                    builderK, kLoc, accIn,
+                    arith::AndIOp::create(builderK, kLoc, aVec, bVec));
+              else if (isInt)
+                accOut = arith::AddIOp::create(
+                    builderK, kLoc, accIn,
+                    arith::MulIOp::create(builderK, kLoc, aVec, bVec));
+              else
+                accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy, aVec,
+                                                   bVec, accIn);
               affine::AffineYieldOp::create(builderK, kLoc, accOut);
             });
         Value finalAcc = loopK.getResult(0);
