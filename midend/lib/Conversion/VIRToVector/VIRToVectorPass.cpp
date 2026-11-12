@@ -1600,13 +1600,15 @@ private:
           });
       // The fast-math flags of the op (contract, reassoc, ...) on the op it
       // is lowered to, when that is the same op (the cases above create it
-      // anew); an op lowered to others (rsqrt) gets none.
+      // anew); an op lowered to others (rsqrt) gets none, an unsupported op
+      // (no lowered value) nothing.
       if (auto fastMath = dyn_cast<arith::ArithFastMathInterface>(&innerOp);
           fastMath && fastMath.getFastMathFlagsAttr() &&
           fastMath.getFastMathFlagsAttr().getValue() !=
               arith::FastMathFlags::none)
         for (Value result : innerOp.getResults()) {
-          Operation *lowered = virSymbolTable.lookup(result).getDefiningOp();
+          Value mapped = virSymbolTable.lookup(result);
+          Operation *lowered = mapped ? mapped.getDefiningOp() : nullptr;
           if (!lowered || lowered->getName() != innerOp.getName())
             continue;
           if (auto loweredFastMath =
