@@ -323,7 +323,8 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
 
 /// Whether the bf16 dynamic vectors of `op` can be scalable vectors of
 /// their bits (lowerScalableBF16ToBits), on a target without Zvfbfmin: a
-/// load or store of a memref with unit stride in its last dim, a broadcast,
+/// load or store of a memref with unit stride in its last dim and an
+/// integer memory space (an LLVM address space), a broadcast,
 /// constant or select, an extension from bf16, a truncation from f32, absf,
 /// negf.
 static bool hasBF16BitsLowering(Operation *op) {
@@ -331,10 +332,16 @@ static bool hasBF16BitsLowering(Operation *op) {
     auto dyn = dyn_cast<vir::DynamicVectorType>(t);
     return dyn && dyn.getElementType().isBF16();
   };
+  // (the bits are read through a pointer of the address space of the
+  // memory space, an integer)
+  auto accessible = [](Value base) {
+    return hasStaticallyUnitStrideInVectorizedDim(base) &&
+           addressSpaceOf(cast<MemRefType>(base.getType())).has_value();
+  };
   if (auto load = dyn_cast<vir::LoadOp>(op))
-    return hasStaticallyUnitStrideInVectorizedDim(load.getBase());
+    return accessible(load.getBase());
   if (auto store = dyn_cast<vir::StoreOp>(op))
-    return hasStaticallyUnitStrideInVectorizedDim(store.getBase());
+    return accessible(store.getBase());
   if (isa<vir::ExtFOp>(op))
     return isBF16(op->getOperand(0).getType());
   if (isa<vir::TruncFOp>(op))
@@ -3126,7 +3133,10 @@ static Value bf16BitsToF32(OpBuilder &b, Location loc, Value bits) {
 }
 
 /// The bf16 bits (vector<[N]xi16>) of the f32 vector `in`, rounded to
-/// nearest even: the bits plus 0x7fff, or 0x8000 when bit 16 is set (a
+/// nearest even, as arith.truncf without a rounding mode is (an LLVM fptrunc
+/// in the default floating-point environment, which LLVM assumes; RVV
+/// rounds by frm, round to nearest even there): the bits plus 0x7fff, or
+/// 0x8000 when bit 16 is set (a
 /// carry into the exponent is the rounding up, to infinity past the largest
 /// bf16), their high half; a NaN is the canonical NaN 0x7fc0, as RVV
 /// converts it (vfncvtbf16 of Zvfbfmin).
@@ -3164,7 +3174,8 @@ static Value elementPointer(OpBuilder &b, Location loc, Value base,
   Value address = arith::AddIOp::create(
       b, loc, memref::ExtractAlignedPointerAsIndexOp::create(b, loc, base),
       bytes);
-  unsigned space = addressSpaceOf(cast<MemRefType>(base.getType())).value_or(0);
+  // (hasBF16BitsLowering: an integer memory space)
+  unsigned space = *addressSpaceOf(cast<MemRefType>(base.getType()));
   return LLVM::IntToPtrOp::create(
       b, loc, LLVM::LLVMPointerType::get(b.getContext(), space),
       Value(arith::IndexCastOp::create(b, loc, b.getI64Type(), address)));
@@ -3176,8 +3187,10 @@ static Value elementPointer(OpBuilder &b, Location loc, Value base,
 /// vector<[N]xi16>, which any RVV holds. Loads and stores read and write the
 /// bits through a pointer, extf and truncf convert with integer ops
 /// (bf16BitsToF32, f32ToBF16Bits), absf and negf clear or flip the sign bit,
-/// broadcasts, constants and selects move the bits. Each lane is as with
-/// Zvfbfmin, NaNs included.
+/// broadcasts, constants, selects and scalable extracts and inserts move the
+/// bits. Each lane is as with Zvfbfmin, NaNs included, in the default
+/// floating-point environment (rounding to nearest even, which LLVM assumes
+/// for fptrunc).
 static LogicalResult lowerScalableBF16ToBits(ModuleOp module) {
   auto isBF16Vec = [](Type t) {
     auto vecTy = dyn_cast<VectorType>(t);
@@ -3223,6 +3236,15 @@ static LogicalResult lowerScalableBF16ToBits(ModuleOp module) {
           arith::BitcastOp::create(b, loc, b.getI16Type(), bcast.getSource());
       result = vector::BroadcastOp::create(b, loc, bitsType(bcast.getType()),
                                            scalar);
+    } else if (auto extract = dyn_cast<vector::ScalableExtractOp>(op)) {
+      // (broadcastTo builds a vector<[1]xT> as a part of a vector<[2]xT>)
+      result = vector::ScalableExtractOp::create(
+          b, loc, bitsType(extract.getType()), bits(extract.getSource()),
+          extract.getPos());
+    } else if (auto insert = dyn_cast<vector::ScalableInsertOp>(op)) {
+      result = vector::ScalableInsertOp::create(
+          b, loc, bits(insert.getValueToStore()), bits(insert.getDest()),
+          insert.getPos());
     } else if (auto cst = dyn_cast<arith::ConstantOp>(op)) {
       auto dense = cast<DenseElementsAttr>(cst.getValue());
       result = arith::ConstantOp::create(b, loc, dense.bitcast(b.getI16Type()));
@@ -3326,7 +3348,8 @@ public:
                      "scalable vectors of bf16 use its conversions (llc "
                      "needs +zvfbfmin); with -zvfbfmin they are vectors of "
                      "their bits, converted with integer ops (any RVV), "
-                     "with the same results"),
+                     "with the same results in the default floating-point "
+                     "environment (rounding to nearest even)"),
       llvm::cl::init("")};
 
   Option<bool> verbose{*this, "verbose",
@@ -3343,8 +3366,10 @@ static bool hasFeature(StringRef mattr, StringRef feature, bool byDefault) {
   mattr.split(items, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   for (StringRef item : items) {
     item = item.trim();
-    if (item.drop_front() == feature && (item[0] == '+' || item[0] == '-'))
-      on = item[0] == '+';
+    if (item.size() < 2 || (item.front() != '+' && item.front() != '-'))
+      continue;
+    if (item.drop_front() == feature)
+      on = item.front() == '+';
   }
   return on;
 }
