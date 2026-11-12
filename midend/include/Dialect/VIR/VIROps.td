@@ -236,12 +236,14 @@ def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> 
 def VIR_ReduceOp : VIR_Op<"reduce"> {
   let summary = "Horizontal reduction for dynamic vector IR.";
   let description = [{
-    The `reduce` operation reduces a dynamic vector into a scalar using a
-    predefined combiner kind.
+    The `reduce` operation reduces a dynamic vector into a scalar, its lanes
+    in order combined into `acc` with the combiner `kind`, a kind of
+    `vector.reduction` (`vector::CombiningKind`):
 
-    v1 semantics:
-    - `kind = \"add\"`    : floating-point sum reduction
-    - `kind = \"maxnum\"` : floating-point maxnum reduction
+    - `add`, `mul`: integers and floats;
+    - `minsi`, `minui`, `maxsi`, `maxui`, `and`, `or`, `xor`: integers;
+    - `minnumf`, `maxnumf`, `minimumf`, `maximumf`: floats (`maxnum` is
+      `maxnumf`).
 
     With `reassoc`, the lanes may be combined in any order (the
     `vector.reduction` it lowers to has `fastmath<reassoc>`: an unordered
@@ -249,11 +251,12 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,
-    AnyFloat:$acc,
+    AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$acc,
     StrAttr:$kind,
     UnitAttr:$reassoc
   );
-  let results = (outs AnyFloat:$result);
+  let results = (outs AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$result);
+  let hasVerifier = 1;
 
   let assemblyFormat = "$input `,` $acc attr-dict `:` qualified(type($input))"
                        " `,` type($acc) `->` type($result)";
