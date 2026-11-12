@@ -2959,6 +2959,77 @@ static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
 }
 
 //===----------------------------------------------------------------------===//
+// Math functions on scalable vectors
+//===----------------------------------------------------------------------===//
+
+/// Whether LLVM lowers `op` on a scalable vector for RVV: the math ops that
+/// convert-math-to-llvm makes LLVM intrinsics of which the RISC-V backend
+/// lowers on scalable vectors, with RVV instructions (sqrt, fabs, ceil, ...)
+/// or with a loop calling the libm function on each lane (exp, sin, ...).
+static bool hasScalableLowering(Operation *op) {
+  return isa<math::AbsFOp, math::AcosOp, math::AsinOp, math::AtanOp,
+             math::CeilOp, math::CopySignOp, math::CosOp, math::CoshOp,
+             math::Exp2Op, math::ExpM1Op, math::ExpOp, math::FloorOp,
+             math::FmaOp, math::Log10Op, math::Log1pOp, math::Log2Op,
+             math::LogOp, math::RoundEvenOp, math::RoundOp, math::RsqrtOp,
+             math::SinOp, math::SinhOp, math::SqrtOp, math::TanOp, math::TanhOp,
+             math::TruncOp>(op);
+}
+
+/// Applies the other math ops on floats (erf, erfc, cbrt, powf, atan2, ...)
+/// to the lanes of a scalable vector one by one, N * vscale lanes for a
+/// vector<[N]xT>: convert-math-to-libm calls the libm function on the N
+/// first lanes only and leaves the others 0, and LLVM does not lower the
+/// binary ones (powf, atan2) on scalable vectors. Each lane is the libm
+/// function of its scalar, as with fixed vectors.
+static void scalarizeScalableMath(ModuleOp module) {
+  SmallVector<Operation *> ops;
+  module.walk([&](Operation *op) {
+    if (!isa<math::MathDialect>(op->getDialect()) || op->getNumResults() != 1 ||
+        hasScalableLowering(op))
+      return;
+    auto vecTy = dyn_cast<VectorType>(op->getResult(0).getType());
+    if (vecTy && vecTy.getRank() == 1 && vecTy.isScalable() &&
+        isa<FloatType>(vecTy.getElementType()))
+      ops.push_back(op);
+  });
+  for (Operation *op : ops) {
+    OpBuilder b(op);
+    Location loc = op->getLoc();
+    auto vecTy = cast<VectorType>(op->getResult(0).getType());
+    Value vscale = vector::VectorScaleOp::create(b, loc);
+    Value lanes = arith::MulIOp::create(
+        b, loc, vscale,
+        arith::ConstantIndexOp::create(b, loc, vecTy.getShape()[0]));
+    Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+    Value one = arith::ConstantIndexOp::create(b, loc, 1);
+    // the lanes are all written: any vector of the type starts the loop
+    Value init =
+        op->getOperand(0).getType() == vecTy
+            ? op->getOperand(0)
+            : Value(arith::ConstantOp::create(b, loc, b.getZeroAttr(vecTy)));
+    auto loop = scf::ForOp::create(
+        b, loc, zero, lanes, one, ValueRange{init},
+        [&](OpBuilder &lb, Location l, Value lane, ValueRange acc) {
+          OperationState state(l, op->getName());
+          for (Value v : op->getOperands())
+            state.addOperands(isa<VectorType>(v.getType())
+                                  ? Value(vector::ExtractOp::create(
+                                        lb, l, v, ArrayRef<OpFoldResult>{lane}))
+                                  : v);
+          state.addTypes(vecTy.getElementType());
+          state.addAttributes(op->getAttrs());
+          Value scalar = lb.create(state)->getResult(0);
+          Value next = vector::InsertOp::create(lb, l, scalar, acc[0],
+                                                ArrayRef<OpFoldResult>{lane});
+          scf::YieldOp::create(lb, l, next);
+        });
+    op->getResult(0).replaceAllUsesWith(loop.getResult(0));
+    op->erase();
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // VIRToVectorPass
 //===----------------------------------------------------------------------===//
 
@@ -3086,7 +3157,9 @@ void VIRToVectorPass::runOnOperation() {
   // a vir.set_vl left (its lowering reported why) fails the pass
   if (module.walk([](vir::SetVLOp) { return WalkResult::interrupt(); })
           .wasInterrupted())
-    signalPassFailure();
+    return signalPassFailure();
+  if (useScalable)
+    scalarizeScalableMath(module);
 }
 
 namespace mlir {
