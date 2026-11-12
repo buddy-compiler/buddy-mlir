@@ -321,6 +321,69 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
   }
 }
 
+/// Whether the bf16 dynamic vectors of `op` can be scalable vectors of
+/// their bits (lowerScalableBF16ToBits), on a target without Zvfbfmin: a
+/// load or store of a memref with unit stride in its last dim and an
+/// integer memory space (an LLVM address space), a broadcast,
+/// constant or select, an extension from bf16, a truncation from f32, absf,
+/// negf.
+static bool hasBF16BitsLowering(Operation *op) {
+  auto isBF16 = [](Type t) {
+    auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+    return dyn && dyn.getElementType().isBF16();
+  };
+  // (the bits are read through a pointer of the address space of the
+  // memory space, an integer)
+  auto accessible = [](Value base) {
+    return hasStaticallyUnitStrideInVectorizedDim(base) &&
+           addressSpaceOf(cast<MemRefType>(base.getType())).has_value();
+  };
+  if (auto load = dyn_cast<vir::LoadOp>(op))
+    return accessible(load.getBase());
+  if (auto store = dyn_cast<vir::StoreOp>(op))
+    return accessible(store.getBase());
+  if (isa<vir::ExtFOp>(op))
+    return isBF16(op->getOperand(0).getType());
+  if (isa<vir::TruncFOp>(op))
+    return cast<vir::DynamicVectorType>(op->getOperand(0).getType())
+        .getElementType()
+        .isF32();
+  return isa<vir::BroadcastOp, vir::ConstantOp, vir::SelectOp, math::AbsFOp,
+             arith::NegFOp>(op);
+}
+
+/// Whether `region` is lowered with fixed vectors under use-scalable: RVV
+/// holds floats in vector registers as f16 (Zvfh), f32 and f64, and bf16
+/// with Zvfbfmin (`zvfbfmin`); LLVM lowers no scalable vector of the others,
+/// not even a load. Without Zvfbfmin, bf16 dynamic vectors are scalable
+/// vectors of their bits (lowerScalableBF16ToBits) where all their ops have
+/// that lowering (hasBF16BitsLowering); a region with another op on them,
+/// or with dynamic vectors of an f8 type, is lowered with fixed vectors,
+/// which LLVM lowers lane by lane (valid on any VLEN, as the fixed vectors
+/// of a region with results are for rvv-vlen).
+static bool needsFixedVectors(Region &region, bool zvfbfmin) {
+  auto floatOf = [](Type t) -> FloatType {
+    auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+    return dyn ? dyn_cast<FloatType>(dyn.getElementType()) : FloatType();
+  };
+  return region
+      .walk([&](Operation *op) {
+        bool bf16 = false;
+        for (Type t : llvm::concat<Type>(llvm::to_vector(op->getOperandTypes()),
+                                         llvm::to_vector(op->getResultTypes())))
+          if (FloatType elem = floatOf(t)) {
+            if (elem.isBF16())
+              bf16 = true;
+            else if (!elem.isF16() && !elem.isF32() && !elem.isF64())
+              return WalkResult::interrupt();
+          }
+        if (bf16 && !zvfbfmin && !hasBF16BitsLowering(op))
+          return WalkResult::interrupt();
+        return WalkResult::advance();
+      })
+      .wasInterrupted();
+}
+
 /// The element type of the dynamic vectors of `region` with the most bits
 /// (the first of equals), an i1 counted as a byte (its memref's element, and
 /// what a scalable access of it reads) and an index as `indexBitWidth`: the
@@ -646,11 +709,11 @@ class VIRSetVLLowering : public ConvertOpToLLVMPattern<vir::SetVLOp> {
 public:
   VIRSetVLLowering(LLVMTypeConverter &converter, bool useScalable,
                    int vectorWidth, bool verbose, bool useCustomVecWid,
-                   int rvvVlen, bool rvvVlenExact)
+                   int rvvVlen, bool rvvVlenExact, bool zvfbfmin)
       : ConvertOpToLLVMPattern<vir::SetVLOp>(converter),
         useScalable(useScalable), vectorWidth(vectorWidth), verbose(verbose),
         useCustomVecWid(useCustomVecWid), rvvVlen(rvvVlen),
-        rvvVlenExact(rvvVlenExact) {}
+        rvvVlenExact(rvvVlenExact), zvfbfmin(zvfbfmin) {}
 
 private:
   bool useScalable;
@@ -662,6 +725,8 @@ private:
   // rvvVlen is the VLEN of the target, not only its minimum (use-scalable
   // without rvv-vlen)
   bool rvvVlenExact;
+  // the target has Zvfbfmin (rvv-mattr): RVV holds bf16 vectors
+  bool zvfbfmin;
   // set when lowerBlock meets an op it does not lower
   mutable bool unsupportedOp = false;
 
@@ -2143,6 +2208,8 @@ private:
     std::optional<int64_t> vl = getConstantIntValue(op.getVl());
     if (!vl)
       return op.emitError("a vir.set_vl with results needs a constant vl");
+    // scalable vectors but for the floats RVV does not hold
+    bool scalable = useScalable && !needsFixedVectors(op.getRegion(), zvfbfmin);
     // the static layout of the dynamic vectors (checked on each op)
     SmallVector<int64_t> layout;
     op.getRegion().walk([&](Operation *inner) {
@@ -2158,7 +2225,7 @@ private:
     int64_t width =
         useCustomVecWid
             ? vectorWidth
-            : vectorTypeHelper(op.getRegion(), anchorType, useScalable, verbose,
+            : vectorTypeHelper(op.getRegion(), anchorType, scalable, verbose,
                                rvvVlen,
                                getTypeConverter()->getIndexTypeBitwidth(),
                                llvm::product_of(layout))
@@ -2167,10 +2234,10 @@ private:
     // target, rvv-vlen / 64: the code is for that VLEN only. Without it, a
     // vector<[N]xT> has more lanes than the ones it is cut for on a larger
     // VLEN: no code is valid on all of them.
-    if (useScalable && !rvvVlenExact)
+    if (scalable && !rvvVlenExact)
       return op.emitError("a vir.set_vl with results on scalable vectors "
                           "needs rvv-vlen, the exact VLEN");
-    int64_t vscale = useScalable ? rvvVlen / 64 : 1;
+    int64_t vscale = scalable ? rvvVlen / 64 : 1;
     // A vir.shuffle of fixed vectors moves lanes within one vector: each
     // dynamic vector is one vector of all its lanes, whatever the register
     // pressure. On scalable vectors, every lane is known, so the pieces are
@@ -2181,7 +2248,7 @@ private:
       if (lanes <= 0)
         return op.emitError("vir.shuffle needs a dynamic vector with a "
                             "positive number of lanes");
-      if (!useScalable && !useCustomVecWid)
+      if (!scalable && !useCustomVecWid)
         width = lanes;
       // RVV: vector<[N]xT> is a group of N * SEW / 64 registers, of at most
       // 8; each shuffle has its element type (vir.extf / truncf, wider than
@@ -2197,11 +2264,11 @@ private:
       // scalable: groups of at most 8 for every shuffle, whole vectors only
       // where they can be (no lanes left as scalars, which a shuffle moves
       // one by one)
-      while (useScalable && !useCustomVecWid && width > 1 &&
+      while (scalable && !useCustomVecWid && width > 1 &&
              (width * sew > 8 * 64 || lanes % (width * vscale) != 0))
         width /= 2;
       // (vector-width can ask for more)
-      if (useScalable)
+      if (scalable)
         for (vir::ShuffleOp s : shuffles) {
           Type elem = s.getType().getElementType();
           int64_t sew = elem.isIndex()
@@ -2212,13 +2279,13 @@ private:
                                "most 8, vector-width ")
                    << width << " gives " << width * sew / 64 << " registers";
         }
-      if (verbose && !useScalable && !useCustomVecWid)
+      if (verbose && !scalable && !useCustomVecWid)
         llvm::outs() << "vir.shuffle: one vector of " << lanes
                      << " lanes, width " << width << "\n";
     }
     // whole vectors, then the lanes left as scalars: no lane is off
     int64_t step = width * vscale;
-    Pieces pieces{width, lanes / step, lanes % step, useScalable, step};
+    Pieces pieces{width, lanes / step, lanes % step, scalable, step};
     pieces.layout = layout;
     pieces.vl = *vl;
     // keep the lowered code small: vl over a few vectors
@@ -2226,7 +2293,7 @@ private:
       return op.emitError("a vir.set_vl with results lowers to more than 64 "
                           "pieces; increase vector-width");
     Location loc = op.getLoc();
-    if (useScalable && failed(checkScalableI1Accesses(op.getRegion())))
+    if (scalable && failed(checkScalableI1Accesses(op.getRegion())))
       return failure();
     PieceMap map;
     Block &block = op.getRegion().front();
@@ -2341,13 +2408,15 @@ private:
       return failure();
 
     int vectorWid = vectorWidth; // Dynamic defined vector width
+    // scalable vectors but for the floats RVV does not hold
+    bool scalable = useScalable && !needsFixedVectors(region, zvfbfmin);
     VectorType targetVectorType;
     if (useCustomVecWid) {
       if (verbose) {
         llvm::outs() << "Use user custom vector width = " << vectorWidth
                      << "\n";
       }
-      if (useScalable) {
+      if (scalable) {
         // Scalable Vector Type: e.g. `vector<[4]xf32>`.
         SmallVector<bool, 1> scalableDim = {true};
         targetVectorType =
@@ -2358,7 +2427,7 @@ private:
       }
     } else {
       targetVectorType =
-          vectorTypeHelper(region, anchorType, useScalable, verbose, rvvVlen,
+          vectorTypeHelper(region, anchorType, scalable, verbose, rvvVlen,
                            getTypeConverter()->getIndexTypeBitwidth());
       vectorWid = int(targetVectorType.getShape()[0]);
     }
@@ -2579,9 +2648,10 @@ void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
                                            RewritePatternSet &patterns,
                                            bool useScalable, int vectorWidth,
                                            bool verbose, bool useCustomVecWid,
-                                           int rvvVlen, bool rvvVlenExact) {
+                                           int rvvVlen, bool rvvVlenExact,
+                                           bool zvfbfmin) {
   // clang-format off
-  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact);
+  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact, zvfbfmin);
   // clang-format on
 }
 
@@ -2922,7 +2992,7 @@ static void jamLoop(scf::ForOp loop, int64_t factor) {
 /// Jams the loops of the strip-mined regions of `module` (see above). The
 /// vectors are sized as vectorTypeHelper sizes them with these arguments.
 static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
-                               unsigned indexBitWidth) {
+                               unsigned indexBitWidth, bool zvfbfmin) {
   AliasAnalysis aa(module);
   SmallVector<std::pair<vir::SetVLOp, scf::ForOp>> loops;
   module.walk([&](vir::SetVLOp setVL) {
@@ -2958,9 +3028,11 @@ static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
       {
         ScopedDiagnosticHandler quiet(module.getContext(),
                                       [](Diagnostic &) { return success(); });
-        type = vectorTypeHelper(trial->getRegion(0), anchor, useScalable,
-                                /*verbose=*/false, rvvVlen, indexBitWidth,
-                                /*rows=*/1, &fits);
+        type = vectorTypeHelper(
+            trial->getRegion(0), anchor,
+            useScalable && !needsFixedVectors(setVL.getRegion(), zvfbfmin),
+            /*verbose=*/false, rvvVlen, indexBitWidth,
+            /*rows=*/1, &fits);
       }
       trial->erase();
       if (!type)
@@ -3048,6 +3120,196 @@ static void scalarizeScalableMath(ModuleOp module) {
 }
 
 //===----------------------------------------------------------------------===//
+// Scalable vectors of bf16 without Zvfbfmin
+//===----------------------------------------------------------------------===//
+
+/// A splat of the integer `value` of the element type of `type`.
+static Value splatInt(OpBuilder &b, Location loc, VectorType type,
+                      int64_t value) {
+  return arith::ConstantOp::create(
+      b, loc,
+      DenseElementsAttr::get(type,
+                             b.getIntegerAttr(type.getElementType(), value)));
+}
+
+/// The f32 vector of the bf16 bits `bits` (vector<[N]xi16>): the bits in
+/// the high half (exact); a NaN is the canonical NaN 0x7fc00000, as RVV
+/// converts it (vfwcvtbf16 of Zvfbfmin).
+static Value bf16BitsToF32(OpBuilder &b, Location loc, Value bits) {
+  auto i16Ty = cast<VectorType>(bits.getType());
+  auto i32Ty = i16Ty.clone(b.getI32Type());
+  Value magnitude =
+      arith::AndIOp::create(b, loc, bits, splatInt(b, loc, i16Ty, 0x7fff));
+  Value isNaN =
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::ugt, magnitude,
+                            splatInt(b, loc, i16Ty, 0x7f80));
+  bits = arith::SelectOp::create(b, loc, isNaN, splatInt(b, loc, i16Ty, 0x7fc0),
+                                 bits);
+  Value wide = arith::ExtUIOp::create(b, loc, i32Ty, bits);
+  Value high = arith::ShLIOp::create(b, loc, wide, splatInt(b, loc, i32Ty, 16));
+  return arith::BitcastOp::create(b, loc, i32Ty.clone(b.getF32Type()), high);
+}
+
+/// The bf16 bits (vector<[N]xi16>) of the f32 vector `in`, rounded to
+/// nearest even, as arith.truncf without a rounding mode is (an LLVM fptrunc
+/// in the default floating-point environment, which LLVM assumes; RVV
+/// rounds by frm, round to nearest even there): the bits plus 0x7fff, or
+/// 0x8000 when bit 16 is set (a
+/// carry into the exponent is the rounding up, to infinity past the largest
+/// bf16), their high half; a NaN is the canonical NaN 0x7fc0, as RVV
+/// converts it (vfncvtbf16 of Zvfbfmin).
+static Value f32ToBF16Bits(OpBuilder &b, Location loc, Value in) {
+  auto vecTy = cast<VectorType>(in.getType());
+  auto i16Ty = vecTy.clone(b.getI16Type());
+  auto i32Ty = vecTy.clone(b.getI32Type());
+  Value bits = arith::BitcastOp::create(b, loc, i32Ty, in);
+  Value c16 = splatInt(b, loc, i32Ty, 16);
+  Value high = arith::ShRUIOp::create(b, loc, bits, c16);
+  Value bit16 = arith::AndIOp::create(b, loc, high, splatInt(b, loc, i32Ty, 1));
+  Value bias =
+      arith::AddIOp::create(b, loc, bit16, splatInt(b, loc, i32Ty, 0x7fff));
+  Value rounded = arith::TruncIOp::create(
+      b, loc, i16Ty,
+      arith::ShRUIOp::create(b, loc, arith::AddIOp::create(b, loc, bits, bias),
+                             c16));
+  Value isNaN =
+      arith::CmpFOp::create(b, loc, arith::CmpFPredicate::UNO, in, in);
+  return arith::SelectOp::create(b, loc, isNaN, splatInt(b, loc, i16Ty, 0x7fc0),
+                                 rounded);
+}
+
+/// The pointer to the element at `indices` of `base`, a memref of 16-bit
+/// elements with unit stride in its last dim.
+static Value elementPointer(OpBuilder &b, Location loc, Value base,
+                            ValueRange indices) {
+  auto metadata = memref::ExtractStridedMetadataOp::create(b, loc, base);
+  Value linear = metadata.getOffset();
+  for (auto [index, stride] : llvm::zip(indices, metadata.getStrides()))
+    linear = arith::AddIOp::create(
+        b, loc, linear, arith::MulIOp::create(b, loc, index, stride));
+  Value bytes = arith::MulIOp::create(
+      b, loc, linear, arith::ConstantIndexOp::create(b, loc, 2));
+  Value address = arith::AddIOp::create(
+      b, loc, memref::ExtractAlignedPointerAsIndexOp::create(b, loc, base),
+      bytes);
+  // (hasBF16BitsLowering: an integer memory space)
+  unsigned space = *addressSpaceOf(cast<MemRefType>(base.getType()));
+  return LLVM::IntToPtrOp::create(
+      b, loc, LLVM::LLVMPointerType::get(b.getContext(), space),
+      Value(arith::IndexCastOp::create(b, loc, b.getI64Type(), address)));
+}
+
+/// Without Zvfbfmin (-zvfbfmin), LLVM lowers no scalable vector of bf16, not
+/// even a load: the scalable vectors of bf16 (of the regions
+/// needsFixedVectors keeps scalable) become vectors of their bits,
+/// vector<[N]xi16>, which any RVV holds. Loads and stores read and write the
+/// bits through a pointer, extf and truncf convert with integer ops
+/// (bf16BitsToF32, f32ToBF16Bits), absf and negf clear or flip the sign bit,
+/// broadcasts, constants, selects and scalable extracts and inserts move the
+/// bits. Each lane is as with Zvfbfmin, NaNs included, in the default
+/// floating-point environment (rounding to nearest even, which LLVM assumes
+/// for fptrunc). Only the ops of the lowering are rewritten: those of
+/// `before`, the ops on scalable bf16 vectors before it, are left as they
+/// are; a scalable bf16 vector from them (or from a block argument) in an op
+/// of the lowering is an error.
+static bool isScalableBF16Vector(Type t) {
+  auto vecTy = dyn_cast<VectorType>(t);
+  return vecTy && vecTy.isScalable() && vecTy.getElementType().isBF16();
+}
+
+static bool hasScalableBF16Vector(Operation *op) {
+  return llvm::any_of(op->getOperandTypes(), isScalableBF16Vector) ||
+         llvm::any_of(op->getResultTypes(), isScalableBF16Vector);
+}
+
+static LogicalResult
+lowerScalableBF16ToBits(ModuleOp module, const DenseSet<Operation *> &before) {
+  auto isBF16Vec = isScalableBF16Vector;
+  SmallVector<Operation *> ops;
+  module.walk([&](Operation *op) {
+    if (!before.contains(op) && hasScalableBF16Vector(op))
+      ops.push_back(op);
+  });
+  DenseMap<Value, Value> bitsOf;
+  auto bitsType = [](Type t) {
+    return cast<VectorType>(t).clone(IntegerType::get(t.getContext(), 16));
+  };
+  for (Operation *op : ops) {
+    // the bits of every bf16 vector operand, before the op is rewritten
+    for (Value v : op->getOperands())
+      if (isBF16Vec(v.getType()) && !bitsOf.contains(v))
+        return op->emitError("a scalable vector of bf16 from outside the "
+                             "lowered vir.set_vl regions, without Zvfbfmin "
+                             "(rvv-mattr)");
+    OpBuilder b(op);
+    Location loc = op->getLoc();
+    auto bits = [&](Value v) { return bitsOf.lookup(v); };
+    Value result;
+    if (auto load = dyn_cast<vector::LoadOp>(op)) {
+      Value ptr = elementPointer(b, loc, load.getBase(), load.getIndices());
+      result = LLVM::LoadOp::create(b, loc, bitsType(load.getType()), ptr,
+                                    /*alignment=*/2);
+    } else if (auto store = dyn_cast<vector::StoreOp>(op)) {
+      Value ptr = elementPointer(b, loc, store.getBase(), store.getIndices());
+      LLVM::StoreOp::create(b, loc, bits(store.getValueToStore()), ptr,
+                            /*alignment=*/2);
+      continue;
+    } else if (auto ext = dyn_cast<arith::ExtFOp>(op)) {
+      Value f32 = bf16BitsToF32(b, loc, bits(ext.getIn()));
+      if (f32.getType() != ext.getType())
+        f32 = arith::ExtFOp::create(b, loc, ext.getType(), f32);
+      ext.getResult().replaceAllUsesWith(f32);
+      continue;
+    } else if (auto trunc = dyn_cast<arith::TruncFOp>(op);
+               trunc && getElementTypeOrSelf(trunc.getIn()).isF32() &&
+               !trunc.getRoundingmodeAttr()) {
+      result = f32ToBF16Bits(b, loc, trunc.getIn());
+    } else if (auto bcast = dyn_cast<vector::BroadcastOp>(op);
+               bcast && bcast.getSource().getType().isBF16()) {
+      Value scalar =
+          arith::BitcastOp::create(b, loc, b.getI16Type(), bcast.getSource());
+      result = vector::BroadcastOp::create(b, loc, bitsType(bcast.getType()),
+                                           scalar);
+    } else if (auto extract = dyn_cast<vector::ScalableExtractOp>(op)) {
+      // (broadcastTo builds a vector<[1]xT> as a part of a vector<[2]xT>)
+      result = vector::ScalableExtractOp::create(
+          b, loc, bitsType(extract.getType()), bits(extract.getSource()),
+          extract.getPos());
+    } else if (auto insert = dyn_cast<vector::ScalableInsertOp>(op)) {
+      result = vector::ScalableInsertOp::create(
+          b, loc, bits(insert.getValueToStore()), bits(insert.getDest()),
+          insert.getPos());
+    } else if (auto cst = dyn_cast<arith::ConstantOp>(op)) {
+      auto dense = cast<DenseElementsAttr>(cst.getValue());
+      result = arith::ConstantOp::create(b, loc, dense.bitcast(b.getI16Type()));
+    } else if (isa<math::AbsFOp>(op)) {
+      Value in = bits(op->getOperand(0));
+      result = arith::AndIOp::create(
+          b, loc, in, splatInt(b, loc, cast<VectorType>(in.getType()), 0x7fff));
+    } else if (isa<arith::NegFOp>(op)) {
+      Value in = bits(op->getOperand(0));
+      result = arith::XOrIOp::create(
+          b, loc, in, splatInt(b, loc, cast<VectorType>(in.getType()), 0x8000));
+    } else if (isa<arith::SelectOp, LLVM::SelectOp>(op)) {
+      result = arith::SelectOp::create(b, loc, op->getOperand(0),
+                                       bits(op->getOperand(1)),
+                                       bits(op->getOperand(2)));
+    } else {
+      return op->emitError("a scalable vector of bf16 without Zvfbfmin "
+                           "(rvv-mattr) in an op it is not lowered for: ")
+             << op->getName();
+    }
+    bitsOf[op->getResult(0)] = result;
+  }
+  // the ops on bf16 vectors, users first
+  for (Operation *op : llvm::reverse(ops)) {
+    op->dropAllUses();
+    op->erase();
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // VIRToVectorPass
 //===----------------------------------------------------------------------===//
 
@@ -3107,14 +3369,45 @@ public:
                      "any VLEN, a vir.set_vl with results is rejected"),
       llvm::cl::init(0)};
 
+  Option<std::string> rvvMattr{
+      *this, "rvv-mattr",
+      llvm::cl::desc("Features of the RISC-V target in the syntax of llc "
+                     "-mattr (e.g. +v,+zvfh,+zvfbfmin; pass the same as to "
+                     "llc). Zvfbfmin is assumed unless -zvfbfmin: the "
+                     "scalable vectors of bf16 use its conversions (llc "
+                     "needs +zvfbfmin); with -zvfbfmin they are vectors of "
+                     "their bits, converted with integer ops (any RVV), "
+                     "with the same results in the default floating-point "
+                     "environment (rounding to nearest even)"),
+      llvm::cl::init("")};
+
   Option<bool> verbose{*this, "verbose",
                        llvm::cl::desc("Print register analysis information"),
                        llvm::cl::init(false)};
 };
 } // end anonymous namespace.
 
+/// Whether the llc -mattr list `mattr` enables `feature`: its last +feature
+/// or -feature, else `byDefault`.
+static bool hasFeature(StringRef mattr, StringRef feature, bool byDefault) {
+  bool on = byDefault;
+  SmallVector<StringRef> items;
+  mattr.split(items, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  for (StringRef item : items) {
+    item = item.trim();
+    if (item.size() < 2 || (item.front() != '+' && item.front() != '-'))
+      continue;
+    if (item.drop_front() == feature)
+      on = item.front() == '+';
+  }
+  return on;
+}
+
 void VIRToVectorPass::runOnOperation() {
   MLIRContext *context = &getContext();
+  // Zvfbfmin unless -zvfbfmin: the RVV targets of Buddy have it (SpacemiT
+  // K3, SOPHGO SG2044, ...)
+  bool zvfbfmin = hasFeature(rvvMattr, "zvfbfmin", /*byDefault=*/true);
   ModuleOp module = getOperation();
   LLVMConversionTarget target(*context);
   // clang-format off
@@ -3162,22 +3455,33 @@ void VIRToVectorPass::runOnOperation() {
     if (verbose && vlen)
       llvm::outs() << "--- RISC-V Vector host: VLEN " << vlen << " ---\n";
   }
+  // the ops on scalable bf16 vectors before the lowering, which the bits
+  // lowering of bf16 (without Zvfbfmin) leaves as they are
+  DenseSet<Operation *> bf16OpsBefore;
+  if (useScalable && !zvfbfmin)
+    module.walk([&](Operation *op) {
+      if (hasScalableBF16Vector(op))
+        bf16OpsBefore.insert(op);
+    });
   // the loops of strip-mined regions jammed for the vectors sized for the
   // register pressure (not for a given vector-width)
   if (!useCustomVecWid)
     jamStripMinedLoops(module, useScalable, vlen,
-                       converter.getIndexTypeBitwidth());
+                       converter.getIndexTypeBitwidth(), zvfbfmin);
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
                                         vectorWidth, verbose, useCustomVecWid,
-                                        vlen, exactVlen);
+                                        vlen, exactVlen, zvfbfmin);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     return signalPassFailure();
   // a vir.set_vl left (its lowering reported why) fails the pass
   if (module.walk([](vir::SetVLOp) { return WalkResult::interrupt(); })
           .wasInterrupted())
     return signalPassFailure();
-  if (useScalable)
+  if (useScalable) {
     scalarizeScalableMath(module);
+    if (!zvfbfmin && failed(lowerScalableBF16ToBits(module, bf16OpsBefore)))
+      return signalPassFailure();
+  }
 }
 
 namespace mlir {
