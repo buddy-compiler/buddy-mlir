@@ -121,6 +121,7 @@ config.excludes = [
     "log.mlir",
     "lit.cfg.py",
     "BuddyPython",
+    "BuddyQuant",
 ]
 
 if "has_buckyball_external_dialects" not in config.available_features:
