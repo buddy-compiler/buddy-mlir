@@ -38,6 +38,7 @@ print(graph._imported_module)
 # CHECK-LABEL: func.func @forward
 # CHECK: tosa.reduce_max %{{.*}} {axis = 0 : i32}
 # CHECK: tosa.reduce_max %{{.*}} {axis = 1 : i32}
+# CHECK: tosa.mul %{{.*}}, %{{.*}}, %{{.*}} : (tensor<1x1xf32>, tensor<1x13xf32>, tensor<1xi8>) -> tensor<1x13xf32>
 
 W = model.weight.data
 amax = W.abs().amax(dim=0, keepdim=True)
@@ -61,4 +62,13 @@ out_sim = (x_i8.float() @ W_i8.float()) * s_A * s_W
 
 assert (out - out_sim).abs().max().item() < 1e-5, (
     f"max |compiled - sim| = {(out - out_sim).abs().max().item()}"
+)
+
+# An all-zero activation must use the epsilon scale and produce exact zeros.
+zero_out = exec_fn(W_i8, s_W.float(), torch.zeros_like(x))[0]
+assert torch.isfinite(zero_out).all(), (
+    "zero activation produced non-finite output"
+)
+assert torch.equal(zero_out, torch.zeros_like(zero_out)), (
+    "zero activation must produce exact zeros"
 )
