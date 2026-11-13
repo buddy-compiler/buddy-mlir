@@ -40,7 +40,6 @@ Run with:
 """
 
 import torch
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph.transform.quantization import w8a8_channel_wise
 from buddy.compiler.ops import tosa

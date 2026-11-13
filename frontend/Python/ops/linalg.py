@@ -12824,7 +12824,9 @@ def quantized_matmul_op(node, symbol_table):
     out_shape = [act_shape[0], w_shape[1]]
 
     # Dynamic quantize activation
-    act_i8, act_scale = _quantize_activation_i8(activation, symbol_table, granularity)
+    act_i8, act_scale = _quantize_activation_i8(
+        activation, symbol_table, granularity
+    )
 
     # i8 × i8 → i32 matmul
     i32_type = ir.RankedTensorType.get(out_shape, i32)
