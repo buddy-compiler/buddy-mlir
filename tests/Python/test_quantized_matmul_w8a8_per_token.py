@@ -80,6 +80,13 @@ def run_case(name, x, W, check=None):
 
 K, N = 17, 13
 
+try:
+    w8a8_channel_wise(None, activation_granularity="per_channel")
+except ValueError as error:
+    assert str(error) == "per_channel is not a valid activation granularity"
+else:
+    raise AssertionError("invalid activation granularity must raise ValueError")
+
 # CHECK-LABEL: TEST: decode_m1
 # CHECK: func.func @forward(%{{.*}}: tensor<17x13xi8>, %{{.*}}: tensor<1x13xf32>, %{{.*}}: tensor<1x17xf32>)
 # CHECK: tosa.reduce_max %{{.*}} {axis = 1 : i32} : (tensor<1x17xf32>) -> tensor<1x1xf32>

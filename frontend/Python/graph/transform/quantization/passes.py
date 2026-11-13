@@ -19,11 +19,6 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .quantize import quantise_graph, sort_graph
-from .weight_only_channel_wise import (
-    WeightOnlyQuantization,
-    WeightOnlyInt4F16Quantization,
-)
 from ...operation import (
     AddMMOp,
     MatmulOp,
@@ -32,6 +27,11 @@ from ...operation import (
     QuantizedMatmulOp,
 )
 from ...type import TensorDType
+from .quantize import quantise_graph, sort_graph
+from .weight_only_channel_wise import (
+    WeightOnlyInt4F16Quantization,
+    WeightOnlyQuantization,
+)
 
 
 def weight_only_channel_wise(graph):
@@ -56,7 +56,9 @@ def w8a8_channel_wise(graph, activation_granularity="per_tensor"):
     dequant+matmul pairs to native int8 matmul with dynamic activation
     quantization."""
     if activation_granularity not in ("per_tensor", "per_token"):
-        raise ValueError("{activation_granularity} is not a valid activation granularity")
+        raise ValueError(
+            f"{activation_granularity} is not a valid activation granularity"
+        )
 
     quantise_graph(
         graph=graph,
@@ -122,7 +124,9 @@ def _convert_to_quantized_matmul(graph, activation_granularity):
             new_op._arguments = [act_name, weight_name, scaler_name]
 
             # Per-token quantization is only for MatMul now.
-            new_op._keyword_arguments["activation_granularity"] = activation_granularity
+            new_op._keyword_arguments["activation_granularity"] = (
+                activation_granularity
+            )
 
             new_op._parents = [act_name, weight_name, scaler_name]
 
