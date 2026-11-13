@@ -54,6 +54,10 @@ WORKSPACE_BUILD_DIR=/workspace/build-docker
 LLVM_PROJECTS="mlir;clang;lld"
 LLVM_RUNTIMES="openmp"
 LLVM_TARGETS="host;RISCV;NVPTX;AMDGPU"
+LLVM_BUILD_DYLIB="${LLVM_BUILD_DYLIB:-OFF}"
+# An installed dylib build exports its test targets, and then downstream cmake
+# projects build and run LLVM's own gtest suites; ship it without them.
+LLVM_INCLUDE_TEST_SUITES="${LLVM_INCLUDE_TEST_SUITES:-$([ "${LLVM_BUILD_DYLIB}" = ON ] && echo OFF || echo ON)}"
 
 # -----------------------------------------------------------------------------
 # Target-specific defaults
@@ -108,8 +112,8 @@ if [ -z "${IN_DOCKER:-}" ]; then
     )"
   fi
   LLVM_CONFIG_HASH="$(
-    printf 'projects=%s\nruntimes=%s\ntargets=%s\n' \
-      "${LLVM_PROJECTS}" "${LLVM_RUNTIMES}" "${LLVM_TARGETS}" |
+    printf 'projects=%s\nruntimes=%s\ntargets=%s\ndylib=%s\n' \
+      "${LLVM_PROJECTS}" "${LLVM_RUNTIMES}" "${LLVM_TARGETS}" "${LLVM_BUILD_DYLIB}" |
       sha256sum |
       awk '{print substr($1, 1, 12)}'
   )"
@@ -441,6 +445,10 @@ EOF
       -DLLVM_ENABLE_RUNTIMES="${LLVM_RUNTIMES}" \
       "${LLVM_RUNTIMES_CMAKE_ARGS[@]}" \
       -DLLVM_TARGETS_TO_BUILD="${LLVM_TARGETS}" \
+      -DLLVM_BUILD_LLVM_DYLIB="${LLVM_BUILD_DYLIB}" \
+      -DLLVM_LINK_LLVM_DYLIB="${LLVM_BUILD_DYLIB}" \
+      -DLLVM_INCLUDE_TESTS="${LLVM_INCLUDE_TEST_SUITES}" \
+      -DMLIR_INCLUDE_TESTS="${LLVM_INCLUDE_TEST_SUITES}" \
       -DLLVM_ENABLE_ASSERTIONS=OFF \
       -DCMAKE_BUILD_TYPE=RELEASE \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
@@ -450,7 +458,9 @@ EOF
       -DPython_EXECUTABLE="$PYBIN" \
       -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL_DIR}"
     ccache -z || true
-    ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir check-openmp || true
+    if [ "${LLVM_INCLUDE_TEST_SUITES}" = ON ]; then
+      ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir check-openmp || true
+    fi
     ccache -s || true
     cmake --build "${LLVM_BUILD_DIR}" --target install -j
     install_llvm_lit "${LLVM_INSTALL_DIR}"
