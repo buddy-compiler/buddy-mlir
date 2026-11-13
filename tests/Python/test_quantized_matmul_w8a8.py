@@ -1,10 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph.transform.quantization import w8a8_channel_wise
 from buddy.compiler.graph.operation import QuantizedMatmulOp
+from buddy.compiler.graph.transform.quantization import w8a8_channel_wise
 from buddy.compiler.ops import tosa
 
 torch.manual_seed(42)
@@ -50,9 +49,14 @@ out = exec_fn(W_i8, s_W.float(), x)[0]
 
 out_fp32 = x @ W
 
+# Mirror the lowering's two reciprocal-multiply steps exactly.
 amax_a = x.abs().max()
-s_A = max(amax_a / 127.0, 1e-10)
-x_i8 = torch.clamp(torch.round(x / s_A), -128, 127).to(torch.int8)
+c127 = torch.full_like(amax_a, 127.0)
+eps = torch.full_like(amax_a, 1e-10)
+s_A = torch.maximum(amax_a * torch.reciprocal(c127), eps)
+x_i8 = torch.clamp(torch.round(x * torch.reciprocal(s_A)), -128, 127).to(
+    torch.int8
+)
 out_sim = (x_i8.float() @ W_i8.float()) * s_A * s_W
 
 assert (out - out_sim).abs().max().item() < 1e-5, (

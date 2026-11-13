@@ -1,10 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph.transform.quantization import w8a8_channel_wise
 from buddy.compiler.graph.operation import QuantizedMatmulOp
+from buddy.compiler.graph.transform.quantization import w8a8_channel_wise
 from buddy.compiler.ops import tosa
 
 TOL = 1e-5
@@ -18,11 +17,14 @@ def quantize_weight(W):
 
 
 def oracle_per_token(x, W_i8, s_W):
+    # Mirror the lowering's two reciprocal-multiply steps exactly.
     amax = x.abs().amax(dim=1, keepdim=True)
     c127 = torch.full_like(amax, 127.0)
     eps = torch.full_like(amax, 1e-10)
     s_A = torch.maximum(amax * torch.reciprocal(c127), eps)
-    x_i8 = torch.clamp(torch.round(x / s_A), -128, 127).to(torch.int8)
+    x_i8 = torch.clamp(torch.round(x * torch.reciprocal(s_A)), -128, 127).to(
+        torch.int8
+    )
     # i32 accumulation is exact in the compiled graph, so the oracle
     # accumulates in int64 - bit-identical, zero f32 rounding noise.
     acc = x_i8.to(torch.int64) @ W_i8.to(torch.int64)
@@ -140,8 +142,8 @@ def _report(out, ref, x, W):
 
 run_case("mixed_magnitude", _x, _W, check=_report)
 
-# Rounding boundaries: x/s_A hits exact halves (s = 2^-7 makes the
-# division exact in f32). torch.round is round-half-to-even; if the
+# Rounding boundaries: x * reciprocal(s_A) hits exact halves (s = 2^-7
+# makes the scaling exact in f32). torch.round is round-half-to-even; if the
 # lowering ever truncates instead, compiled != oracle by ~1 quantum.
 # CHECK-LABEL: TEST: rounding_boundary
 # CHECK: tosa.reduce_max %{{.*}} {axis = 1 : i32}
@@ -169,3 +171,54 @@ _units = torch.tensor(
 )
 torch.manual_seed(5)
 run_case("rounding_boundary", (_units * _s).unsqueeze(0), torch.randn(K, N))
+
+# Non-power-of-two scale: x / s and x * reciprocal(s) are not equivalent in
+# FP32. With s = 0.3, these half-integer inputs cross rounding boundaries
+# differently under the two expressions, so this case pins the lowering's
+# reciprocal-multiply semantics instead of accepting either result.
+# CHECK-LABEL: TEST: non_power_of_two_scale
+# CHECK: tosa.reduce_max %{{.*}} {axis = 1 : i32}
+_s = torch.tensor(0.3, dtype=torch.float32)
+_units = torch.tensor(
+    [
+        -124.5,
+        0.5,
+        1.5,
+        2.5,
+        -0.5,
+        -1.5,
+        -2.5,
+        126.5,
+        -126.5,
+        3.5,
+        -4.5,
+        4.5,
+        -3.5,
+        -117.5,
+        -114.5,
+        -107.5,
+        127.0,
+    ]
+)
+
+
+def _check_non_power_of_two_scale(out, ref, x, W):
+    amax = x.abs().amax(dim=1, keepdim=True)
+    scale = amax * torch.reciprocal(torch.full_like(amax, 127.0))
+    assert scale.item() == _s.item(), (
+        "fixture must produce an FP32 scale of 0.3"
+    )
+    divided = torch.round(x / scale)
+    multiplied = torch.round(x * torch.reciprocal(scale))
+    assert not torch.equal(divided, multiplied), (
+        "fixture must distinguish division from reciprocal-multiply"
+    )
+
+
+torch.manual_seed(6)
+run_case(
+    "non_power_of_two_scale",
+    (_units * _s).unsqueeze(0),
+    torch.randn(K, N),
+    check=_check_non_power_of_two_scale,
+)
