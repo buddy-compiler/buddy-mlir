@@ -43,12 +43,12 @@ void *lookup(void *library, const char *symbol) {
 
 bool isKnownServiceKind(uint32_t kind) {
   return kind >= BUDDY_SERVER_SERVICE_RESIDENT &&
-         kind <= BUDDY_SERVER_SERVICE_TRANSCRIPTION;
+         kind <= BUDDY_SERVER_SERVICE_VOCODER;
 }
 
 bool isKnownOperation(uint32_t operation) {
   return operation >= BUDDY_SERVER_OPERATION_COMPLETION &&
-         operation <= BUDDY_SERVER_OPERATION_TRANSCRIPTION;
+         operation <= BUDDY_SERVER_OPERATION_VOCODER;
 }
 
 bool requestsStreaming(const BuddyServerRequestV1 &request) {
@@ -341,6 +341,8 @@ const char *serverServiceKindName(uint32_t kind) {
     return "masked_lm";
   case BUDDY_SERVER_SERVICE_TRANSCRIPTION:
     return "transcription";
+  case BUDDY_SERVER_SERVICE_VOCODER:
+    return "vocoder";
   default:
     return "invalid";
   }

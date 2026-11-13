@@ -365,6 +365,34 @@ BuddyServerEmitResultV1 emitTranscription(void *userData,
   return BUDDY_SERVER_EMIT_CONTINUE;
 }
 
+struct VocoderEmitContext {
+  buddy::server::VocoderResult result;
+  bool gotResult = false;
+};
+
+BuddyServerEmitResultV1 emitVocoder(void *data,
+                                    const BuddyServerEventV1 *event) {
+  auto &context = *static_cast<VocoderEmitContext *>(data);
+  if (!event || event->structSize < sizeof(*event) ||
+      event->kind != BUDDY_SERVER_EVENT_FINAL ||
+      event->operation != BUDDY_SERVER_OPERATION_VOCODER || context.gotResult ||
+      !event->vocoder.samples || !event->vocoder.sampleCount ||
+      event->vocoder.sampleCount > 16777216 || !event->vocoder.sampleRate)
+    return BUDDY_SERVER_EMIT_ERROR;
+  try {
+    context.result.model = copyView(event->vocoder.model);
+    context.result.samples.assign(event->vocoder.samples,
+                                  event->vocoder.samples +
+                                      event->vocoder.sampleCount);
+    context.result.sampleRate = event->vocoder.sampleRate;
+    context.result.inferenceMs = event->vocoder.inferenceMs;
+    context.gotResult = true;
+    return BUDDY_SERVER_EMIT_CONTINUE;
+  } catch (...) {
+    return BUDDY_SERVER_EMIT_ERROR;
+  }
+}
+
 BuddyServerCallV1 makeCall(ServerModelRequest &request, uint64_t requestId) {
   request.setRequestId(requestId);
   BuddyServerCallV1 call{};
@@ -555,6 +583,43 @@ void handleTranscription(ServerModelPluginHandle &model,
   });
 }
 
+void handleVocoder(ServerModelPluginHandle &model,
+                   const std::atomic<int> &state, const HttpRequest &request,
+                   ResponseWriter &writer, std::atomic<uint64_t> &requestIds) {
+  if (!requireReady(state, writer))
+    return;
+  withJsonErrors(writer, [&] {
+    if (!supports(model, BUDDY_SERVER_OPERATION_VOCODER)) {
+      unsupported(writer, "/v1/audio/vocoder");
+      return;
+    }
+    const auto decoded = buddy::server::parseVocoderRequest(request.body);
+    const auto status = model.status();
+    if (!decoded.model.empty() && decoded.model != status.modelName) {
+      sendError(writer, 400, "requested model does not match loaded model",
+                "model_not_found");
+      return;
+    }
+    BuddyServerRequestV1 input{};
+    input.structSize = sizeof(input);
+    input.operation = BUDDY_SERVER_OPERATION_VOCODER;
+    input.requestId = requestIds.fetch_add(1);
+    input.vocoder = {{decoded.model.data(), decoded.model.size()},
+                     decoded.latents.data(),
+                     decoded.latents.size()};
+    BuddyServerCallV1 call{};
+    call.structSize = sizeof(call);
+    call.requestId = input.requestId;
+    call.request = &input;
+    VocoderEmitContext context;
+    model.invoke(call, &emitVocoder, &context);
+    if (!context.gotResult)
+      throw std::runtime_error("server model returned no vocoder result");
+    writer.sendResponse(buddy::server::jsonResponse(
+        200, buddy::server::toJson(context.result)));
+  });
+}
+
 } // namespace
 
 buddy::server::BuddyServerApp::BuddyServerApp(BuddyServerOptions options)
@@ -656,6 +721,11 @@ int buddy::server::BuddyServerApp::run() {
   };
   server.post("/v1/audio/transcriptions", transcription);
   server.post("/audio/transcriptions", transcription);
+
+  server.post("/v1/audio/vocoder",
+              [&](const HttpRequest &request, ResponseWriter &writer) {
+                handleVocoder(*model, loadState, request, writer, requestIds);
+              });
 
   std::thread loadThread([&] {
     try {

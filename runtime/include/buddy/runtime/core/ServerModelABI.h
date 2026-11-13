@@ -47,7 +47,8 @@ typedef enum BuddyServerServiceKindV1 {
   BUDDY_SERVER_SERVICE_RESIDENT = 1,
   BUDDY_SERVER_SERVICE_EMBEDDING = 2,
   BUDDY_SERVER_SERVICE_MASKED_LM = 3,
-  BUDDY_SERVER_SERVICE_TRANSCRIPTION = 4
+  BUDDY_SERVER_SERVICE_TRANSCRIPTION = 4,
+  BUDDY_SERVER_SERVICE_VOCODER = 5
 } BuddyServerServiceKindV1;
 
 typedef enum BuddyServerOperationV1 {
@@ -56,14 +57,16 @@ typedef enum BuddyServerOperationV1 {
   BUDDY_SERVER_OPERATION_TOKENIZE = 3,
   BUDDY_SERVER_OPERATION_EMBEDDING = 4,
   BUDDY_SERVER_OPERATION_MASKED_LM = 5,
-  BUDDY_SERVER_OPERATION_TRANSCRIPTION = 6
+  BUDDY_SERVER_OPERATION_TRANSCRIPTION = 6,
+  BUDDY_SERVER_OPERATION_VOCODER = 7
 } BuddyServerOperationV1;
 
 typedef enum BuddyServerModalityV1 {
   BUDDY_SERVER_MODALITY_TEXT = 1ull << 0,
   BUDDY_SERVER_MODALITY_IMAGE = 1ull << 1,
   BUDDY_SERVER_MODALITY_AUDIO = 1ull << 2,
-  BUDDY_SERVER_MODALITY_VIDEO = 1ull << 3
+  BUDDY_SERVER_MODALITY_VIDEO = 1ull << 3,
+  BUDDY_SERVER_MODALITY_TENSOR = 1ull << 4
 } BuddyServerModalityV1;
 
 typedef enum BuddyServerCapabilityV1 {
@@ -189,6 +192,14 @@ typedef struct BuddyServerTranscriptionRequestV1 {
   int32_t maxTokens;
 } BuddyServerTranscriptionRequestV1;
 
+/// Contiguous float32 latents in the shape declared by the model package.
+/// The caller owns the data until invoke returns. This is not text-to-speech.
+typedef struct BuddyServerVocoderRequestV1 {
+  BuddyServerStringViewV1 model;
+  const float *latents;
+  uint64_t latentCount;
+} BuddyServerVocoderRequestV1;
+
 typedef struct BuddyServerRequestV1 {
   uint32_t structSize;
   uint32_t operation;
@@ -200,6 +211,7 @@ typedef struct BuddyServerRequestV1 {
     BuddyServerEmbeddingRequestV1 embedding;
     BuddyServerMaskedLMRequestV1 maskedLM;
     BuddyServerTranscriptionRequestV1 transcription;
+    BuddyServerVocoderRequestV1 vocoder;
   };
 } BuddyServerRequestV1;
 
@@ -317,6 +329,15 @@ typedef struct BuddyServerTranscriptionResultV1 {
   BuddyServerTimingsV1 timings;
 } BuddyServerTranscriptionResultV1;
 
+/// Mono float32 waveform. Sample storage is valid only during emit.
+typedef struct BuddyServerVocoderResultV1 {
+  BuddyServerStringViewV1 model;
+  const float *samples;
+  uint64_t sampleCount;
+  uint32_t sampleRate;
+  double inferenceMs;
+} BuddyServerVocoderResultV1;
+
 typedef struct BuddyServerEventV1 {
   uint32_t structSize;
   uint32_t kind;
@@ -328,6 +349,7 @@ typedef struct BuddyServerEventV1 {
     BuddyServerEmbeddingResultV1 embedding;
     BuddyServerMaskedLMResultV1 maskedLM;
     BuddyServerTranscriptionResultV1 transcription;
+    BuddyServerVocoderResultV1 vocoder;
   };
 } BuddyServerEventV1;
 

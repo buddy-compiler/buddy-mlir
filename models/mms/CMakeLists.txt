@@ -1,0 +1,33 @@
+# MMS (facebook/mms-tts-eng) vocoder-stage integration.
+#
+# single_forward model. The compiled kernel is the HiFi-GAN vocoder stage of
+# the VITS model (spectrogram latent -> waveform). Text encoding, duration
+# prediction and flow decoding run outside this compiled stage; see README.md.
+
+include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)
+
+set(BUDDY_MMS_SPEC
+  "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json"
+  CACHE FILEPATH "MMS variant spec JSON, e.g. specs/f32.json")
+set(BUDDY_MMS_MODEL_PATH "" CACHE PATH
+  "Local HuggingFace facebook/mms-tts-eng snapshot dir")
+
+buddy_add_model(
+  NAME mms
+  MODEL_KIND single_forward
+  SPEC "${BUDDY_MMS_SPEC}"
+  RUNNER_SRC MMSRunner.cpp
+  RUNNER_PLUGIN_SRC MMSRunnerPlugin.cpp
+  MODEL_PLUGIN_SRC MMSServerModelPlugin.cpp
+  LOCAL_MODEL "${BUDDY_MMS_MODEL_PATH}"
+  LOCAL_MODEL_ENV MMS_MODEL_PATH
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-mms.py"
+  MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_mms_manifest.py"
+  MODEL_SO_NAME mms_model.so
+)
+
+# Explicit real-data validation; this target does not substitute a model fixture.
+if(BUDDY_ENABLE_TESTS)
+  add_executable(mms-server-abi-test validate_server_abi.cpp)
+  target_link_libraries(mms-server-abi-test PRIVATE buddy-server-core)
+endif()

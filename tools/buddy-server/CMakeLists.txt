@@ -8,6 +8,7 @@ add_library(buddy-server-core STATIC
   src/plugin/ServerModelPluginHandle.cpp
   src/protocol/AudioTranscriptionJsonCodec.cpp
   src/protocol/JsonCodec.cpp
+  src/protocol/VocoderJsonCodec.cpp
 )
 target_compile_features(buddy-server-core PUBLIC cxx_std_17)
 target_include_directories(buddy-server-core PUBLIC

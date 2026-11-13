@@ -22,8 +22,10 @@
 #include "buddy/runtime/core/MaskedLMTypes.h"
 #include "buddy/runtime/core/ServingTypes.h"
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace buddy {
 namespace server {
@@ -33,6 +35,21 @@ public:
   explicit JsonCodecError(const std::string &message)
       : std::runtime_error(message) {}
 };
+
+struct VocoderRequest {
+  std::string model;
+  std::vector<float> latents;
+};
+
+struct VocoderResult {
+  std::string model;
+  std::vector<float> samples;
+  uint32_t sampleRate = 0;
+  double inferenceMs = 0;
+};
+
+VocoderRequest parseVocoderRequest(const std::string &body);
+std::string toJson(const VocoderResult &result);
 
 struct DecodedAudioTranscriptionRequest {
   buddy::runtime::AudioTranscriptionRequest request;

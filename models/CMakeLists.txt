@@ -29,3 +29,7 @@ endif()
 if(BUDDY_BUILD_YOLOV8_MODEL)
   add_subdirectory(yolov8)
 endif()
+
+if(BUDDY_BUILD_MMS_MODEL)
+  add_subdirectory(mms)
+endif()
