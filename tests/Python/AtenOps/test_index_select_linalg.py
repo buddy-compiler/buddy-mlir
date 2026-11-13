@@ -1,11 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import linalg
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x, idx):
@@ -32,8 +30,11 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
+# CHECK: %{{.*}} = memref.alloc
+# CHECK: scf.for
+# CHECK: cf.assert
+# CHECK: tensor.extract
+# CHECK: memref.store
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

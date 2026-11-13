@@ -1,11 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x, dim, index):
@@ -30,11 +28,7 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tosa.const_shape
-# CHECK: %{{.*}} = tosa.const_shape
-# CHECK: %{{.*}} = tosa.slice
-# CHECK: %{{.*}} = tosa.const_shape
-# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tensor.extract_slice %{{.*}}[0, 2, 0] [3, 1, 2] [1, 1, 1] : tensor<3x5x2xf32> to tensor<3x2xf32>
 # CHECK: return %{{.*}} : tensor<3x2xf32>
 # CHECK: }
 # CHECK: }
