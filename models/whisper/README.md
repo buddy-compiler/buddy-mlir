@@ -45,6 +45,12 @@ from the F32 variant: this spec imports FP16 weights and uses FP16 for the main
 matrix path while keeping audio inputs and logits in F32. Run the ASR correctness
 check before comparing its performance with another precision.
 
+For short utterances, `models/whisper/specs/base_f16_k3_a100_32.json`
+compiles a 32-position decoder and logits tensor with the same FP16 model
+weights. It supports `--max-tokens` up to 31; use the 448-position spec when a
+transcription may need more tokens. The importer reads `max_token_len` from the
+selected spec, so the graph and runtime manifest use the same decoder length.
+
 The package contains `whisper.rax`, `whisper_model.so`,
 `whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample
 `audio.wav`. The manifest keeps the runner and model plugin entries;

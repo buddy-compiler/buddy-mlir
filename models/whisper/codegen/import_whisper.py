@@ -77,6 +77,9 @@ if args.spec:
 precision = spec.get("precision", "f32")
 if precision not in ("f32", "f16"):
     raise ValueError(f"Unsupported Whisper precision: {precision}")
+max_token_len = spec.get("max_token_len", 448)
+if not isinstance(max_token_len, int) or not 2 <= max_token_len <= 448:
+    raise ValueError("Whisper max_token_len must be an integer between 2 and 448")
 model_path = os.environ.get("WHISPER_MODEL_PATH") or spec.get("hf_model_path")
 if not model_path:
     model_path = "openai/whisper-base"
@@ -110,7 +113,7 @@ if precision == "f16":
 
 # Generate placeholder for inputs.
 input_features = torch.zeros(size=(1, 80, 3000), dtype=torch.float32)
-decoder_input_ids = torch.zeros(size=(1, 448), dtype=torch.long)
+decoder_input_ids = torch.zeros(size=(1, max_token_len), dtype=torch.long)
 inputs = {
     "input_features": input_features,
     "decoder_input_ids": decoder_input_ids,
