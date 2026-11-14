@@ -388,7 +388,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_IME_SHAPES"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_IME_SHAPES;SINGLE_FORWARD_KV"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;RISCV_RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -1059,7 +1059,12 @@ function(buddy_add_model)
   set(MLIR_COMPILE_DEPS)
   if(MDL_MODEL_KIND STREQUAL "single_forward")
     if(MDL_SINGLE_FORWARD_SPLIT)
-      foreach(_stage encoder decoder)
+      if(MDL_SINGLE_FORWARD_KV)
+        set(_split_stages encoder kv_init kv_step)
+      else()
+        set(_split_stages encoder decoder)
+      endif()
+      foreach(_stage ${_split_stages})
         list(APPEND OBJ_FILES
           "${BIN}/${_stage}_forward.o"
           "${BIN}/${_stage}_subgraph.o")
@@ -1128,12 +1133,12 @@ function(buddy_add_model)
     if(MDL_SINGLE_FORWARD_SPLIT)
       list(APPEND _SINGLE_FORWARD_IMPORT_ARGS --split-encoder-decoder)
       set(_SINGLE_FORWARD_MLIR_DIR "${BIN}")
-      set(_SINGLE_FORWARD_BYPRODUCTS
-        "${BIN}/encoder_forward.mlir"
-        "${BIN}/encoder_subgraph.mlir"
-        "${BIN}/decoder_forward.mlir"
-        "${BIN}/decoder_subgraph.mlir"
-        "${BIN}/arg0.data")
+      set(_SINGLE_FORWARD_BYPRODUCTS "${BIN}/arg0.data")
+      foreach(_stage ${_split_stages})
+        list(APPEND _SINGLE_FORWARD_BYPRODUCTS
+          "${BIN}/${_stage}_forward.mlir"
+          "${BIN}/${_stage}_subgraph.mlir")
+      endforeach()
     elseif(MDL_LAYER_PARTITION)
       list(APPEND _SINGLE_FORWARD_IMPORT_ARGS
         --experimental-template-partitioned)
@@ -1166,12 +1171,17 @@ function(buddy_add_model)
     if(MDL_SINGLE_FORWARD_SPLIT)
       get_filename_component(_SINGLE_FORWARD_CODEGEN_DIR
         "${MDL_IMPORT_SCRIPT}" DIRECTORY)
-      foreach(_stage encoder decoder)
+      foreach(_stage ${_split_stages})
         set(_stage_ime OFF)
         set(_stage_ime_shapes "")
+        set(_stage_skip_batch OFF)
         if(_stage STREQUAL "encoder")
           set(_stage_ime "${MDL_SINGLE_FORWARD_IME}")
           set(_stage_ime_shapes "${MDL_SINGLE_FORWARD_IME_SHAPES}")
+        elseif(_stage STREQUAL "kv_step")
+          # Static cache views can have non-unit inner stride; the current
+          # batch-matmul vectorizer emits an invalid vector.load for them.
+          set(_stage_skip_batch ON)
         endif()
         add_custom_command(
           OUTPUT "${BIN}/${_stage}_forward.o"
@@ -1186,6 +1196,7 @@ function(buddy_add_model)
           OUTPUT "${BIN}/${_stage}_subgraph.o"
           COMMAND ${CMAKE_COMMAND} -E env
                   "BUDDY_SINGLE_FORWARD_IME_SHAPES=${_stage_ime_shapes}"
+                  "BUDDY_SINGLE_FORWARD_SKIP_BATCH=${_stage_skip_batch}"
                   bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
                   "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/${_stage}_subgraph.mlir"

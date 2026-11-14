@@ -20,6 +20,11 @@ string(JSON _whisper_encoder_cache ERROR_VARIABLE _whisper_cache_error
 if(_whisper_cache_error)
   set(_whisper_encoder_cache OFF)
 endif()
+string(JSON _whisper_kv_cache ERROR_VARIABLE _whisper_kv_error
+       GET "${_whisper_spec_json}" kv_cache)
+if(_whisper_kv_error)
+  set(_whisper_kv_cache OFF)
+endif()
 set(WHISPER_ENCODER_IME_SHAPES "")
 if(_whisper_encoder_cache AND BUDDY_WHISPER_K3_IME)
   # The 512x512 group changes the cached encoder's transcription on K3.
@@ -62,6 +67,7 @@ buddy_add_model(
   SINGLE_FORWARD_IME "${BUDDY_WHISPER_K3_IME}"
   SINGLE_FORWARD_IME_SHAPES "${WHISPER_ENCODER_IME_SHAPES}"
   SINGLE_FORWARD_SPLIT "${_whisper_encoder_cache}"
+  SINGLE_FORWARD_KV "${_whisper_kv_cache}"
   SPEC "${BUDDY_WHISPER_SPEC}"
   LLC_ATTRS "${WHISPER_LLC_ATTRS}"
   RUNNER_SRC WhisperRunner.cpp

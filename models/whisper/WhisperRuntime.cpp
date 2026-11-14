@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/WhisperRuntime.h"
+#include "WhisperKvCacheABI.h"
 
 #include "buddy/Core/Container.h"
 #include "buddy/DAP/DAP.h"
@@ -68,7 +69,10 @@ struct WhisperShape {
   int eotToken = kEotToken;
   bool f16Weights = false;
   bool encoderCache = false;
+  bool lastLogitsOnly = false;
+  bool kvCache = false;
   std::size_t encoderParamsSize = 0;
+  std::size_t decoderInitParamsSize = 0;
 };
 
 std::size_t manifestSize(const ModelManifest &manifest, const char *key,
@@ -183,6 +187,25 @@ public:
       auto cache = manifest.moduleAttrs.find("encoder_cache");
       nextShape.encoderCache =
           cache != manifest.moduleAttrs.end() && cache->second == "true";
+      auto lastLogits = manifest.moduleAttrs.find("last_logits_only");
+      nextShape.lastLogitsOnly = lastLogits != manifest.moduleAttrs.end() &&
+                                 lastLogits->second == "true";
+      auto kvCache = manifest.moduleAttrs.find("kv_cache");
+      nextShape.kvCache =
+          kvCache != manifest.moduleAttrs.end() && kvCache->second == "true";
+      if (nextShape.kvCache) {
+        if (!nextShape.encoderCache || !nextShape.lastLogitsOnly)
+          throw std::invalid_argument("WhisperRuntime: KV cache requires "
+                                      "encoder cache and single logits");
+        nextShape.decoderInitParamsSize =
+            manifestSize(manifest, "decoder_init_params_size", 0);
+      }
+      if (nextShape.lastLogitsOnly && !nextShape.encoderCache)
+        throw std::invalid_argument(
+            "WhisperRuntime: last-position logits require encoder cache");
+      if (nextShape.lastLogitsOnly && !nextShape.kvCache)
+        throw std::invalid_argument(
+            "WhisperRuntime: single logits require the KV decoder graph");
       if (nextShape.encoderCache) {
         if (!nextShape.f16Weights)
           throw std::invalid_argument(
@@ -193,6 +216,15 @@ public:
           throw std::invalid_argument(
               "WhisperRuntime: invalid encoder parameter count");
       }
+      if (nextShape.kvCache &&
+          nextShape.encoderParamsSize + nextShape.decoderInitParamsSize >=
+              nextShape.paramsSize)
+        throw std::invalid_argument(
+            "WhisperRuntime: invalid KV parameter counts");
+      if (nextShape.kvCache &&
+          (nextShape.encSeq != 1500 || nextShape.encDim != 512))
+        throw std::invalid_argument(
+            "WhisperRuntime: KV ABI requires Whisper Base encoder shape");
       if (nextShape.melBins != kMelBins ||
           nextShape.audioFrames != kAudioFrames)
         throw std::invalid_argument(
@@ -246,9 +278,11 @@ public:
                                ": " + dlerror());
     std::unique_ptr<void, SharedLibraryCloser> handleGuard(nextHandle);
 
-    const char *forwardSymbol = nextShape.encoderCache
-                                    ? "_mlir_ciface_forward_decoder"
-                                    : "_mlir_ciface_forward";
+    const char *forwardSymbol =
+        nextShape.kvCache
+            ? "_mlir_ciface_forward_kv_init"
+            : (nextShape.encoderCache ? "_mlir_ciface_forward_decoder"
+                                      : "_mlir_ciface_forward");
     dlerror();
     void *nextForward = dlsym(nextHandle, forwardSymbol);
     if (const char *error = dlerror())
@@ -263,6 +297,14 @@ public:
         throw std::runtime_error(
             "WhisperRuntime: missing encoder entrypoint: " +
             std::string(error));
+    }
+    void *nextKvStep = nullptr;
+    if (nextShape.kvCache) {
+      dlerror();
+      nextKvStep = dlsym(nextHandle, "_mlir_ciface_forward_kv_step");
+      if (const char *error = dlerror())
+        throw std::runtime_error("WhisperRuntime: missing KV step: " +
+                                 std::string(error));
     }
 
     auto nextVocab = std::make_unique<buddy::Text<std::size_t, 2>>();
@@ -292,18 +334,35 @@ public:
                                nextWeightsPath);
     std::unique_ptr<MemRef<_Float16, 1>> nextEncoderParamsF16;
     std::unique_ptr<MemRef<_Float16, 1>> nextDecoderParamsF16;
+    std::unique_ptr<MemRef<_Float16, 1>> nextKvInitParamsF16;
+    std::unique_ptr<MemRef<_Float16, 1>> nextKvStepParamsF16;
     if (nextShape.encoderCache) {
       const auto encoderSize = nextShape.encoderParamsSize;
-      const auto decoderSize = nextShape.paramsSize - encoderSize;
       nextEncoderParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
           std::vector<std::size_t>{encoderSize});
-      nextDecoderParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
-          std::vector<std::size_t>{decoderSize});
       std::memcpy(nextEncoderParamsF16->getData(), nextParamsF16->getData(),
                   encoderSize * sizeof(_Float16));
-      std::memcpy(nextDecoderParamsF16->getData(),
-                  nextParamsF16->getData() + encoderSize,
-                  decoderSize * sizeof(_Float16));
+      if (nextShape.kvCache) {
+        const auto initSize = nextShape.decoderInitParamsSize;
+        const auto stepSize = nextShape.paramsSize - encoderSize - initSize;
+        nextKvInitParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
+            std::vector<std::size_t>{initSize});
+        nextKvStepParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
+            std::vector<std::size_t>{stepSize});
+        std::memcpy(nextKvInitParamsF16->getData(),
+                    nextParamsF16->getData() + encoderSize,
+                    initSize * sizeof(_Float16));
+        std::memcpy(nextKvStepParamsF16->getData(),
+                    nextParamsF16->getData() + encoderSize + initSize,
+                    stepSize * sizeof(_Float16));
+      } else {
+        const auto decoderSize = nextShape.paramsSize - encoderSize;
+        nextDecoderParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
+            std::vector<std::size_t>{decoderSize});
+        std::memcpy(nextDecoderParamsF16->getData(),
+                    nextParamsF16->getData() + encoderSize,
+                    decoderSize * sizeof(_Float16));
+      }
       nextParamsF16.reset();
     }
     const auto loadEnd = Clock::now();
@@ -314,15 +373,21 @@ public:
     loadedModelName = std::move(nextModelName);
     forward = nextShape.f16Weights ? nullptr
                                    : reinterpret_cast<ForwardFn>(nextForward);
-    forwardF16 = nextShape.f16Weights
+    forwardF16 = nextShape.f16Weights && !nextShape.kvCache
                      ? reinterpret_cast<ForwardF16Fn>(nextForward)
                      : nullptr;
+    kvInitF16 = nextShape.kvCache
+                    ? reinterpret_cast<detail::InitFn>(nextForward)
+                    : nullptr;
+    kvStepF16 = reinterpret_cast<detail::StepFn>(nextKvStep);
     encoderF16 = reinterpret_cast<EncoderF16Fn>(nextEncoder);
     vocabulary = std::move(nextVocab);
     params = std::move(nextParams);
     paramsF16 = std::move(nextParamsF16);
     encoderParamsF16 = std::move(nextEncoderParamsF16);
     decoderParamsF16 = std::move(nextDecoderParamsF16);
+    kvInitParamsF16 = std::move(nextKvInitParamsF16);
+    kvStepParamsF16 = std::move(nextKvStepParamsF16);
     weightLoadSecs = std::chrono::duration<double>(loadEnd - loadStart).count();
     soHandle = handleGuard.release();
     shape = nextShape;
@@ -362,6 +427,9 @@ public:
       lastEncoderMs = milliseconds(Clock::now() - encoderStart);
       result.timings.inferenceMs += lastEncoderMs;
     }
+    std::unique_ptr<detail::CacheState> kvState;
+    if (shape.kvCache)
+      kvState = std::make_unique<detail::CacheState>(shape.maxTokenLength);
 
     for (int step = 0; step < maxTokens; ++step) {
       // The compiled function assigns result buffers. Non-owning clean
@@ -371,13 +439,32 @@ public:
           MemRef<float, 3>(
               std::vector<std::size_t>{1, shape.encSeq, shape.encDim}, false,
               0),
-          MemRef<float, 3>(std::vector<std::size_t>{1, shape.maxTokenLength,
-                                                    shape.vocabSize},
-                           false, 0),
+          MemRef<float, 3>(
+              std::vector<std::size_t>{
+                  1, shape.kvCache ? 1 : shape.maxTokenLength, shape.vocabSize},
+              false, 0),
       };
 
+      std::unique_ptr<detail::InitResult> kvInitResult;
+      std::unique_ptr<detail::StepResult> kvStepResult;
       const auto inferenceStart = Clock::now();
-      if (shape.encoderCache)
+      if (shape.kvCache) {
+        MemRef<std::size_t, 2> currentToken(std::vector<std::size_t>{1, 1},
+                                            decoderTokens.getData()[step]);
+        if (step == 0) {
+          kvInitResult = std::make_unique<detail::InitResult>(
+              shape.maxTokenLength, shape.vocabSize);
+          detail::callInit(kvInitF16, *kvInitResult, *kvInitParamsF16,
+                           encoderState, currentToken, *kvState);
+          detail::updateState(*kvState, *kvInitResult);
+        } else {
+          kvStepResult = std::make_unique<detail::StepResult>(
+              shape.maxTokenLength, shape.vocabSize);
+          detail::callStep(kvStepF16, *kvStepResult, *kvStepParamsF16,
+                           encoderState, currentToken, *kvState);
+          detail::updateState(*kvState, *kvStepResult);
+        }
+      } else if (shape.encoderCache)
         forwardF16(&outputs[1], decoderParamsF16.get(), &encoderState,
                    &decoderTokens);
       else if (shape.f16Weights)
@@ -390,8 +477,11 @@ public:
       if (shape.encoderCache)
         lastDecoderMs += inferenceMs;
 
-      const float *row = outputs[1].getData() +
-                         static_cast<std::size_t>(step) * shape.vocabSize;
+      const float *row =
+          shape.kvCache ? (step == 0 ? kvInitResult->logits.getData()
+                                     : kvStepResult->logits.getData())
+                        : outputs[1].getData() +
+                              static_cast<std::size_t>(step) * shape.vocabSize;
       const int tokenId = static_cast<int>(
           std::distance(row, std::max_element(row, row + shape.vocabSize)));
 
@@ -415,11 +505,7 @@ public:
 
   bool isLoaded() const {
     std::lock_guard<std::mutex> lock(mutex);
-    return soHandle && vocabulary &&
-           (shape.encoderCache ? encoderF16 && encoderParamsF16 && forwardF16 &&
-                                     decoderParamsF16
-                               : (shape.f16Weights ? forwardF16 && paramsF16
-                                                   : forward && params));
+    return hasModelUnlocked();
   }
 
   std::pair<double, double> stageTimingsMs() const {
@@ -475,12 +561,19 @@ private:
     requireRegularFile(audio.uri, "audio file");
   }
 
+  bool hasModelUnlocked() const {
+    if (!soHandle || !vocabulary)
+      return false;
+    if (shape.kvCache)
+      return encoderF16 && encoderParamsF16 && kvInitF16 && kvStepF16 &&
+             kvInitParamsF16 && kvStepParamsF16;
+    if (shape.encoderCache)
+      return encoderF16 && encoderParamsF16 && decoderParamsF16 && forwardF16;
+    return shape.f16Weights ? forwardF16 && paramsF16 : forward && params;
+  }
+
   void ensureLoadedUnlocked() const {
-    if (!soHandle || !vocabulary ||
-        !(shape.encoderCache
-              ? encoderF16 && encoderParamsF16 && forwardF16 && decoderParamsF16
-              : (shape.f16Weights ? forwardF16 && paramsF16
-                                  : forward && params)))
+    if (!hasModelUnlocked())
       throw std::runtime_error("WhisperRuntime: model is not loaded");
   }
 
@@ -490,9 +583,13 @@ private:
     paramsF16.reset();
     encoderParamsF16.reset();
     decoderParamsF16.reset();
+    kvInitParamsF16.reset();
+    kvStepParamsF16.reset();
     forward = nullptr;
     forwardF16 = nullptr;
     encoderF16 = nullptr;
+    kvInitF16 = nullptr;
+    kvStepF16 = nullptr;
     if (soHandle) {
       dlclose(soHandle);
       soHandle = nullptr;
@@ -512,10 +609,14 @@ private:
   ForwardFn forward = nullptr;
   ForwardF16Fn forwardF16 = nullptr;
   EncoderF16Fn encoderF16 = nullptr;
+  detail::InitFn kvInitF16 = nullptr;
+  detail::StepFn kvStepF16 = nullptr;
   std::unique_ptr<MemRef<float, 1>> params;
   std::unique_ptr<MemRef<_Float16, 1>> paramsF16;
   std::unique_ptr<MemRef<_Float16, 1>> encoderParamsF16;
   std::unique_ptr<MemRef<_Float16, 1>> decoderParamsF16;
+  std::unique_ptr<MemRef<_Float16, 1>> kvInitParamsF16;
+  std::unique_ptr<MemRef<_Float16, 1>> kvStepParamsF16;
   std::unique_ptr<buddy::Text<std::size_t, 2>> vocabulary;
   std::string soPath;
   std::string weightsPath;

@@ -105,6 +105,10 @@ if args.split_encoder_decoder:
     if precision != "f16":
         raise ValueError("Split Whisper encoder/decoder requires FP16")
     from transformers.modeling_outputs import BaseModelOutput
+    from transformers.cache_utils import EncoderDecoderCache, StaticCache
+    kv_cache = bool(spec.get("kv_cache", False))
+    if kv_cache and not spec.get("last_logits_only", False):
+        raise ValueError("Whisper KV cache requires last_logits_only")
 
     if precision == "f16":
         model = model.half()
@@ -133,6 +137,32 @@ if args.split_encoder_decoder:
                 decoder_input_ids=decoder_input_ids,
             )
             return result.logits.float()
+
+    class KvDecoderCore(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner
+
+        def forward(self, encoder_hidden_state, decoder_input_ids,
+                    past_key_values):
+            result = self.inner(
+                encoder_outputs=BaseModelOutput(
+                    last_hidden_state=encoder_hidden_state.half()
+                ),
+                decoder_input_ids=decoder_input_ids,
+                past_key_values=past_key_values,
+                use_cache=True,
+            )
+            return result.logits.float()
+
+    def make_kv_cache():
+        self_cache = StaticCache(model.config, max_token_len)
+        cross_cache = StaticCache(model.config, 1500)
+        for cache in (self_cache, cross_cache):
+            cache.early_initialization(
+                1, 8, 64, torch.float16, torch.device("cpu")
+            )
+        return EncoderDecoderCache(self_cache, cross_cache)
 
     def export_stage(stage, module, inputs):
         compiler = DynamoCompiler(
@@ -165,20 +195,40 @@ if args.split_encoder_decoder:
         "encoder", EncoderCore(model),
         {"input_features": torch.zeros((1, 80, 3000), dtype=torch.float32)},
     )
-    export_stage(
-        "decoder", DecoderCore(model),
-        {
+    if kv_cache:
+        kv_core = KvDecoderCore(model)
+        kv_inputs = {
+            "encoder_hidden_state": torch.zeros((1, 1500, 512), dtype=torch.float32),
+            "decoder_input_ids": torch.full((1, 1), 50258, dtype=torch.long),
+        }
+        init_cache = make_kv_cache()
+        export_stage("kv_init", kv_core,
+                     {**kv_inputs, "past_key_values": init_cache})
+        step_cache = make_kv_cache()
+        with torch.no_grad():
+            kv_core(kv_inputs["encoder_hidden_state"],
+                    kv_inputs["decoder_input_ids"], step_cache)
+        export_stage("kv_step", kv_core,
+                     {**kv_inputs, "past_key_values": step_cache})
+        stages = ("encoder", "kv_init", "kv_step")
+    else:
+        decoder_inputs = {
             "encoder_hidden_state": torch.zeros((1, 1500, 512), dtype=torch.float32),
             "decoder_input_ids": torch.zeros((1, max_token_len), dtype=torch.long),
-        },
-    )
+        }
+        export_stage("decoder", DecoderCore(model), decoder_inputs)
+        stages = ("encoder", "decoder")
     with open(os.path.join(output_dir, "arg0.data"), "wb") as combined:
-        for stage in ("encoder", "decoder"):
+        for stage in stages:
             with open(os.path.join(output_dir, f"arg_{stage}.data"), "rb") as part:
                 shutil.copyfileobj(part, combined)
     encoder_bytes = os.path.getsize(os.path.join(output_dir, "arg_encoder.data"))
     if encoder_bytes != spec["encoder_params_size"] * 2:
         raise ValueError("Split Whisper encoder parameters do not match spec")
+    if kv_cache:
+        init_bytes = os.path.getsize(os.path.join(output_dir, "arg_kv_init.data"))
+        if init_bytes != spec["decoder_init_params_size"] * 2:
+            raise ValueError("Whisper KV init parameters do not match spec")
     expected_bytes = spec["params_size"] * (2 if precision == "f16" else 4)
     if os.path.getsize(os.path.join(output_dir, "arg0.data")) != expected_bytes:
         raise ValueError("Split Whisper parameters do not match params_size")

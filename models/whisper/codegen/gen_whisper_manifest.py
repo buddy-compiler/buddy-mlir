@@ -77,6 +77,13 @@ def gen_manifest(
     if spec.get("encoder_cache", False):
         emit('    encoder_cache = "true",')
         emit(f'    encoder_params_size = "{spec["encoder_params_size"]}",')
+    last_logits_only = bool(spec.get("last_logits_only", False))
+    kv_cache = bool(spec.get("kv_cache", False))
+    if last_logits_only:
+        emit('    last_logits_only = "true",')
+    if kv_cache:
+        emit('    kv_cache = "true",')
+        emit(f'    decoder_init_params_size = "{spec["decoder_init_params_size"]}",')
     emit(f'    params_size = "{params_size}",')
     emit(f'    vocab_size = "{vocab_size}",')
     emit(f'    max_token_len = "{max_token_len}",')
@@ -115,9 +122,10 @@ def gen_manifest(
         f'  rhal.buffer @decoder_tokens {{space = "host", '
         f"type = tensor<1x{max_token_len}xi64>}}"
     )
+    logits_length = 1 if last_logits_only else max_token_len
     emit(
         f'  rhal.buffer @logits {{space = "host", '
-        f"type = tensor<1x{max_token_len}x{vocab_size}xf32>}}"
+        f"type = tensor<1x{logits_length}x{vocab_size}xf32>}}"
     )
     emit("")
 

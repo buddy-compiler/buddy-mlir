@@ -61,6 +61,13 @@ prior lowering because enabling all three groups changes the K3 transcription.
 `-DBUDDY_WHISPER_K3_IME=OFF` remains a validated fallback.
 The CLI reports separate encoder and decoder timings for cached packages.
 
+For iterative decoding, use
+`models/whisper/specs/base_f16_k3_a100_cached32_kv.json`: it keeps both
+self-attention and cross-attention KV state across tokens and emits one logits
+row per call. The KV spec also supports at most 31 generated tokens. Its
+single-token cache update graph skips the batch-matmul vectorization pass
+because that pass currently requires a unit inner stride for the cache view.
+
 The package contains `whisper.rax`, `whisper_model.so`,
 `whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample
 `audio.wav`. The manifest keeps the runner and model plugin entries;
