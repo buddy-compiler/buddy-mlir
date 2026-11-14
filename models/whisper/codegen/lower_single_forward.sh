@@ -12,9 +12,13 @@ llc_attrs=("$@")
 
 ime_opts=()
 if [[ "$use_ime" == ON ]]; then
+  ime_pass='-lower-linalg-to-ime=target=k3 a100-fp16=true a100-gemm=true verify-fp16=true'
+  if [[ -n "${BUDDY_SINGLE_FORWARD_IME_SHAPES:-}" ]]; then
+    ime_pass+=" matmul-shapes=${BUDDY_SINGLE_FORWARD_IME_SHAPES}"
+  fi
   ime_opts=(
     -staticize-memref-layout
-    '-lower-linalg-to-ime=target=k3 a100-fp16=true a100-gemm=true verify-fp16=true'
+    "$ime_pass"
     -lower-ime=target=k3
     -expand-strided-metadata
   )

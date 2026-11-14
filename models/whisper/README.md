@@ -53,10 +53,12 @@ selected spec, so the graph and runtime manifest use the same decoder length.
 
 To reuse the encoder output across tokens, select
 `models/whisper/specs/base_f16_k3_a100_cached32.json` and set
-`-DBUDDY_WHISPER_K3_IME=OFF`. This package runs the 1500-position encoder once
+`-DBUDDY_WHISPER_K3_IME=ON`. This package runs the 1500-position encoder once
 per transcription, then calls the 32-position decoder for each token. It also
-supports at most 31 generated tokens. The split encoder IME lowering currently
-fails the K3 transcription correctness check, so CMake rejects that combination.
+supports at most 31 generated tokens. For this split graph, IME is selected
+only for the 512x2048 and 2048x512 encoder GEMMs; the 512x512 group retains its
+prior lowering because enabling all three groups changes the K3 transcription.
+`-DBUDDY_WHISPER_K3_IME=OFF` remains a validated fallback.
 The CLI reports separate encoder and decoder timings for cached packages.
 
 The package contains `whisper.rax`, `whisper_model.so`,

@@ -48,10 +48,11 @@ pass instead produced `<|vi|>` and an encoder hidden state that differed from
 the previously validated full graph (mean absolute difference 0.88 on a
 zero-feature probe). Disabling IME restored the correct first token and both
 complete transcriptions. CMake rejects `encoder_cache=true` together with
-`BUDDY_WHISPER_K3_IME=ON` until that lowering is fixed.
+The follow-up selective IME configuration retains correctness; see
+`encoder-ime-selective-results.md`.
 
 The cached package is limited to 31 generated tokens. For longer
 transcriptions use the existing 448-position package. The next performance
 work is reducing the still-fixed 32-position decoder computation and
-investigating the split encoder IME mismatch with a stage-level numeric
-bisect.
+investigating why enabling the remaining 512x512 IME group changes the split
+encoder's output.

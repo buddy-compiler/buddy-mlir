@@ -20,10 +20,11 @@ string(JSON _whisper_encoder_cache ERROR_VARIABLE _whisper_cache_error
 if(_whisper_cache_error)
   set(_whisper_encoder_cache OFF)
 endif()
+set(WHISPER_ENCODER_IME_SHAPES "")
 if(_whisper_encoder_cache AND BUDDY_WHISPER_K3_IME)
-  message(FATAL_ERROR
-    "Cached Whisper encoder currently requires BUDDY_WHISPER_K3_IME=OFF: "
-    "the split encoder IME path fails transcription correctness on K3")
+  # The 512x512 group changes the cached encoder's transcription on K3.
+  # Select the two independently validated FFN groups until that path is fixed.
+  set(WHISPER_ENCODER_IME_SHAPES "512x2048,2048x512")
 endif()
 
 set(WHISPER_LLC_ATTRS "")
@@ -59,6 +60,7 @@ buddy_add_model(
   TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
   SINGLE_FORWARD_IME "${BUDDY_WHISPER_K3_IME}"
+  SINGLE_FORWARD_IME_SHAPES "${WHISPER_ENCODER_IME_SHAPES}"
   SINGLE_FORWARD_SPLIT "${_whisper_encoder_cache}"
   SPEC "${BUDDY_WHISPER_SPEC}"
   LLC_ATTRS "${WHISPER_LLC_ATTRS}"

@@ -388,7 +388,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_IME_SHAPES"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;RISCV_RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -1167,6 +1167,12 @@ function(buddy_add_model)
       get_filename_component(_SINGLE_FORWARD_CODEGEN_DIR
         "${MDL_IMPORT_SCRIPT}" DIRECTORY)
       foreach(_stage encoder decoder)
+        set(_stage_ime OFF)
+        set(_stage_ime_shapes "")
+        if(_stage STREQUAL "encoder")
+          set(_stage_ime "${MDL_SINGLE_FORWARD_IME}")
+          set(_stage_ime_shapes "${MDL_SINGLE_FORWARD_IME_SHAPES}")
+        endif()
         add_custom_command(
           OUTPUT "${BIN}/${_stage}_forward.o"
           COMMAND bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
@@ -1178,11 +1184,13 @@ function(buddy_add_model)
           VERBATIM)
         add_custom_command(
           OUTPUT "${BIN}/${_stage}_subgraph.o"
-          COMMAND bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+          COMMAND ${CMAKE_COMMAND} -E env
+                  "BUDDY_SINGLE_FORWARD_IME_SHAPES=${_stage_ime_shapes}"
+                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
                   "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/${_stage}_subgraph.mlir"
                   "${BIN}/${_stage}_subgraph.o"
-                  "${MDL_SINGLE_FORWARD_IME}" ${MDL_LLC_ATTRS_LIST}
+                  "${_stage_ime}" ${MDL_LLC_ATTRS_LIST}
           DEPENDS "${IMPORT_STAMP}" buddy-opt
           COMMENT "[${MDL_NAME}] Compiling ${_stage} compute graph"
           VERBATIM)
