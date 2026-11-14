@@ -49,3 +49,6 @@ matter.`
 The package is limited to 31 generated tokens. The KV step graph skips
 `batchmatmul-optimize` because its current vector load requires unit inner
 stride; the initial graph and encoder keep the existing selected optimizations.
+
+The later all-IME encoder configuration skips only its unsafe affine loop
+fusion and is reported in `encoder-ime-affine-fusion-fix.md`.

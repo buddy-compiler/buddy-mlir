@@ -388,7 +388,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_IME_SHAPES;SINGLE_FORWARD_KV"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_IME_SHAPES;SINGLE_FORWARD_KV;SINGLE_FORWARD_SKIP_AFFINE_FUSION"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;RISCV_RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -1175,9 +1175,12 @@ function(buddy_add_model)
         set(_stage_ime OFF)
         set(_stage_ime_shapes "")
         set(_stage_skip_batch OFF)
+        set(_stage_skip_affine_fusion OFF)
         if(_stage STREQUAL "encoder")
           set(_stage_ime "${MDL_SINGLE_FORWARD_IME}")
           set(_stage_ime_shapes "${MDL_SINGLE_FORWARD_IME_SHAPES}")
+          set(_stage_skip_affine_fusion
+              "${MDL_SINGLE_FORWARD_SKIP_AFFINE_FUSION}")
         elseif(_stage STREQUAL "kv_step")
           # Static cache views can have non-unit inner stride; the current
           # batch-matmul vectorizer emits an invalid vector.load for them.
@@ -1197,6 +1200,7 @@ function(buddy_add_model)
           COMMAND ${CMAKE_COMMAND} -E env
                   "BUDDY_SINGLE_FORWARD_IME_SHAPES=${_stage_ime_shapes}"
                   "BUDDY_SINGLE_FORWARD_SKIP_BATCH=${_stage_skip_batch}"
+                  "BUDDY_SINGLE_FORWARD_SKIP_AFFINE_FUSION=${_stage_skip_affine_fusion}"
                   bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
                   "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/${_stage}_subgraph.mlir"

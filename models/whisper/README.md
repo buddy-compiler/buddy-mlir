@@ -67,6 +67,10 @@ self-attention and cross-attention KV state across tokens and emits one logits
 row per call. The KV spec also supports at most 31 generated tokens. Its
 single-token cache update graph skips the batch-matmul vectorization pass
 because that pass currently requires a unit inner stride for the cache view.
+With `BUDDY_WHISPER_K3_IME=ON`, the KV package uses all three encoder GEMM
+shape groups. Only its encoder skips `affine-loop-fusion`: that pass fused a
+padding clear into the first convolution and changed the audio data it read.
+The older cached32 spec retains its validated FFN-only IME selection.
 
 The package contains `whisper.rax`, `whisper_model.so`,
 `whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample

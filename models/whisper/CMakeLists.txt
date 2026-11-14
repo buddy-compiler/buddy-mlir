@@ -26,9 +26,14 @@ if(_whisper_kv_error)
   set(_whisper_kv_cache OFF)
 endif()
 set(WHISPER_ENCODER_IME_SHAPES "")
-if(_whisper_encoder_cache AND BUDDY_WHISPER_K3_IME)
-  # The 512x512 group changes the cached encoder's transcription on K3.
-  # Select the two independently validated FFN groups until that path is fixed.
+set(WHISPER_SKIP_AFFINE_FUSION OFF)
+if(_whisper_kv_cache AND BUDDY_WHISPER_K3_IME)
+  # Fusing affine loops after all encoder GEMMs enter IME changes values in
+  # the first Whisper encoder block on K3. The KV graph uses all IME GEMMs
+  # and skips only that pass for its encoder.
+  set(WHISPER_SKIP_AFFINE_FUSION ON)
+elseif(_whisper_encoder_cache AND BUDDY_WHISPER_K3_IME)
+  # Preserve the validated FFN-only IME selection for the older cached graph.
   set(WHISPER_ENCODER_IME_SHAPES "512x2048,2048x512")
 endif()
 
@@ -66,6 +71,7 @@ buddy_add_model(
   MODEL_KIND single_forward
   SINGLE_FORWARD_IME "${BUDDY_WHISPER_K3_IME}"
   SINGLE_FORWARD_IME_SHAPES "${WHISPER_ENCODER_IME_SHAPES}"
+  SINGLE_FORWARD_SKIP_AFFINE_FUSION "${WHISPER_SKIP_AFFINE_FUSION}"
   SINGLE_FORWARD_SPLIT "${_whisper_encoder_cache}"
   SINGLE_FORWARD_KV "${_whisper_kv_cache}"
   SPEC "${BUDDY_WHISPER_SPEC}"

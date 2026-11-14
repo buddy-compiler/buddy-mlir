@@ -29,6 +29,11 @@ if [[ "${BUDDY_SINGLE_FORWARD_SKIP_BATCH:-OFF}" == ON ]]; then
   batch_opts=()
 fi
 
+affine_fusion_opts=(-affine-loop-fusion)
+if [[ "${BUDDY_SINGLE_FORWARD_SKIP_AFFINE_FUSION:-OFF}" == ON ]]; then
+  affine_fusion_opts=()
+fi
+
 "$llvm_bin/mlir-opt" "$input" \
   -pass-pipeline 'builtin.module(func.func(tosa-to-linalg-named,tosa-to-linalg,tosa-to-tensor,tosa-to-arith))' \
   | "$llvm_bin/mlir-opt" -test-linalg-transform-patterns=test-decompose-pad-tensor \
@@ -45,7 +50,7 @@ fi
       -matmul-parallel-vectorization-optimize \
       "${batch_opts[@]}" \
       -convert-linalg-to-affine-loops \
-      -affine-loop-fusion \
+      "${affine_fusion_opts[@]}" \
       -affine-parallelize \
       -lower-affine \
       -convert-scf-to-openmp \
