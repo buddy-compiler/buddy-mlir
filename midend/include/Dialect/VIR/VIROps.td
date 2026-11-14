@@ -46,11 +46,54 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     The `set_vl` operation sets the vector length for subsequent dynamic vector
     operations within its region. This enables runtime vector length management
     for hardware-agnostic vector computations.
+
+    Without results, the region is lowered to a strip-mined loop: it runs
+    once per chunk of lanes, each chunk a vector of the target width, then
+    vectors of half, a quarter, ... of it for the lanes left, then single
+    lanes; the lowering chooses the chunks, so no value flows from one
+    chunk to the next and the region computes what it stores. Its memory
+    effects must not depend on the chunks: besides VIR ops (`vir.store`
+    writes the lanes of its chunk) and reads, the only write is that of an
+    accumulator, a `memref.store` of a `vir.reduce` whose accumulator is a
+    `memref.load` of the same memref value and indices in the region, so
+    that each chunk combines its lanes with what the chunks before stored
+    (an ordered reduction sees the lanes in order whatever the chunks). The
+    verifier rejects any other write, allocation or free (e.g. a count of
+    the runs of the region, also through a view, an accumulator loaded
+    before the region, `memref.copy`, `memref.alloca`), and ops of unknown
+    memory effects.
+
+    With results (`vector.yield %a, ... : f32, ...`), the region computes on
+    whole vectors of length `vl`, which must be a constant: a `vir.reduce`
+    reduces all `vl` lanes, and its result can be used in the region (also
+    by `vir.broadcast`), carried by `scf.for` / `affine.for` loops in it, or
+    yielded. Dynamic vectors may be loop-carried values of those loops.
+    The lowering splits each dynamic vector into vl / w vectors of the
+    target width w and vl % w scalars; a `vir.reduce` combines them in that
+    order. With `reassoc`, its vectors are first added lane by lane, as
+    LLVM splits the reduction of a vector wider than its registers (n
+    pieces widened to the next power of two h, piece p added to piece
+    p + h / 2 if there is one, until one is left), then reduced once: one
+    horizontal reduction, and, when vl is a multiple of w, the bits of
+    `vector.reduction` of the whole vector as LLVM lowers it.
+
+    The dynamic vectors of a region with results have one static layout,
+    e.g. `!vir.vec<2x?xf32>`: a dynamic vector holds its rows of vl lanes
+    one after the other (rows * vl lanes, split as above), and a
+    `vir.reduce` reduces all of them. A `vir.load` / `vir.store` maps the
+    rows to the dims before the last one of the memref, as `vector.load`
+    does; the memref must hold the rows one after the other (its last dim
+    has vl elements, the dims between match the layout), so that an access
+    is one access of rows * vl lanes.
+
+    The region has one block, without arguments.
   }];
   let arguments = (ins Index:$vl);
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
-  // TODO: Determine the region limitation.
-  let regions = (region AnyRegion:$region);
+  // one block: the lowerings lower the ops of a single block
+  let regions = (region SizedRegion<1>:$region);
+  // the lowering maps the values of the region, not entry block arguments
+  let hasVerifier = 1;
 
   let assemblyFormat = "$vl attr-dict `:` type($vl)"
       "$region (`->` type($results)^)?";
@@ -63,14 +106,20 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
 def VIR_LoadOp : VIR_Op<"load"> {
   let summary = "Load operation for dynamic vector IR.";
   let description = [{
-    The `load` operation loads data from memory into a vector register.
-    This operation supports dynamic vector lengths and can load various data types.
+    The `load` operation loads a dynamic vector from memory, as
+    `vector.load` does: its lanes (vl of them) are along the last dim of
+    the memref, and the rows of a multi-dimensional dynamic vector (e.g.
+    `!vir.vec<2x?xf32>`) along the dims before it. For a memref of rank n
+    and the indices `[i0, ..., i(n-1)]` (one per dim, or all 0 when none
+    are given), lane `c` of row `(r1, ..., rk)` is at
+    `[i0, ..., i(n-k-1) + r1, ..., i(n-2) + rk, i(n-1) + c]`.
   }];
   let arguments = (ins
-    Arg<AnyMemRef, "the reference to load from", [MemRead]>:$base,
+    Arg<AnyNon0RankedMemRef, "the reference to load from", [MemRead]>:$base,
     Variadic<Index>:$indices
   );
   let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
 
   let assemblyFormat = "$base `[`$indices`]` attr-dict"
                        "`:` type($base) `->` qualified(type($result))";
@@ -79,14 +128,15 @@ def VIR_LoadOp : VIR_Op<"load"> {
 def VIR_StoreOp : VIR_Op<"store"> {
   let summary = "Store operation for dynamic vector IR.";
   let description = [{
-    The `store` operation stores data from a vector register to memory.
-    This operation supports dynamic vector lengths and can store various data types.
+    The `store` operation stores a dynamic vector to memory, at the
+    elements a `vir.load` of the same memref and indices reads.
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$value,
-    Arg<AnyMemRef, "the reference to store to", [MemWrite]>:$base,
+    Arg<AnyNon0RankedMemRef, "the reference to store to", [MemWrite]>:$base,
     Variadic<Index>:$indices
   );
+  let hasVerifier = 1;
 
   let assemblyFormat = "$value `,` $base `[` $indices `]` attr-dict "
                        "`:` qualified(type($value)) `->` type($base)";
@@ -120,6 +170,49 @@ def VIR_BroadcastOp : VIR_Op<"broadcast"> {
   let assemblyFormat = "$value attr-dict `:` type($value) `->` qualified(type($result))";
 }
 
+def VIR_FromVectorOp : VIR_Op<"from_vector",
+    [AllElementTypesMatch<["source", "result"]>]> {
+  let summary = "A fixed-size vector as a dynamic vector.";
+  let description = [{
+    The `from_vector` operation gives the lanes of a 1-D vector, computed
+    outside the region, as a dynamic vector of the region. It is only
+    supported in a `vir.set_vl` with results, whose constant vl must be the
+    number of lanes of the vector.
+  }];
+  let arguments = (ins VectorOfRank<[1]>:$source);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$source attr-dict `:` type($source) `->` qualified(type($result))";
+}
+
+def VIR_ShuffleOp : VIR_Op<"shuffle",
+    [Pure, AllTypesMatch<["v1", "v2", "result"]>]> {
+  let summary = "Shuffle the rows of two dynamic vectors.";
+  let description = [{
+    The `shuffle` operation picks the rows (along the leading static dim)
+    of its result from the rows of `v1` followed by those of `v2`, as
+    `vector.shuffle` does with fixed indices. Row `i` of the result is row
+    `mask[i]` of the concatenation of `v1` and `v2`. The mask has one index
+    per row. RoPE's rotate_half of a head as two rows `x` is
+    `vir.shuffle %neg_x, %x [1, 2]`, i.e. `[-x[1], x[0]]`.
+
+    It is only supported in a `vir.set_vl` with results. With fixed vectors,
+    each dynamic vector of the region lowers to one vector of all its lanes;
+    with scalable vectors, every lane is known (vscale = rvv-vlen / 64) and
+    a dynamic vector can lower to several vectors (pieces): the rows move
+    between them.
+  }];
+  let arguments = (ins
+    VIR_DynamicVectorType:$v1,
+    VIR_DynamicVectorType:$v2,
+    DenseI64ArrayAttr:$mask
+  );
+  let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$v1 `,` $v2 $mask attr-dict `:` qualified(type($v1))";
+}
+
 //===----------------------------------------------------------------------===//
 // Arithmetic Operations
 //===----------------------------------------------------------------------===//
@@ -143,19 +236,27 @@ def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> 
 def VIR_ReduceOp : VIR_Op<"reduce"> {
   let summary = "Horizontal reduction for dynamic vector IR.";
   let description = [{
-    The `reduce` operation reduces a dynamic vector into a scalar using a
-    predefined combiner kind.
+    The `reduce` operation reduces a dynamic vector into a scalar, its lanes
+    in order combined into `acc` with the combiner `kind`, a kind of
+    `vector.reduction` (`vector::CombiningKind`):
 
-    v1 semantics:
-    - `kind = \"add\"`    : floating-point sum reduction
-    - `kind = \"maxnum\"` : floating-point maxnum reduction
+    - `add`, `mul`: integers and floats;
+    - `minsi`, `minui`, `maxsi`, `maxui`, `and`, `or`, `xor`: integers;
+    - `minnumf`, `maxnumf`, `minimumf`, `maximumf`, `minimumnumf`,
+      `maximumnumf`: floats (`maxnum` is `maxnumf`).
+
+    With `reassoc`, the lanes may be combined in any order (the
+    `vector.reduction` it lowers to has `fastmath<reassoc>`: an unordered
+    reduction, e.g. `vfredusum` on RVV, instead of an ordered one).
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,
-    AnyFloat:$acc,
-    StrAttr:$kind
+    AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$acc,
+    StrAttr:$kind,
+    UnitAttr:$reassoc
   );
-  let results = (outs AnyFloat:$result);
+  let results = (outs AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$result);
+  let hasVerifier = 1;
 
   let assemblyFormat = "$input `,` $acc attr-dict `:` qualified(type($input))"
                        " `,` type($acc) `->` type($result)";
@@ -184,6 +285,30 @@ def VIR_ExtFOp : VIR_Op<"extf"> {
   let description = [{
     The `extf` operation extends floating-point element type width
     elementwise on a dynamic vector.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
+def VIR_ExtSIOp : VIR_Op<"extsi"> {
+  let summary = "Signed integer extend for dynamic vector IR.";
+  let description = [{
+    The `extsi` operation sign-extends the integer elements of a dynamic
+    vector to a wider integer type, elementwise.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
+def VIR_ExtUIOp : VIR_Op<"extui"> {
+  let summary = "Unsigned integer extend for dynamic vector IR.";
+  let description = [{
+    The `extui` operation zero-extends the integer elements of a dynamic
+    vector to a wider integer type, elementwise.
   }];
   let arguments = (ins VIR_DynamicVectorType:$in);
   let results = (outs VIR_DynamicVectorType:$result);

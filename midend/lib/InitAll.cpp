@@ -35,6 +35,7 @@
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
+#include "Dialect/VIR/VIRDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
 #include "Dialect/XTAME/XTAMEDialect.h"
 
@@ -54,6 +55,8 @@ void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerRVVPass();
 void registerLowerVectorExpPass();
+void registerLinalgToVIRPass();
+void registerVIRToVectorPass();
 void registerLowerLinalgToTilePass();
 #ifdef BUDDY_EXTERNAL_DIALECTS
 void registerLowerTileToBuckyballPass();
@@ -100,6 +103,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::ime::IMEDialect>();
   registry.insert<::buddy::rhal::RHALDialect>();
   registry.insert<::buddy::rvv::RVVDialect>();
+  registry.insert<::buddy::vir::VIRDialect>();
   registry.insert<::buddy::vector_exp::VectorExpDialect>();
 }
 
@@ -127,6 +131,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
+  mlir::buddy::registerLinalgToVIRPass();
+  mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerMatMulParallelVectorizationPass();

@@ -82,6 +82,10 @@ public:
   // Reproduces AutoTokenizer(text, padding="max_length", truncation=True,
   // max_length=maxSeqLen): [bos, content..., eos], content truncated so the
   // wrapped sequence fits maxSeqLen, right-padded with padId_ / mask 0.
+  size_t tokenCount(const std::string &text) const {
+    return tokenize(text).size();
+  }
+
   void encode(const std::string &text, size_t maxSeqLen,
               std::vector<int64_t> &inputIds,
               std::vector<int64_t> &attentionMask) const {

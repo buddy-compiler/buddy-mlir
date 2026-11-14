@@ -1,11 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x):
@@ -35,7 +33,7 @@ print(graph._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.reciprocal
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
@@ -44,7 +42,7 @@ print(graph._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.reciprocal
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
@@ -64,7 +62,7 @@ print(graphs[0]._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.reciprocal
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
@@ -73,7 +71,7 @@ print(graphs[0]._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.reciprocal
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
@@ -91,7 +89,7 @@ print(graphs[1]._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.reciprocal
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
@@ -100,7 +98,7 @@ print(graphs[1]._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.reciprocal
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul

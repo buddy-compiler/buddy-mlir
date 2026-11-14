@@ -23,7 +23,7 @@ echo ""
 # Step 1: Generate MLIR files and parameters
 echo "Generating MLIR files and parameters..."
 cd "$SCRIPT_DIR"
-python import-transformer.py --output-dir ./
+python import_transformer.py --output-dir ./
 echo "✓ Generated forward.mlir, subgraph0.mlir, arg0.data"
 echo ""
 

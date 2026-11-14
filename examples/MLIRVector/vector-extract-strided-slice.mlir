@@ -27,7 +27,7 @@ func.func @main() -> i32 {
   // o o o o
   // o o o o
   %w0 = vector.extract_strided_slice %base
-    { offsets = [0, 0], sizes = [2, 2], strides = [1, 1] }
+    offsets = [0, 0], sizes = [2, 2], strides = [1, 1]
     : vector<4x4xi32> to vector<2x2xi32>
   // CHECK: ( ( 0, 1 ), ( 10, 11 ) )
   vector.print %w0 : vector<2x2xi32>
@@ -40,13 +40,13 @@ func.func @main() -> i32 {
   //          x x o o    |          o o o o   |         o x x o
   //          o o o o    |          o o o o   |         o o o o
   %w1_0 = vector.extract_strided_slice %base
-    { offsets = [1, 0], sizes = [2, 2], strides = [1, 1] }
+    offsets = [1, 0], sizes = [2, 2], strides = [1, 1]
     : vector<4x4xi32> to vector<2x2xi32>
   %w1_1 = vector.extract_strided_slice %base
-    { offsets = [0, 1], sizes = [2, 2], strides = [1, 1] }
+    offsets = [0, 1], sizes = [2, 2], strides = [1, 1]
     : vector<4x4xi32> to vector<2x2xi32>
   %w1_2 = vector.extract_strided_slice %base
-    { offsets = [1, 1], sizes = [2, 2], strides = [1, 1] }
+    offsets = [1, 1], sizes = [2, 2], strides = [1, 1]
     : vector<4x4xi32> to vector<2x2xi32>
   // CHECK: ( ( 10, 11 ), ( 20, 21 ) )
   vector.print %w1_0 : vector<2x2xi32>
@@ -64,11 +64,11 @@ func.func @main() -> i32 {
   //          x x o o    |          o o o o   |         x o x o
   //          o o o o    |          o o o o   |         o o o o
 
-  // %w2_0 = vector.extract_strided_slice %base { offsets = [0, 0], sizes = [2, 2], strides = [2, 1] }
+  // %w2_0 = vector.extract_strided_slice %base offsets = [0, 0], sizes = [2, 2], strides = [2, 1]
   //   : vector<4x4xi32> to vector<2x2xi32>
-  // %w2_1 = vector.extract_strided_slice %base { offsets = [0, 0], sizes = [2, 2], strides = [1, 2] }
+  // %w2_1 = vector.extract_strided_slice %base offsets = [0, 0], sizes = [2, 2], strides = [1, 2]
   //   : vector<4x4xi32> to vector<2x2xi32>
-  // %w2_2 = vector.extract_strided_slice %base { offsets = [0, 0], sizes = [2, 2], strides = [2, 2] }
+  // %w2_2 = vector.extract_strided_slice %base offsets = [0, 0], sizes = [2, 2], strides = [2, 2]
   //   : vector<4x4xi32> to vector<2x2xi32>
 
   // vector.print %w2_0 : vector<2x2xi32>
@@ -78,14 +78,14 @@ func.func @main() -> i32 {
 
   // vector.extract_strided_slice with any rank can be defined recursively:
 
-  // vector.extract_strided_slice %b { offsets = [o0, ...], sizes = [l0, ...], strides = [s0, ...] }
+  // vector.extract_strided_slice %b offsets = [o0, ...], sizes = [l0, ...], strides = [s0, ...]
   // <==>
   // [
-  //    vector.extract_strided_slice %b[o0 + 0*s0] { offsets = [...], sizes = [...], strides = [...] },
-  //    vector.extract_strided_slice %b[o0 + 1*s0] { offsets = [...], sizes = [...], strides = [...] },
-  //    vector.extract_strided_slice %b[o0 + 2*s0] { offsets = [...], sizes = [...], strides = [...] },
+  //    vector.extract_strided_slice %b[o0 + 0*s0] offsets = [...], sizes = [...], strides = [...],
+  //    vector.extract_strided_slice %b[o0 + 1*s0] offsets = [...], sizes = [...], strides = [...],
+  //    vector.extract_strided_slice %b[o0 + 2*s0] offsets = [...], sizes = [...], strides = [...],
   //    ...
-  //    vector.extract_strided_slice %b[o0 + (l0-1)*s0] { offsets = [...], sizes = [...], strides = [...] }
+  //    vector.extract_strided_slice %b[o0 + (l0-1)*s0] offsets = [...], sizes = [...], strides = [...]
   // ]
 
   %big_base = arith.constant dense<[
@@ -97,7 +97,7 @@ func.func @main() -> i32 {
 
 
   %w3 = vector.extract_strided_slice %big_base
-    { offsets = [1, 0, 0], sizes = [2, 3, 3], strides = [1, 1, 1] }
+    offsets = [1, 0, 0], sizes = [2, 3, 3], strides = [1, 1, 1]
     : vector<4x4x4xi32> to vector<2x3x3xi32>
   // CHECK: ( ( ( 1, 11, 21 ), ( 101, 111, 121 ), ( 201, 211, 221 ) ),
   // CHECK-SAME: ( ( 2, 12, 22 ), ( 102, 112, 122 ), ( 202, 212, 222 ) ) )
@@ -109,17 +109,17 @@ func.func @main() -> i32 {
   // So if we want a lower-rank sub-vector from a bigger one, we can NOT write this:
 
   // %w4_0 = vector.extract_strided_slice %big_base
-  //   { offsets = [1, 0, 0], sizes = [3, 3], strides = [1, 1] }
+  //   offsets = [1, 0, 0], sizes = [3, 3], strides = [1, 1]
   //   : vector<4x4x4xi32> to vector<3x3xi32>
 
   // Instead, we either first extract %big_base[1], or do an extra extract with result:
   %t1 = vector.extract %big_base[1] : vector<4x4xi32> from vector<4x4x4xi32>
   %w4_1 = vector.extract_strided_slice %t1
-    { offsets = [0, 0], sizes = [3, 3], strides = [1, 1] }
+    offsets = [0, 0], sizes = [3, 3], strides = [1, 1]
     : vector<4x4xi32> to vector<3x3xi32>
 
   %t2 = vector.extract_strided_slice %big_base
-    { offsets = [1, 0, 0], sizes = [1, 3, 3], strides = [1, 1, 1] }
+    offsets = [1, 0, 0], sizes = [1, 3, 3], strides = [1, 1, 1]
     : vector<4x4x4xi32> to vector<1x3x3xi32>
   %w4_2 = vector.extract %t2[0] : vector<3x3xi32> from vector<1x3x3xi32>
   // CHECK: ( ( 1, 11, 21 ),

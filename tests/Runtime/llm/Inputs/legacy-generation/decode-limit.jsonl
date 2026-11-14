@@ -1,0 +1,3 @@
+{"event":"token","phase":"prefill","iteration":0,"user":0,"token_id":32,"text":"A","stopped":false}
+{"event":"token","phase":"decode","iteration":1,"user":0,"token_id":33,"text":"B","stopped":false}
+{"event":"done","user":0,"text":"AB"}

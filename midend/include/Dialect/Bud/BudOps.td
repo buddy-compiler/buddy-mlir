@@ -81,7 +81,7 @@ def Bud_TestEnumAttrOp : Bud_Op<"test_enum_attr",
   let summary = "Test Enum Attribute.";
 
   let assemblyFormat = [{
-    $arith $lhs `,` $rhs attr-dict `:` type($result)
+    enum($arith) $lhs `,` $rhs attr-dict `:` type($result)
   }];
 }
 

@@ -92,10 +92,10 @@ func.func @kernel(%q_data : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x1
   %score_masked = tosa.add %scaled, %mask : (tensor<1x12x1x1024xf32>, tensor<1x1x1x1024xf32>) -> tensor<1x12x1x1024xf32>
 
   // ===== Attention Softmax =====
-  %max = tosa.reduce_max %score_masked {axis = 3 : i32} : (tensor<1x12x1x1024xf32>) -> tensor<1x12x1x1xf32>
+  %max = tosa.reduce_max %score_masked axis(3) : (tensor<1x12x1x1024xf32>) -> tensor<1x12x1x1xf32>
   %shifted = tosa.sub %score_masked, %max : (tensor<1x12x1x1024xf32>, tensor<1x12x1x1xf32>) -> tensor<1x12x1x1024xf32>
   %exp = math.exp %shifted : tensor<1x12x1x1024xf32>
-  %sum = tosa.reduce_sum %exp {axis = 3 : i32} : (tensor<1x12x1x1024xf32>) -> tensor<1x12x1x1xf32>
+  %sum = tosa.reduce_sum %exp axis(3) : (tensor<1x12x1x1024xf32>) -> tensor<1x12x1x1xf32>
   %logsum = tosa.log %sum : (tensor<1x12x1x1xf32>) -> tensor<1x12x1x1xf32>
   %norm = tosa.add %max, %logsum : (tensor<1x12x1x1xf32>, tensor<1x12x1x1xf32>) -> tensor<1x12x1x1xf32>
   %softmax = tosa.sub %score_masked, %norm : (tensor<1x12x1x1024xf32>, tensor<1x12x1x1xf32>) -> tensor<1x12x1x1024xf32>

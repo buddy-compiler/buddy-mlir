@@ -24,12 +24,12 @@
 // RUN: | FileCheck %s
 
 module {
-  memref.global "private" constant @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32> = dense<3.000000e+00> {alignment = 64 : i64}
+  memref.global "private" constant @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32> = dense<3.000000e+00> alignment = 64
   func.func private @rtclock() -> f64
   func.func private @printMemrefF32(memref<*xf32>)
   func.func @kernel(%arg0: memref<1x32x40x128xf32>) {
     %0 = call @rtclock() : () -> f64
-    %alloc = memref.alloc() {alignment = 64 : i64} : memref<1x40x32x128xf32>
+    %alloc = memref.alloc() alignment = 64 : memref<1x40x32x128xf32>
     affine.for %arg1 = 0 to 1 {
       affine.for %arg2 = 0 to 40 {
         affine.for %arg3 = 0 to 32 {

@@ -60,7 +60,7 @@ LOWER_TO_LLVM = [
     "-arith-expand",
     "-convert-vector-to-llvm",
     "-convert-arith-to-llvm",
-    "-finalize-memref-to-llvm",
+    "-finalize-memref-to-llvm",  # see lower_to_llvm()
     "-convert-scf-to-cf",
     "-convert-cf-to-llvm",
     "-llvm-request-c-wrappers",
@@ -73,6 +73,149 @@ LOWER_TO_LLVM = [
 ]
 
 
+# The buffer deallocation passes, left out with the arena.
+BUFFER_DEALLOCATION = [
+    "-ownership-based-buffer-deallocation",
+    "-canonicalize",
+    "-buffer-deallocation-simplification",
+    "-bufferization-lower-deallocations",
+]
+
+
+# The matrix-engine code of the SpacemiT K3 A100 cores (pipeline
+# "kernels_ime") is written for exactly this VLEN: vscale 16, at which
+# vector<[8]xi8> is one 8 x 16 int8 tile of smt.vmadot. Not a setting: the
+# VLEN of a build is BUDDY_RISCV_VLEN's (in the llc options), which the A100
+# pipelines check against it.
+A100_VLEN = 1024
+
+
+def rvv_enabled(llc_args: list[str]) -> bool:
+    """Whether the llc options `llc_args` enable RVV by a +v of -mattr (the
+    last of +v / -v, as llc applies them). A V that only an -mcpu implies is
+    not seen: the RVV builds of buddy_model.cmake give +v with the VLEN of
+    BUDDY_RISCV_VLEN (buddy_rvv_vlen.cmake)."""
+    v = [
+        f
+        for a in llc_args
+        if a.startswith("-mattr=")
+        for f in a[len("-mattr=") :].split(",")
+        if f in ("+v", "-v")
+    ]
+    return v[-1:] == ["+v"]
+
+
+def exact_rvv_vlen(llc_args: list[str]) -> int | None:
+    """The exact RVV VLEN of the llc options `llc_args`, or None: not RVV
+    (no +v, rvv_enabled), or no exact VLEN.
+
+    The VLEN options are read as llc reads them: the minimum VLEN is the
+    zvl (+v: 128), or -riscv-v-vector-bits-min when it is positive (-1 and 0
+    leave the zvl); -riscv-v-vector-bits-max is the maximum, 0 none. The VLEN
+    is exact when both are equal. Options that disagree are an error:
+    several +zvlNb, or a -riscv-v-vector-bits-min / -max below the zvl or
+    the max below the min."""
+    features = [
+        f
+        for a in llc_args
+        if a.startswith("-mattr=")
+        for f in a[len("-mattr=") :].split(",")
+    ]
+
+    def option(name):
+        values = {
+            int(a.split("=", 1)[1])
+            for a in llc_args
+            if a.startswith(name + "=")
+        }
+        if len(values) > 1:
+            raise ValueError(f"llc options of several {name}: {sorted(values)}")
+        return next(iter(values), None)
+
+    zvl = {
+        int(m[1]) for f in features if (m := re.fullmatch(r"\+zvl(\d+)b", f))
+    }
+    if len(zvl) > 1:
+        raise ValueError(f"llc options of several VLEN: +zvl{sorted(zvl)}b")
+    vmin = next(iter(zvl), 128 if rvv_enabled(llc_args) else 0)
+    bits_min = option("-riscv-v-vector-bits-min") or -1
+    bits_max = option("-riscv-v-vector-bits-max") or 0
+    for name, bits in (("min", bits_min), ("max", bits_max)):
+        if 0 < bits < vmin:
+            raise ValueError(
+                f"llc options of a -riscv-v-vector-bits-{name}={bits} "
+                f"below the VLEN of +zvl{vmin}b"
+            )
+    vmin = max(vmin, bits_min)
+    if 0 < bits_max < vmin:
+        raise ValueError(
+            f"llc options of a maximum VLEN below the minimum {vmin}: "
+            f"-riscv-v-vector-bits-max={bits_max}"
+        )
+    if not rvv_enabled(llc_args) or vmin != bits_max:
+        return None
+    return vmin
+
+
+def kernels_lower_vir(llc_args: list[str]) -> str:
+    """-lower-vir-to-vector of the generated kernels (the decode attention of
+    the K3 kernels, k3_w4._attn_decode_vir_fn) for the target of the llc
+    options `llc_args`:
+
+    - RVV (+v) of an exact VLEN V (exact_rvv_vlen): scalable vectors for it
+      (rvv-vlen=V; the A100: one vector<[8]xf32> of 128 lanes per head, LMUL
+      4), valid on that VLEN only;
+    - RVV of no exact VLEN: use-scalable without rvv-vlen, code valid on
+      any VLEN (a vir.set_vl with results is rejected);
+    - other targets (x86, Arm NEON; SVE, whose scalable vectors the pass
+      does not size yet): fixed vectors sized for the host's registers.
+
+    VLEN options that disagree are an error (exact_rvv_vlen)."""
+    vlen = exact_rvv_vlen(llc_args)
+    if vlen is not None:
+        return f"-lower-vir-to-vector=rvv-vlen={vlen} use-scalable=true"
+    if not rvv_enabled(llc_args):
+        return "-lower-vir-to-vector"
+    return "-lower-vir-to-vector=use-scalable=true"
+
+
+def a100_llc_args(llc_base_args: list[str]) -> list[str]:
+    """llc options of the A100 code, on top of the build's: the IME
+    extension and the A100 scheduling model, top down (it issues the weight
+    load of an IME step first and unpacks it while the activations load).
+    The build's options must be of the exact VLEN of the A100 (A100_VLEN):
+    the VLEN of a build is set in one place, BUDDY_RISCV_VLEN."""
+    vlen = exact_rvv_vlen(llc_base_args)
+    if vlen != A100_VLEN:
+        raise ValueError(
+            f"the A100 code needs the exact VLEN {A100_VLEN} "
+            f"(BUDDY_RISCV_VLEN={A100_VLEN}); the build's llc options give "
+            f"{'no exact VLEN' if vlen is None else f'VLEN {vlen}'}"
+        )
+    return [
+        "-mattr=+xsmtvdotii",
+        "-mcpu=spacemit-a100",
+        "-misched-prera-direction=topdown",
+    ]
+
+
+def lower_to_llvm(arena: bool) -> list[str]:
+    """LOWER_TO_LLVM. With the arena (gen_config.derive_memory_options),
+    allocations and frees call _mlir_memref_to_llvm_alloc / _aligned_alloc /
+    _free, which runtime/arena/BuddyArena.c implements, instead of malloc /
+    aligned_alloc / free."""
+    if not arena:
+        return list(LOWER_TO_LLVM)
+    return [
+        (
+            "-finalize-memref-to-llvm=use-generic-functions=true"
+            if p == "-finalize-memref-to-llvm"
+            else p
+        )
+        for p in LOWER_TO_LLVM
+    ]
+
+
 def build_stages(
     pipeline_type: str,
     num_threads: int,
@@ -80,6 +223,8 @@ def build_stages(
     variant: str = "f32",
     tiered: bool = False,
     decode_pack: dict | None = None,
+    arena: bool = False,
+    chunked_prefill: bool = False,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -97,6 +242,53 @@ def build_stages(
     ):
         llc_base_args.append("-code-model=large")
 
+    if pipeline_type in ("kernels", "kernels_a100", "kernels_ime"):
+        # Generated kernels (graph/transform/k3_w4.py, a210_w4.py): scf / vector /
+        # memref, scf.parallel for the threads. "kernels_ime": the prefill
+        # tiles on the matrix engine of the SpacemiT K3 A100 cores (IME
+        # dialect), for the A100 only (a100_llc_args). "kernels_a100": the
+        # other kernels when the model runs on the A100 cores only, with
+        # the same llc options: scheduled for the in-order A100, which
+        # issues independent work in the latency of a reduction (decode
+        # attention at position 900: 332 -> 284 us); the same results.
+        ime = pipeline_type == "kernels_ime"
+        a100 = pipeline_type != "kernels"
+        llc_args = llc_base_args + (
+            a100_llc_args(llc_base_args) if a100 else []
+        )
+        lower = lower_to_llvm(arena)
+        i = lower.index("-convert-vector-to-llvm") + 1
+        stages.append(
+            (
+                "buddy-opt",
+                (["-lower-ime=target=k3"] if ime else [])
+                + [
+                    kernels_lower_vir(llc_args),
+                    f"-convert-scf-to-openmp=num-threads={num_threads}",
+                    "-expand-strided-metadata",
+                    "-convert-vector-to-scf",
+                    "-lower-affine",
+                    "-expand-strided-metadata",
+                ]
+                + lower[:i]
+                + ["-convert-ub-to-llvm"]
+                + lower[i:],
+            )
+        )
+        # buddy-translate also translates the IME intrinsics.
+        if ime:
+            stages.append(("buddy-translate", ["--buddy-to-llvmir"]))
+        else:
+            stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
+        stages.append(("llvm-as", []))
+        stages.append(
+            (
+                "llc",
+                llc_args + ["-filetype=obj", "-relocation-model=pic", "-O3"],
+            )
+        )
+        return stages
+
     if pipeline_type == "forward":
         stages.append(
             (
@@ -106,7 +298,7 @@ def build_stages(
                     "-canonicalize",
                     "-cse",
                 ]
-                + LOWER_TO_LLVM,
+                + lower_to_llvm(arena),
             )
         )
         stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
@@ -145,10 +337,8 @@ def build_stages(
         [
             "-one-shot-bufferize=bufferize-function-boundaries",
             "-expand-strided-metadata",
-            "-ownership-based-buffer-deallocation",
-            "-canonicalize",
-            "-buffer-deallocation-simplification",
-            "-bufferization-lower-deallocations",
+            # With the arena, nothing is freed before the session resets it.
+            *([] if arena else BUFFER_DEALLOCATION),
             "-convert-bufferization-to-memref",
             "-cse",
             "-canonicalize",
@@ -156,8 +346,15 @@ def build_stages(
         ]
     )
 
-    if pipeline_type == "subgraph_decode":
+    # The KV caches are function arguments that the graph updates: write them
+    # in place instead of copying each into a new buffer first. Decode, and
+    # prefill in chunks (gen_config.derive_prefill_chunk), which has the
+    # decode ABI; the session handles results that alias its inputs.
+    if pipeline_type == "subgraph_decode" or (
+        pipeline_type == "subgraph" and chunked_prefill
+    ):
         opts.append("-eliminate-memref-copy")
+    if pipeline_type == "subgraph_decode":
         opts.extend(
             [
                 "-assume-tight-memref-layout",
@@ -214,6 +411,12 @@ def build_stages(
                 "-affine-parallelize",
                 "-convert-vector-to-scf",
                 "-lower-affine",
+                # -affine-parallelize makes every parallel loop of a nest an
+                # scf.parallel dimension, the unit batch dimension too, and
+                # -convert-scf-to-openmp forks the threads over the outermost
+                # scf.parallel only: with one iteration, one thread runs the
+                # whole nest. -canonicalize drops single-iteration dimensions.
+                "-canonicalize",
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
                 "-cse",
             ]
@@ -227,13 +430,14 @@ def build_stages(
                 "-affine-parallelize",
                 "-convert-vector-to-scf",
                 "-lower-affine",
+                "-canonicalize",  # as for "subgraph" above
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
             ]
         )
         if tiered:
             opts.append("-cse")
 
-    opts.extend(LOWER_TO_LLVM)
+    opts.extend(lower_to_llvm(arena))
     stages.append(("buddy-opt", opts))
 
     # ── Stage 4–6: LLVM backend ─────────────────────────────────────────────
@@ -258,6 +462,8 @@ def build_stages(
 def _resolve_tool(name: str, buddy_opt: str, llvm_dir: str) -> str:
     if name == "buddy-opt":
         return buddy_opt
+    if name == "buddy-translate":
+        return os.path.join(os.path.dirname(buddy_opt), name)
     return os.path.join(llvm_dir, name)
 
 
@@ -321,6 +527,9 @@ MLIR_FILE_MAP = {
     "forward_prefill": ("forward_prefill.mlir", "forward_prefill.o"),
     "subgraph_prefill": ("subgraph0_prefill.mlir", "subgraph_prefill.o"),
     "forward_decode": ("forward_decode.mlir", "forward_decode.o"),
+    "k3_kernels": ("k3_kernels.mlir", "k3_kernels.o"),
+    "k3_kernels_ime": ("k3_kernels_ime.mlir", "k3_kernels_ime.o"),
+    "a210_kernels": ("a210_kernels.mlir", "a210_kernels.o"),
     "subgraph_decode": ("subgraph0_decode.mlir", "subgraph_decode.o"),
 }
 
@@ -402,6 +611,8 @@ def _compile_one(task: dict) -> str:
         task.get("variant", "f32"),
         task.get("tiered", False),
         task.get("decode_pack"),
+        task.get("arena", False),
+        task.get("chunked_prefill", False),
     )
     run_pipeline(
         stages,
@@ -451,6 +662,8 @@ def compile_all(
                 "variant": variant,
                 "tiered": is_tiered_kv_cache(config),
                 "decode_pack": decode_pack,
+                "arena": bool(config.get("arena", False)),
+                "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": input_path,
                 "output": output_path,
                 "buddy_opt": buddy_opt,
@@ -646,6 +859,8 @@ def compile_partitioned(
                 "variant": variant,
                 "decode_pack": decode_pack,
                 "tiered": is_tiered_kv_cache(config),
+                "arena": bool(config.get("arena", False)),
+                "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": mlir_name
                 if os.path.isabs(mlir_name)
                 else os.path.join(mlir_dir, mlir_name),
@@ -854,6 +1069,13 @@ def main():
     )
     parser.add_argument("--cxx", default="c++", help="C++ compiler for linking")
     parser.add_argument(
+        "--extra-obj",
+        action="append",
+        default=[],
+        help="Another object file to link (repeatable), e.g. the VLEN check "
+        "of runtime/rvv/BuddyRvvVlen.c",
+    )
+    parser.add_argument(
         "--llvm-lib-dir", default="", help="LLVM library directory"
     )
     parser.add_argument(
@@ -907,7 +1129,7 @@ def main():
                 obj_files.append(os.path.join(args.output_dir, obj_name))
 
             link_shared_lib(
-                obj_files=obj_files,
+                obj_files=obj_files + args.extra_obj,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
@@ -939,7 +1161,8 @@ def main():
                     args.output_dir,
                     config,
                     prefill_only=args.partitioned_prefill_only,
-                ),
+                )
+                + args.extra_obj,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
@@ -958,6 +1181,8 @@ def main():
             variant,
             is_tiered_kv_cache(config),
             config.get("decode_pack"),
+            bool(config.get("arena", False)),
+            bool(config.get("prefill_chunk")),
         )
 
         print(

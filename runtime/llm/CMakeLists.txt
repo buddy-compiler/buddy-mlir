@@ -1,7 +1,10 @@
-# Model-agnostic LLM runtime utilities: text generation loop, interactive REPL.
+# Model-agnostic LLM runtime utilities: text generation loop, interactive REPL,
+# perplexity.
 add_library(buddy_runtime_llm STATIC
   TextGeneration.cpp
+  ServingGeneration.cpp
   InteractiveSession.cpp
+  Perplexity.cpp
 )
 
 target_include_directories(buddy_runtime_llm PUBLIC

@@ -72,7 +72,7 @@ $ export DEEPSEEKR1_MODEL_PATH=/path-to-deepseek-r1-model/
 // For example:
 $ export DEEPSEEKR1_MODEL_PATH=/home/xxx/DeepSeek-R1-Distill-Qwen-1.5B
 ```
-Alternatively, you can leave the path blank, and import-deepseek-r1.py will automatically download the model for you.
+Alternatively, you can leave the path blank, and import_deepseek_r1.py will automatically download the model for you.
 
 4. Build and run the DEEPSEEKR1 example
 

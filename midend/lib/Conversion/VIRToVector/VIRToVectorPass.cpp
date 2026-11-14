@@ -25,6 +25,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <numeric>
+
+#include "mlir/Analysis/AliasAnalysis.h"
+#include "mlir/Analysis/Liveness.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -34,15 +38,23 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/UB/IR/UBOps.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/ADT/bit.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
@@ -63,6 +75,9 @@ using namespace buddy;
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
 //===----------------------------------------------------------------------===//
+
+/// Whether the rows of a strip-mined vir.set_vl may run in parallel.
+static bool rowsAreIndependent(vir::SetVLOp op, size_t rows);
 
 namespace {
 
@@ -89,9 +104,273 @@ static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
 // Downstream LLVM lowering may pack vector<...xi1> memory operations, which
 // breaks round-tripping through scalar i1 loads/stores. Keep i1 memref accesses
 // scalarized even inside the vectorized loop.
+/// `scalar` broadcast to `vecTy`. The LLVM lowering of vector.broadcast
+/// takes vector<[1]xT> for one lane (its splat shufflevector of mask [0]
+/// folds away) and leaves the other vscale - 1 lanes poison: a broadcast to
+/// vector<[2]xT> and its first half instead. The fold is
+/// LLVM::ShuffleVectorOp::fold (LLVMDialect.cpp), which takes a vector of
+/// one known-minimum element for a vector of one element; this can go once
+/// it leaves scalable vectors alone.
+static Value broadcastTo(OpBuilder &builder, Location loc, VectorType vecTy,
+                         Value scalar) {
+  if (vecTy.getRank() != 1 || vecTy.getShape()[0] != 1 || !vecTy.isScalable())
+    return vector::BroadcastOp::create(builder, loc, vecTy, scalar);
+  Value wide = vector::BroadcastOp::create(
+      builder, loc, VectorType::get({2}, vecTy.getElementType(), {true}),
+      scalar);
+  return vector::ScalableExtractOp::create(builder, loc, vecTy, wide, 0);
+}
+
+/// The vector.reduction kind of the kind of a vir.reduce: the name of a
+/// vector::CombiningKind, or maxnum for maxnumf.
+static std::optional<vector::CombiningKind> combiningKindOf(StringRef kind) {
+  if (kind == "maxnum")
+    return vector::CombiningKind::MAXNUMF;
+  return vector::symbolizeCombiningKind(kind);
+}
+
+/// The reduction of `vec` into `acc`. vector.reduction takes vector<[1]xT>
+/// for a vector of one element: its canonicalization
+/// (ElideSingleElementReduction, VectorOps.cpp) rewrites the reduction to
+/// vector.extract of lane 0 and drops the other vscale - 1 lanes. The
+/// reduction of a vector<[1]xT> is therefore built from the LLVM intrinsics
+/// vector.reduction lowers to; this can go once the pattern leaves scalable
+/// vectors alone.
+static Value reduceVector(OpBuilder &builder, Location loc,
+                          vector::CombiningKind kind, Value vec, Value acc,
+                          arith::FastMathFlags fastmath) {
+  auto vecTy = cast<VectorType>(vec.getType());
+  Type elem = vecTy.getElementType();
+  using K = vector::CombiningKind;
+  // LLVM does not lower the maximumnum / minimumnum reduction of a scalable
+  // vector on RVV ("Expanding reductions for scalable vectors is
+  // undefined"): the NaN lanes become -inf (+inf for the minimum), then the
+  // maximumf / minimumf reduction, whose zeros are ordered as maximumnum's
+  // (-0 < +0), and NaN if every lane is one; then the accumulator.
+  if (vecTy.isScalable() &&
+      (kind == K::MAXIMUMNUMF || kind == K::MINIMUMNUMF)) {
+    auto fty = cast<FloatType>(elem);
+    bool isMax = kind == K::MAXIMUMNUMF;
+    Value isNaN = arith::CmpFOp::create(builder, loc, arith::CmpFPredicate::UNO,
+                                        vec, vec);
+    Value inf = arith::ConstantOp::create(
+        builder, loc,
+        builder.getFloatAttr(fty, APFloat::getInf(fty.getFloatSemantics(),
+                                                  /*Negative=*/isMax)));
+    Value lanes = arith::SelectOp::create(
+        builder, loc, isNaN, broadcastTo(builder, loc, vecTy, inf), vec);
+    Value r = reduceVector(builder, loc, isMax ? K::MAXIMUMF : K::MINIMUMF,
+                           lanes, inf, fastmath);
+    Value t =
+        arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true));
+    Value allNaN = reduceVector(builder, loc, K::AND, isNaN, t,
+                                arith::FastMathFlags::none);
+    Value nan = arith::ConstantOp::create(
+        builder, loc,
+        builder.getFloatAttr(fty, APFloat::getQNaN(fty.getFloatSemantics())));
+    r = arith::SelectOp::create(builder, loc, allNaN, nan, r);
+    return vector::makeArithReduction(builder, loc, kind, r, acc);
+  }
+  bool one =
+      vecTy.getRank() == 1 && vecTy.getShape()[0] == 1 && vecTy.isScalable();
+  if (!one)
+    return vector::ReductionOp::create(builder, loc, kind, vec, acc, fastmath);
+  bool reassoc =
+      arith::bitEnumContainsAll(fastmath, arith::FastMathFlags::reassoc);
+  auto fmf = LLVM::FastmathFlagsAttr::get(builder.getContext(),
+                                          reassoc ? LLVM::FastmathFlags::reassoc
+                                                  : LLVM::FastmathFlags::none);
+  bool isFloat = isa<FloatType>(elem);
+  // the ordered float sum and product start from the accumulator
+  if (isFloat && kind == K::ADD)
+    return LLVM::vector_reduce_fadd::create(builder, loc, elem, acc, vec, fmf);
+  if (isFloat && kind == K::MUL)
+    return LLVM::vector_reduce_fmul::create(builder, loc, elem, acc, vec, fmf);
+  // the others: the lanes reduced, then combined with the accumulator
+  Value lanes;
+  switch (kind) {
+  case K::ADD:
+    lanes = LLVM::vector_reduce_add::create(builder, loc, elem, vec);
+    break;
+  case K::MUL:
+    lanes = LLVM::vector_reduce_mul::create(builder, loc, elem, vec);
+    break;
+  case K::AND:
+    lanes = LLVM::vector_reduce_and::create(builder, loc, elem, vec);
+    break;
+  case K::OR:
+    lanes = LLVM::vector_reduce_or::create(builder, loc, elem, vec);
+    break;
+  case K::XOR:
+    lanes = LLVM::vector_reduce_xor::create(builder, loc, elem, vec);
+    break;
+  case K::MINSI:
+    lanes = LLVM::vector_reduce_smin::create(builder, loc, elem, vec);
+    break;
+  case K::MAXSI:
+    lanes = LLVM::vector_reduce_smax::create(builder, loc, elem, vec);
+    break;
+  case K::MINUI:
+    lanes = LLVM::vector_reduce_umin::create(builder, loc, elem, vec);
+    break;
+  case K::MAXUI:
+    lanes = LLVM::vector_reduce_umax::create(builder, loc, elem, vec);
+    break;
+  case K::MINNUMF:
+    lanes = LLVM::vector_reduce_fmin::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MAXNUMF:
+    lanes = LLVM::vector_reduce_fmax::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MINIMUMF:
+    lanes = LLVM::vector_reduce_fminimum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MAXIMUMF:
+    lanes = LLVM::vector_reduce_fmaximum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MINIMUMNUMF:
+    lanes =
+        LLVM::vector_reduce_fminimumnum::create(builder, loc, elem, vec, fmf);
+    break;
+  case K::MAXIMUMNUMF:
+    lanes =
+        LLVM::vector_reduce_fmaximumnum::create(builder, loc, elem, vec, fmf);
+    break;
+  }
+  return vector::makeArithReduction(builder, loc, kind, lanes, acc);
+}
+
 static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
   return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
          vecTy.getElementType().isInteger(1);
+}
+
+// A memref of i1 holds a byte per element, a vector of i1 a bit per lane:
+// fixed i1 accesses are scalarized per lane. A scalable vector (N * vscale
+// lanes) is read and written as the bytes of the memref, a vector<[N]xi8>
+// at the address of the first element, truncated to / extended from the i1
+// lanes: a plain load / store when the elements are contiguous (a static
+// unit stride along the lanes), else a strided one (the VP intrinsics, all
+// lanes on).
+static bool isScalableI1(VectorType vecTy) {
+  return vecTy && vecTy.isScalable() && vecTy.getRank() == 1 &&
+         vecTy.getElementType().isInteger(1);
+}
+
+namespace {
+/// A scalable access of a memref of i1: the address of its first element
+/// and what a strided access needs.
+struct I1Bytes {
+  VectorType type; // vector<[N]xi8>
+  Value pointer;   // of the first element
+  bool contiguous;
+  Value stride, mask, evl; // when not contiguous
+};
+} // namespace
+
+/// The LLVM address space of the memory space of `type` (an integer, or
+/// none for 0), or nothing.
+static std::optional<unsigned> addressSpaceOf(MemRefType type) {
+  Attribute space = type.getMemorySpace();
+  if (!space)
+    return 0;
+  if (auto integer = dyn_cast<IntegerAttr>(space))
+    return integer.getInt();
+  return std::nullopt;
+}
+
+/// A scalable access of a memref of i1 addresses its bytes from the strided
+/// metadata of the memref: it needs a strided layout and an integer memory
+/// space (the address space of the pointer).
+static LogicalResult checkScalableI1Accesses(Region &region) {
+  WalkResult walk = region.walk([](Operation *access) {
+    Value base;
+    if (auto load = dyn_cast<vir::LoadOp>(access))
+      base = load.getBase();
+    else if (auto store = dyn_cast<vir::StoreOp>(access))
+      base = store.getBase();
+    auto type = base ? cast<MemRefType>(base.getType()) : MemRefType();
+    if (!type || !type.getElementType().isInteger(1))
+      return WalkResult::advance();
+    if (!type.isStrided()) {
+      access->emitError("a scalable access of a memref of i1 needs a strided "
+                        "layout");
+      return WalkResult::interrupt();
+    }
+    if (!addressSpaceOf(type)) {
+      access->emitError("a scalable access of a memref of i1 needs an "
+                        "integer memory space");
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  return failure(walk.wasInterrupted());
+}
+
+static I1Bytes i1Bytes(OpBuilder &builder, Location loc, VectorType vecTy,
+                       Value base, ArrayRef<Value> indices) {
+  I1Bytes bytes;
+  bytes.type = VectorType::get(vecTy.getShape(), builder.getI8Type(),
+                               vecTy.getScalableDims());
+  // the aligned pointer plus the linear index of the element, in bytes
+  auto metadata = memref::ExtractStridedMetadataOp::create(builder, loc, base);
+  Value linear = metadata.getOffset();
+  for (auto [index, stride] : llvm::zip(indices, metadata.getStrides()))
+    linear = arith::AddIOp::create(
+        builder, loc, linear,
+        arith::MulIOp::create(builder, loc, index, stride));
+  Value address = arith::AddIOp::create(
+      builder, loc,
+      memref::ExtractAlignedPointerAsIndexOp::create(builder, loc, base),
+      linear);
+  Type i64 = builder.getI64Type();
+  Value bits = arith::IndexCastOp::create(builder, loc, i64, address);
+  // (checkScalableI1Accesses: an integer memory space)
+  unsigned space = *addressSpaceOf(cast<MemRefType>(base.getType()));
+  bytes.pointer = LLVM::IntToPtrOp::create(
+      builder, loc, LLVM::LLVMPointerType::get(builder.getContext(), space),
+      bits);
+  bytes.contiguous = hasStaticallyUnitStrideInVectorizedDim(base);
+  if (!bytes.contiguous) {
+    bytes.stride = arith::IndexCastOp::create(builder, loc, i64,
+                                              metadata.getStrides().back());
+    Value on =
+        arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true));
+    bytes.mask = broadcastTo(builder, loc, vecTy, on);
+    Value lanes = arith::MulIOp::create(
+        builder, loc,
+        arith::ConstantIndexOp::create(builder, loc, vecTy.getShape()[0]),
+        vector::VectorScaleOp::create(builder, loc));
+    bytes.evl =
+        arith::IndexCastOp::create(builder, loc, builder.getI32Type(), lanes);
+  }
+  return bytes;
+}
+
+static Value buildScalableI1VectorLoad(OpBuilder &builder, Location loc,
+                                       VectorType vecTy, Value base,
+                                       ArrayRef<Value> indices) {
+  I1Bytes at = i1Bytes(builder, loc, vecTy, base, indices);
+  Value bytes =
+      at.contiguous
+          ? Value(LLVM::LoadOp::create(builder, loc, at.type, at.pointer,
+                                       /*alignment=*/1))
+          : Value(LLVM::VPStridedLoadOp::create(
+                builder, loc, at.type, at.pointer, at.stride, at.mask, at.evl));
+  return arith::TruncIOp::create(builder, loc, vecTy, bytes);
+}
+
+static void buildScalableI1VectorStore(OpBuilder &builder, Location loc,
+                                       Value vectorValue, Value base,
+                                       ArrayRef<Value> indices) {
+  auto vecTy = cast<VectorType>(vectorValue.getType());
+  I1Bytes at = i1Bytes(builder, loc, vecTy, base, indices);
+  Value bytes = arith::ExtUIOp::create(builder, loc, at.type, vectorValue);
+  if (at.contiguous)
+    LLVM::StoreOp::create(builder, loc, bytes, at.pointer, /*alignment=*/1);
+  else
+    LLVM::VPStridedStoreOp::create(builder, loc, bytes, at.pointer, at.stride,
+                                   at.mask, at.evl);
 }
 
 static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
@@ -131,158 +410,305 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
   }
 }
 
+/// Whether the bf16 dynamic vectors of `op` can be scalable vectors of
+/// their bits (lowerScalableBF16ToBits), on a target without Zvfbfmin: a
+/// load or store of a memref with unit stride in its last dim and an
+/// integer memory space (an LLVM address space), a broadcast,
+/// constant or select, an extension from bf16, a truncation from f32, absf,
+/// negf.
+static bool hasBF16BitsLowering(Operation *op) {
+  auto isBF16 = [](Type t) {
+    auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+    return dyn && dyn.getElementType().isBF16();
+  };
+  // (the bits are read through a pointer of the address space of the
+  // memory space, an integer)
+  auto accessible = [](Value base) {
+    return hasStaticallyUnitStrideInVectorizedDim(base) &&
+           addressSpaceOf(cast<MemRefType>(base.getType())).has_value();
+  };
+  if (auto load = dyn_cast<vir::LoadOp>(op))
+    return accessible(load.getBase());
+  if (auto store = dyn_cast<vir::StoreOp>(op))
+    return accessible(store.getBase());
+  if (isa<vir::ExtFOp>(op))
+    return isBF16(op->getOperand(0).getType());
+  if (isa<vir::TruncFOp>(op))
+    return cast<vir::DynamicVectorType>(op->getOperand(0).getType())
+        .getElementType()
+        .isF32();
+  return isa<vir::BroadcastOp, vir::ConstantOp, vir::SelectOp, math::AbsFOp,
+             arith::NegFOp>(op);
+}
+
+/// Whether `region` is lowered with fixed vectors under use-scalable: RVV
+/// holds floats in vector registers as f16 (Zvfh), f32 and f64, and bf16
+/// with Zvfbfmin (`zvfbfmin`); LLVM lowers no scalable vector of the others,
+/// not even a load. Without Zvfbfmin, bf16 dynamic vectors are scalable
+/// vectors of their bits (lowerScalableBF16ToBits) where all their ops have
+/// that lowering (hasBF16BitsLowering); a region with another op on them,
+/// or with dynamic vectors of an f8 type, is lowered with fixed vectors,
+/// which LLVM lowers lane by lane (valid on any VLEN, as the fixed vectors
+/// of a region with results are for rvv-vlen).
+static bool needsFixedVectors(Region &region, bool zvfbfmin) {
+  auto floatOf = [](Type t) -> FloatType {
+    auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+    return dyn ? dyn_cast<FloatType>(dyn.getElementType()) : FloatType();
+  };
+  return region
+      .walk([&](Operation *op) {
+        bool bf16 = false;
+        for (Type t : llvm::concat<Type>(llvm::to_vector(op->getOperandTypes()),
+                                         llvm::to_vector(op->getResultTypes())))
+          if (FloatType elem = floatOf(t)) {
+            if (elem.isBF16())
+              bf16 = true;
+            else if (!elem.isF16() && !elem.isF32() && !elem.isF64())
+              return WalkResult::interrupt();
+          }
+        if (bf16 && !zvfbfmin && !hasBF16BitsLowering(op))
+          return WalkResult::interrupt();
+        return WalkResult::advance();
+      })
+      .wasInterrupted();
+}
+
+/// The element type of the dynamic vectors of `region` with the most bits
+/// (the first of equals), an i1 counted as a byte (its memref's element, and
+/// what a scalable access of it reads) and an index as `indexBitWidth`: the
+/// vectors are sized for it, so that none needs more than a group of
+/// registers (an i1 or f16 first, then f32 vectors, would otherwise size
+/// those for the narrower type, beyond LMUL 8).
+static Type widestElementType(Region &region, unsigned indexBitWidth) {
+  Type widest;
+  unsigned widestBits = 0;
+  region.walk([&](Operation *op) {
+    for (Value result : op->getResults()) {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(result.getType());
+      if (!dyn || dyn.getScalingFactor())
+        continue;
+      Type elem = dyn.getElementType();
+      unsigned bits = elem.isIndex()
+                          ? indexBitWidth
+                          : std::max(8u, elem.getIntOrFloatBitWidth());
+      if (bits > widestBits) {
+        widest = elem;
+        widestBits = bits;
+      }
+    }
+  });
+  return widest;
+}
+
+/// The VLEN in bits of the host when it is a RISC-V CPU with V, else 0. The
+/// fixed vectors of a host are sized as for an rvv-vlen of it.
+static int hostRvvVlen() {
+#if defined(__riscv)
+  llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
+  if (Features.count("v") && Features["v"]) {
+    unsigned long vlenb;
+    // vlenb (CSR 0xc22) by number: the assembler knows its name only with
+    // V, which buddy-opt need not be built with
+    __asm__ volatile("csrr %0, 0xc22" : "=r"(vlenb));
+    return int(vlenb * 8);
+  }
+#endif
+  return 0;
+}
+
+/// The vector type of a dynamic vector region from its register pressure
+/// (Req_Group, the most dynamic vectors live at once) and the vector
+/// registers of the target: with `rvvVlen` (bits, > 0), a RISC-V Vector
+/// target with 32 registers of that VLEN, whatever the host; otherwise the
+/// host's registers. With `useScalable` (RVV only), the vector is scalable,
+/// of the register group it is at VLEN `rvvVlen`. An index element has
+/// `indexBitWidth` bits. `fits`, when given, is set to whether the vectors
+/// live at once fit in the registers.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
-                            bool useScalable, bool verbose) {
+                            bool useScalable, bool verbose, int rvvVlen,
+                            unsigned indexBitWidth, int64_t rows = 1,
+                            bool *fits = nullptr) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
   }
-  // Defaults when no target-specific features are detected (e.g. RISC-V or
-  // hosts not enumerated below). A width of 1 made sizeVec zero for f32
-  // (VectorType::get asserts); 128-bit is a reasonable generic SIMD nominal.
+  // Defaults when no target-specific features are detected (hosts not
+  // enumerated below; a RISC-V host with V is an rvv-vlen, hostRvvVlen). A
+  // width of 1 made sizeVec zero for f32 (VectorType::get asserts); 128-bit is
+  // a reasonable generic SIMD nominal.
   int vectorRegBitWidth = 128;
   int totalVectorRegs = 16;
-  llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
-
-  VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
-  if (Features.count("avx2") && Features["avx2"]) {
-    vectorRegBitWidth = 256;
-    totalVectorRegs = 16;
-    VERBOSE_ANALYSIS_INFO("[+] AVX2 is supported.\n");
-  } else {
-    VERBOSE_ANALYSIS_INFO("[-] AVX2 is NOT supported.\n");
-  }
-
-  if (Features.count("avx512f") && Features["avx512f"]) {
-    vectorRegBitWidth = 512;
+  if (rvvVlen > 0) {
+    // A RISC-V Vector target (e.g. a cross compilation): the host is not
+    // looked at.
+    vectorRegBitWidth = rvvVlen;
     totalVectorRegs = 32;
-    VERBOSE_ANALYSIS_INFO("[+] AVX-512F is supported.\n");
+    VERBOSE_ANALYSIS_INFO("--- RISC-V Vector target: VLEN " << rvvVlen
+                                                            << " ---\n");
   } else {
-    VERBOSE_ANALYSIS_INFO("[-] AVX-512F is NOT supported.\n");
-  }
+    llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
 
-  VERBOSE_ANALYSIS_INFO("\n--- Checking AArch64 Features ---\n");
-  if (Features.count("sve") && Features["sve"]) {
-    VERBOSE_ANALYSIS_INFO("[+] SVE is supported.\n");
+    VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
+    if (Features.count("avx2") && Features["avx2"]) {
+      vectorRegBitWidth = 256;
+      totalVectorRegs = 16;
+      VERBOSE_ANALYSIS_INFO("[+] AVX2 is supported.\n");
+    } else {
+      VERBOSE_ANALYSIS_INFO("[-] AVX2 is NOT supported.\n");
+    }
+
+    if (Features.count("avx512f") && Features["avx512f"]) {
+      vectorRegBitWidth = 512;
+      totalVectorRegs = 32;
+      VERBOSE_ANALYSIS_INFO("[+] AVX-512F is supported.\n");
+    } else {
+      VERBOSE_ANALYSIS_INFO("[-] AVX-512F is NOT supported.\n");
+    }
+
+    VERBOSE_ANALYSIS_INFO("\n--- Checking AArch64 Features ---\n");
+    if (Features.count("sve") && Features["sve"]) {
+      VERBOSE_ANALYSIS_INFO("[+] SVE is supported.\n");
+      totalVectorRegs = 32;
 #if defined(__ARM_FEATURE_SVE)
-    uint64_t bytes = svcntb();
-    vectorRegBitWidth = bytes * 8;
-    totalVectorRegs = 32;
+      uint64_t bytes = svcntb();
+      vectorRegBitWidth = bytes * 8;
 #else
-    assert(
-        false &&
-        "LLVM detected ARM SVE, but MACRO __ARM_FEATURE_SVE is not defined.");
+      // the vector length cannot be read without SVE code: the least, 128
+      // bits (the fixed vectors are valid on any)
+      vectorRegBitWidth = 128;
+      VERBOSE_ANALYSIS_INFO("    built without SVE: its least vector "
+                            "length, 128 bits\n");
 #endif
-  } else {
-    VERBOSE_ANALYSIS_INFO("[-] SVE is NOT supported.\n");
+    } else {
+      VERBOSE_ANALYSIS_INFO("[-] SVE is NOT supported.\n");
+    }
   }
-
-  Block &block = srcRegion.front();
-  auto &operations = block.getOperations();
 
   VERBOSE_ANALYSIS_INFO(
-      "\n--- Running vectorTypeHelper Dataflow Analysis ---\n");
+      "\n--- Running vectorTypeHelper Liveness Analysis ---\n");
 
-  // Data Flow analysis
-  // USE, DEF, IN, OUT sets
-  DenseMap<Operation *, DenseSet<Value>> useSets, defSets, inSets, outSets;
-
-  // calculate USE and DEF sets
-  for (Operation &op : operations) {
-    for (Value result : op.getResults()) {
-      if (auto st = dyn_cast<ShapedType>(result.getType());
-          st && st.hasRank()) {
-        defSets[&op].insert(result);
-      }
-    }
-    for (Value operand : op.getOperands()) {
-      if (operand.getDefiningOp() &&
-          operand.getDefiningOp()->getParentRegion() == &srcRegion) {
-        if (auto st = dyn_cast<ShapedType>(operand.getType());
-            st && st.hasRank()) {
-          useSets[&op].insert(operand);
-        }
-      }
-    }
-  }
-
-  auto printValueSet = [&verbose](llvm::StringRef name,
-                                  const DenseSet<Value> &valueSet) {
-    VERBOSE_ANALYSIS_INFO("    " << name << " { ");
-    for (Value val : valueSet) {
-      if (verbose) {
-        val.print(llvm::outs(), OpPrintingFlags().printGenericOpForm());
-      }
-      VERBOSE_ANALYSIS_INFO(" ");
-    }
-    VERBOSE_ANALYSIS_INFO("}\n");
+  // Req_Group = max_i |IN(i) U OUT(i)|, counting the dynamic vectors (the
+  // vectors of the size chosen here) at every op of the region, those of
+  // nested loops included. Liveness gives the values live at an op of a
+  // block: those defined at or before it and used at or after it, in the
+  // block or in its nested regions (IN U OUT). At an op in a loop, the
+  // values live across the loop in the enclosing blocks are live too, but
+  // not the loop's results and the initial values that die at the loop:
+  // those are the iteration arguments of its body.
+  //
+  // On RVV, a broadcast scalar that only feeds the scalar operand of
+  // arithmetic (vfmul.vf, vfmacc.vf, ...) stays in a scalar register and is
+  // not counted. Such an instruction has one scalar operand: if the other
+  // operand (the other multiplicand of an fma) is a broadcast too, both are
+  // counted.
+  Operation *setVL = srcRegion.getParentOp();
+  Liveness liveness(setVL);
+  auto isScalarOperand = [](Value v) {
+    if (!v.getDefiningOp<vir::BroadcastOp>())
+      return false;
+    return llvm::all_of(v.getUses(), [](OpOperand &use) {
+      Operation *user = use.getOwner();
+      unsigned n = use.getOperandNumber();
+      // a multiplicand of an fma, not the addend, or an operand of a binary
+      // op
+      bool binary =
+          isa<arith::AddFOp, arith::SubFOp, arith::MulFOp, arith::DivFOp,
+              arith::MaximumFOp, arith::MinimumFOp, arith::MaxNumFOp,
+              arith::MinNumFOp, arith::AddIOp, arith::SubIOp, arith::MulIOp>(
+              user);
+      if (!(isa<vir::FMAOp>(user) && n < 2) && !binary)
+        return false;
+      Value other = user->getOperand(1 - n);
+      return !other.getDefiningOp<vir::BroadcastOp>();
+    });
   };
-
-  bool changed = true;
-  int iteration = 1;
-  while (changed) {
-    VERBOSE_ANALYSIS_INFO("\n--- Analysis Iteration " << iteration++
-                                                      << " ---\n");
-    changed = false;
-
-    // backward iteration
-    for (auto it = operations.rbegin(); it != operations.rend(); ++it) {
-      Operation &op = *it;
-
-      VERBOSE_ANALYSIS_INFO("Analyzing Op: ");
-      if (verbose) {
-        op.print(llvm::outs(), OpPrintingFlags().printGenericOpForm());
-      }
-      VERBOSE_ANALYSIS_INFO("\n");
-
-      DenseSet<Value> oldIn = inSets[&op];
-
-      // OUT(i) = ∪_{j ∈ Succ(i)} IN(j)
-      DenseSet<Value> outSet;
-      Operation *nextOp = op.getNextNode();
-      if (nextOp) {
-        outSet = inSets[nextOp];
-      }
-      outSets[&op] = outSet;
-      printValueSet("OUT:", outSets[&op]);
-      printValueSet("DEF:", defSets[&op]);
-      printValueSet("USE:", useSets[&op]);
-
-      // IN(i) = (OUT(i) - DEF(i)) ∪ USE(i)
-      DenseSet<Value> inSet = outSet;
-      for (Value defValue : defSets[&op]) {
-        inSet.erase(defValue);
-      }
-      inSet.insert(useSets[&op].begin(), useSets[&op].end());
-      inSets[&op] = inSet;
-      printValueSet("New IN:", inSets[&op]);
-
-      if (inSets[&op] != oldIn) {
-        changed = true;
-      }
+  auto isDynamic = [&](Value v) {
+    return isa<vir::DynamicVectorType>(v.getType()) &&
+           !(rvvVlen > 0 && isScalarOperand(v));
+  };
+  // the live range in each block of its dynamic vectors, as
+  // LivenessBlockInfo::currentlyLiveValues has them, found once per block
+  using LiveRange = std::tuple<Value, Operation *, Operation *>;
+  DenseMap<Block *, SmallVector<LiveRange>> liveRanges;
+  auto liveRangesIn = [&](Block *block) -> ArrayRef<LiveRange> {
+    auto [it, inserted] = liveRanges.try_emplace(block);
+    if (!inserted)
+      return it->second;
+    const LivenessBlockInfo *info = liveness.getLiveness(block);
+    auto add = [&](Value v) {
+      if (!isDynamic(v))
+        return;
+      Operation *start = info->isLiveIn(v) || isa<BlockArgument>(v)
+                             ? &block->front()
+                             : block->findAncestorOpInBlock(*v.getDefiningOp());
+      Operation *end =
+          info->isLiveOut(v) ? &block->back() : info->getEndOperation(v, start);
+      it->second.emplace_back(v, start, end);
+    };
+    for (Value arg : block->getArguments())
+      add(arg);
+    for (Value in : info->in())
+      add(in);
+    for (Operation &op : *block)
+      for (Value result : op.getResults())
+        add(result);
+    return it->second;
+  };
+  // the values live across each loop, the same at all its ops
+  DenseMap<Operation *, SmallVector<Value>> liveAcross;
+  auto liveAcrossLoop = [&](Operation *loop) -> ArrayRef<Value> {
+    auto [it, inserted] = liveAcross.try_emplace(loop);
+    if (!inserted)
+      return it->second;
+    const LivenessBlockInfo *info = liveness.getLiveness(loop->getBlock());
+    for (Value v : info->currentlyLiveValues(loop)) {
+      if (!isDynamic(v) || v.getDefiningOp() == loop)
+        continue;
+      bool usedInside = llvm::any_of(v.getUsers(), [&](Operation *user) {
+        return loop->isProperAncestor(user);
+      });
+      if (llvm::is_contained(loop->getOperands(), v) && !usedInside &&
+          liveness.isDeadAfter(v, loop))
+        continue;
+      it->second.push_back(v);
     }
-  }
-
-  VERBOSE_ANALYSIS_INFO("\n--- Dataflow Analysis Converged ---\n");
-
-  // Req_Group = max_i ( |IN(i) ∪ OUT(i)| )
-  unsigned int maxActiveVectors = 0;
-  for (Operation &op : operations) {
-    DenseSet<Value> liveAcross = inSets[&op];
-    liveAcross.insert(outSets[&op].begin(), outSets[&op].end());
-
-    if (liveAcross.size() > maxActiveVectors) {
-      maxActiveVectors = liveAcross.size();
+    return it->second;
+  };
+  unsigned maxActiveVectors = 0;
+  srcRegion.walk([&](Operation *op) {
+    // an op with regions is measured at the ops of its blocks
+    if (op->getNumRegions() != 0)
+      return;
+    DenseSet<Value> live;
+    for (auto [v, start, end] : liveRangesIn(op->getBlock()))
+      if (!op->isBeforeInBlock(start) && !end->isBeforeInBlock(op))
+        live.insert(v);
+    for (Operation *loop = op->getParentOp(); loop != setVL;
+         loop = loop->getParentOp())
+      live.insert_range(liveAcrossLoop(loop));
+    if (verbose) {
+      llvm::outs() << "  " << live.size() << " live at ";
+      op->print(llvm::outs(), OpPrintingFlags().skipRegions());
+      llvm::outs() << "\n";
     }
-  }
+    maxActiveVectors = std::max<unsigned>(maxActiveVectors, live.size());
+  });
 
   int reqGroup = (maxActiveVectors == 0) ? 1 : maxActiveVectors;
+  if (fits)
+    *fits = reqGroup <= totalVectorRegs;
   VERBOSE_ANALYSIS_INFO("Final Max Active Vectors (Req_Group): " << reqGroup
                                                                  << "\n");
 
   VERBOSE_ANALYSIS_INFO("\n--- Calculating Final Vector Type ---\n");
 
-  unsigned elementBitWidth = anchorType.getIntOrFloatBitWidth();
+  // index as the LLVM lowering has it
+  unsigned elementBitWidth =
+      anchorType.isIndex() ? indexBitWidth : anchorType.getIntOrFloatBitWidth();
+  // an i1 lane is a byte of its memref (and of the vector<[N]xi8> a scalable
+  // access reads): the vectors of a region of i1 are sized for bytes
+  if (elementBitWidth == 1)
+    elementBitWidth = 8;
   if (elementBitWidth == 0) {
     srcRegion.getParentOp()->emitError(
         "Anchor type is not a valid integer or float type.");
@@ -303,11 +729,37 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                         << totalVectorRegs << " / " << reqGroup
                         << ") = " << sizeGroup << "\n");
 
-  // Size_vec = (Size_Group * Size_Reg) / Width_Ele
-  int64_t sizeVec = (sizeGroup * vectorRegBitWidth) / elementBitWidth;
-  VERBOSE_ANALYSIS_INFO("Calculated Size_vec = ("
-                        << sizeGroup << " * " << vectorRegBitWidth << ") / "
-                        << elementBitWidth << " = " << sizeVec << "\n");
+  int64_t sizeVec;
+  if (rvvVlen > 0) {
+    // RVV: LMUL = min(8, 2^floor(log2(Size_Group))), and a register group
+    // of LMUL registers holds LMUL * VLEN / SEW elements.
+    int64_t lmul = std::min<int64_t>(8, llvm::bit_floor(unsigned(sizeGroup)));
+    sizeVec = lmul * rvvVlen / elementBitWidth;
+    VERBOSE_ANALYSIS_INFO("Calculated LMUL = " << lmul << ", Size_vec = ("
+                                               << lmul << " * " << rvvVlen
+                                               << ") / " << elementBitWidth
+                                               << " = " << sizeVec << "\n");
+  } else {
+    // Size_vec = 2^floor(log2(Size_Group * Size_Reg / Width_Ele))
+    sizeVec = llvm::bit_floor(uint64_t(sizeGroup) * vectorRegBitWidth /
+                              elementBitWidth);
+    VERBOSE_ANALYSIS_INFO("Calculated Size_vec = 2^floor(log2(("
+                          << sizeGroup << " * " << vectorRegBitWidth << ") / "
+                          << elementBitWidth << ")) = " << sizeVec << "\n");
+  }
+
+  // no wider than a dynamic vector of a constant vl (`rows` rows of vl
+  // lanes): the lanes past it would compute nothing
+  if (std::optional<int64_t> vl =
+          getConstantIntValue(cast<vir::SetVLOp>(setVL).getVl());
+      vl && *vl > 0 && sizeVec > *vl * rows) {
+    sizeVec = llvm::bit_floor(uint64_t(*vl * rows));
+    VERBOSE_ANALYSIS_INFO(
+        "Clamped to the constant vl "
+        << *vl
+        << (rows > 1 ? " x " + std::to_string(rows) + " rows" : std::string())
+        << ": Size_vec = " << sizeVec << "\n");
+  }
 
   if (sizeVec < 1) {
     emitWarning(srcRegion.getLoc(),
@@ -316,6 +768,17 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
     sizeVec = 1;
   }
 
+  if (useScalable) {
+    // RVV: vscale = VLEN / 64, so vector<[N]xT> is the register group of
+    // LMUL = N * SEW / 64 registers whatever the VLEN; at VLEN rvvVlen
+    // it holds sizeVec = N * rvvVlen / 64 lanes. N >= 1 (a fractional LMUL
+    // for SEW < 64 when sizeVec was clamped below that).
+    int64_t n = std::max<int64_t>(1, sizeVec * 64 / rvvVlen);
+    VERBOSE_ANALYSIS_INFO("Scalable: N = max(1, ("
+                          << sizeVec << " * 64) / " << rvvVlen << ") = " << n
+                          << ", vector<[" << n << "]x" << anchorType << ">\n");
+    return VectorType::get({n}, anchorType, /*scalableDims=*/{true});
+  }
   return VectorType::get({sizeVec}, anchorType);
 #undef VERBOSE_ANALYSIS_INFO
 } // namespace
@@ -334,16 +797,27 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
 class VIRSetVLLowering : public ConvertOpToLLVMPattern<vir::SetVLOp> {
 public:
   VIRSetVLLowering(LLVMTypeConverter &converter, bool useScalable,
-                   int vectorWidth, bool verbose, bool useCustomVecWid)
+                   int vectorWidth, bool verbose, bool useCustomVecWid,
+                   int rvvVlen, bool rvvVlenExact, bool zvfbfmin)
       : ConvertOpToLLVMPattern<vir::SetVLOp>(converter),
         useScalable(useScalable), vectorWidth(vectorWidth), verbose(verbose),
-        useCustomVecWid(useCustomVecWid) {}
+        useCustomVecWid(useCustomVecWid), rvvVlen(rvvVlen),
+        rvvVlenExact(rvvVlenExact), zvfbfmin(zvfbfmin) {}
 
 private:
   bool useScalable;
   int vectorWidth;
   bool verbose;
   bool useCustomVecWid;
+  // VLEN of a RISC-V Vector target in bits, 0 for the host
+  int rvvVlen;
+  // rvvVlen is the VLEN of the target, not only its minimum (use-scalable
+  // without rvv-vlen)
+  bool rvvVlenExact;
+  // the target has Zvfbfmin (rvv-mattr): RVV holds bf16 vectors
+  bool zvfbfmin;
+  // set when lowerBlock meets an op it does not lower
+  mutable bool unsupportedOp = false;
 
   /// Recursively search for anchor type within a given Region and its nested
   Type findAnchorTypeRecursive(Region &region) const {
@@ -389,6 +863,33 @@ private:
         return virSymbolTable.lookup(srcValue);
       }
       return srcValue;
+    };
+    // The memref indices of an access of `vecType` at `indices` (none: all
+    // 0), as for vector.load: the lanes are along the last dim of the
+    // memref, from the main loop IV on, and the rows of a multi-dimensional
+    // dynamic vector along the dims before it, from the leading IVs on.
+    auto accessIndices = [&](Value base, ValueRange indices, Type vecType) {
+      int64_t rank = cast<MemRefType>(base.getType()).getRank();
+      int64_t rows =
+          cast<vir::DynamicVectorType>(vecType).getShape().size() - 1;
+      // (checked before the lowering: the dynamic vectors are of the region,
+      // their rows those of the leading IVs)
+      assert(rows == 0 || rows == int64_t(leadingIVs.size()));
+      SmallVector<Value> out;
+      for (int64_t i = 0; i < rank; ++i) {
+        Value iv = i == rank - 1          ? mainLoopIV
+                   : i >= rank - 1 - rows ? leadingIVs[i - (rank - 1 - rows)]
+                                          : Value();
+        if (indices.empty())
+          out.push_back(
+              iv ? iv : Value(arith::ConstantIndexOp::create(builder, loc, 0)));
+        else if (iv)
+          out.push_back(
+              arith::AddIOp::create(builder, loc, iv, findValue(indices[i])));
+        else
+          out.push_back(findValue(indices[i]));
+      }
+      return out;
     };
     auto deriveVectorTypeFor = [&](Type virTy) -> FailureOr<VectorType> {
       auto dynVecTy = dyn_cast<vir::DynamicVectorType>(virTy);
@@ -442,43 +943,8 @@ private:
               [&](Operation *op) { cloneMappedOp(op); })
           .Case<vir::LoadOp>([&](vir::LoadOp op) {
             Value base = findValue(op.getBase());
-            SmallVector<Value> destIndices{};
-            auto sourceIndices = op.getIndices();
-
-            // Indices convention:
-            // - If indices are provided, treat the last index as the dynamic
-            //   "vectorized" dimension offset and add mainLoopIV.
-            // - If indices are empty, assume all leading indices are 0 and the
-            //   last index is implicitly 0 (i.e. base of the vectorized dim).
-            if (sourceIndices.empty()) {
-              auto memrefTy = dyn_cast<MemRefType>(base.getType());
-              if (!memrefTy || memrefTy.getRank() == 0) {
-                op.emitError(
-                    "expected ranked memref base for implicit indices");
-                return;
-              }
-              int64_t rank = memrefTy.getRank();
-              for (int64_t i = 0; i < rank - 1; ++i) {
-                if (static_cast<size_t>(i) < leadingIVs.size()) {
-                  destIndices.push_back(leadingIVs[i]);
-                } else {
-                  destIndices.push_back(
-                      arith::ConstantIndexOp::create(builder, loc, 0));
-                }
-              }
-              destIndices.push_back(mainLoopIV);
-            } else {
-              // the last index is dynamic and global
-              Value lastIndex = sourceIndices.back();
-              Value baseOffset =
-                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
-              // collect indices for load op
-              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-                Value destOp = findValue(sourceIndices[i]);
-                destIndices.push_back(destOp);
-              }
-              destIndices.push_back(baseOffset);
-            }
+            SmallVector<Value> destIndices =
+                accessIndices(base, op.getIndices(), op.getType());
 
             if (isTailLoop) {
               auto memrefLoadOp =
@@ -492,6 +958,11 @@ private:
               }
               if (shouldScalarizeI1VectorMemoryOp(*vecTyOr)) {
                 virSymbolTable[op.getResult()] = buildScalarizedI1VectorLoad(
+                    builder, loc, *vecTyOr, base, destIndices);
+                return;
+              }
+              if (isScalableI1(*vecTyOr)) {
+                virSymbolTable[op.getResult()] = buildScalableI1VectorLoad(
                     builder, loc, *vecTyOr, base, destIndices);
                 return;
               }
@@ -516,36 +987,8 @@ private:
               return;
             }
             Value base = findValue(op.getBase());
-            SmallVector<Value> destIndices{};
-            auto sourceIndices = op.getIndices();
-            if (sourceIndices.empty()) {
-              auto memrefTy = dyn_cast<MemRefType>(base.getType());
-              if (!memrefTy || memrefTy.getRank() == 0) {
-                op.emitError(
-                    "expected ranked memref base for implicit indices");
-                return;
-              }
-              int64_t rank = memrefTy.getRank();
-              for (int64_t i = 0; i < rank - 1; ++i) {
-                if (static_cast<size_t>(i) < leadingIVs.size()) {
-                  destIndices.push_back(leadingIVs[i]);
-                } else {
-                  destIndices.push_back(
-                      arith::ConstantIndexOp::create(builder, loc, 0));
-                }
-              }
-              destIndices.push_back(mainLoopIV);
-            } else {
-              Value lastIndex = sourceIndices.back();
-              Value baseOffset =
-                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
-              // collect indices for store op
-              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-                Value destOp = findValue(sourceIndices[i]);
-                destIndices.push_back(destOp);
-              }
-              destIndices.push_back(baseOffset);
-            }
+            SmallVector<Value> destIndices =
+                accessIndices(base, op.getIndices(), op.getValue().getType());
 
             if (isTailLoop) {
               memref::StoreOp::create(builder, loc, valueToStore, base,
@@ -555,6 +998,11 @@ private:
                   shouldScalarizeI1VectorMemoryOp(vecTy)) {
                 buildScalarizedI1VectorStore(builder, loc, valueToStore, base,
                                              destIndices);
+                return;
+              }
+              if (isScalableI1(dyn_cast<VectorType>(valueToStore.getType()))) {
+                buildScalableI1VectorStore(builder, loc, valueToStore, base,
+                                           destIndices);
                 return;
               }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
@@ -595,9 +1043,8 @@ private:
                 op.emitError("failed to derive vector type for vir.broadcast");
                 return;
               }
-              auto vectorBroadcastOp = vector::BroadcastOp::create(
-                  builder, loc, *vecTyOr, scalarValue);
-              virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
+              virSymbolTable[op.getResult()] =
+                  broadcastTo(builder, loc, *vecTyOr, scalarValue);
             }
           })
           .Case<vir::FMAOp>([&](vir::FMAOp op) {
@@ -608,11 +1055,10 @@ private:
               op.emitError("FMA operands not found in symbol table");
               return;
             }
+            // One rounding in every lane: the tail as the vector.
             if (isTailLoop) {
-              auto mulResult = arith::MulFOp::create(builder, loc, lhs, rhs);
-              auto addResult =
-                  arith::AddFOp::create(builder, loc, mulResult, acc);
-              virSymbolTable[op.getResult()] = addResult;
+              virSymbolTable[op.getResult()] =
+                  math::FmaOp::create(builder, loc, lhs, rhs, acc);
             } else {
               auto vectorFMAOp =
                   vector::FMAOp::create(builder, loc, lhs, rhs, acc);
@@ -634,18 +1080,16 @@ private:
             }
             StringRef kind = kindAttr.getValue();
 
+            std::optional<vector::CombiningKind> combineKind =
+                combiningKindOf(kind);
+            if (!combineKind) {
+              op.emitError("unknown vir.reduce kind ") << kind;
+              return;
+            }
             if (isTailLoop) {
-              Value out;
-              if (kind == "add") {
-                out = arith::AddFOp::create(builder, loc, input, acc);
-              } else if (kind == "maxnum") {
-                out = arith::MaxNumFOp::create(builder, loc, input, acc);
-              } else {
-                op.emitError(
-                    "unsupported vir.reduce kind (expected add/maxnum)");
-                return;
-              }
-              virSymbolTable[op.getResult()] = out;
+              // the scalar into the accumulator, in order
+              virSymbolTable[op.getResult()] = vector::makeArithReduction(
+                  builder, loc, *combineKind, input, acc);
               return;
             }
 
@@ -655,19 +1099,10 @@ private:
               return;
             }
 
-            vector::CombiningKind combineKind;
-            if (kind == "add") {
-              combineKind = vector::CombiningKind::ADD;
-            } else if (kind == "maxnum") {
-              combineKind = vector::CombiningKind::MAXNUMF;
-            } else {
-              op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
-              return;
-            }
-
-            auto reduced = vector::ReductionOp::create(builder, loc,
-                                                       combineKind, input, acc);
-            virSymbolTable[op.getResult()] = reduced.getResult();
+            virSymbolTable[op.getResult()] =
+                reduceVector(builder, loc, *combineKind, input, acc,
+                             op.getReassoc() ? arith::FastMathFlags::reassoc
+                                             : arith::FastMathFlags::none);
           })
           .Case<vir::SelectOp>([&](vir::SelectOp op) {
             Value cond = findValue(op.getCondition());
@@ -701,6 +1136,24 @@ private:
             }
             auto newOp = arith::ExtFOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<vir::ExtSIOp, vir::ExtUIOp>([&](Operation *op) {
+            Value in = findValue(op->getOperand(0));
+            Type outTy = op->getResult(0).getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            Value out =
+                isa<vir::ExtSIOp>(op)
+                    ? Value(arith::ExtSIOp::create(builder, loc, outTy, in))
+                    : Value(arith::ExtUIOp::create(builder, loc, outTy, in));
+            virSymbolTable[op->getResult(0)] = out;
           })
           .Case<vir::TruncFOp>([&](vir::TruncFOp op) {
             Value in = findValue(op.getIn());
@@ -779,11 +1232,46 @@ private:
               virSymbolTable[std::get<0>(it)] = std::get<1>(it);
             }
           })
-          .Case<affine::AffineYieldOp, vector::YieldOp>([&](Operation *) {
-            // During recursive descent, these terminators are handled by their
-            // parent operations (such as affine. for). We will ignore them
-            // directly here.
+          .Case<scf::ForOp>([&](scf::ForOp op) {
+            // as affine.for: the body lowered with the iteration arguments
+            // and the results of the loop mapped
+            SmallVector<Value> initialIterArgs;
+            for (Value arg : op.getInitArgs())
+              initialIterArgs.push_back(findValue(arg));
+            auto newForOp = scf::ForOp::create(
+                builder, loc, findValue(op.getLowerBound()),
+                findValue(op.getUpperBound()), findValue(op.getStep()),
+                initialIterArgs,
+                [&](OpBuilder &b, Location bodyLoc, Value iv,
+                    ValueRange iterArgs) {
+                  DenseMap<Value, Value> innerSymbolTable(virSymbolTable);
+                  innerSymbolTable[op.getInductionVar()] = iv;
+                  for (auto [arg, newArg] :
+                       llvm::zip(op.getRegionIterArgs(), iterArgs))
+                    innerSymbolTable[arg] = newArg;
+                  lowerBlock(b, bodyLoc, op.getBody(), innerSymbolTable,
+                             mainLoopIV, leadingIVs, targetVectorType,
+                             isTailLoop);
+                  SmallVector<Value> yieldOperands;
+                  for (Value operand :
+                       op.getBody()->getTerminator()->getOperands()) {
+                    auto it = innerSymbolTable.find(operand);
+                    yieldOperands.push_back(
+                        it != innerSymbolTable.end() ? it->second : operand);
+                  }
+                  scf::YieldOp::create(b, bodyLoc, yieldOperands);
+                },
+                op.getUnsignedCmp());
+            for (auto [result, newResult] :
+                 llvm::zip(op.getResults(), newForOp.getResults()))
+              virSymbolTable[result] = newResult;
           })
+          .Case<affine::AffineYieldOp, vector::YieldOp, scf::YieldOp>(
+              [&](Operation *) {
+                // During recursive descent, these terminators are handled by
+                // their parent operations (such as affine. for). We will ignore
+                // them directly here.
+              })
           .Case<arith::ConstantOp>([&](arith::ConstantOp op) {
             auto newConst =
                 arith::ConstantOp::create(builder, loc, op.getValue());
@@ -1254,7 +1742,7 @@ private:
             auto oneAttr = builder.getFloatAttr(elemTy, 1.0);
             Value one = arith::ConstantOp::create(builder, loc, oneAttr);
             if (isa<VectorType>(outTy))
-              one = vector::BroadcastOp::create(builder, loc, outTy, one);
+              one = broadcastTo(builder, loc, cast<VectorType>(outTy), one);
             auto div = arith::DivFOp::create(builder, loc, one, sqrt);
             virSymbolTable[op.getResult()] = div.getResult();
           })
@@ -1262,10 +1750,661 @@ private:
                 math::RoundOp, math::TanhOp, math::ErfOp, math::PowFOp>(
               [&](Operation *op) { cloneMappedOp(op); })
           .Default([&](Operation *op) {
-            emitWarning(loc, "Unsupported operation during lowering: " +
-                                 op->getName().getStringRef());
+            // dropping it would drop its effect: fail the lowering (once
+            // per region, which is lowered once per chunk)
+            if (!unsupportedOp)
+              op->emitError("unsupported operation in a strip-mined "
+                            "vir.set_vl: ")
+                  << op->getName();
+            unsupportedOp = true;
           });
+      // The fast-math flags of the op (contract, reassoc, ...) on the op it
+      // is lowered to, when that is the same op (the cases above create it
+      // anew); an op lowered to others (rsqrt) gets none, an unsupported op
+      // (no lowered value) nothing.
+      if (auto fastMath = dyn_cast<arith::ArithFastMathInterface>(&innerOp);
+          fastMath && fastMath.getFastMathFlagsAttr() &&
+          fastMath.getFastMathFlagsAttr().getValue() !=
+              arith::FastMathFlags::none)
+        for (Value result : innerOp.getResults()) {
+          Value mapped = virSymbolTable.lookup(result);
+          Operation *lowered = mapped ? mapped.getDefiningOp() : nullptr;
+          if (!lowered || lowered->getName() != innerOp.getName())
+            continue;
+          if (auto loweredFastMath =
+                  dyn_cast<arith::ArithFastMathInterface>(lowered))
+            lowered->setAttr(loweredFastMath.getFastMathAttrName(),
+                             fastMath.getFastMathFlagsAttr());
+        }
     }
+  }
+
+  /// The pieces a dynamic vector of a set_vl with results is lowered to:
+  /// `numVectors` vectors of `lanes` lanes, then `numScalars` scalars. A
+  /// dynamic vector of static layout `layout` (e.g. [2] for
+  /// !vir.vec<2x?xT>) has its rows of vl lanes one after the other, row
+  /// major, in rows * vl lanes. The vectors are vector<widthxT> (lanes =
+  /// width), or with `scalable` vector<[width]xT>, of width * vscale lanes
+  /// at the vscale of rvv-vlen, the VLEN of the target.
+  struct Pieces {
+    int64_t width, numVectors, numScalars;
+    bool scalable = false;
+    int64_t lanes = width;
+    SmallVector<int64_t> layout;
+    int64_t vl = 0;
+    int64_t size() const { return numVectors + numScalars; }
+    // the number of lanes, rows * vl
+    int64_t length() const { return numVectors * lanes + numScalars; }
+    bool isVector(int64_t p) const { return p < numVectors; }
+    // the first lane of piece p
+    int64_t fixedOffset(int64_t p) const {
+      return isVector(p) ? p * lanes : numVectors * lanes + p - numVectors;
+    }
+    Value offset(OpBuilder &b, Location loc, int64_t p) const {
+      return arith::ConstantIndexOp::create(b, loc, fixedOffset(p));
+    }
+    Type type(Type elem, int64_t p) const {
+      return isVector(p) ? Type(VectorType::get({width}, elem, {scalable}))
+                         : elem;
+    }
+  };
+  using PieceMap = DenseMap<Value, SmallVector<Value, 4>>;
+
+  /// Lowers the ops of `block` but its terminator for a set_vl with results:
+  /// each op on dynamic vectors applies to every piece, a vir.reduce folds
+  /// the pieces in order (with reassoc, its vector pieces added lane by lane
+  /// first) and loops carry all pieces of their dynamic vector values. `map`
+  /// maps a value of the region to its pieces (one for a value that is not a
+  /// dynamic vector).
+  LogicalResult lowerBlockInPieces(OpBuilder &b, Location loc, Block *block,
+                                   PieceMap &map, const Pieces &pieces) const {
+    auto isDyn = [](Type t) { return isa<vir::DynamicVectorType>(t); };
+    auto elemOf = [](Type t) {
+      return cast<vir::DynamicVectorType>(t).getElementType();
+    };
+    // the pieces of a value (a value from above the region is its own
+    // piece)
+    auto get = [&](Value v) -> SmallVector<Value, 4> {
+      auto it = map.find(v);
+      if (it != map.end())
+        return it->second;
+      return {v};
+    };
+    auto one = [&](Value v) { return get(v).front(); };
+    // The memref and indices of the first lane of an access at `indices`
+    // (none: all 0). The rows of a dynamic vector are the dims before the
+    // last one of the memref, as for vector.load: the memref must hold them
+    // one after the other, and these dims are collapsed into the last one.
+    auto access = [&](Operation *op, Value base, ValueRange indices)
+        -> FailureOr<std::pair<Value, SmallVector<Value>>> {
+      auto type = cast<MemRefType>(base.getType());
+      int64_t rank = type.getRank(), k = pieces.layout.size();
+      SmallVector<Value> idx;
+      for (int64_t i = 0; i < rank; ++i)
+        idx.push_back(indices.empty()
+                          ? Value(arith::ConstantIndexOp::create(b, loc, 0))
+                          : one(indices[i]));
+      if (k == 0)
+        return std::make_pair(base, idx);
+      SmallVector<ReassociationIndices> groups;
+      for (int64_t i = 0; i + k + 1 < rank; ++i)
+        groups.push_back({i});
+      ReassociationIndices rows;
+      for (int64_t i = std::max<int64_t>(0, rank - k - 1); i < rank; ++i)
+        rows.push_back(i);
+      groups.push_back(rows);
+      // the rows from the first one on: the dims after the first one of the
+      // layout match it, the last dim has vl elements
+      ArrayRef<int64_t> shape = type.getShape();
+      SmallVector<int64_t> inner(ArrayRef(pieces.layout).drop_front());
+      inner.push_back(pieces.vl);
+      if (rank < k + 1 || shape.take_back(k) != ArrayRef(inner) ||
+          !memref::CollapseShapeOp::isGuaranteedCollapsible(type, groups))
+        return op->emitError("the rows of a multi-dimensional dynamic vector "
+                             "must be one after the other in memory");
+      Value flat = memref::CollapseShapeOp::create(b, loc, base, groups);
+      // the index of the first lane in the collapsed dim
+      Value index = idx[rows.front()];
+      for (int64_t i : ArrayRef(rows).drop_front()) {
+        index = arith::MulIOp::create(
+            b, loc, index, arith::ConstantIndexOp::create(b, loc, shape[i]));
+        index = arith::AddIOp::create(b, loc, index, idx[i]);
+      }
+      idx.resize(rows.front());
+      idx.push_back(index);
+      return std::make_pair(flat, idx);
+    };
+    // the memref indices of piece p of an access at `start`
+    auto pieceIndices = [&](ArrayRef<Value> start, int64_t p) {
+      SmallVector<Value> out(start.drop_back());
+      out.push_back(arith::AddIOp::create(b, loc, start.back(),
+                                          pieces.offset(b, loc, p)));
+      return out;
+    };
+    // flattens the pieces of `values`; `counts` gets the number of each
+    auto flatten = [&](ValueRange values, SmallVectorImpl<Value> &flat,
+                       SmallVectorImpl<int64_t> *counts) {
+      for (Value v : values) {
+        SmallVector<Value, 4> ps = get(v);
+        flat.append(ps.begin(), ps.end());
+        if (counts)
+          counts->push_back(ps.size());
+      }
+    };
+    auto regroup = [&](ValueRange olds, ValueRange flat,
+                       ArrayRef<int64_t> counts) {
+      int64_t at = 0;
+      for (auto [old, count] : llvm::zip(olds, counts)) {
+        map[old] = SmallVector<Value, 4>(flat.slice(at, count));
+        at += count;
+      }
+    };
+
+    for (Operation &inner : block->without_terminator()) {
+      Operation *op = &inner;
+      for (Value v : op->getOperands()) {
+        // (get() gives a value from above the region as one piece)
+        if (isDyn(v.getType()) &&
+            (!map.contains(v) || map[v].size() != size_t(pieces.size())))
+          return op->emitError("a dynamic vector used in a vir.set_vl with "
+                               "results must be defined in its region");
+      }
+      for (Type t : op->getResultTypes()) {
+        auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+        if (dyn && (dyn.getShape().drop_back() != ArrayRef(pieces.layout) ||
+                    dyn.getScalingFactor()))
+          return op->emitError("the dynamic vectors of a vir.set_vl with "
+                               "results must have the same static layout and "
+                               "no scaling factor");
+      }
+
+      if (auto load = dyn_cast<vir::LoadOp>(op)) {
+        auto at = access(op, one(load.getBase()), load.getIndices());
+        if (failed(at))
+          return failure();
+        Value base = at->first;
+        Type elem = elemOf(load.getType());
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          SmallVector<Value> idx = pieceIndices(at->second, p);
+          if (!pieces.isVector(p)) {
+            out.push_back(memref::LoadOp::create(b, loc, base, idx));
+            continue;
+          }
+          auto vecTy = cast<VectorType>(pieces.type(elem, p));
+          if (pieces.scalable) {
+            if (!hasStaticallyUnitStrideInVectorizedDim(base))
+              return op->emitError("a vir.set_vl with results on scalable "
+                                   "vectors needs unit-stride accesses");
+            out.push_back(
+                isScalableI1(vecTy)
+                    ? buildScalableI1VectorLoad(b, loc, vecTy, base, idx)
+                    : Value(vector::LoadOp::create(b, loc, vecTy, base, idx)));
+          } else if (shouldScalarizeI1VectorMemoryOp(vecTy))
+            out.push_back(
+                buildScalarizedI1VectorLoad(b, loc, vecTy, base, idx));
+          else if (hasStaticallyUnitStrideInVectorizedDim(base))
+            out.push_back(vector::LoadOp::create(b, loc, vecTy, base, idx));
+          else
+            out.push_back(vector::TransferReadOp::create(
+                b, loc, vecTy, base, idx,
+                arith::ConstantOp::create(b, loc, b.getZeroAttr(elem))));
+        }
+        map[load.getResult()] = out;
+      } else if (auto store = dyn_cast<vir::StoreOp>(op)) {
+        auto at = access(op, one(store.getBase()), store.getIndices());
+        if (failed(at))
+          return failure();
+        Value base = at->first;
+        SmallVector<Value, 4> values = get(store.getValue());
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          SmallVector<Value> idx = pieceIndices(at->second, p);
+          if (!pieces.isVector(p))
+            memref::StoreOp::create(b, loc, values[p], base, idx);
+          else if (pieces.scalable) {
+            if (!hasStaticallyUnitStrideInVectorizedDim(base))
+              return op->emitError("a vir.set_vl with results on scalable "
+                                   "vectors needs unit-stride accesses");
+            if (isScalableI1(cast<VectorType>(values[p].getType())))
+              buildScalableI1VectorStore(b, loc, values[p], base, idx);
+            else
+              vector::StoreOp::create(b, loc, values[p], base, idx);
+          } else if (shouldScalarizeI1VectorMemoryOp(
+                         cast<VectorType>(values[p].getType())))
+            buildScalarizedI1VectorStore(b, loc, values[p], base, idx);
+          else if (hasStaticallyUnitStrideInVectorizedDim(base))
+            vector::StoreOp::create(b, loc, values[p], base, idx);
+          else
+            vector::TransferWriteOp::create(b, loc, values[p], base, idx);
+        }
+      } else if (auto shuffle = dyn_cast<vir::ShuffleOp>(op)) {
+        // Row r of the result is row s = mask[r] of v1 then v2.
+        ArrayRef<int64_t> mask = shuffle.getMask();
+        int64_t rows = pieces.layout.front();
+        int64_t rowLanes =
+            pieces.vl * llvm::product_of(ArrayRef(pieces.layout).drop_front());
+        if (!pieces.scalable) {
+          // fixed: one vector of all the lanes, a vector.shuffle
+          if (pieces.size() != 1 || !pieces.isVector(0))
+            return op->emitError("vir.shuffle needs a dynamic vector in one "
+                                 "vector of the target");
+          Value v1 = one(shuffle.getV1()), v2 = one(shuffle.getV2());
+          SmallVector<int64_t> lanes;
+          for (int64_t s : mask)
+            for (int64_t c = 0; c < rowLanes; ++c)
+              lanes.push_back(s < rows
+                                  ? s * rowLanes + c
+                                  : pieces.width + (s - rows) * rowLanes + c);
+          map[shuffle.getResult()] = {
+              vector::ShuffleOp::create(b, loc, v1, v2, lanes)};
+          continue;
+        }
+        // Scalable: every lane is known (vscale = rvv-vlen / 64). Lane l of
+        // the result is lane (s mod rows) * rowLanes + l mod rowLanes of v1
+        // (s < rows) or v2, s = mask[l / rowLanes]. A piece of the result is
+        // made of runs of lanes from one piece of v1 or v2: a whole piece is
+        // that piece; a run of whole blocks of vscale lanes is taken and put
+        // in place (vector.scalable.extract / insert, register moves); other
+        // runs are slid into place and selected from their first lane on
+        // (the runs come in order: the next ones set the lanes after).
+        SmallVector<Value, 4> s1 = get(shuffle.getV1()),
+                              s2 = get(shuffle.getV2()), out;
+        int64_t vscale = pieces.lanes / pieces.width;
+        auto pieceOf = [&](int64_t lane) {
+          int64_t vectorLanes = pieces.numVectors * pieces.lanes;
+          return lane < vectorLanes ? lane / pieces.lanes
+                                    : pieces.numVectors + lane - vectorLanes;
+        };
+        // src slid down by `shift` lanes (up when negative): lane i is lane
+        // i + shift of src, the lanes shifted in are poison
+        auto slide = [&](Value src, int64_t shift) -> Value {
+          if (shift == 0)
+            return src;
+          auto vecTy = cast<VectorType>(src.getType());
+          Value by = arith::ConstantOp::create(
+              b, loc, b.getI32IntegerAttr(std::abs(shift)));
+          // the intrinsic takes LLVM types: index as an integer
+          VectorType llvmTy = vecTy;
+          if (vecTy.getElementType().isIndex()) {
+            llvmTy = vecTy.clone(
+                b.getIntegerType(getTypeConverter()->getIndexTypeBitwidth()));
+            src = arith::IndexCastOp::create(b, loc, llvmTy, src);
+          }
+          Value none = ub::PoisonOp::create(b, loc, llvmTy);
+          Value moved =
+              LLVM::CallIntrinsicOp::create(
+                  b, loc, llvmTy,
+                  b.getStringAttr(shift > 0 ? "llvm.vector.splice.left"
+                                            : "llvm.vector.splice.right"),
+                  shift > 0 ? ValueRange{src, none, by}
+                            : ValueRange{none, src, by})
+                  .getResult(0);
+          return llvmTy != vecTy
+                     ? Value(arith::IndexCastOp::create(b, loc, vecTy, moved))
+                     : moved;
+        };
+        // `res` with its lanes from `from` on those of `value`
+        auto selectFrom = [&](Value res, int64_t from, Value value) -> Value {
+          if (!res)
+            return value;
+          auto vecTy = cast<VectorType>(value.getType());
+          Value before = vector::CreateMaskOp::create(
+              b, loc, VectorType::get(vecTy.getShape(), b.getI1Type(), {true}),
+              ValueRange{arith::ConstantIndexOp::create(b, loc, from)});
+          return arith::SelectOp::create(b, loc, before, res, value);
+        };
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          int64_t first = pieces.fixedOffset(p);
+          int64_t n = pieces.isVector(p) ? pieces.lanes : 1;
+          Type elem = elemOf(shuffle.getType());
+          Value res;
+          for (int64_t l = 0; l < n;) {
+            int64_t lane = first + l, s = mask[lane / rowLanes];
+            int64_t c = lane % rowLanes;
+            int64_t from = s % rows * rowLanes + c, q = pieceOf(from);
+            int64_t a = from - pieces.fixedOffset(q);
+            int64_t qn = pieces.isVector(q) ? pieces.lanes : 1;
+            int64_t len = std::min({n - l, rowLanes - c, qn - a});
+            Value src = (s < rows ? s1 : s2)[q];
+            if (!pieces.isVector(p)) {
+              // a scalar: lane a of a vector, slid down to lane 0
+              res = pieces.isVector(q)
+                        ? Value(vector::ExtractOp::create(b, loc, slide(src, a),
+                                                          ArrayRef<int64_t>{0}))
+                        : src;
+            } else if (!pieces.isVector(q)) {
+              res = selectFrom(
+                  res, l,
+                  broadcastTo(b, loc, cast<VectorType>(pieces.type(elem, p)),
+                              src));
+            } else if (len == n) {
+              res = src;
+            } else if (l % vscale == 0 && a % vscale == 0 &&
+                       len % vscale == 0) {
+              // blocks of g * vscale lanes, g the largest power of two that
+              // divides the positions, the length and the width
+              int64_t g = std::gcd(std::gcd(l / vscale, a / vscale),
+                                   std::gcd(len / vscale, pieces.width));
+              g = int64_t(llvm::bit_floor(uint64_t(g & -g)));
+              if (!res)
+                res = ub::PoisonOp::create(b, loc, pieces.type(elem, p));
+              auto subTy = VectorType::get({g}, elem, {true});
+              for (int64_t k = 0; k < len / vscale; k += g) {
+                Value sub = vector::ScalableExtractOp::create(
+                    b, loc, subTy, src, a / vscale + k);
+                res = vector::ScalableInsertOp::create(b, loc, sub, res,
+                                                       l / vscale + k);
+              }
+            } else {
+              res = selectFrom(res, l, slide(src, a - l));
+            }
+            l += len;
+          }
+          out.push_back(res);
+        }
+        map[shuffle.getResult()] = out;
+      } else if (auto from = dyn_cast<vir::FromVectorOp>(op)) {
+        Value src = one(from.getSource());
+        auto srcTy = cast<VectorType>(src.getType());
+        if (pieces.scalable)
+          return op->emitError("vir.from_vector needs fixed vectors");
+        if (srcTy.isScalable() || srcTy.getNumElements() != pieces.length())
+          return op->emitError("vir.from_vector needs a fixed vector of vl "
+                               "lanes");
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          int64_t off = pieces.fixedOffset(p);
+          if (!pieces.isVector(p))
+            out.push_back(vector::ExtractOp::create(b, loc, src, off));
+          else if (pieces.width == srcTy.getNumElements())
+            out.push_back(src);
+          else
+            out.push_back(vector::ExtractStridedSliceOp::create(
+                b, loc, src, ArrayRef<int64_t>{off},
+                ArrayRef<int64_t>{pieces.width}, ArrayRef<int64_t>{1}));
+        }
+        map[from.getResult()] = out;
+      } else if (auto cst = dyn_cast<vir::ConstantOp>(op)) {
+        Type elem = elemOf(cst.getType());
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          if (!pieces.isVector(p)) {
+            out.push_back(arith::ConstantOp::create(b, loc, cst.getValue()));
+            continue;
+          }
+          auto vecTy = cast<ShapedType>(pieces.type(elem, p));
+          out.push_back(arith::ConstantOp::create(
+              b, loc, vecTy, DenseElementsAttr::get(vecTy, cst.getValue())));
+        }
+        map[cst.getResult()] = out;
+      } else if (auto bcast = dyn_cast<vir::BroadcastOp>(op)) {
+        Value scalar = one(bcast.getValue());
+        SmallVector<Value, 4> out;
+        for (int64_t p = 0; p < pieces.size(); ++p)
+          out.push_back(pieces.isVector(p)
+                            ? broadcastTo(b, loc,
+                                          cast<VectorType>(
+                                              pieces.type(scalar.getType(), p)),
+                                          scalar)
+                            : scalar);
+        map[bcast.getResult()] = out;
+      } else if (auto fma = dyn_cast<vir::FMAOp>(op)) {
+        SmallVector<Value, 4> lhs = get(fma.getLhs()), rhs = get(fma.getRhs()),
+                              acc = get(fma.getAcc()), out;
+        for (int64_t p = 0; p < pieces.size(); ++p)
+          out.push_back(
+              pieces.isVector(p)
+                  ? Value(vector::FMAOp::create(b, loc, lhs[p], rhs[p], acc[p]))
+                  : Value(math::FmaOp::create(b, loc, lhs[p], rhs[p], acc[p])));
+        map[fma.getResult()] = out;
+      } else if (auto reduce = dyn_cast<vir::ReduceOp>(op)) {
+        std::optional<vector::CombiningKind> combineKind =
+            combiningKindOf(reduce.getKind());
+        if (!combineKind)
+          return op->emitError("unknown vir.reduce kind ") << reduce.getKind();
+        auto fastmath = reduce.getReassoc() ? arith::FastMathFlags::reassoc
+                                            : arith::FastMathFlags::none;
+        auto combine = [&](Value x, Value y) -> Value {
+          return vector::makeArithReduction(b, loc, *combineKind, x, y);
+        };
+        SmallVector<Value, 4> in = get(reduce.getInput());
+        // With reassoc, the vector pieces are combined lane by lane first,
+        // as LLVM splits the reduction of a vector wider than its registers:
+        // widened to a power of two of pieces (the added ones neutral), its
+        // halves added, until one piece is left, then reduced. One reduction
+        // instead of one per piece, and the bits of the reduction of the
+        // whole vector when there are no scalar pieces.
+        if (reduce.getReassoc() && pieces.numVectors > 1) {
+          SmallVector<Value, 4> vecs(in.begin(),
+                                     in.begin() + pieces.numVectors);
+          while (vecs.size() > 1) {
+            // piece i with piece i + half, if any
+            size_t half = llvm::PowerOf2Ceil(vecs.size()) / 2;
+            SmallVector<Value, 4> next;
+            for (size_t i = 0; i < half; ++i)
+              next.push_back(i + half < vecs.size()
+                                 ? combine(vecs[i], vecs[i + half])
+                                 : vecs[i]);
+            vecs = next;
+          }
+          in.erase(in.begin() + 1, in.begin() + pieces.numVectors);
+          in.front() = vecs.front();
+        }
+        Value acc = one(reduce.getAcc());
+        for (Value piece : in)
+          acc = isa<VectorType>(piece.getType())
+                    ? reduceVector(b, loc, *combineKind, piece, acc, fastmath)
+                    : combine(acc, piece);
+        map[reduce.getResult()] = {acc};
+      } else if (auto select = dyn_cast<vir::SelectOp>(op)) {
+        SmallVector<Value, 4> cond = get(select.getCondition()),
+                              tv = get(select.getTrueValue()),
+                              fv = get(select.getFalseValue()), out;
+        for (int64_t p = 0; p < pieces.size(); ++p)
+          out.push_back(arith::SelectOp::create(b, loc, cond[p], tv[p], fv[p]));
+        map[select.getResult()] = out;
+      } else if (isa<vir::ExtFOp, vir::TruncFOp, vir::ExtSIOp, vir::ExtUIOp>(
+                     op)) {
+        Type elem = elemOf(op->getResult(0).getType());
+        SmallVector<Value, 4> in = get(op->getOperand(0)), out;
+        for (int64_t p = 0; p < pieces.size(); ++p) {
+          Type t = pieces.type(elem, p);
+          Value v;
+          if (isa<vir::ExtFOp>(op))
+            v = arith::ExtFOp::create(b, loc, t, in[p]);
+          else if (isa<vir::TruncFOp>(op))
+            v = arith::TruncFOp::create(b, loc, t, in[p]);
+          else if (isa<vir::ExtSIOp>(op))
+            v = arith::ExtSIOp::create(b, loc, t, in[p]);
+          else
+            v = arith::ExtUIOp::create(b, loc, t, in[p]);
+          out.push_back(v);
+        }
+        map[op->getResult(0)] = out;
+      } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {
+        SmallVector<Value> inits;
+        SmallVector<int64_t> counts;
+        flatten(forOp.getInitArgs(), inits, &counts);
+        LogicalResult status = success();
+        auto newFor = scf::ForOp::create(
+            b, loc, one(forOp.getLowerBound()), one(forOp.getUpperBound()),
+            one(forOp.getStep()), inits,
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange args) {
+              map[forOp.getInductionVar()] = {iv};
+              regroup(forOp.getRegionIterArgs(), args, counts);
+              status =
+                  lowerBlockInPieces(bb, bodyLoc, forOp.getBody(), map, pieces);
+              SmallVector<Value> yields;
+              flatten(forOp.getBody()->getTerminator()->getOperands(), yields,
+                      nullptr);
+              scf::YieldOp::create(bb, bodyLoc, yields);
+            },
+            forOp.getUnsignedCmp());
+        if (failed(status))
+          return failure();
+        regroup(forOp.getResults(), newFor.getResults(), counts);
+      } else if (auto forOp = dyn_cast<affine::AffineForOp>(op)) {
+        SmallVector<Value> inits, lbs, ubs;
+        SmallVector<int64_t> counts;
+        flatten(forOp.getInits(), inits, &counts);
+        flatten(forOp.getLowerBoundOperands(), lbs, nullptr);
+        flatten(forOp.getUpperBoundOperands(), ubs, nullptr);
+        LogicalResult status = success();
+        auto newFor = affine::AffineForOp::create(
+            b, loc, lbs, forOp.getLowerBoundMap(), ubs,
+            forOp.getUpperBoundMap(), forOp.getStep().getLimitedValue(), inits,
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange args) {
+              map[forOp.getInductionVar()] = {iv};
+              regroup(forOp.getRegionIterArgs(), args, counts);
+              status =
+                  lowerBlockInPieces(bb, bodyLoc, forOp.getBody(), map, pieces);
+              SmallVector<Value> yields;
+              flatten(forOp.getBody()->getTerminator()->getOperands(), yields,
+                      nullptr);
+              affine::AffineYieldOp::create(bb, bodyLoc, yields);
+            });
+        if (failed(status))
+          return failure();
+        regroup(forOp.getResults(), newFor.getResults(), counts);
+      } else if (op->getNumRegions() != 0) {
+        return op->emitError("unsupported op with regions in a vir.set_vl "
+                             "with results");
+      } else {
+        bool onDyn = llvm::any_of(op->getOperandTypes(), isDyn) ||
+                     llvm::any_of(op->getResultTypes(), isDyn);
+        if (onDyn &&
+            !isa<arith::ArithDialect, math::MathDialect>(op->getDialect()))
+          return op->emitError("unsupported op on dynamic vectors in a "
+                               "vir.set_vl with results");
+        // an elementwise op on every piece, or any other op once
+        int64_t n = onDyn ? pieces.size() : 1;
+        SmallVector<SmallVector<Value, 4>> results(op->getNumResults());
+        for (int64_t p = 0; p < n; ++p) {
+          OperationState state(loc, op->getName());
+          for (Value v : op->getOperands())
+            state.addOperands(isDyn(v.getType()) ? get(v)[p] : one(v));
+          for (Type t : op->getResultTypes())
+            state.addTypes(isDyn(t) ? pieces.type(elemOf(t), p) : t);
+          state.addAttributes(op->getAttrs());
+          Operation *newOp = b.create(state);
+          for (auto [i, r] : llvm::enumerate(newOp->getResults()))
+            results[i].push_back(r);
+        }
+        for (auto [old, rs] : llvm::zip(op->getResults(), results))
+          map[old] = rs;
+      }
+    }
+    return success();
+  }
+
+  /// Lowers a set_vl with results: its vl must be a constant, and its
+  /// region computes on whole dynamic vectors, each lowered to the pieces of
+  /// `Pieces` (no strip-mined loop), so that values can flow from one
+  /// piece to the next and out of the region.
+  LogicalResult lowerWithResults(vir::SetVLOp op,
+                                 ConversionPatternRewriter &rewriter,
+                                 Type anchorType) const {
+    std::optional<int64_t> vl = getConstantIntValue(op.getVl());
+    if (!vl)
+      return op.emitError("a vir.set_vl with results needs a constant vl");
+    // scalable vectors but for the floats RVV does not hold
+    bool scalable = useScalable && !needsFixedVectors(op.getRegion(), zvfbfmin);
+    // the static layout of the dynamic vectors (checked on each op)
+    SmallVector<int64_t> layout;
+    op.getRegion().walk([&](Operation *inner) {
+      for (Type t : inner->getResultTypes())
+        if (auto dyn = dyn_cast<vir::DynamicVectorType>(t)) {
+          layout.assign(dyn.getShape().begin(), dyn.getShape().end() - 1);
+          return WalkResult::interrupt();
+        }
+      return WalkResult::advance();
+    });
+    // a dynamic vector holds its rows one after the other
+    int64_t lanes = *vl * llvm::product_of(layout);
+    int64_t width =
+        useCustomVecWid
+            ? vectorWidth
+            : vectorTypeHelper(op.getRegion(), anchorType, scalable, verbose,
+                               rvvVlen,
+                               getTypeConverter()->getIndexTypeBitwidth(),
+                               llvm::product_of(layout))
+                  .getShape()[0];
+    // Scalable vectors have width * vscale lanes at the vscale of the
+    // target, rvv-vlen / 64: the code is for that VLEN only. Without it, a
+    // vector<[N]xT> has more lanes than the ones it is cut for on a larger
+    // VLEN: no code is valid on all of them.
+    if (scalable && !rvvVlenExact)
+      return op.emitError("a vir.set_vl with results on scalable vectors "
+                          "needs rvv-vlen, the exact VLEN");
+    int64_t vscale = scalable ? rvvVlen / 64 : 1;
+    // A vir.shuffle of fixed vectors moves lanes within one vector: each
+    // dynamic vector is one vector of all its lanes, whatever the register
+    // pressure. On scalable vectors, every lane is known, so the pieces are
+    // sized as for any region (the shuffle moves lanes between them).
+    SmallVector<vir::ShuffleOp> shuffles;
+    op.getRegion().walk([&](vir::ShuffleOp s) { shuffles.push_back(s); });
+    if (!shuffles.empty()) {
+      if (lanes <= 0)
+        return op.emitError("vir.shuffle needs a dynamic vector with a "
+                            "positive number of lanes");
+      if (!scalable && !useCustomVecWid)
+        width = lanes;
+      // RVV: vector<[N]xT> is a group of N * SEW / 64 registers, of at most
+      // 8; each shuffle has its element type (vir.extf / truncf, wider than
+      // the anchor's the width comes from; index as the LLVM lowering has
+      // it)
+      int64_t sew = 0;
+      for (vir::ShuffleOp s : shuffles) {
+        Type elem = s.getType().getElementType();
+        sew = std::max<int64_t>(
+            sew, elem.isIndex() ? getTypeConverter()->getIndexTypeBitwidth()
+                                : elem.getIntOrFloatBitWidth());
+      }
+      // scalable: groups of at most 8 for every shuffle, whole vectors only
+      // where they can be (no lanes left as scalars, which a shuffle moves
+      // one by one)
+      while (scalable && !useCustomVecWid && width > 1 &&
+             (width * sew > 8 * 64 || lanes % (width * vscale) != 0))
+        width /= 2;
+      // (vector-width can ask for more)
+      if (scalable)
+        for (vir::ShuffleOp s : shuffles) {
+          Type elem = s.getType().getElementType();
+          int64_t sew = elem.isIndex()
+                            ? getTypeConverter()->getIndexTypeBitwidth()
+                            : elem.getIntOrFloatBitWidth();
+          if (width * sew > 8 * 64)
+            return s.emitError("vir.shuffle needs register groups of at "
+                               "most 8, vector-width ")
+                   << width << " gives " << width * sew / 64 << " registers";
+        }
+      if (verbose && !scalable && !useCustomVecWid)
+        llvm::outs() << "vir.shuffle: one vector of " << lanes
+                     << " lanes, width " << width << "\n";
+    }
+    // whole vectors, then the lanes left as scalars: no lane is off
+    int64_t step = width * vscale;
+    Pieces pieces{width, lanes / step, lanes % step, scalable, step};
+    pieces.layout = layout;
+    pieces.vl = *vl;
+    // keep the lowered code small: vl over a few vectors
+    if (pieces.size() > 64)
+      return op.emitError("a vir.set_vl with results lowers to more than 64 "
+                          "pieces; increase vector-width");
+    Location loc = op.getLoc();
+    if (scalable && failed(checkScalableI1Accesses(op.getRegion())))
+      return failure();
+    PieceMap map;
+    Block &block = op.getRegion().front();
+    if (failed(lowerBlockInPieces(rewriter, loc, &block, map, pieces)))
+      return failure();
+    SmallVector<Value> results;
+    for (Value v : block.getTerminator()->getOperands()) {
+      auto it = map.find(v);
+      results.push_back(it != map.end() ? it->second.front() : v);
+    }
+    rewriter.replaceOp(op, results);
+    return success();
   }
 
   LogicalResult
@@ -1276,14 +2415,32 @@ private:
     //===------------------------------------------------------------------===//
     // Step 1: Recursive search for anchor type.
     //===------------------------------------------------------------------===//
+    unsupportedOp = false;
     Region &region = op.getRegion();
     Type anchorType = findAnchorTypeRecursive(region);
+    if (anchorType)
+      anchorType =
+          widestElementType(region, getTypeConverter()->getIndexTypeBitwidth());
     if (!anchorType) {
       return op.emitError(
           "No anchor type found in the dynamic vector region. "
           "Ensure there are operations with !vir.vec<?xT> types "
           "without scaling factors.");
     }
+    if (op.getNumResults() != 0)
+      return lowerWithResults(op, rewriter, anchorType);
+    WalkResult fromVector = region.walk([](vir::FromVectorOp from) {
+      from.emitError("vir.from_vector needs a vir.set_vl with results");
+      return WalkResult::interrupt();
+    });
+    if (fromVector.wasInterrupted())
+      return failure();
+    WalkResult shuffle = region.walk([](vir::ShuffleOp op) {
+      op.emitError("vir.shuffle needs a vir.set_vl with results");
+      return WalkResult::interrupt();
+    });
+    if (shuffle.wasInterrupted())
+      return failure();
 
     //===------------------------------------------------------------------===//
     // Step 2: Construct the target vector type.
@@ -1322,15 +2479,43 @@ private:
       if (!leadingStaticDims.empty())
         break;
     }
+    // The dynamic vectors are the values of the region (each lowered to a
+    // vector of the main loop and a scalar of the tail loop), and the loops
+    // over the rows are those of one static layout.
+    auto badLayout = [&](Type t) {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(t);
+      return dyn && dyn.getShape().size() > 1 &&
+             dyn.getShape().drop_back() != ArrayRef(leadingStaticDims);
+    };
+    WalkResult layouts = region.walk([&](Operation *inner) {
+      for (Value v : inner->getOperands())
+        if (isa<vir::DynamicVectorType>(v.getType()) &&
+            !region.isAncestor(v.getParentRegion())) {
+          inner->emitError("a dynamic vector used in a vir.set_vl must be "
+                           "defined in its region");
+          return WalkResult::interrupt();
+        }
+      // (a loop-carried value has the type of the loop result)
+      if (llvm::any_of(inner->getResultTypes(), badLayout)) {
+        inner->emitError("the multi-dimensional dynamic vectors of a "
+                         "vir.set_vl must have the same static layout");
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+    if (layouts.wasInterrupted())
+      return failure();
 
     int vectorWid = vectorWidth; // Dynamic defined vector width
+    // scalable vectors but for the floats RVV does not hold
+    bool scalable = useScalable && !needsFixedVectors(region, zvfbfmin);
     VectorType targetVectorType;
     if (useCustomVecWid) {
       if (verbose) {
         llvm::outs() << "Use user custom vector width = " << vectorWidth
                      << "\n";
       }
-      if (useScalable) {
+      if (scalable) {
         // Scalable Vector Type: e.g. `vector<[4]xf32>`.
         SmallVector<bool, 1> scalableDim = {true};
         targetVectorType =
@@ -1341,9 +2526,14 @@ private:
       }
     } else {
       targetVectorType =
-          vectorTypeHelper(region, anchorType, useScalable, verbose);
+          vectorTypeHelper(region, anchorType, scalable, verbose, rvvVlen,
+                           getTypeConverter()->getIndexTypeBitwidth());
       vectorWid = int(targetVectorType.getShape()[0]);
     }
+
+    if (targetVectorType.isScalable() &&
+        failed(checkScalableI1Accesses(region)))
+      return failure();
 
     //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
@@ -1355,51 +2545,171 @@ private:
     auto emitVectorAndTail = [&](OpBuilder &b, ArrayRef<Value> leadingIVs) {
       Value vlValue = op.getVl();
       Value vlStep = arith::ConstantIndexOp::create(b, loc, vectorWid);
-      Value vlUpboundPat = arith::SubIOp::create(b, loc, vlValue, vlStep);
-      Value vlUpbound = arith::AddIOp::create(
-          b, loc, vlUpboundPat, arith::ConstantIndexOp::create(b, loc, 1));
       Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+      Value tailStart;
+      if (cast<VectorType>(targetVectorType).isScalable()) {
+        // A scalable vector has vectorWid * vscale lanes: the step, and with
+        // it the end of the main loop, are runtime values.
+        Value step = arith::MulIOp::create(
+            b, loc, vlStep, vector::VectorScaleOp::create(b, loc));
+        Value vlRem = arith::RemSIOp::create(b, loc, vlValue, step);
+        tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
+        scf::ForOp::create(
+            b, loc, zero, tailStart, step, /*initArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              DenseMap<Value, Value> virSymbolTable;
+              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                         leadingIVs, targetVectorType, /*isTailLoop=*/false);
+              scf::YieldOp::create(bb, bodyLoc);
+            });
+      } else {
+        Value vlUpboundPat = arith::SubIOp::create(b, loc, vlValue, vlStep);
+        Value vlUpbound = arith::AddIOp::create(
+            b, loc, vlUpboundPat, arith::ConstantIndexOp::create(b, loc, 1));
 
-      affine::AffineForOp::create(
-          b, loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
-          /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
-          vectorWid,
-          /*iterArgs=*/ValueRange{},
-          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-            //===------------------------------------------------------------===//
-            // Step 4: Convert operations inside the dynamic vector region.
-            //===------------------------------------------------------------===//
-            DenseMap<Value, Value> virSymbolTable;
-            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
-                       leadingIVs, targetVectorType, /*isTailLoop=*/false);
-            affine::AffineYieldOp::create(bb, bodyLoc);
-          });
+        affine::AffineForOp::create(
+            b, loc, /*lowerBound=*/ValueRange{zero},
+            rewriter.getDimIdentityMap(),
+            /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
+            vectorWid,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              //===------------------------------------------------------------===//
+              // Step 4: Convert operations inside the dynamic vector region.
+              //===------------------------------------------------------------===//
+              DenseMap<Value, Value> virSymbolTable;
+              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                         leadingIVs, targetVectorType, /*isTailLoop=*/false);
+              affine::AffineYieldOp::create(bb, bodyLoc);
+            });
 
-      //===----------------------------------------------------------------===//
-      // Step 5: Create a tail loop to process the remaining elements.
-      //===----------------------------------------------------------------===//
-      Value vlRem = arith::RemSIOp::create(b, loc, vlValue, vlStep);
-      Value tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
+        //===----------------------------------------------------------------===//
+        // Step 5: Create a tail loop to process the remaining elements.
+        //===----------------------------------------------------------------===//
+        Value vlRem = arith::RemSIOp::create(b, loc, vlValue, vlStep);
+        tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
+      }
 
-      affine::AffineForOp::create(
-          b, loc, /*lowerBound=*/ValueRange{tailStart},
-          rewriter.getDimIdentityMap(),
-          /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
-          /*step=*/1,
-          /*iterArgs=*/ValueRange{},
-          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-            DenseMap<Value, Value> virSymbolTable;
-            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
-                       leadingIVs, /*targetVectorType=*/Type{},
-                       /*isTailLoop=*/true);
-            affine::AffineYieldOp::create(bb, bodyLoc);
-          });
+      // The lanes past the main loop, fewer than its step, first in vectors
+      // of half its width, then a quarter, ...: each at most once, in the
+      // order of the lanes, with no mask; the lanes left go to the scalar
+      // tail loop. Fixed vectors need a constant vl (the bounds of the affine
+      // tail loop stay affine); scalable ones test the rest at run time,
+      // their lanes counted at the VLEN of rvv-vlen, else the least (128).
+      //
+      // A part has at least 512 bits: a heuristic from measurements, not a
+      // cost model. On the f32 YOLOv8 (16 f32 per part) on three RISC-V
+      // cores, parts of 2 to 8 lanes cost about as much as the scalar lanes
+      // they replace, plus their code and vtype changes (VLEN 128: 2.5%
+      // slower than the scalar tail; from 16 lanes on, the same), while
+      // parts of 16 lanes and more were the gain on VLEN 256 and 1024.
+      // 512 bits are 64 i8, 32 f16, 8 f64 lanes: other element types,
+      // instructions and cores may have another best size, for a target
+      // cost model to give.
+      {
+        auto vecTy = cast<VectorType>(targetVectorType);
+        bool scalable = vecTy.isScalable();
+        std::optional<int64_t> constVl = getConstantIntValue(vlValue);
+        Type elem = vecTy.getElementType();
+        int64_t elemBits = elem.isIndex()
+                               ? getTypeConverter()->getIndexTypeBitwidth()
+                               : elem.getIntOrFloatBitWidth();
+        // (an i1 lane is a byte, as for the size of the vectors)
+        elemBits = std::max<int64_t>(elemBits, 8);
+        int64_t lanesPerWidth =
+            scalable ? (rvvVlen > 0 ? rvvVlen : 128) / 64 : 1;
+        auto bigEnough = [&](int64_t w) {
+          return w * lanesPerWidth * elemBits >= 512;
+        };
+        auto lowerPart = [&](OpBuilder &bb, Location bodyLoc, Value at,
+                             int64_t w) {
+          DenseMap<Value, Value> virSymbolTable;
+          lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, at,
+                     leadingIVs,
+                     VectorType::get({w}, vecTy.getElementType(),
+                                     vecTy.getScalableDims()),
+                     /*isTailLoop=*/false);
+        };
+        if (scalable) {
+          Value vscale = vector::VectorScaleOp::create(b, loc);
+          for (int64_t w = vectorWid / 2; w >= 1 && bigEnough(w); w /= 2) {
+            Value step = arith::MulIOp::create(
+                b, loc, arith::ConstantIndexOp::create(b, loc, w), vscale);
+            Value rest = arith::SubIOp::create(b, loc, vlValue, tailStart);
+            Value fits = arith::CmpIOp::create(
+                b, loc, arith::CmpIPredicate::sge, rest, step);
+            Value at = tailStart;
+            scf::IfOp::create(b, loc, fits,
+                              [&](OpBuilder &bb, Location bodyLoc) {
+                                lowerPart(bb, bodyLoc, at, w);
+                                scf::YieldOp::create(bb, bodyLoc);
+                              });
+            tailStart = arith::SelectOp::create(
+                b, loc, fits, arith::AddIOp::create(b, loc, tailStart, step),
+                tailStart);
+          }
+        } else if (constVl) {
+          int64_t at = *constVl - *constVl % vectorWid;
+          for (int64_t w = vectorWid / 2; w >= 2 && bigEnough(w); w /= 2)
+            if (*constVl - at >= w) {
+              lowerPart(b, loc, arith::ConstantIndexOp::create(b, loc, at), w);
+              at += w;
+            }
+          tailStart = arith::ConstantIndexOp::create(b, loc, at);
+        }
+      }
+
+      auto lowerTail = [&](OpBuilder &bb, Location bodyLoc, Value iv) {
+        DenseMap<Value, Value> virSymbolTable;
+        lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv, leadingIVs,
+                   /*targetVectorType=*/Type{},
+                   /*isTailLoop=*/true);
+      };
+      if (cast<VectorType>(targetVectorType).isScalable()) {
+        // Inside the loops over leading static dims, the scalable tailStart
+        // is not a valid affine symbol (its remsi divisor is not provably
+        // nonzero), so the tail loop is an scf.for as well.
+        scf::ForOp::create(
+            b, loc, tailStart, vlValue,
+            arith::ConstantIndexOp::create(b, loc, 1),
+            /*initArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              lowerTail(bb, bodyLoc, iv);
+              scf::YieldOp::create(bb, bodyLoc);
+            });
+      } else {
+        affine::AffineForOp::create(
+            b, loc, /*lowerBound=*/ValueRange{tailStart},
+            rewriter.getDimIdentityMap(),
+            /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
+            /*step=*/1,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              lowerTail(bb, bodyLoc, iv);
+              affine::AffineYieldOp::create(bb, bodyLoc);
+            });
+      }
     };
 
     if (leadingStaticDims.empty()) {
       emitVectorAndTail(rewriter, /*leadingIVs=*/{});
+    } else if (rowsAreIndependent(op, leadingStaticDims.size())) {
+      // One loop over the leading static dims, in parallel: each row writes
+      // elements of its own and reads no element another row writes.
+      Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+      Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+      SmallVector<Value> lbs, ubs, steps;
+      for (int64_t ub : leadingStaticDims) {
+        lbs.push_back(c0);
+        ubs.push_back(arith::ConstantIndexOp::create(rewriter, loc, ub));
+        steps.push_back(c1);
+      }
+      scf::ParallelOp::create(rewriter, loc, lbs, ubs, steps,
+                              [&](OpBuilder &b, Location, ValueRange ivs) {
+                                emitVectorAndTail(b, SmallVector<Value>(ivs));
+                              });
     } else {
-      // Build nested loops over the leading static dims.
+      // Nested serial loops over the leading static dims.
       SmallVector<Value> ivs;
       std::function<void(unsigned, OpBuilder &)> emitOuter = [&](unsigned dim,
                                                                  OpBuilder &b) {
@@ -1424,6 +2734,8 @@ private:
       emitOuter(/*dim=*/0, rewriter);
     }
 
+    if (unsupportedOp)
+      return failure();
     rewriter.eraseOp(op);
     return success();
   }
@@ -1434,10 +2746,666 @@ private:
 void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
                                            RewritePatternSet &patterns,
                                            bool useScalable, int vectorWidth,
-                                           bool verbose, bool useCustomVecWid) {
+                                           bool verbose, bool useCustomVecWid,
+                                           int rvvVlen, bool rvvVlenExact,
+                                           bool zvfbfmin) {
   // clang-format off
-  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid);
+  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact, zvfbfmin);
   // clang-format on
+}
+
+//===----------------------------------------------------------------------===//
+// Unroll-and-jam in strip-mined regions
+//===----------------------------------------------------------------------===//
+//
+// In a vir.set_vl without results, a loop whose iterations are independent
+// and share a vector load of an inner loop (the output pixels of a row of a
+// convolution: the filter vector of each (kh, kw, c)) runs `factor`
+// iterations jammed together: their inner loops as one, the shared load
+// once. The factor is the one whose vectors, sized for the register pressure
+// as the region is lowered (vectorTypeHelper), compute the most lanes per
+// shared load.
+
+namespace {
+/// The most iterations jammed together, a bound on the code size.
+constexpr int64_t kMaxJamFactor = 8;
+
+/// A memory access in a loop: the memref, the indices of a known load or
+/// store (else none), the rank of the vector it accesses (0: a scalar), and
+/// whether it writes.
+struct JamAccess {
+  Value base;
+  SmallVector<Value> indices;
+  int64_t vectorRank;
+  bool write;
+};
+} // namespace
+
+/// The buffer a memref is a view of.
+static Value underlyingBuffer(Value v) {
+  while (auto view = v.getDefiningOp<ViewLikeOpInterface>())
+    v = view.getViewSource();
+  return v;
+}
+
+/// Whether two memrefs cannot overlap: by the alias analysis, or as views of
+/// different buffers that are both allocated, or one allocated and the other
+/// memory that existed before the allocation (an argument of the function, a
+/// global). A buffer of another origin, e.g. the result of a call, may be an
+/// allocated one.
+static bool areDisjoint(Value a, Value b, AliasAnalysis &aa) {
+  if (aa.alias(a, b).isNo())
+    return true;
+  Value ra = underlyingBuffer(a), rb = underlyingBuffer(b);
+  if (ra == rb)
+    return false;
+  auto allocated = [](Value v) {
+    auto iface = v.getDefiningOp<MemoryEffectOpInterface>();
+    return iface && iface.getEffectOnValue<MemoryEffects::Allocate>(v);
+  };
+  auto existing = [](Value v) {
+    if (v.getDefiningOp<memref::GetGlobalOp>())
+      return true;
+    auto arg = dyn_cast<BlockArgument>(v);
+    return arg && arg.getOwner()->isEntryBlock() &&
+           isa<FunctionOpInterface>(arg.getOwner()->getParentOp());
+  };
+  return (allocated(ra) && (allocated(rb) || existing(rb))) ||
+         (allocated(rb) && existing(ra));
+}
+
+/// The memory accesses of the ops in `body`. Fails on another memory effect,
+/// or an op whose effects are unknown (a VIR op other than vir.load and
+/// vir.store has none).
+static LogicalResult collectAccesses(Block &body,
+                                     SmallVectorImpl<JamAccess> &accesses) {
+  WalkResult walk = body.walk([&](Operation *op) {
+    if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      return WalkResult::advance();
+    auto iface = dyn_cast<MemoryEffectOpInterface>(op);
+    if (!iface)
+      return isa<vir::VIRDialect>(op->getDialect()) && !isa<vir::SetVLOp>(op)
+                 ? WalkResult::advance()
+                 : WalkResult::interrupt();
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    iface.getEffects(effects);
+    for (MemoryEffects::EffectInstance &effect : effects) {
+      Value base = effect.getValue();
+      bool write = isa<MemoryEffects::Write>(effect.getEffect());
+      if (!base || !isa<MemRefType>(base.getType()) ||
+          !(write || isa<MemoryEffects::Read>(effect.getEffect())))
+        return WalkResult::interrupt();
+      JamAccess access{base, {}, 0, write};
+      if (auto load = dyn_cast<vir::LoadOp>(op)) {
+        access.indices = llvm::to_vector(load.getIndices());
+        access.vectorRank = load.getResult().getType().getShape().size();
+      } else if (auto store = dyn_cast<vir::StoreOp>(op)) {
+        access.indices = llvm::to_vector(store.getIndices());
+        access.vectorRank = store.getValue().getType().getShape().size();
+      } else if (auto load = dyn_cast<memref::LoadOp>(op)) {
+        access.indices = llvm::to_vector(load.getIndices());
+      } else if (auto store = dyn_cast<memref::StoreOp>(op)) {
+        access.indices = llvm::to_vector(store.getIndices());
+      }
+      accesses.push_back(std::move(access));
+    }
+    return WalkResult::advance();
+  });
+  return failure(walk.wasInterrupted());
+}
+
+/// Whether no two elements of a memref of `type` share an address: the
+/// identity layout, or static strides and sizes whose dims nest (sorted by
+/// stride, each stride at least the extent of the dims below it).
+static bool hasDistinctElements(MemRefType type) {
+  if (type.getLayout().isIdentity())
+    return true;
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  if (failed(type.getStridesAndOffset(strides, offset)))
+    return false;
+  SmallVector<std::pair<int64_t, int64_t>> dims; // (stride, size)
+  for (auto [stride, size] : llvm::zip(strides, type.getShape())) {
+    if (size == 1)
+      continue;
+    if (ShapedType::isDynamic(stride) || ShapedType::isDynamic(size) ||
+        stride <= 0)
+      return false;
+    dims.push_back({stride, size});
+  }
+  llvm::sort(dims);
+  int64_t extent = 1;
+  for (auto [stride, size] : dims) {
+    if (stride < extent)
+      return false;
+    extent = stride * size;
+  }
+  return true;
+}
+
+/// Whether the rows of the dynamic vectors of `op` (`rows` leading static
+/// dims) may run in parallel: each write is a vir.store of a vector with
+/// these rows, to a memref whose elements are distinct, so that each row
+/// writes elements of its own; and every access to a memref that may
+/// overlap a written one is at the same base, indices and rank, so that a
+/// row reads only elements it writes. A scalar memref.store, executed once
+/// per row at the same address, keeps the rows serial.
+static bool rowsAreIndependent(vir::SetVLOp op, size_t rows) {
+  SmallVector<JamAccess> accesses;
+  if (failed(collectAccesses(op.getRegion().front(), accesses)))
+    return false;
+  AliasAnalysis aa(op);
+  for (const JamAccess &w : accesses) {
+    if (!w.write)
+      continue;
+    if (w.vectorRank != int64_t(rows) + 1 ||
+        !hasDistinctElements(cast<MemRefType>(w.base.getType())))
+      return false;
+    for (const JamAccess &a : accesses)
+      if (!areDisjoint(a.base, w.base, aa) &&
+          (a.base != w.base || a.indices != w.indices ||
+           a.vectorRank != w.vectorRank))
+        return false;
+  }
+  return true;
+}
+
+/// Whether `v` may differ from one iteration of `loop` to the next. The
+/// inner loops have the same bounds in every iteration (isJammable); their
+/// iteration arguments, and the results of other ops with regions, are
+/// taken to differ.
+static bool dependsOnIteration(Value v, scf::ForOp loop,
+                               DenseMap<Value, bool> &memo) {
+  if (loop.isDefinedOutsideOfLoop(v))
+    return false;
+  if (v == loop.getInductionVar())
+    return true;
+  if (auto it = memo.find(v); it != memo.end())
+    return it->second;
+  bool depends;
+  if (auto arg = dyn_cast<BlockArgument>(v)) {
+    auto inner = dyn_cast<scf::ForOp>(arg.getOwner()->getParentOp());
+    depends = !inner || arg != inner.getInductionVar();
+  } else {
+    Operation *def = v.getDefiningOp();
+    depends = def->getNumRegions() != 0 ||
+              llvm::any_of(def->getOperands(), [&](Value operand) {
+                return dependsOnIteration(operand, loop, memo);
+              });
+  }
+  memo[v] = depends;
+  return depends;
+}
+
+/// Whether the iterations of `loop` may run jammed together, and share a
+/// vector load: the loop has no results and a constant step; its inner
+/// loops have the same bounds in every iteration; each iteration writes
+/// elements of its own (at indices with the induction variable, not in the
+/// dims a vector spans), which every access of a memref that may overlap
+/// uses too; and a vector load of an inner loop is the same in every
+/// iteration.
+static bool isJammable(scf::ForOp loop, AliasAnalysis &aa) {
+  if (loop.getNumResults() != 0 || !getConstantIntValue(loop.getStep()))
+    return false;
+  bool hasInnerLoop = false, invariantBounds = true;
+  loop.getBody()->walk([&](scf::ForOp inner) {
+    hasInnerLoop = true;
+    for (Value v :
+         {inner.getLowerBound(), inner.getUpperBound(), inner.getStep()})
+      invariantBounds &= loop.isDefinedOutsideOfLoop(v);
+  });
+  if (!hasInnerLoop || !invariantBounds)
+    return false;
+
+  SmallVector<JamAccess> accesses;
+  if (failed(collectAccesses(*loop.getBody(), accesses)))
+    return false;
+  Value iv = loop.getInductionVar();
+  for (const JamAccess &w : accesses) {
+    if (!w.write)
+      continue;
+    ArrayRef<Value> own = ArrayRef(w.indices).drop_back(
+        std::min<size_t>(w.vectorRank, w.indices.size()));
+    if (!llvm::is_contained(own, iv) ||
+        !hasDistinctElements(cast<MemRefType>(w.base.getType())))
+      return false;
+    for (const JamAccess &a : accesses)
+      if (!areDisjoint(a.base, w.base, aa) &&
+          (a.base != w.base || a.indices != w.indices ||
+           a.vectorRank != w.vectorRank))
+        return false;
+  }
+
+  DenseMap<Value, bool> memo;
+  WalkResult shared = loop.getBody()->walk([&](vir::LoadOp load) {
+    if (load->getParentOp() == loop ||
+        llvm::any_of(load->getOperands(), [&](Value v) {
+          return dependsOnIteration(v, loop, memo);
+        }))
+      return WalkResult::advance();
+    return WalkResult::interrupt();
+  });
+  return shared.wasInterrupted();
+}
+
+/// Emits the ops of `body` but its terminator for `maps.size()` iterations
+/// jammed together, `maps[k]` mapping the values of the body to those of the
+/// k-th: an inner scf.for once, carrying the iteration arguments of all; an
+/// op without regions or writes that computes the same in all, once; any
+/// other op for each.
+static void emitJammed(OpBuilder &b, Block &body,
+                       MutableArrayRef<IRMapping> maps) {
+  for (Operation &op : body.without_terminator()) {
+    if (auto inner = dyn_cast<scf::ForOp>(&op)) {
+      unsigned n = inner.getNumRegionIterArgs();
+      SmallVector<Value> inits;
+      for (IRMapping &m : maps)
+        for (Value v : inner.getInitArgs())
+          inits.push_back(m.lookupOrDefault(v));
+      auto jammed = scf::ForOp::create(
+          b, inner.getLoc(), inner.getLowerBound(), inner.getUpperBound(),
+          inner.getStep(), inits,
+          [&](OpBuilder &ib, Location loc, Value iv, ValueRange args) {
+            SmallVector<IRMapping> innerMaps(maps.begin(), maps.end());
+            for (auto [k, m] : llvm::enumerate(innerMaps)) {
+              m.map(inner.getInductionVar(), iv);
+              m.map(inner.getRegionIterArgs(), args.slice(k * n, n));
+            }
+            emitJammed(ib, *inner.getBody(), innerMaps);
+            SmallVector<Value> yields;
+            for (IRMapping &m : innerMaps)
+              for (Value v : inner.getBody()->getTerminator()->getOperands())
+                yields.push_back(m.lookupOrDefault(v));
+            scf::YieldOp::create(ib, loc, yields);
+          });
+      for (auto [k, m] : llvm::enumerate(maps))
+        m.map(inner.getResults(), jammed.getResults().slice(k * n, n));
+      continue;
+    }
+    auto iface = dyn_cast<MemoryEffectOpInterface>(&op);
+    bool shared =
+        op.getNumRegions() == 0 &&
+        !(iface && iface.hasEffect<MemoryEffects::Write>()) &&
+        llvm::all_of(op.getOperands(), [&](Value v) {
+          return llvm::all_of(maps, [&](IRMapping &m) {
+            return m.lookupOrDefault(v) == maps.front().lookupOrDefault(v);
+          });
+        });
+    if (!shared) {
+      for (IRMapping &m : maps)
+        b.clone(op, m);
+      continue;
+    }
+    Operation *clone = b.clone(op, maps.front());
+    for (IRMapping &m : maps.drop_front())
+      m.map(op.getResults(), clone->getResults());
+  }
+}
+
+/// Jams `factor` iterations of `loop` together (isJammable); the iterations
+/// left, fewer than `factor`, stay in `loop`.
+static void jamLoop(scf::ForOp loop, int64_t factor) {
+  OpBuilder b(loop);
+  Location loc = loop.getLoc();
+  int64_t step = *getConstantIntValue(loop.getStep());
+  Value lb = loop.getLowerBound(), ub = loop.getUpperBound();
+  Value block = arith::ConstantIndexOp::create(b, loc, step * factor);
+  // the iterations: max(ub - lb, 0) ceildiv step
+  Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+  Value trips = arith::MaxSIOp::create(
+      b, loc, arith::SubIOp::create(b, loc, ub, lb), zero);
+  if (step != 1)
+    trips = arith::DivSIOp::create(
+        b, loc,
+        arith::AddIOp::create(b, loc, trips,
+                              arith::ConstantIndexOp::create(b, loc, step - 1)),
+        arith::ConstantIndexOp::create(b, loc, step));
+  // lb + (trips - trips % factor) * step
+  Value jammed = arith::SubIOp::create(
+      b, loc, trips,
+      arith::RemSIOp::create(b, loc, trips,
+                             arith::ConstantIndexOp::create(b, loc, factor)));
+  Value mainUb = arith::AddIOp::create(
+      b, loc, lb,
+      step == 1
+          ? jammed
+          : Value(arith::MulIOp::create(
+                b, loc, jammed, arith::ConstantIndexOp::create(b, loc, step))));
+  scf::ForOp::create(
+      b, loc, lb, mainUb, block, ValueRange{},
+      [&](OpBuilder &mb, Location l, Value iv, ValueRange) {
+        SmallVector<IRMapping> maps(factor);
+        maps[0].map(loop.getInductionVar(), iv);
+        for (int64_t k = 1; k < factor; ++k)
+          maps[k].map(
+              loop.getInductionVar(),
+              arith::AddIOp::create(
+                  mb, l, iv, arith::ConstantIndexOp::create(mb, l, k * step))
+                  .getResult());
+        emitJammed(mb, *loop.getBody(), maps);
+        scf::YieldOp::create(mb, l);
+      });
+  loop.getLowerBoundMutable().assign(mainUb);
+}
+
+/// Jams the loops of the strip-mined regions of `module` (see above). The
+/// vectors are sized as vectorTypeHelper sizes them with these arguments.
+static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
+                               unsigned indexBitWidth, bool zvfbfmin) {
+  AliasAnalysis aa(module);
+  SmallVector<std::pair<vir::SetVLOp, scf::ForOp>> loops;
+  module.walk([&](vir::SetVLOp setVL) {
+    if (setVL->getNumResults() != 0)
+      return;
+    setVL.getRegion().walk<WalkOrder::PreOrder>([&](scf::ForOp loop) {
+      if (!isJammable(loop, aa))
+        return WalkResult::advance();
+      loops.emplace_back(setVL, loop);
+      return WalkResult::skip();
+    });
+  });
+  for (auto [setVL, loop] : loops) {
+    // as VIRSetVLLowering finds its anchor type
+    Type anchor = widestElementType(setVL.getRegion(), indexBitWidth);
+    if (!anchor)
+      continue;
+    // the factor with the most lanes per shared load (the least of equals),
+    // its vectors live at once in the registers
+    // (no more than the iterations, when they are known)
+    int64_t maxFactor = kMaxJamFactor;
+    if (std::optional<APInt> trips = loop.getStaticTripCount())
+      maxFactor = std::clamp<int64_t>(trips->getZExtValue(), 1, kMaxJamFactor);
+    int64_t best = 1, bestLanes = 0;
+    for (int64_t factor = 1; factor <= maxFactor; ++factor) {
+      OpBuilder b(setVL);
+      IRMapping m;
+      Operation *trial = b.clone(*setVL, m);
+      if (factor > 1)
+        jamLoop(cast<scf::ForOp>(m.lookup(loop.getOperation())), factor);
+      bool fits = false;
+      VectorType type;
+      {
+        ScopedDiagnosticHandler quiet(module.getContext(),
+                                      [](Diagnostic &) { return success(); });
+        type = vectorTypeHelper(
+            trial->getRegion(0), anchor,
+            useScalable && !needsFixedVectors(setVL.getRegion(), zvfbfmin),
+            /*verbose=*/false, rvvVlen, indexBitWidth,
+            /*rows=*/1, &fits);
+      }
+      trial->erase();
+      if (!type)
+        break;
+      int64_t lanes = factor * type.getShape()[0];
+      if (fits && lanes > bestLanes) {
+        best = factor;
+        bestLanes = lanes;
+      }
+    }
+    if (best > 1)
+      jamLoop(loop, best);
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// Math functions on scalable vectors
+//===----------------------------------------------------------------------===//
+
+/// Whether LLVM lowers `op` on a scalable vector for RVV: the math ops that
+/// convert-math-to-llvm makes LLVM intrinsics of which the RISC-V backend
+/// lowers on scalable vectors, with RVV instructions (sqrt, fabs, ceil, ...)
+/// or with a loop calling the libm function on each lane (exp, sin, ...).
+static bool hasScalableLowering(Operation *op) {
+  return isa<math::AbsFOp, math::AcosOp, math::AsinOp, math::AtanOp,
+             math::CeilOp, math::CopySignOp, math::CosOp, math::CoshOp,
+             math::Exp2Op, math::ExpM1Op, math::ExpOp, math::FloorOp,
+             math::FmaOp, math::Log10Op, math::Log1pOp, math::Log2Op,
+             math::LogOp, math::RoundEvenOp, math::RoundOp, math::RsqrtOp,
+             math::SinOp, math::SinhOp, math::SqrtOp, math::TanOp, math::TanhOp,
+             math::TruncOp>(op);
+}
+
+/// Applies the other math ops on floats (erf, erfc, cbrt, powf, atan2, ...)
+/// to the lanes of a scalable vector one by one, N * vscale lanes for a
+/// vector<[N]xT>: convert-math-to-libm calls the libm function on the N
+/// first lanes only and leaves the others 0, and LLVM does not lower the
+/// binary ones (powf, atan2) on scalable vectors. Each lane is the libm
+/// function of its scalar, as with fixed vectors.
+static void scalarizeScalableMath(ModuleOp module) {
+  SmallVector<Operation *> ops;
+  module.walk([&](Operation *op) {
+    if (!isa<math::MathDialect>(op->getDialect()) || op->getNumResults() != 1 ||
+        hasScalableLowering(op))
+      return;
+    auto vecTy = dyn_cast<VectorType>(op->getResult(0).getType());
+    if (vecTy && vecTy.getRank() == 1 && vecTy.isScalable() &&
+        isa<FloatType>(vecTy.getElementType()))
+      ops.push_back(op);
+  });
+  for (Operation *op : ops) {
+    OpBuilder b(op);
+    Location loc = op->getLoc();
+    auto vecTy = cast<VectorType>(op->getResult(0).getType());
+    Value vscale = vector::VectorScaleOp::create(b, loc);
+    Value lanes = arith::MulIOp::create(
+        b, loc, vscale,
+        arith::ConstantIndexOp::create(b, loc, vecTy.getShape()[0]));
+    Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+    Value one = arith::ConstantIndexOp::create(b, loc, 1);
+    // the lanes are all written: any vector of the type starts the loop
+    Value init =
+        op->getOperand(0).getType() == vecTy
+            ? op->getOperand(0)
+            : Value(arith::ConstantOp::create(b, loc, b.getZeroAttr(vecTy)));
+    auto loop = scf::ForOp::create(
+        b, loc, zero, lanes, one, ValueRange{init},
+        [&](OpBuilder &lb, Location l, Value lane, ValueRange acc) {
+          OperationState state(l, op->getName());
+          for (Value v : op->getOperands())
+            state.addOperands(isa<VectorType>(v.getType())
+                                  ? Value(vector::ExtractOp::create(
+                                        lb, l, v, ArrayRef<OpFoldResult>{lane}))
+                                  : v);
+          state.addTypes(vecTy.getElementType());
+          state.addAttributes(op->getAttrs());
+          Value scalar = lb.create(state)->getResult(0);
+          Value next = vector::InsertOp::create(lb, l, scalar, acc[0],
+                                                ArrayRef<OpFoldResult>{lane});
+          scf::YieldOp::create(lb, l, next);
+        });
+    op->getResult(0).replaceAllUsesWith(loop.getResult(0));
+    op->erase();
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// Scalable vectors of bf16 without Zvfbfmin
+//===----------------------------------------------------------------------===//
+
+/// A splat of the integer `value` of the element type of `type`.
+static Value splatInt(OpBuilder &b, Location loc, VectorType type,
+                      int64_t value) {
+  return arith::ConstantOp::create(
+      b, loc,
+      DenseElementsAttr::get(type,
+                             b.getIntegerAttr(type.getElementType(), value)));
+}
+
+/// The f32 vector of the bf16 bits `bits` (vector<[N]xi16>): the bits in
+/// the high half (exact); a NaN is the canonical NaN 0x7fc00000, as RVV
+/// converts it (vfwcvtbf16 of Zvfbfmin).
+static Value bf16BitsToF32(OpBuilder &b, Location loc, Value bits) {
+  auto i16Ty = cast<VectorType>(bits.getType());
+  auto i32Ty = i16Ty.clone(b.getI32Type());
+  Value magnitude =
+      arith::AndIOp::create(b, loc, bits, splatInt(b, loc, i16Ty, 0x7fff));
+  Value isNaN =
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::ugt, magnitude,
+                            splatInt(b, loc, i16Ty, 0x7f80));
+  bits = arith::SelectOp::create(b, loc, isNaN, splatInt(b, loc, i16Ty, 0x7fc0),
+                                 bits);
+  Value wide = arith::ExtUIOp::create(b, loc, i32Ty, bits);
+  Value high = arith::ShLIOp::create(b, loc, wide, splatInt(b, loc, i32Ty, 16));
+  return arith::BitcastOp::create(b, loc, i32Ty.clone(b.getF32Type()), high);
+}
+
+/// The bf16 bits (vector<[N]xi16>) of the f32 vector `in`, rounded to
+/// nearest even, as arith.truncf without a rounding mode is (an LLVM fptrunc
+/// in the default floating-point environment, which LLVM assumes; RVV
+/// rounds by frm, round to nearest even there): the bits plus 0x7fff, or
+/// 0x8000 when bit 16 is set (a
+/// carry into the exponent is the rounding up, to infinity past the largest
+/// bf16), their high half; a NaN is the canonical NaN 0x7fc0, as RVV
+/// converts it (vfncvtbf16 of Zvfbfmin).
+static Value f32ToBF16Bits(OpBuilder &b, Location loc, Value in) {
+  auto vecTy = cast<VectorType>(in.getType());
+  auto i16Ty = vecTy.clone(b.getI16Type());
+  auto i32Ty = vecTy.clone(b.getI32Type());
+  Value bits = arith::BitcastOp::create(b, loc, i32Ty, in);
+  Value c16 = splatInt(b, loc, i32Ty, 16);
+  Value high = arith::ShRUIOp::create(b, loc, bits, c16);
+  Value bit16 = arith::AndIOp::create(b, loc, high, splatInt(b, loc, i32Ty, 1));
+  Value bias =
+      arith::AddIOp::create(b, loc, bit16, splatInt(b, loc, i32Ty, 0x7fff));
+  Value rounded = arith::TruncIOp::create(
+      b, loc, i16Ty,
+      arith::ShRUIOp::create(b, loc, arith::AddIOp::create(b, loc, bits, bias),
+                             c16));
+  Value isNaN =
+      arith::CmpFOp::create(b, loc, arith::CmpFPredicate::UNO, in, in);
+  return arith::SelectOp::create(b, loc, isNaN, splatInt(b, loc, i16Ty, 0x7fc0),
+                                 rounded);
+}
+
+/// The pointer to the element at `indices` of `base`, a memref of 16-bit
+/// elements with unit stride in its last dim.
+static Value elementPointer(OpBuilder &b, Location loc, Value base,
+                            ValueRange indices) {
+  auto metadata = memref::ExtractStridedMetadataOp::create(b, loc, base);
+  Value linear = metadata.getOffset();
+  for (auto [index, stride] : llvm::zip(indices, metadata.getStrides()))
+    linear = arith::AddIOp::create(
+        b, loc, linear, arith::MulIOp::create(b, loc, index, stride));
+  Value bytes = arith::MulIOp::create(
+      b, loc, linear, arith::ConstantIndexOp::create(b, loc, 2));
+  Value address = arith::AddIOp::create(
+      b, loc, memref::ExtractAlignedPointerAsIndexOp::create(b, loc, base),
+      bytes);
+  // (hasBF16BitsLowering: an integer memory space)
+  unsigned space = *addressSpaceOf(cast<MemRefType>(base.getType()));
+  return LLVM::IntToPtrOp::create(
+      b, loc, LLVM::LLVMPointerType::get(b.getContext(), space),
+      Value(arith::IndexCastOp::create(b, loc, b.getI64Type(), address)));
+}
+
+/// Without Zvfbfmin (-zvfbfmin), LLVM lowers no scalable vector of bf16, not
+/// even a load: the scalable vectors of bf16 (of the regions
+/// needsFixedVectors keeps scalable) become vectors of their bits,
+/// vector<[N]xi16>, which any RVV holds. Loads and stores read and write the
+/// bits through a pointer, extf and truncf convert with integer ops
+/// (bf16BitsToF32, f32ToBF16Bits), absf and negf clear or flip the sign bit,
+/// broadcasts, constants, selects and scalable extracts and inserts move the
+/// bits. Each lane is as with Zvfbfmin, NaNs included, in the default
+/// floating-point environment (rounding to nearest even, which LLVM assumes
+/// for fptrunc). Only the ops of the lowering are rewritten: those of
+/// `before`, the ops on scalable bf16 vectors before it, are left as they
+/// are; a scalable bf16 vector from them (or from a block argument) in an op
+/// of the lowering is an error.
+static bool isScalableBF16Vector(Type t) {
+  auto vecTy = dyn_cast<VectorType>(t);
+  return vecTy && vecTy.isScalable() && vecTy.getElementType().isBF16();
+}
+
+static bool hasScalableBF16Vector(Operation *op) {
+  return llvm::any_of(op->getOperandTypes(), isScalableBF16Vector) ||
+         llvm::any_of(op->getResultTypes(), isScalableBF16Vector);
+}
+
+static LogicalResult
+lowerScalableBF16ToBits(ModuleOp module, const DenseSet<Operation *> &before) {
+  auto isBF16Vec = isScalableBF16Vector;
+  SmallVector<Operation *> ops;
+  module.walk([&](Operation *op) {
+    if (!before.contains(op) && hasScalableBF16Vector(op))
+      ops.push_back(op);
+  });
+  DenseMap<Value, Value> bitsOf;
+  auto bitsType = [](Type t) {
+    return cast<VectorType>(t).clone(IntegerType::get(t.getContext(), 16));
+  };
+  for (Operation *op : ops) {
+    // the bits of every bf16 vector operand, before the op is rewritten
+    for (Value v : op->getOperands())
+      if (isBF16Vec(v.getType()) && !bitsOf.contains(v))
+        return op->emitError("a scalable vector of bf16 from outside the "
+                             "lowered vir.set_vl regions, without Zvfbfmin "
+                             "(rvv-mattr)");
+    OpBuilder b(op);
+    Location loc = op->getLoc();
+    auto bits = [&](Value v) { return bitsOf.lookup(v); };
+    Value result;
+    if (auto load = dyn_cast<vector::LoadOp>(op)) {
+      Value ptr = elementPointer(b, loc, load.getBase(), load.getIndices());
+      result = LLVM::LoadOp::create(b, loc, bitsType(load.getType()), ptr,
+                                    /*alignment=*/2);
+    } else if (auto store = dyn_cast<vector::StoreOp>(op)) {
+      Value ptr = elementPointer(b, loc, store.getBase(), store.getIndices());
+      LLVM::StoreOp::create(b, loc, bits(store.getValueToStore()), ptr,
+                            /*alignment=*/2);
+      continue;
+    } else if (auto ext = dyn_cast<arith::ExtFOp>(op)) {
+      Value f32 = bf16BitsToF32(b, loc, bits(ext.getIn()));
+      if (f32.getType() != ext.getType())
+        f32 = arith::ExtFOp::create(b, loc, ext.getType(), f32);
+      ext.getResult().replaceAllUsesWith(f32);
+      continue;
+    } else if (auto trunc = dyn_cast<arith::TruncFOp>(op);
+               trunc && getElementTypeOrSelf(trunc.getIn()).isF32() &&
+               !trunc.getRoundingmodeAttr()) {
+      result = f32ToBF16Bits(b, loc, trunc.getIn());
+    } else if (auto bcast = dyn_cast<vector::BroadcastOp>(op);
+               bcast && bcast.getSource().getType().isBF16()) {
+      Value scalar =
+          arith::BitcastOp::create(b, loc, b.getI16Type(), bcast.getSource());
+      result = vector::BroadcastOp::create(b, loc, bitsType(bcast.getType()),
+                                           scalar);
+    } else if (auto extract = dyn_cast<vector::ScalableExtractOp>(op)) {
+      // (broadcastTo builds a vector<[1]xT> as a part of a vector<[2]xT>)
+      result = vector::ScalableExtractOp::create(
+          b, loc, bitsType(extract.getType()), bits(extract.getSource()),
+          extract.getPos());
+    } else if (auto insert = dyn_cast<vector::ScalableInsertOp>(op)) {
+      result = vector::ScalableInsertOp::create(
+          b, loc, bits(insert.getValueToStore()), bits(insert.getDest()),
+          insert.getPos());
+    } else if (auto cst = dyn_cast<arith::ConstantOp>(op)) {
+      auto dense = cast<DenseElementsAttr>(cst.getValue());
+      result = arith::ConstantOp::create(b, loc, dense.bitcast(b.getI16Type()));
+    } else if (isa<math::AbsFOp>(op)) {
+      Value in = bits(op->getOperand(0));
+      result = arith::AndIOp::create(
+          b, loc, in, splatInt(b, loc, cast<VectorType>(in.getType()), 0x7fff));
+    } else if (isa<arith::NegFOp>(op)) {
+      Value in = bits(op->getOperand(0));
+      result = arith::XOrIOp::create(
+          b, loc, in, splatInt(b, loc, cast<VectorType>(in.getType()), 0x8000));
+    } else if (isa<arith::SelectOp, LLVM::SelectOp>(op)) {
+      result = arith::SelectOp::create(b, loc, op->getOperand(0),
+                                       bits(op->getOperand(1)),
+                                       bits(op->getOperand(2)));
+    } else {
+      return op->emitError("a scalable vector of bf16 without Zvfbfmin "
+                           "(rvv-mattr) in an op it is not lowered for: ")
+             << op->getName();
+    }
+    bitsOf[op->getResult(0)] = result;
+  }
+  // the ops on bf16 vectors, users first
+  for (Operation *op : llvm::reverse(ops)) {
+    op->dropAllUses();
+    op->erase();
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1468,6 +3436,8 @@ public:
         math::MathDialect,
         memref::MemRefDialect,
         affine::AffineDialect,
+        scf::SCFDialect,
+        ub::UBDialect,
         vector::VectorDialect,
         LLVM::LLVMDialect>();
     // clang-format on
@@ -1484,14 +3454,59 @@ public:
       llvm::cl::desc("Vector width for fixed/scalable vectors (default: 4)"),
       llvm::cl::init(DEFAULT_VECTOR_WIDTH)};
 
+  Option<int> rvvVlen{
+      *this, "rvv-vlen",
+      llvm::cl::desc("VLEN in bits of a RISC-V Vector target: without "
+                     "vector-width, the vector size comes from its 32 "
+                     "registers of VLEN bits instead of the host's (on a "
+                     "RISC-V host with V, those of its VLEN); with "
+                     "use-scalable, a vir.set_vl with results is lowered "
+                     "for this VLEN (vscale = rvv-vlen / 64) and is only "
+                     "valid on it. use-scalable without rvv-vlen (and "
+                     "vector-width) is for any RVV VLEN: the vectors are "
+                     "sized for VLEN 128, strip-mined regions are valid on "
+                     "any VLEN, a vir.set_vl with results is rejected"),
+      llvm::cl::init(0)};
+
+  Option<std::string> rvvMattr{
+      *this, "rvv-mattr",
+      llvm::cl::desc("Features of the RISC-V target in the syntax of llc "
+                     "-mattr (e.g. +v,+zvfh,+zvfbfmin; pass the same as to "
+                     "llc). Zvfbfmin is assumed unless -zvfbfmin: the "
+                     "scalable vectors of bf16 use its conversions (llc "
+                     "needs +zvfbfmin); with -zvfbfmin they are vectors of "
+                     "their bits, converted with integer ops (any RVV), "
+                     "with the same results in the default floating-point "
+                     "environment (rounding to nearest even)"),
+      llvm::cl::init("")};
+
   Option<bool> verbose{*this, "verbose",
                        llvm::cl::desc("Print register analysis information"),
                        llvm::cl::init(false)};
 };
 } // end anonymous namespace.
 
+/// Whether the llc -mattr list `mattr` enables `feature`: its last +feature
+/// or -feature, else `byDefault`.
+static bool hasFeature(StringRef mattr, StringRef feature, bool byDefault) {
+  bool on = byDefault;
+  SmallVector<StringRef> items;
+  mattr.split(items, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  for (StringRef item : items) {
+    item = item.trim();
+    if (item.size() < 2 || (item.front() != '+' && item.front() != '-'))
+      continue;
+    if (item.drop_front() == feature)
+      on = item.front() == '+';
+  }
+  return on;
+}
+
 void VIRToVectorPass::runOnOperation() {
   MLIRContext *context = &getContext();
+  // Zvfbfmin unless -zvfbfmin: the RVV targets of Buddy have it (SpacemiT
+  // K3, SOPHGO SG2044, ...)
+  bool zvfbfmin = hasFeature(rvvMattr, "zvfbfmin", /*byDefault=*/true);
   ModuleOp module = getOperation();
   LLVMConversionTarget target(*context);
   // clang-format off
@@ -1502,6 +3517,8 @@ void VIRToVectorPass::runOnOperation() {
       memref::MemRefDialect,
       vector::VectorDialect,
       affine::AffineDialect,
+      scf::SCFDialect,
+      ub::UBDialect,
       LLVM::LLVMDialect
     >();
   // clang-format on
@@ -1509,12 +3526,61 @@ void VIRToVectorPass::runOnOperation() {
   target.addLegalOp<UnrealizedConversionCastOp>();
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
+  // RVV: VLEN is a power of two of at least 32 bits
+  if (rvvVlen != 0 &&
+      (rvvVlen < 32 || !llvm::has_single_bit(unsigned(rvvVlen)))) {
+    module.emitError("rvv-vlen must be a power of two >= 32, got ")
+        << int(rvvVlen);
+    return signalPassFailure();
+  }
+  // RVV: vscale = VLEN / 64, at least 1 for scalable vectors
+  if (useScalable && rvvVlen != 0 && rvvVlen < 64) {
+    module.emitError("rvv-vlen must be at least 64 with use-scalable, got ")
+        << int(rvvVlen);
+    return signalPassFailure();
+  }
   // use custome vector width
   bool useCustomVecWid = vectorWidth.getNumOccurrences() > 0;
+  // rvv-vlen is the exact VLEN; use-scalable without it is for any RVV
+  // VLEN (vscale = VLEN / 64), whose vectors are sized for the least, 128
+  bool exactVlen = rvvVlen != 0;
+  int vlen = rvvVlen;
+  if (useScalable && !useCustomVecWid && !exactVlen)
+    vlen = 128;
+  // Fixed vectors for the host: on a RISC-V host with V, those of its VLEN,
+  // as for rvv-vlen
+  if (!useScalable && !useCustomVecWid && !exactVlen) {
+    vlen = hostRvvVlen();
+    if (verbose && vlen)
+      llvm::outs() << "--- RISC-V Vector host: VLEN " << vlen << " ---\n";
+  }
+  // the ops on scalable bf16 vectors before the lowering, which the bits
+  // lowering of bf16 (without Zvfbfmin) leaves as they are
+  DenseSet<Operation *> bf16OpsBefore;
+  if (useScalable && !zvfbfmin)
+    module.walk([&](Operation *op) {
+      if (hasScalableBF16Vector(op))
+        bf16OpsBefore.insert(op);
+    });
+  // the loops of strip-mined regions jammed for the vectors sized for the
+  // register pressure (not for a given vector-width)
+  if (!useCustomVecWid)
+    jamStripMinedLoops(module, useScalable, vlen,
+                       converter.getIndexTypeBitwidth(), zvfbfmin);
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
-                                        vectorWidth, verbose, useCustomVecWid);
+                                        vectorWidth, verbose, useCustomVecWid,
+                                        vlen, exactVlen, zvfbfmin);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
-    signalPassFailure();
+    return signalPassFailure();
+  // a vir.set_vl left (its lowering reported why) fails the pass
+  if (module.walk([](vir::SetVLOp) { return WalkResult::interrupt(); })
+          .wasInterrupted())
+    return signalPassFailure();
+  if (useScalable) {
+    scalarizeScalableMath(module);
+    if (!zvfbfmin && failed(lowerScalableBF16ToBits(module, bf16OpsBefore)))
+      return signalPassFailure();
+  }
 }
 
 namespace mlir {

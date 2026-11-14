@@ -122,9 +122,12 @@ void registerLowerIMEPass();
 void registerLowerAMEPass();
 void registerLowerXTAMEPass();
 void registerLowerBOSCAMEPass();
+void registerLowerBOSCAMETilePass();
+void registerBOSCAMESpmDmaCheckPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
+void registerConvertStridedMemrefCopyToLinalgPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerMatMulTransposeBVecDecodePass();
@@ -140,6 +143,16 @@ void registerEliminateLargeZeroConstantsPass();
 void registerConvertTraceToLLVMPass();
 } // namespace buddy
 } // namespace mlir
+
+namespace buddy {
+namespace contract {
+void registerKernelContractPasses();
+} // namespace contract
+namespace boscame {
+void registerBOSCAMEPlanPasses();
+void registerBOSCAMEPlanEmissionPasses();
+} // namespace boscame
+} // namespace buddy
 
 int main(int argc, char **argv) {
   // Register all MLIR passes.
@@ -176,6 +189,11 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerAMEPass();
   mlir::buddy::registerLowerXTAMEPass();
   mlir::buddy::registerLowerBOSCAMEPass();
+  mlir::buddy::registerLowerBOSCAMETilePass();
+  mlir::buddy::registerBOSCAMESpmDmaCheckPass();
+  buddy::boscame::registerBOSCAMEPlanPasses();
+  buddy::boscame::registerBOSCAMEPlanEmissionPasses();
+  buddy::contract::registerKernelContractPasses();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulVectorizationBLISPass();
@@ -218,6 +236,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
+  mlir::buddy::registerConvertStridedMemrefCopyToLinalgPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();
 
   mlir::DialectRegistry registry;

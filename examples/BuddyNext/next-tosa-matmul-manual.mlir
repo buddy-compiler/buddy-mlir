@@ -36,7 +36,7 @@ module {
     %a = memref.reinterpret_cast %base_buffer_0 to offset: [%offset_1], sizes: [12, 1, 1024], strides: [%strides_3#0, %strides_3#1, 1] : memref<f32> to memref<12x1x1024xf32, strided<[?, ?, 1], offset: ?>>
     %cst = arith.constant 0.000000e+00 : f32
     %0 = call @rtclock() : () -> f64
-    %output = memref.alloc() {alignment = 64 : i64} : memref<12x1x128xf32>
+    %output = memref.alloc() alignment = 64 : memref<12x1x128xf32>
     linalg.fill ins(%cst : f32) outs(%output : memref<12x1x128xf32>)
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -55,12 +55,12 @@ module {
 
     scf.parallel (%batch_idx) = (%c0) to (%batch_size) step (%c1) {
       scf.for %n_idx = %c0 to %n_size step %c32 {
-        %c_vec = vector.load %output[%batch_idx, %c0, %n_idx] {alignment = 64 : i64} : memref<12x1x128xf32>, vector<64xf32>
+        %c_vec = vector.load %output[%batch_idx, %c0, %n_idx] alignment = 64 : memref<12x1x128xf32>, vector<64xf32>
         %sum_iter = scf.for %k_idx = %c0 to %k_size step %c1 iter_args(%sum_vec = %c_vec) -> (vector<64xf32>) {
           %a_ele = memref.load %a
           [%batch_idx, %c0, %k_idx] : memref<12x1x1024xf32, strided<[?, ?, 1], offset: ?>>
           %a_vec = vector.broadcast %a_ele : f32 to vector<64xf32>
-          %b_vec = vector.load %b[%batch_idx, %k_idx, %n_idx] {alignment = 64 : i64, nontemporal = true} : memref<12x1024x128xf32, strided<[?, ?, 1], offset: ?>>, vector<64xf32>
+          %b_vec = vector.load %b[%batch_idx, %k_idx, %n_idx] alignment = 64 nontemporal = true : memref<12x1024x128xf32, strided<[?, ?, 1], offset: ?>>, vector<64xf32>
           %r_vec = vector.fma %a_vec, %b_vec, %sum_vec : vector<64xf32>
           scf.yield %r_vec : vector<64xf32>
         }
@@ -80,9 +80,9 @@ module {
     %c0 = arith.constant 0 : index
     %cst = arith.constant 4.000000e+00 : f32
     %cst_0 = arith.constant 2.000000e+00 : f32
-    %alloc = memref.alloc() {alignment = 64 : i64} : memref<12x1x1024xf32>
+    %alloc = memref.alloc() alignment = 64 : memref<12x1x1024xf32>
     linalg.fill ins(%cst_0 : f32) outs(%alloc : memref<12x1x1024xf32>)
-    %alloc_1 = memref.alloc() {alignment = 64 : i64} : memref<12x1024x128xf32>
+    %alloc_1 = memref.alloc() alignment = 64 : memref<12x1024x128xf32>
     linalg.fill ins(%cst : f32) outs(%alloc_1 : memref<12x1024x128xf32>)
     scf.for %arg0 = %c0 to %c5 step %c1 {
       %cast = memref.cast %alloc : memref<12x1x1024xf32> to memref<12x1x1024xf32, strided<[?, ?, ?], offset: ?>>

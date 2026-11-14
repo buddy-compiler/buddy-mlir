@@ -8,6 +8,7 @@ link_directories(${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core/mlir/_m
 add_mlir_public_c_api_library(BuddyMLIRCAPI
   Dialects.cpp
   RegisterEverything.cpp
+  VIR.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/midend/include/buddy-mlir-c
@@ -32,6 +33,7 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   BuddyRVV
   BuddyRVVTransforms
   VectorExp
+  VIR
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration
 )

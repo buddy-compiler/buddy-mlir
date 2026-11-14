@@ -3,8 +3,9 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-transformer.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import_transformer.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 

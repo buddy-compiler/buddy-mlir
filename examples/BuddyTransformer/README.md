@@ -5,7 +5,7 @@ This example demonstrates how to use Buddy Compiler to compile a complete DeepSe
 
 ## Files Structure
 - `transformer_model.py`: DeepSeek R1 transformer block PyTorch model definition
-- `import-transformer.py`: Frontend script to convert PyTorch model to MLIR
+- `import_transformer.py`: Frontend script to convert PyTorch model to MLIR
 - `transformer_runner.cpp`: C++ performance test runner
 - `CMakeLists.txt`: Build configuration for compilation
 - `README.md`: This documentation

@@ -1,10 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x, y, keepdim):
@@ -33,7 +32,7 @@ print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.reciprocal
 # CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape

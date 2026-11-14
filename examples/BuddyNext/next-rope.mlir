@@ -44,15 +44,15 @@ func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
   %t_start = call @rtclock() : () -> f64
   %shift = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
 
-  %s0 = tosa.const_shape {values = dense<[1, 40, 32, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %s0 = tosa.const_shape values(dense<[1, 40, 32, 128]> : tensor<4xindex>) : () -> !tosa.shape<4>
   %57 = tosa.reshape %arg0, %s0 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
-  %59 = tosa.transpose %57 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
+  %59 = tosa.transpose %57 perms([0, 2, 1, 3]) : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
 
   %60 = tosa.reshape %arg1, %s0 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
-  %62 = tosa.transpose %60 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
+  %62 = tosa.transpose %60 perms([0, 2, 1, 3]) : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
 
   %63 = tosa.reshape %arg2, %s0 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
-  %65 = tosa.transpose %63 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
+  %65 = tosa.transpose %63 perms([0, 2, 1, 3]) : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
 
   %extracted_slice_9 = tensor.extract_slice %arg3[0, 0, 0, 0] [1, 1, 2048, 128] [1, 1, 1, 1] : tensor<1x1x2048x128xf32> to tensor<1x1x2048x128xf32>
   %extracted_slice_10 = tensor.extract_slice %extracted_slice_9[0, 0, 0, 0] [1, 1, 2048, 128] [1, 1, 1, 1] : tensor<1x1x2048x128xf32> to tensor<1x1x2048x128xf32>
@@ -89,7 +89,7 @@ func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
     %extracted = tensor.extract %69[%4175, %4176] : tensor<40x128xf32>
     linalg.yield %extracted : f32
   } -> tensor<1x40x128xf32>
-  %s1 = tosa.const_shape {values = dense<[1, 1, 40, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %s1 = tosa.const_shape values(dense<[1, 1, 40, 128]> : tensor<4xindex>) : () -> !tosa.shape<4>
   %76 = tosa.reshape %75, %s1 : (tensor<1x40x128xf32>, !tosa.shape<4>) -> tensor<1x1x40x128xf32>
   %77 = tensor.empty() : tensor<1x40x128xf32>
   %78 = linalg.generic {indexing_maps = [#map2, #map5], iterator_types = ["parallel", "parallel", "parallel"]} ins(%arg5 : tensor<1x40xi64>) outs(%77 : tensor<1x40x128xf32>) {

@@ -28,7 +28,7 @@ func.func @main() -> i32 {
   // x x o o
   // o o o o
   // o o o o
-  %w0 = vector.insert_strided_slice %val, %base { offsets = [0, 0], strides = [1, 1] }
+  %w0 = vector.insert_strided_slice %val, %base offsets = [0, 0], strides = [1, 1]
     : vector<2x2xi32> into vector<4x4xi32>
   // CHECK:    ( ( 100, 101, 2, 3 ),
   // CHECK-SAME: ( 110, 111, 12, 13 ),
@@ -43,11 +43,11 @@ func.func @main() -> i32 {
   //          x x o o    |          o x x o   |         o x x o
   //          x x o o    |          o o o o   |         o x x o
   //          o o o o    |          o o o o   |         o o o o
-  %w1_0 = vector.insert_strided_slice %val, %base { offsets = [1, 0], strides = [1, 1] }
+  %w1_0 = vector.insert_strided_slice %val, %base offsets = [1, 0], strides = [1, 1]
     : vector<2x2xi32> into vector<4x4xi32>
-  %w1_1 = vector.insert_strided_slice %val, %base { offsets = [0, 1], strides = [1, 1] }
+  %w1_1 = vector.insert_strided_slice %val, %base offsets = [0, 1], strides = [1, 1]
     : vector<2x2xi32> into vector<4x4xi32>
-  %w1_2 = vector.insert_strided_slice %val, %base { offsets = [1, 1], strides = [1, 1] }
+  %w1_2 = vector.insert_strided_slice %val, %base offsets = [1, 1], strides = [1, 1]
     : vector<2x2xi32> into vector<4x4xi32>
   // CHECK:      ( ( 0, 1, 2, 3 ),
   // CHECK-SAME: ( 100, 101, 12, 13 ),
@@ -74,11 +74,11 @@ func.func @main() -> i32 {
   //          x x o o    |          o o o o   |         x o x o
   //          o o o o    |          o o o o   |         o o o o
 
-  // %w2_0 = vector.insert_strided_slice %val, %base { offsets = [0, 0], strides = [2, 1] }
+  // %w2_0 = vector.insert_strided_slice %val, %base offsets = [0, 0], strides = [2, 1]
   //   : vector<2x2xi32> into vector<4x4xi32>
-  // %w2_1 = vector.insert_strided_slice %val, %base { offsets = [0, 0], strides = [1, 2] }
+  // %w2_1 = vector.insert_strided_slice %val, %base offsets = [0, 0], strides = [1, 2]
   //   : vector<2x2xi32> into vector<4x4xi32>
-  // %w2_2 = vector.insert_strided_slice %val, %base { offsets = [0, 0], strides = [2, 2] }
+  // %w2_2 = vector.insert_strided_slice %val, %base offsets = [0, 0], strides = [2, 2]
   //   : vector<2x2xi32> into vector<4x4xi32>
 
   // vector.print %w2_0 : vector<4x4xi32>
@@ -88,14 +88,14 @@ func.func @main() -> i32 {
 
   // vector.insert_strided_slice with any rank can be defined recursively:
 
-  // vector.insert_strided_slice %v, %b { offsets = [o0, ...], strides = [s0, ...] }
+  // vector.insert_strided_slice %v, %b offsets = [o0, ...], strides = [s0, ...]
   // <==>
   // if rank(%v) < rank(%b):
-  //    vector.insert_strided_slice %v, %b[o0] { offsets = [...], strides = [...] }
+  //    vector.insert_strided_slice %v, %b[o0] offsets = [...], strides = [...]
   //
   // if rank(%v) == rank(%b):
   //    for (i = o0; i < dim(%v); i += s0)
-  //      vector.insert_strided_slice %v[i], %b[i] { offsets = [...], strides = [...] }
+  //      vector.insert_strided_slice %v[i], %b[i] offsets = [...], strides = [...]
 
   %big_base = arith.constant dense<[
     [[0, 10, 20, 30], [100, 110, 120, 130], [200, 210, 220, 230], [300, 310, 320, 330]],
@@ -108,7 +108,7 @@ func.func @main() -> i32 {
                                      [1010, 1011, 1012],
                                      [1020, 1021, 1022]]> : vector<3x3xi32>
 
-  %w3 = vector.insert_strided_slice %big_value, %big_base {offsets = [1, 0, 0], strides = [1, 1]}
+  %w3 = vector.insert_strided_slice %big_value, %big_base offsets = [1, 0, 0], strides = [1, 1]
     : vector<3x3xi32> into vector<4x4x4xi32>
   // CHECK:  ( ( ( 0, 10, 20, 30 ), ( 100, 110, 120, 130 ), ( 200, 210, 220, 230 ), ( 300, 310, 320, 330 ) ),
   // CHECK-SMAE: ( ( 1000, 1001, 1002, 31 ), ( 1010, 1011, 1012, 131 ), ( 1020, 1021, 1022, 231 ), ( 301, 311, 321, 331 ) ),

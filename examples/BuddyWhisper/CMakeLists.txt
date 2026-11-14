@@ -2,8 +2,9 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-whisper.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import_whisper.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 set(PATTERN_ARG "test-decompose-pad-tensor")
@@ -110,13 +111,13 @@ target_link_libraries(buddy-whisper-run ${BUDDY_WHISPER_LIBS})
 
 add_test(
   NAME example.buddy-whisper-run
-  COMMAND $<TARGET_FILE:buddy-whisper-run>
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_output.py
+          $<TARGET_FILE:buddy-whisper-run>
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 )
 set_tests_properties(
   example.buddy-whisper-run
   PROPERTIES
     LABELS "example"
-    PASS_REGULAR_EXPRESSION "www"
     TIMEOUT 1800
 )

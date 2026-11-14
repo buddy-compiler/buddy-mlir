@@ -63,28 +63,24 @@ public:
     for (mlir::Operation &innerOp : configBlock.getOperations()) {
       //
       if (isa<arith::AddFOp>(innerOp)) {
-        Type resultType = cast<arith::AddFOp>(innerOp).getResult().getType();
-        Value result = LLVM::VPFAddOp::create(
-            rewriter, loc, resultType, cast<arith::AddFOp>(innerOp).getLhs(),
-            cast<arith::AddFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
+        Value result = LLVM::FAddOp::create(
+            rewriter, loc, cast<arith::AddFOp>(innerOp).getLhs(),
+            cast<arith::AddFOp>(innerOp).getRhs());
         rewriter.replaceOp(op, result);
       } else if (isa<arith::MulFOp>(innerOp)) {
-        Type resultType = cast<arith::MulFOp>(innerOp).getResult().getType();
-        Value result = LLVM::VPFMulOp::create(
-            rewriter, loc, resultType, cast<arith::MulFOp>(innerOp).getLhs(),
-            cast<arith::MulFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
+        Value result = LLVM::FMulOp::create(
+            rewriter, loc, cast<arith::MulFOp>(innerOp).getLhs(),
+            cast<arith::MulFOp>(innerOp).getRhs());
         rewriter.replaceOp(op, result);
       } else if (isa<arith::AddIOp>(innerOp)) {
-        Type resultType = cast<arith::AddIOp>(innerOp).getResult().getType();
-        Value result = LLVM::VPAddOp::create(
-            rewriter, loc, resultType, cast<arith::AddIOp>(innerOp).getLhs(),
-            cast<arith::AddIOp>(innerOp).getRhs(), op.getMask(), op.getVl());
+        Value result = LLVM::AddOp::create(
+            rewriter, loc, cast<arith::AddIOp>(innerOp).getLhs(),
+            cast<arith::AddIOp>(innerOp).getRhs());
         rewriter.replaceOp(op, result);
       } else if (isa<arith::MulIOp>(innerOp)) {
-        Type resultType = cast<arith::MulIOp>(innerOp).getResult().getType();
-        Value result = LLVM::VPMulOp::create(
-            rewriter, loc, resultType, cast<arith::MulIOp>(innerOp).getLhs(),
-            cast<arith::MulIOp>(innerOp).getRhs(), op.getMask(), op.getVl());
+        Value result = LLVM::MulOp::create(
+            rewriter, loc, cast<arith::MulIOp>(innerOp).getLhs(),
+            cast<arith::MulIOp>(innerOp).getRhs());
         rewriter.replaceOp(op, result);
       } else if (isa<vector::LoadOp>(innerOp)) {
         vector::LoadOp loadOp = cast<vector::LoadOp>(innerOp);

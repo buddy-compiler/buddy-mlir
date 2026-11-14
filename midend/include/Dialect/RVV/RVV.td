@@ -155,21 +155,26 @@ class RVV_VSetVlI_IntrOp<string mnemonic, list<Trait> traits = []> :
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
+// The `llvm.riscv.vle` intrinsic is overloaded on the result vector type, the
+// pointer operand (`llvm_anyptr_ty`) and the vl operand (`llvm_anyint_ty`), so
+// the operand type list must include the pointer (index 1) in addition to vl.
 class RVV_USLoad_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[0],
-                  /*list<int> overloadedOperands=*/[2],
+                  /*list<int> overloadedOperands=*/[1, 2],
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
+// The `llvm.riscv.vse` intrinsic is overloaded on the stored vector type, the
+// pointer operand (`llvm_anyptr_ty`) and the vl operand (`llvm_anyint_ty`).
 class RVV_USStore_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[],
-                  /*list<int> overloadedOperands=*/[0, 2],
+                  /*list<int> overloadedOperands=*/[0, 1, 2],
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/0>;
 
@@ -195,15 +200,15 @@ class RVV_BinaryAAXNoMask_IntrOp<string mnemonic,
 def RVVIntrSetVlIOp : RVV_VSetVlI_IntrOp<"vsetvli">,
   Arguments<(ins AnyInteger, AnyInteger, AnyInteger)>;
 def RVVIntrLoadEleOp : RVV_USLoad_IntrOp<"vle">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, LLVM_AnyPointer, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, LLVM_AnyPointer, AnyInteger)>;
 def RVVIntrStoreEleOp : RVV_USStore_IntrOp<"vse">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, LLVM_AnyPointer, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, LLVM_AnyPointer, AnyInteger)>;
 def IntrFrsqrt7Op : RVV_UnaryNoMask_IntrOp<"vfrsqrt7">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, ScalableVectorOfAnyRank<[AnyType]>, AnyInteger)>;
 
 def RVVIntrAddOp : RVV_BinaryAAXNoMask_IntrOp<"vadd">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, ScalableVectorOfAnyRank<[AnyType]>, AnyType, AnyInteger)>;
 def RVVIntrMulOp : RVV_BinaryAAXNoMask_IntrOp<"vmul">,
-  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
+  Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>, ScalableVectorOfAnyRank<[AnyType]>, AnyType, AnyInteger)>;
 
 #endif // RVV_OPS

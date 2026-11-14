@@ -4,6 +4,13 @@ link_directories(
   "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
 )
 
+# The model importers run at build time and load the buddy Python packages.
+# Depend on the package target so an importer cannot start while the library it
+# loads (libBuddyMLIRPythonCAPI) is still being linked.
+if(TARGET BuddyMLIRPythonModules)
+  set(BUDDY_PYTHON_IMPORT_DEPENDS BuddyMLIRPythonModules)
+endif()
+
 if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
@@ -102,5 +109,9 @@ if(BUDDY_ENABLE_TESTS)
     )
   set_target_properties(check-examples PROPERTIES FOLDER "Examples")
 
-  add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
+  # See tests/CMakeLists.txt: BINARY_DIR keeps the check-buddy-examples-*
+  # targets on the build tree, where lit.site.cfg.py is.
+  add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR}
+    BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
 endif()

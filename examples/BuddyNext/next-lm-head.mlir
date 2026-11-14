@@ -41,7 +41,7 @@ func.func @kernel(
     %10831 = linalg.matmul indexing_maps = [affine_map<(m, n, k) -> (m, k)>, affine_map<(m, n, k) -> (n, k)>, affine_map<(m, n, k) -> (m, n)>] {cast = #linalg.type_fn<cast_signed>} ins(%10830, %arg606 : tensor<1x1536xf32>, tensor<262144x1536xf32>) outs(%cst_1441 : tensor<1x262144xf32>) -> tensor<1x262144xf32>
 
 
-    %10832 = tosa.const_shape  {values = dense<[1, 1, 262144]> : tensor<3xindex>} : () -> !tosa.shape<3>
+    %10832 = tosa.const_shape values(dense<[1, 1, 262144]> : tensor<3xindex>) : () -> !tosa.shape<3>
     %10833 = tosa.reshape %10831, %10832 : (tensor<1x262144xf32>, !tosa.shape<3>) -> tensor<1x1x262144xf32>
     %10834 = "tosa.const"() <{values = dense<3.000000e+01> : tensor<1x1x262144xf32>}> : () -> tensor<1x1x262144xf32>
     %10835 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
@@ -49,7 +49,7 @@ func.func @kernel(
     %10837 = tosa.mul %10833, %10836, %10835 : (tensor<1x1x262144xf32>, tensor<1x1x262144xf32>, tensor<1xi8>) -> tensor<1x1x262144xf32>
     %10838 = tosa.tanh %10837 : (tensor<1x1x262144xf32>) -> tensor<1x1x262144xf32>
     %cst_1442 = arith.constant dense<3.000000e+01> : tensor<1xf32>
-    %10839 = tosa.const_shape  {values = dense<1> : tensor<3xindex>} : () -> !tosa.shape<3>
+    %10839 = tosa.const_shape values(dense<1> : tensor<3xindex>) : () -> !tosa.shape<3>
     %10840 = tosa.reshape %cst_1442, %10839 : (tensor<1xf32>, !tosa.shape<3>) -> tensor<1x1x1xf32>
     %10841 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
     %10842 = tosa.mul %10838, %10840, %10841 : (tensor<1x1x262144xf32>, tensor<1x1x1xf32>, tensor<1xi8>) -> tensor<1x1x262144xf32>

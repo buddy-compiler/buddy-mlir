@@ -31,16 +31,16 @@ pip
 
 ```
 python -m venv .venv
-pip install -r requirements.txt
 source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 uv
 
 ```
 uv venv
-uv pip install -r requirements.txt
 source .venv/bin/activate
+uv pip install -r requirements.txt
 ```
 
 conda
@@ -50,6 +50,9 @@ conda activate <your virtual environment name>
 cd buddy-mlir
 pip install -r requirements.txt
 ```
+
+On a RISC-V host, add the Ruyi package index for the riscv64 wheels, see
+[docs/RVVEnvironment.md](docs/RVVEnvironment.md).
 
 ### Build and Test LLVM/MLIR/CLANG
 
@@ -125,11 +128,17 @@ python3 tools/buddy-codegen/build_model.py \
   --build-dir build
 ```
 
-For supported models, the default build uses layer-partitioned model
-compilation to parallelize the slowest MLIR compile stages while preserving
-validated runtime correctness. See
-[Layer Partitioning](docs/LayerPartitioning.md) for details and validation
-steps.
+DeepSeek R1, Whisper, and Qwen3-VL support template-based layer-partitioned compilation. It is disabled by default. Enable it explicitly by passing
+`--cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=ON` to `build_model.py`. DeepSeek R1 also retains the existing `PartitionedGraphDriver` workflow. See [Layer Partitioning](docs/LayerPartitioning.md) for details.
+
+For example, enable template-based layer partitioning for Whisper with:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/whisper/specs/base.json \
+  --build-dir build \
+  --cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=ON
+```
 
 To import weights from a **local** HuggingFace style directory (offline or a custom path), pass `--local-model` to that directory (it must contain `config.json` and the weight files). If you omit `--hf-config`, `build_model.py` uses `<local-model>/config.json` for codegen when present:
 
@@ -206,13 +215,13 @@ We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
 Build x86_64 artifacts:
 
 ```bash
-./scripts/release.sh cp310-cp310 0.0.0 x86_64
+./scripts/release.sh cp312 0.0.0 x86_64
 ```
 
 Build riscv64 artifacts:
 
 ```bash
-./scripts/release.sh cp310-cp310 0.0.0 riscv64
+./scripts/release.sh cp312 0.0.0 riscv64
 ```
 
 This script calls `docker run` internally to enter the offical manylinux container,
@@ -237,6 +246,22 @@ buddy-opt --help
 We provide examples to demonstrate how to use the passes and interfaces in `buddy-mlir`, including IR-level transformations, domain-specific applications, and testing demonstrations.
 
 For more details, please see the [examples documentation](./examples/README.md).
+
+### Triton FPGA frontend boundary
+
+Triton AST/TTIR compilation is provided by the external triton-riscv AOT
+frontend. Buddy consumes verified standard buffer Contracts and owns BOSCAME
+planning, emission and firmware construction. All Triton Python examples and the
+ViT model live in `triton-riscv/examples/BOSCAMEFPGA`. Buddy's three standalone
+examples live in `examples/BOSCAMEFPGA` and start at `kernel.frontend.mlir`.
+See [Triton Contract handoff](docs/TritonContract.md).
+
+BOSCAME reading map:
+
+- Board examples / upload: [examples/BOSCAMEFPGA/README.md](examples/BOSCAMEFPGA/README.md)
+- Host dialect demos: [examples/BOSCAMEDialect/README.md](examples/BOSCAMEDialect/README.md)
+- Firmware runtime: [runtime/boscame/README.md](runtime/boscame/README.md)
+- Pipeline: [docs/BOSCAMEKernelContractPipeline.md](docs/BOSCAMEKernelContractPipeline.md)
 
 ## Contributions
 

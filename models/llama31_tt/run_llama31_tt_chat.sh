@@ -110,6 +110,10 @@ LOWER_DECODE_EXTRA=()
 PREPARE_PREFILL_EXTRA=()
 PREPARE_DECODE_EXTRA=()
 GEN_MANIFEST_EXTRA=()
+MODEL_LIBRARY="${MODEL_LIBRARY:-${LLAMA31_MODEL_LIBRARY:-}}"
+if [[ -n "${MODEL_LIBRARY}" ]]; then
+  GEN_MANIFEST_EXTRA+=(--model-library "${MODEL_LIBRARY}")
+fi
 DECODE_LOWER_ENV=()
 if [[ "${DEVICE_ARGMAX_PREFILL}" == "1" ]]; then
   LOWER_PREFILL_EXTRA+=(--device-argmax)
@@ -373,7 +377,7 @@ RAX_FILE="${RAX_PACKAGE_DIR}/${RAX_STEM}.rax"
 if [[ "${SKIP_LOWER}" != "1" ]]; then
   if ! have_artifact "${PREFILL_TTNN}"; then
     echo "=== [1/4] Lower prefill TTIR (static-cache ${MAX_CACHE_LEN}) ==="
-    python buddy-llama31-lower-ttir.py \
+    python buddy_llama31_lower_ttir.py \
       --mode prefill --static-cache --max-cache-len "${MAX_CACHE_LEN}" \
       --batch "${BATCH_SIZE}" \
       --element-dtype bf16 \
@@ -402,7 +406,7 @@ if [[ "${SKIP_LOWER}" != "1" ]]; then
   fi
   if [[ "${DECODE_NEEDS_BUILD}" == "1" ]]; then
     echo "=== [2/4] Lower decode TTIR (static-cache ${MAX_CACHE_LEN}) ==="
-    env "${DECODE_LOWER_ENV[@]}" python buddy-llama31-lower-ttir.py \
+    env "${DECODE_LOWER_ENV[@]}" python buddy_llama31_lower_ttir.py \
       --mode decode --static-cache --max-cache-len "${MAX_CACHE_LEN}" \
       --batch "${BATCH_SIZE}" \
       --element-dtype bf16 \

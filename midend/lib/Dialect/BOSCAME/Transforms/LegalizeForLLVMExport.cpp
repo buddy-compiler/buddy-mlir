@@ -1,4 +1,4 @@
-//====- LegalizeForLLVMExport.cpp - Prepare BOSCAME for LLVM translation --===//
+//===- LegalizeForLLVMExport.cpp - Unified BOSCAME/SPM/DMA LLVM lowering -===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,475 +13,1305 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+//
+// `-lower-bosc-ame` is the single BOSCAME lowering entry point.  It owns the
+// whole AME / SPM / DMA surface and finishes the module with the standard
+// MemRef/Func/Arith/CF/SCF/Vector/Math lowering so that its output is ready
+// for `buddy-translate --buddy-to-llvmir`.
+//
+// The pass runs in four stages:
+//
+//   1. Checks.  The cross-operation SPM/DMA contract (token lifetime, channel
+//      occupancy, aliasing) and the SPM-typed-value rules are verified while
+//      the `#bosc_ame.spm<bank>` type annotation is still present.  A module
+//      that cannot be lowered is rejected before any type information is lost.
+//
+//   2. Preparation.  Converter-agnostic rewrites that the standard lowering
+//      expects to have run first: linalg to loops, strided-metadata
+//      expansion, memref expansion and vector-to-SCF.  They only rewrite
+//      operations this pass sees through, never BOSCAME operations.
+//
+//   3. SCF structure.  Loop-carried BOSCAME matrix values (`vector<4x4xT>`)
+//      are converted to the scalable register type with the same type
+//      converter used by the final conversion.  Without this an `scf.for`
+//      accumulator chain would survive with a fixed vector type and a
+//      permanent `unrealized_conversion_cast` bridge.
+//
+//   4. Conversion.  A single LLVM conversion with one `LLVMTypeConverter`
+//      lowers, in one go:
+//
+//        * `bosc_ame.spm.view` to an LLVM memref descriptor whose base is the
+//          fixed bank base address plus the view offset.  The bank is
+//          compiled into the address and never has to be recovered, so no
+//          workspace root argument is needed and the kernel ABI stays clean.
+//          `#bosc_ame.spm<bank>` maps to LLVM address space 0: the two banks
+//          are two windows in one address space, not two address spaces.
+//        * `bosc_ame.dma.start` / `bosc_ame.dma.wait` to calls into the
+//          runtime ABI.  The DMA token becomes the `i64` returned by the
+//          start call (the effective source address), which the matching
+//          wait hands back to the runtime as its completion barrier.  The
+//          wait call returns void and the status check lives in the runtime,
+//          so the operation is simply erased.
+//        * AME matrix load/store to `bosc_ame.intr.*` intrinsics whose base
+//          pointer is decoded from the converted memref descriptor
+//          (`alignedPtr + offset * elementBytes`), so nested subviews and
+//          strided layouts are folded in exactly once.
+//        * the remaining BOSCAME operations to their `bosc_ame.intr.*`
+//          counterparts, keeping the existing scalable-vector mapping.
+//        * MemRef, Func, Arith, CF, SCF, Vector, Math, Index and UB to the
+//          LLVM dialect.
+//
+//      Leftover `unrealized_conversion_cast` operations are reconciled at the
+//      end, mirroring the `-reconcile-unrealized-casts` stage of the shipped
+//      pipeline.
+//
+//===----------------------------------------------------------------------===//
 
+#include "Conversion/BOSCAMEHelpers/BOSCAMEHelpers.h"
+#include "Dialect/BOSCAME/BOSCAMEAttrs.h"
 #include "Dialect/BOSCAME/BOSCAMEDialect.h"
 #include "Dialect/BOSCAME/BOSCAMEOps.h"
+#include "Dialect/BOSCAME/BOSCAMETypes.h"
+#include "Dialect/BOSCAME/SpmDma.h"
+#include "Dialect/BOSCAME/TileOps.h"
 #include "Dialect/BOSCAME/Transform.h"
+#include "Dialect/BOSCAME/Transforms/BOSCAMETileLowering.h"
+
+#include "BOSCAMEConversionUtils.h"
+
+#include "mlir/Analysis/DataLayoutAnalysis.h"
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
+#include "mlir/Conversion/IndexToLLVM/IndexToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/LLVMCommon/MemRefBuilder.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
+#include "mlir/Conversion/Passes.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Conversion/UBToLLVM/UBToLLVM.h"
+#include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
+#include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Index/IR/IndexDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Linalg/Passes.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/MemRef/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Patterns.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Transforms/LoweringPatterns.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
+#include "llvm/ADT/STLExtras.h"
+
+#include <memory>
+#include <optional>
+#include <string>
 
 using namespace mlir;
 using namespace buddy::boscame;
+using namespace buddy::boscame::spmdma;
 
 namespace {
 
 //===----------------------------------------------------------------------===//
-// Helper Functions
+// BOSCAME matrix register types
 //===----------------------------------------------------------------------===//
 
-static FlatSymbolRefAttr
-getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
-                     StringRef intrinsicName, LLVM::LLVMFunctionType funcType) {
-  auto *ctx = rewriter.getContext();
-  if (module.lookupSymbol<LLVM::LLVMFuncOp>(intrinsicName))
-    return FlatSymbolRefAttr::get(ctx, intrinsicName);
+// The scalable register type a matrix value is lowered to, and the descriptor
+// decoding helpers, are shared with the tile lowering; see
+// `BOSCAMEConversionUtils.h`.
+using buddy::boscame::detail::createBOSCAMEIntrinsicOp;
+using buddy::boscame::detail::extractPointerFromDescriptor;
+using buddy::boscame::detail::getBOSCAMERegisterType;
 
-  auto savedInsertionPoint = rewriter.saveInsertionPoint();
-  rewriter.setInsertionPointToEnd(module.getBody());
-  LLVM::LLVMFuncOp::create(rewriter, module.getLoc(), intrinsicName, funcType,
-                           LLVM::Linkage::External, false, LLVM::CConv::C);
-  rewriter.restoreInsertionPoint(savedInsertionPoint);
-  return FlatSymbolRefAttr::get(ctx, intrinsicName);
+//===----------------------------------------------------------------------===//
+// SPM storage space
+//===----------------------------------------------------------------------===//
+
+// True when `type` is a ranked memref in an SPM memory space.
+bool hasSpmSpace(Type type) {
+  auto memref = dyn_cast_or_null<MemRefType>(type);
+  return memref && isa_and_nonnull<SPMAttr>(memref.getMemorySpace());
 }
 
-static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
-                                      Location loc, Value memref) {
-  auto *ctx = rewriter.getContext();
-  auto ptrType = LLVM::LLVMPointerType::get(ctx);
-  auto i64Type = IntegerType::get(ctx, 64);
-  Value idx =
-      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
-  Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
-  Value ptr = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
-  return ptr;
+// The fixed hardware base address of `bank`, as a byte address.
+uint64_t getBankBaseAddress(int64_t bank) {
+  assert(bank >= 0 && bank < kSpmBankCount && "bank out of range");
+  return kSpmBankBaseAddress[bank];
+}
+
+// Operations whose result may legitimately keep an SPM memory space: they
+// only re-describe a buffer `bosc_ame.spm.view` already anchored in a bank
+// and never change the base address.  Anything else would need an SPM
+// allocation the hardware does not hand out and is rejected.
+bool preservesSpmSpace(Operation *op) {
+  return isa<SpmViewOp, memref::ViewOp, memref::SubViewOp, memref::CastOp,
+             memref::CollapseShapeOp, memref::ExpandShapeOp,
+             memref::TransposeOp, memref::ReinterpretCastOp,
+             memref::MemorySpaceCastOp, memref::AssumeAlignmentOp,
+             memref::ExtractStridedMetadataOp, arith::SelectOp, scf::IfOp,
+             scf::ForOp, scf::WhileOp, scf::IndexSwitchOp>(op);
+}
+
+// Reject SPM-typed values this pass cannot give an address to: an SPM-typed
+// function argument has no statically known position inside its bank, and an
+// SPM-typed value produced by an operation other than a view of an existing
+// SPM buffer has no address at all.  SPM memory-space casts that change the
+// bank are rejected too.
+LogicalResult validateSpmSurface(ModuleOp module) {
+  bool ok = true;
+  module.walk([&](Operation *op) {
+    for (Value result : op->getResults()) {
+      if (!hasSpmSpace(result.getType()) || preservesSpmSpace(op))
+        continue;
+      op->emitOpError()
+          << "produces an SPM-typed value, but only `bosc_ame.spm.view` and "
+             "memref view-like operations may carry `"
+          << SPMAttr::getMnemonic()
+          << "`; this value has no SPM address and cannot be lowered";
+      ok = false;
+    }
+    if (auto cast = dyn_cast<memref::MemorySpaceCastOp>(op)) {
+      std::optional<int64_t> sourceBank =
+          getSpmBank(cast.getSource().getType());
+      std::optional<int64_t> destBank = getSpmBank(cast.getDest().getType());
+      if (sourceBank && destBank && *sourceBank != *destBank) {
+        cast.emitOpError() << "cannot reinterpret an SPM buffer in bank "
+                           << *sourceBank << " as bank " << *destBank;
+        ok = false;
+      }
+    }
+    // SPM is a fixed hardware workspace: it is addressed through
+    // `bosc_ame.spm.view`, which compiles the bank base into the address.  A
+    // kernel that receives an SPM memref argument would need a runtime base
+    // address the ABI no longer carries.
+    if (auto function = dyn_cast<FunctionOpInterface>(op)) {
+      for (BlockArgument argument : function.getArguments()) {
+        if (!hasSpmSpace(argument.getType()))
+          continue;
+        function->emitOpError()
+            << "takes an SPM memref argument " << argument.getType()
+            << "; SPM is addressed through `bosc_ame.spm.view` at the fixed "
+               "bank base address and is not an ABI parameter";
+        ok = false;
+      }
+    }
+  });
+  return success(ok);
 }
 
 //===----------------------------------------------------------------------===//
-// BOSCAME Lowering Patterns
+// DMA runtime declarations
 //===----------------------------------------------------------------------===//
 
-//===----------------------------------------------------------------------===//
-// Configuration Operations Lowering
-//===----------------------------------------------------------------------===//
-// configuration imm operations
-template <typename OpTy, uint64_t (OpTy::*AttrGetter)()>
-struct BOSCAMEConfigImmLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
+// Declare the two runtime entry points the DMA lowering calls, but only when
+// the module actually contains a request.  A module without DMA must not gain
+// two external declarations.
+void declareDmaRuntimeHelpers(ModuleOp module) {
+  bool needed = false;
+  module.walk([&](Operation *op) { needed |= isa<DmaStartOp, DmaWaitOp>(op); });
+  if (!needed)
+    return;
 
-  BOSCAMEConfigImmLowering(LLVMTypeConverter &typeConverter,
-                           StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+  MLIRContext *context = module.getContext();
+  Type i32Type = IntegerType::get(context, 32);
+  Type i64Type = IntegerType::get(context, 64);
+  Type voidType = LLVM::LLVMVoidType::get(context);
+  OpBuilder builder(module.getBodyRegion());
+  builder.setInsertionPointToStart(module.getBody());
+  if (!module.lookupSymbol<LLVM::LLVMFuncOp>(kDmaStartHelperName))
+    LLVM::LLVMFuncOp::create(builder, module.getLoc(), kDmaStartHelperName,
+                             LLVM::LLVMFunctionType::get(
+                                 i64Type, {i32Type, i64Type, i64Type, i64Type}),
+                             LLVM::Linkage::External, false, LLVM::CConv::C);
+  // The wait helper checks the hardware status itself: a normal return means
+  // "completed and succeeded", a failure takes the runtime error path.
+  if (!module.lookupSymbol<LLVM::LLVMFuncOp>(kDmaWaitHelperName))
+    LLVM::LLVMFuncOp::create(
+        builder, module.getLoc(), kDmaWaitHelperName,
+        LLVM::LLVMFunctionType::get(voidType, {i32Type, i64Type}),
+        LLVM::Linkage::External, false, LLVM::CConv::C);
+}
+
+LogicalResult declareFrameRuntimeHelpers(ModuleOp module) {
+  bool needed = false;
+  module.walk(
+      [&](Operation *op) { needed |= isa<DDRFrameOp, DDRReleaseOp>(op); });
+  if (!needed)
+    return success();
+  OpBuilder b(module.getContext());
+  b.setInsertionPointToStart(module.getBody());
+  Type i64 = b.getI64Type();
+  Type voidType = LLVM::LLVMVoidType::get(b.getContext());
+  for (auto [name, type] :
+       {std::pair<StringRef, LLVM::LLVMFunctionType>{
+            "bosc_ame_private_ddr_acquire",
+            LLVM::LLVMFunctionType::get(i64, {i64})},
+        {"bosc_ame_private_ddr_release",
+         LLVM::LLVMFunctionType::get(voidType, {i64, i64})}}) {
+    if (Operation *existing = SymbolTable::lookupSymbolIn(module, name)) {
+      auto function = dyn_cast<LLVM::LLVMFuncOp>(existing);
+      if (!function || function.getFunctionType() != type)
+        return existing->emitError(
+            "incompatible private DDR runtime declaration");
+    } else
+      LLVM::LLVMFuncOp::create(b, module.getLoc(), name, type);
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Type converter
+//===----------------------------------------------------------------------===//
+
+static void addBOSCAMETypeConversions(LLVMTypeConverter &converter) {
+  // LLVMTypeConverter normally lowers a fixed 2-D vector to nested LLVM
+  // arrays.  BOSCAME matrix registers are represented by scalable vectors in
+  // the backend, so keep those values in the register form throughout this
+  // conversion instead of materializing unrealized array casts.
+  converter.addConversion([](VectorType type) -> std::optional<Type> {
+    if (type.getRank() != 2)
+      return std::nullopt;
+    return getBOSCAMERegisterType(type);
+  });
+
+  // A DMA token is the effective source address of the request, i.e. an i64.
+  converter.addConversion([](DMATokenType type) -> Type {
+    return IntegerType::get(type.getContext(), 64);
+  });
+
+  // Both SPM banks are windows into the same address space, so the memory
+  // space annotation lowers to address space 0.  Mapping bank 0/1 to LLVM
+  // address spaces 0/1 would split one physical space into two.
+  converter.addTypeAttributeConversion(
+      [](MemRefType type,
+         SPMAttr attr) -> TypeConverter::AttributeConversionResult {
+        return IntegerAttr::get(IntegerType::get(attr.getContext(), 64), 0);
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// Conversion helpers
+//===----------------------------------------------------------------------===//
+
+static bool isMemRefValue(Value value) {
+  return isa<MemRefType, UnrankedMemRefType>(value.getType());
+}
+
+// Materialize the effective byte address of a converted memref descriptor as
+// an `i64`, which is what the DMA runtime ABI takes.
+static Value extractAddressFromDescriptor(OpBuilder &builder, Location loc,
+                                          Value descriptor,
+                                          Type originalMemRefType,
+                                          const LLVMTypeConverter &converter) {
+  // DMA lengths are bytes, while memref descriptor offsets are ELEMENTS.
+  // bufferPtr performs the typed GEP (including dynamic offsets) exactly once.
+  auto type = dyn_cast<MemRefType>(originalMemRefType);
+  if (!type || !getSpmElementByteWidth(type.getElementType()))
+    return Value();
+  Value pointer = extractPointerFromDescriptor(builder, loc, descriptor,
+                                               originalMemRefType, converter);
+  if (!pointer)
+    return Value();
+  return LLVM::PtrToIntOp::create(
+      builder, loc, IntegerType::get(builder.getContext(), 64), pointer);
+}
+
+// Immediate BOSCAME operations carry an I64Attr. LLVM_IntrOpBase needs the
+// same immediate represented as an SSA i64 constant on the bridge op.
+static Value materializeBOSCAMEImmediate(Operation *op,
+                                         ConversionPatternRewriter &rewriter) {
+  static const char *const attributeNames[] = {"timm", "tilem", "tilen",
+                                               "tilek", "imm"};
+  for (const char *name : attributeNames) {
+    IntegerAttr attribute = op->getAttrOfType<IntegerAttr>(name);
+    if (!attribute)
+      continue;
+    Type i64Type = IntegerType::get(rewriter.getContext(), 64);
+    return LLVM::ConstantOp::create(
+        rewriter, op->getLoc(), i64Type,
+        rewriter.getI64IntegerAttr(attribute.getInt()));
+  }
+  return Value();
+}
+
+//===----------------------------------------------------------------------===//
+// BOSCAME -> bosc_ame.intr.*
+//===----------------------------------------------------------------------===//
+
+// The old pass had one typed template and one patterns.add<> call per
+// instruction. Their bodies were identical except for operation name and
+// register-number attributes. The SSA ODS no longer has those attributes, so
+// this generic conversion is both smaller and semantically correct.
+class BOSCAMEToIntrinsicLowering : public ConversionPattern {
+public:
+  BOSCAMEToIntrinsicLowering(const TypeConverter &converter,
+                             MLIRContext *context)
+      : ConversionPattern(converter, Pattern::MatchAnyOpTypeTag(),
+                          PatternBenefit(1), context) {}
 
   LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+    StringRef name = op->getName().getStringRef();
+    if (!name.starts_with("bosc_ame.") || name.starts_with("bosc_ame.intr."))
       return failure();
 
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type});
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
+    // The SPM view and the DMA requests have dedicated conversion patterns
+    // with a higher benefit; never fabricate an intrinsic for them.
+    if (isa<SpmViewOp, DDRFrameOp, DDRReleaseOp, DmaStartOp, DmaWaitOp,
+            MatrixCopyOp>(op))
+      return failure();
 
-    uint64_t attrVal = (op.*AttrGetter)();
-    Value immVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(attrVal));
+    // The tile operations are handled by `BOSCAMETileLowering.cpp`, which
+    // derives the hardware configuration and the physical stride from the
+    // operand types.  The generic pattern must not turn them into a
+    // `bosc_ame.intr.tile.*` operation: those do not exist, and even if they
+    // did, the naming convention of this pattern cannot express the slot, the
+    // stride or the configuration sequence.
+    if (isa<TileLoadAOp, TileLoadBOp, TileLoadAccOp, TileZeroAccOp, TileMmaOp,
+            TileStoreAccOp>(op))
+      return failure();
 
-    auto callOp = LLVM::CallOp::create(rewriter, loc, TypeRange{i64Type},
-                                       intrNameAttr, ValueRange{immVal});
-    rewriter.replaceOp(op, callOp.getResults());
+    const auto &converter =
+        *static_cast<const LLVMTypeConverter *>(typeConverter);
+    Location loc = op->getLoc();
+
+    // Matrix load: memref, i64 stride -> scalable LLVM vector.
+    if (op->getNumResults() == 1 && op->getNumOperands() == 2 &&
+        isMemRefValue(op->getOperand(0))) {
+      Type resultType = getBOSCAMERegisterType(op->getResult(0).getType());
+      if (!resultType)
+        return failure();
+      Value base = extractPointerFromDescriptor(
+          rewriter, loc, operands[0], op->getOperand(0).getType(), converter);
+      if (!base)
+        return failure();
+      SmallVector<Value> loadOperands{base, operands[1]};
+      Operation *intrinsic = createBOSCAMEIntrinsicOp(
+          rewriter, loc, name, TypeRange{resultType}, loadOperands);
+      rewriter.replaceOp(op, intrinsic->getResults());
+      return success();
+    }
+
+    // Matrix store: scalable LLVM vector, memref, i64 stride -> no result.
+    if (op->getNumResults() == 0 && op->getNumOperands() == 3 &&
+        isMemRefValue(op->getOperand(1))) {
+      Value base = extractPointerFromDescriptor(
+          rewriter, loc, operands[1], op->getOperand(1).getType(), converter);
+      if (!base)
+        return failure();
+      createBOSCAMEIntrinsicOp(rewriter, loc, name, TypeRange(),
+                               ValueRange{operands[0], base, operands[2]});
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    SmallVector<Value, 4> intrinsicOperands(operands.begin(), operands.end());
+    if (Value immediate = materializeBOSCAMEImmediate(op, rewriter))
+      intrinsicOperands.push_back(immediate);
+
+    SmallVector<Type, 1> resultTypes;
+    for (Value result : op->getResults()) {
+      Type resultType = result.getType();
+      if (isa<VectorType>(resultType))
+        resultType = getBOSCAMERegisterType(resultType);
+      if (!resultType)
+        return failure();
+      resultTypes.push_back(resultType);
+    }
+
+    Operation *intrinsic = createBOSCAMEIntrinsicOp(
+        rewriter, loc, name, TypeRange(resultTypes), intrinsicOperands);
+    rewriter.replaceOp(op, intrinsic->getResults());
     return success();
   }
 };
 
-// register configuration operations
-template <typename OpTy>
-struct BOSCAMEConfigRegLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
+//===----------------------------------------------------------------------===//
+// bosc_ame.spm.view -> LLVM memref descriptor at the fixed bank base
+//===----------------------------------------------------------------------===//
 
-  BOSCAMEConfigRegLowering(LLVMTypeConverter &typeConverter,
-                           StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+// `bosc_ame.spm.view {bank, offset}` becomes an LLVM memref descriptor whose
+// base is `bankBase[bank] + offset`.  The bank is a compile-time hardware
+// constant, so no root argument, no `memref.view` and no runtime-provided
+// base pointer is involved.  The descriptor offset is zero (the verifier
+// guarantees a contiguous, zero-offset view), so later address computations
+// add the descriptor offset exactly once.
+class SpmViewOpConversion : public ConvertToLLVMPattern {
+public:
+  SpmViewOpConversion(const LLVMTypeConverter &converter, MLIRContext *context)
+      : ConvertToLLVMPattern(SpmViewOp::getOperationName(), context, converter,
+                             PatternBenefit(2)) {}
 
   LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+    auto view = cast<SpmViewOp>(op);
+    auto memrefType = dyn_cast<MemRefType>(view.getView().getType());
+    if (!memrefType)
+      return failure();
+    int64_t bank = static_cast<int64_t>(view.getBank());
+    if (bank < 0 || bank >= kSpmBankCount)
       return failure();
 
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type});
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value rs1Val = adaptor.getRs1();
-
-    auto callOp = LLVM::CallOp::create(rewriter, loc, TypeRange{i64Type},
-                                       intrNameAttr, ValueRange{rs1Val});
-    rewriter.replaceOp(op, callOp.getResults());
+    Location loc = view.getLoc();
+    uint64_t address = getBankBaseAddress(bank) + view.getOffset();
+    Type i64Type = IntegerType::get(rewriter.getContext(), 64);
+    Value addressValue = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type,
+        rewriter.getI64IntegerAttr(static_cast<int64_t>(address)));
+    Type pointerType = LLVM::LLVMPointerType::get(rewriter.getContext(), 0);
+    Value base =
+        LLVM::IntToPtrOp::create(rewriter, loc, pointerType, addressValue);
+    Value descriptor = MemRefDescriptor::fromStaticShape(
+        rewriter, loc, *getTypeConverter(), memrefType, base);
+    rewriter.replaceOp(op, descriptor);
     return success();
   }
 };
 
-/// Lowering pattern for Elementwise Math Operations
-template <typename OpTy>
-struct BOSCAMEMath2Lowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
+//===----------------------------------------------------------------------===//
+// bosc_ame.dma.start / bosc_ame.dma.wait -> runtime calls
+//===----------------------------------------------------------------------===//
 
-  BOSCAMEMath2Lowering(LLVMTypeConverter &typeConverter,
-                       StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+// `bosc_ame.dma.start` becomes a call to `bosc_ame_dma_start(channel, src,
+// dst, len)`.  The runtime returns the effective source address, which *is*
+// the request token, so the call result replaces the token value directly.
+class DDRFrameConversion : public ConvertToLLVMPattern {
+public:
+  DDRFrameConversion(const LLVMTypeConverter &converter, MLIRContext *context)
+      : ConvertToLLVMPattern(DDRFrameOp::getOperationName(), context, converter,
+                             PatternBenefit(3)) {}
+  LogicalResult matchAndRewrite(Operation *op, ArrayRef<Value>,
+                                ConversionPatternRewriter &b) const override {
+    auto type = cast<MemRefType>(op->getResult(0).getType());
+    Value bytes =
+        LLVM::ConstantOp::create(b, op->getLoc(), b.getI64Type(),
+                                 b.getI64IntegerAttr(type.getDimSize(0)));
+    auto call = LLVM::CallOp::create(
+        b, op->getLoc(), TypeRange{b.getI64Type()},
+        FlatSymbolRefAttr::get(b.getContext(), "bosc_ame_private_ddr_acquire"),
+        ValueRange{bytes});
+    Value pointer = LLVM::IntToPtrOp::create(
+        b, op->getLoc(), LLVM::LLVMPointerType::get(b.getContext()),
+        call.getResult());
+    Value descriptor = MemRefDescriptor::fromStaticShape(
+        b, op->getLoc(), *getTypeConverter(), type, pointer);
+    b.replaceOp(op, descriptor);
+    return success();
+  }
+};
+class DDRReleaseConversion : public ConvertToLLVMPattern {
+public:
+  DDRReleaseConversion(const LLVMTypeConverter &converter, MLIRContext *context)
+      : ConvertToLLVMPattern(DDRReleaseOp::getOperationName(), context,
+                             converter, PatternBenefit(3)) {}
+  LogicalResult matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                                ConversionPatternRewriter &b) const override {
+    auto type = cast<MemRefType>(op->getOperand(0).getType());
+    Value bytes =
+        LLVM::ConstantOp::create(b, op->getLoc(), b.getI64Type(),
+                                 b.getI64IntegerAttr(type.getDimSize(0)));
+    Value address = extractAddressFromDescriptor(b, op->getLoc(), operands[0],
+                                                 type, *getTypeConverter());
+    LLVM::CallOp::create(
+        b, op->getLoc(), TypeRange{},
+        FlatSymbolRefAttr::get(b.getContext(), "bosc_ame_private_ddr_release"),
+        ValueRange{address, bytes});
+    b.eraseOp(op);
+    return success();
+  }
+};
+
+class DmaStartOpConversion : public ConvertToLLVMPattern {
+public:
+  DmaStartOpConversion(const LLVMTypeConverter &converter, MLIRContext *context)
+      : ConvertToLLVMPattern(DmaStartOp::getOperationName(), context, converter,
+                             PatternBenefit(2)) {}
 
   LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+    auto start = cast<DmaStartOp>(op);
+    if (!getDmaEndpoint(dyn_cast<MemRefType>(start.getSrc().getType())) ||
+        !getDmaEndpoint(dyn_cast<MemRefType>(start.getDst().getType())))
+      return start.emitOpError()
+             << "DMA endpoints must be 1-D i8 memrefs with a static length";
+
+    Location loc = start.getLoc();
+    const auto &converter =
+        *static_cast<const LLVMTypeConverter *>(getTypeConverter());
+    Value channel = LLVM::ConstantOp::create(
+        rewriter, loc, rewriter.getI32Type(),
+        rewriter.getI32IntegerAttr(static_cast<int32_t>(start.getChannel())));
+    Value src = extractAddressFromDescriptor(
+        rewriter, loc, operands[0], start.getSrc().getType(), converter);
+    Value dst = extractAddressFromDescriptor(
+        rewriter, loc, operands[1], start.getDst().getType(), converter);
+    if (!src || !dst)
       return failure();
+    // `bytes` is an index operand; the converter has already turned it into the
+    // LLVM index type (i64), which is the runtime's length type as well.
+    Value length = operands[2];
 
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type});
+    FlatSymbolRefAttr callee =
+        FlatSymbolRefAttr::get(rewriter.getContext(), kDmaStartHelperName);
+    Type i64Type = IntegerType::get(rewriter.getContext(), 64);
+    auto call = LLVM::CallOp::create(rewriter, loc, TypeRange{i64Type}, callee,
+                                     ValueRange{channel, src, dst, length});
+    rewriter.replaceOp(op, call.getResult());
+    return success();
+  }
+};
 
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
+// `bosc_ame.dma.wait` becomes a call to `bosc_ame_dma_wait(channel, token)`.
+// The channel comes from the *original* token type (the token has already
+// been converted to the start call's `i64` result), and the converted token
+// is the effective source address the runtime uses as the completion
+// barrier.  The helper returns void and owns the status check, so the wait
+// operation itself is erased.  No start/wait bookkeeping map is needed.
+class DmaWaitOpConversion : public ConvertToLLVMPattern {
+public:
+  DmaWaitOpConversion(const LLVMTypeConverter &converter, MLIRContext *context)
+      : ConvertToLLVMPattern(DmaWaitOp::getOperationName(), context, converter,
+                             PatternBenefit(2)) {}
 
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto wait = cast<DmaWaitOp>(op);
+    auto tokenType = dyn_cast<DMATokenType>(wait.getToken().getType());
+    if (!tokenType)
+      return wait.emitOpError() << "operand must be a `"
+                                << DMATokenType::getMnemonic() << "` value";
 
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrNameAttr,
-                         ValueRange{mdVal, ms1Val});
+    Location loc = wait.getLoc();
+    Value channel = LLVM::ConstantOp::create(
+        rewriter, loc, rewriter.getI32Type(),
+        rewriter.getI32IntegerAttr(
+            static_cast<int32_t>(tokenType.getChannel())));
+    FlatSymbolRefAttr callee =
+        FlatSymbolRefAttr::get(rewriter.getContext(), kDmaWaitHelperName);
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, callee,
+                         ValueRange{channel, operands[0]});
     rewriter.eraseOp(op);
     return success();
   }
 };
 
 //===----------------------------------------------------------------------===//
-// Load Operations Lowering
+// Preparation stages
 //===----------------------------------------------------------------------===//
-template <typename OpTy>
-struct BOSCAMELoadLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
 
-  BOSCAMELoadLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+// Private provenance for the snapshot operations introduced below. Dedicated
+// conversion patterns consume it and make only these accesses volatile, so
+// LLVM cannot forward a vector store into scalar extracts/reductions again.
+constexpr StringLiteral kScalarOrderedSnapshot =
+    "bosc_ame.scalar_ordered_snapshot";
+
+class ScalarOrderedSnapshotLoadLowering
+    : public ConvertOpToLLVMPattern<memref::LoadOp> {
+public:
+  explicit ScalarOrderedSnapshotLoadLowering(const LLVMTypeConverter &converter)
+      : ConvertOpToLLVMPattern<memref::LoadOp>(converter, PatternBenefit(20)) {}
 
   LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+  matchAndRewrite(memref::LoadOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+    if (!op->hasAttr(kScalarOrderedSnapshot))
       return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto ptrType = LLVM::LLVMPointerType::get(ctx);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, ptrType, i64Type});
-
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrNameAttr,
-                         ValueRange{mdVal, basePtr, adaptor.getStride()});
-    rewriter.eraseOp(op);
+    Value address =
+        getStridedElementPtr(rewriter, op.getLoc(), op.getMemRefType(),
+                             adaptor.getMemref(), adaptor.getIndices());
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, rewriter.getF32Type(),
+                                              address, 4, true);
     return success();
   }
 };
 
-//===----------------------------------------------------------------------===//
-// Store Operations Lowering
-//===----------------------------------------------------------------------===//
-template <typename OpTy>
-struct BOSCAMEStoreLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-
-  BOSCAMEStoreLowering(LLVMTypeConverter &typeConverter,
-                       StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+class ScalarOrderedSnapshotStoreLowering
+    : public ConvertOpToLLVMPattern<vector::StoreOp> {
+public:
+  explicit ScalarOrderedSnapshotStoreLowering(
+      const LLVMTypeConverter &converter)
+      : ConvertOpToLLVMPattern<vector::StoreOp>(converter, PatternBenefit(20)) {
+  }
 
   LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+  matchAndRewrite(vector::StoreOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+    if (!op->hasAttr(kScalarOrderedSnapshot))
       return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto ptrType = LLVM::LLVMPointerType::get(ctx);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, ptrType, i64Type});
-
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value ms3Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
-    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrNameAttr,
-                         ValueRange{ms3Val, basePtr, adaptor.getStride()});
-    rewriter.eraseOp(op);
+    Value address =
+        getStridedElementPtr(rewriter, op.getLoc(), op.getMemRefType(),
+                             adaptor.getBase(), adaptor.getIndices());
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, adaptor.getValueToStore(),
+                                               address, 4, true);
     return success();
   }
 };
 
-//===----------------------------------------------------------------------===//
-// Data Move / Broadcast / Transpose Lowering Templates
-//===----------------------------------------------------------------------===//
-/// 1. Pure Move
-template <typename OpTy>
-struct BOSCAMEPureMoveLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  BOSCAMEPureMoveLowering(LLVMTypeConverter &typeConverter,
-                          StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+// Keep the reduction accumulator in scalar SSA from the start. Reconstructing
+// it from machine vector seed/destination registers after register allocation
+// is unsafe on the NR target. Only the ordered f32 ADD surface is selected;
+// other kinds/types and nonordered reductions retain their existing lowering.
+// Ordered f32 ADD forms outside the checked surface fail closed when enabled.
+// Compiler-generated vector operations retain the usual
+// vstart=0 contract; no physical vector CSR or VLEN assumption is introduced.
+LogicalResult scalarizeF32OrderedReductions(ModuleOp module, bool rewrite) {
+  for (func::FuncOp function : module.getOps<func::FuncOp>()) {
+    if (function.isExternal())
+      continue;
+    SmallVector<vector::ReductionOp> reductions;
+    int64_t maxLanes = 0;
+    bool unsupported = false;
+    function.walk([&](vector::ReductionOp reduction) {
+      VectorType type = reduction.getVector().getType();
+      if (!type.getElementType().isF32() ||
+          reduction.getKind() != vector::CombiningKind::ADD ||
+          reduction.getFastmath() != arith::FastMathFlags::none)
+        return;
+      auto reject = [&](StringRef reason) {
+        reduction.emitOpError()
+            << "scalar-f32-ordered-reductions requires " << reason;
+        unsupported = true;
+      };
+      if (type.getRank() != 1 || type.isScalable() || !reduction.getAcc() ||
+          reduction.isMasked()) {
+        reject("an unmasked fixed rank-one vector and an explicit scalar "
+               "accumulator");
+        return;
+      }
+      // A single entry snapshot must not be shared by parallel invocations of
+      // the reduction. Unknown region semantics are deliberately rejected.
+      for (Operation *parent = reduction->getParentOp();
+           parent != function.getOperation(); parent = parent->getParentOp()) {
+        if (!isa<scf::ForOp, scf::WhileOp, scf::IfOp, scf::ExecuteRegionOp,
+                 scf::IndexSwitchOp>(parent)) {
+          reject("sequential func/SCF regions (parallel, async and unknown "
+                 "region semantics cannot share an entry snapshot)");
+          return;
+        }
+      }
+      reductions.push_back(reduction);
+      maxLanes = std::max(maxLanes, type.getDimSize(0));
+    });
+    if (unsupported)
       return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type});
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, op.getLoc(), i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val =
-        LLVM::ConstantOp::create(rewriter, op.getLoc(), i64Type,
-                                 rewriter.getI64IntegerAttr(op.getMs1()));
-
-    LLVM::CallOp::create(rewriter, op.getLoc(), TypeRange{}, intrNameAttr,
-                         ValueRange{mdVal, ms1Val});
-    rewriter.eraseOp(op);
-    return success();
+    if (!rewrite || reductions.empty())
+      continue;
+    // One statically bounded entry allocation is shared by sequential
+    // reductions, including reductions nested inside loops. Never allocate
+    // another snapshot on each dynamic reduction invocation.
+    OpBuilder entryBuilder = OpBuilder::atBlockBegin(&function.front());
+    Value snapshot = memref::AllocaOp::create(
+        entryBuilder, function.getLoc(),
+        MemRefType::get({maxLanes}, entryBuilder.getF32Type()),
+        entryBuilder.getI64IntegerAttr(16));
+    for (vector::ReductionOp reduction : reductions) {
+      OpBuilder builder(reduction);
+      Location loc = reduction.getLoc();
+      Value zero = arith::ConstantIndexOp::create(builder, loc, 0);
+      Value lanes = arith::ConstantIndexOp::create(
+          builder, loc, reduction.getVector().getType().getDimSize(0));
+      Value one = arith::ConstantIndexOp::create(builder, loc, 1);
+      auto store = vector::StoreOp::create(builder, loc, reduction.getVector(),
+                                           snapshot, ValueRange{zero});
+      store->setAttr(kScalarOrderedSnapshot, builder.getUnitAttr());
+      auto loop = scf::ForOp::create(builder, loc, zero, lanes, one,
+                                     ValueRange{reduction.getAcc()});
+      {
+        OpBuilder::InsertionGuard guard(builder);
+        builder.setInsertionPointToStart(loop.getBody());
+        auto lane = memref::LoadOp::create(builder, loc, snapshot,
+                                           ValueRange{loop.getInductionVar()});
+        lane->setAttr(kScalarOrderedSnapshot, builder.getUnitAttr());
+        Value next = arith::AddFOp::create(
+            builder, loc, loop.getRegionIterArgs()[0], lane.getResult());
+        scf::YieldOp::create(builder, loc, next);
+      }
+      reduction.replaceAllUsesWith(loop.getResult(0));
+      reduction.erase();
+    }
   }
+  return success();
+}
+
+// Snapshot the vector but keep max's seed, accumulator and result in scalar
+// SSA. Use the matching arithmetic operation: maximum propagates NaNs and
+// orders signed zeros, whereas maxnum ignores a single NaN and permits either
+// sign for mixed zeros. No invented -infinity seed is used for an unseeded
+// reduction: that would incorrectly turn an all-NaN maxnum into -infinity.
+// The source vector already contains any materialized padding, so every lane
+// participates; masked/scalable forms fail closed before mask lowering.
+LogicalResult scalarizeF32MaxReductions(ModuleOp module, bool rewrite) {
+  for (func::FuncOp function : module.getOps<func::FuncOp>()) {
+    if (function.isExternal())
+      continue;
+    SmallVector<vector::ReductionOp> reductions;
+    int64_t maxLanes = 0;
+    bool unsupported = false;
+    function.walk([&](vector::ReductionOp reduction) {
+      VectorType type = reduction.getVector().getType();
+      auto kind = reduction.getKind();
+      if (!type.getElementType().isF32() ||
+          (kind != vector::CombiningKind::MAXNUMF &&
+           kind != vector::CombiningKind::MAXIMUMF &&
+           kind != vector::CombiningKind::MAXIMUMNUMF))
+        return;
+      auto reject = [&](StringRef reason) {
+        reduction.emitOpError()
+            << "scalar-f32-max-reductions requires " << reason;
+        unsupported = true;
+      };
+      if (type.getRank() != 1 || type.isScalable() || reduction.isMasked()) {
+        reject("an unmasked fixed rank-one vector");
+        return;
+      }
+      for (Operation *parent = reduction->getParentOp();
+           parent != function.getOperation(); parent = parent->getParentOp()) {
+        if (!isa<scf::ForOp, scf::WhileOp, scf::IfOp, scf::ExecuteRegionOp,
+                 scf::IndexSwitchOp>(parent)) {
+          reject("sequential func/SCF regions (parallel, async and unknown "
+                 "region semantics cannot share an entry snapshot)");
+          return;
+        }
+      }
+      reductions.push_back(reduction);
+      maxLanes = std::max(maxLanes, type.getDimSize(0));
+    });
+    if (unsupported)
+      return failure();
+    if (!rewrite || reductions.empty())
+      continue;
+    OpBuilder entryBuilder = OpBuilder::atBlockBegin(&function.front());
+    Value snapshot = memref::AllocaOp::create(
+        entryBuilder, function.getLoc(),
+        MemRefType::get({maxLanes}, entryBuilder.getF32Type()),
+        entryBuilder.getI64IntegerAttr(16));
+    for (vector::ReductionOp reduction : reductions) {
+      OpBuilder builder(reduction);
+      Location loc = reduction.getLoc();
+      Value zero = arith::ConstantIndexOp::create(builder, loc, 0);
+      Value lanes = arith::ConstantIndexOp::create(
+          builder, loc, reduction.getVector().getType().getDimSize(0));
+      Value one = arith::ConstantIndexOp::create(builder, loc, 1);
+      auto store = vector::StoreOp::create(builder, loc, reduction.getVector(),
+                                           snapshot, ValueRange{zero});
+      store->setAttr(kScalarOrderedSnapshot, builder.getUnitAttr());
+      Value initial = reduction.getAcc();
+      Value begin = zero;
+      if (!initial) {
+        auto first =
+            memref::LoadOp::create(builder, loc, snapshot, ValueRange{zero});
+        first->setAttr(kScalarOrderedSnapshot, builder.getUnitAttr());
+        initial = first;
+        begin = one;
+      }
+      auto loop = scf::ForOp::create(builder, loc, begin, lanes, one,
+                                     ValueRange{initial});
+      {
+        OpBuilder::InsertionGuard guard(builder);
+        builder.setInsertionPointToStart(loop.getBody());
+        auto lane = memref::LoadOp::create(builder, loc, snapshot,
+                                           ValueRange{loop.getInductionVar()});
+        lane->setAttr(kScalarOrderedSnapshot, builder.getUnitAttr());
+        Value acc = loop.getRegionIterArgs()[0];
+        Value next;
+        switch (reduction.getKind()) {
+        case vector::CombiningKind::MAXNUMF:
+          next = arith::MaxNumFOp::create(builder, loc, acc, lane.getResult(),
+                                          reduction.getFastmath());
+          break;
+        case vector::CombiningKind::MAXIMUMF:
+          next = arith::MaximumFOp::create(builder, loc, acc, lane.getResult(),
+                                           reduction.getFastmath());
+          break;
+        case vector::CombiningKind::MAXIMUMNUMF:
+          next = arith::MaximumNumFOp::create(
+              builder, loc, acc, lane.getResult(), reduction.getFastmath());
+          break;
+        default:
+          llvm_unreachable("only selected floating-point max reductions");
+        }
+        scf::YieldOp::create(builder, loc, next);
+      }
+      reduction.replaceAllUsesWith(loop.getResult(0));
+      reduction.erase();
+    }
+  }
+  return success();
+}
+
+// Batch only compiler-generated pure fills/copies. One vector holds at most
+// 64 bytes; CPU DDR read/write transitions still bracket every real access.
+// Matching the exact loop body excludes arithmetic, reductions and aliases.
+void vectorizeGeneratedMemoryTasks(ModuleOp module, MLIRContext &context) {
+  auto target = module->getAttrOfType<StringAttr>("bosc_ame.target");
+  if (!target || target.getValue() != "nr-fpga" ||
+      !module->hasAttr(buddy::boscame::lowering::kCpuDdrPolicy))
+    return;
+  SmallVector<scf::ExecuteRegionOp> regions;
+  module.walk([&](scf::ExecuteRegionOp op) {
+    auto task = op->getAttrOfType<DictionaryAttr>("contract.task");
+    auto kind = task ? task.getAs<StringAttr>("kind") : StringAttr();
+    if (kind &&
+        (kind.getValue() == "fill" || kind.getValue() == "memory-load" ||
+         kind.getValue() == "memory-store"))
+      regions.push_back(op);
+  });
+  for (scf::ExecuteRegionOp region : regions) {
+    if (!region.getRegion().hasOneBlock())
+      continue;
+    // Emission keeps loop-bound constants beside each loop. Accept only
+    // those constants and a single loop; never cross other computations.
+    auto onlyLoopAndConstants = [](Block &block) -> scf::ForOp {
+      scf::ForOp loop;
+      for (Operation &op : block.without_terminator()) {
+        if (isa<arith::ConstantOp>(op))
+          continue;
+        auto candidate = dyn_cast<scf::ForOp>(op);
+        if (!candidate || loop)
+          return {};
+        loop = candidate;
+      }
+      return loop;
+    };
+    Block &body = region.getRegion().front();
+    auto outer = onlyLoopAndConstants(body);
+    if (!outer || outer.getNumResults())
+      continue;
+    auto inner = onlyLoopAndConstants(*outer.getBody());
+    if (!inner || inner.getNumResults())
+      continue;
+    auto bound = [](Value value) -> std::optional<int64_t> {
+      APInt integer;
+      if (matchPattern(value, m_ConstantInt(&integer)))
+        return integer.getSExtValue();
+      return std::nullopt;
+    };
+    auto lo = bound(outer.getLowerBound()), hi = bound(outer.getUpperBound());
+    auto il = bound(inner.getLowerBound()), ih = bound(inner.getUpperBound());
+    auto os = bound(outer.getStep()), is = bound(inner.getStep());
+    if (!lo || !hi || !il || !ih || !os || !is || *lo != 0 || *il != 0 ||
+        *os != 1 || *is != 1 || *hi <= 0 || *ih <= 0)
+      continue;
+    SmallVector<Operation *> ops;
+    for (Operation &op : inner.getBody()->without_terminator())
+      ops.push_back(&op);
+    memref::LoadOp load;
+    memref::StoreOp store;
+    if (ops.size() == 1)
+      store = dyn_cast<memref::StoreOp>(ops[0]);
+    else if (ops.size() == 2) {
+      load = dyn_cast<memref::LoadOp>(ops[0]);
+      store = dyn_cast<memref::StoreOp>(ops[1]);
+    }
+    if (!store || (ops.size() == 2 && !load) ||
+        (load && store.getValue() != load.getResult()) ||
+        (!load && !store.getValue().getDefiningOp<arith::ConstantOp>()))
+      continue;
+    auto matches = [&](ValueRange indices) {
+      return indices.size() == 2 && indices[0] == outer.getInductionVar() &&
+             indices[1] == inner.getInductionVar();
+    };
+    if (!matches(store.getIndices()) || (load && !matches(load.getIndices())))
+      continue;
+    auto dest = store.getMemRefType();
+    auto source = load ? load.getMemRefType() : dest;
+    auto element = dest.getElementType();
+    if (source.getElementType() != element ||
+        !(element.isInteger(8) || element.isInteger(32) || element.isF32()))
+      continue;
+    SmallVector<int64_t> ds, ss;
+    int64_t offset;
+    if (failed(dest.getStridesAndOffset(ds, offset)) ||
+        failed(source.getStridesAndOffset(ss, offset)))
+      continue;
+    unsigned axis = ds[1] == 1 && ss[1] == 1 ? 1 : 0;
+    if (ds[axis] != 1 || ss[axis] != 1 ||
+        (load && store.getMemref() == load.getMemref()))
+      continue;
+    if (!dest.hasStaticShape() || !source.hasStaticShape() ||
+        *hi > dest.getDimSize(0) || *ih > dest.getDimSize(1) ||
+        *hi > source.getDimSize(0) || *ih > source.getDimSize(1))
+      continue;
+    // Different SSA values alone do not prove non-aliasing. Require the
+    // public disjoint ABI and one private frame plus one external argument.
+    auto root = [](Value value) {
+      while (auto view =
+                 dyn_cast_or_null<ViewLikeOpInterface>(value.getDefiningOp()))
+        value = view.getViewSource();
+      return value;
+    };
+    Value destRoot = root(store.getMemref());
+    bool destPrivate = isa_and_nonnull<DDRFrameOp>(destRoot.getDefiningOp());
+    if (load) {
+      Value sourceRoot = root(load.getMemref());
+      bool sourcePrivate =
+          isa_and_nonnull<DDRFrameOp>(sourceRoot.getDefiningOp());
+      auto abi = module->getAttrOfType<DictionaryAttr>("contract.abi");
+      auto disjoint = abi ? abi.getAs<BoolAttr>("args_disjoint") : BoolAttr();
+      auto externalArgument = [](Value value) {
+        auto arg = dyn_cast<BlockArgument>(value);
+        return arg && isa<func::FuncOp>(arg.getOwner()->getParentOp());
+      };
+      if (!disjoint || !disjoint.getValue() || sourceRoot == destRoot ||
+          !((sourcePrivate && externalArgument(destRoot)) ||
+            (destPrivate && externalArgument(sourceRoot))))
+        continue;
+    } else if (!destPrivate) {
+      continue;
+    }
+    // Loop-local descriptors need a more general dependence analysis.
+    if (auto def = store.getMemref().getDefiningOp();
+        def && outer->isProperAncestor(def))
+      continue;
+    if (load) {
+      if (auto def = load.getMemref().getDefiningOp();
+          def && outer->isProperAncestor(def))
+        continue;
+    }
+    int64_t contiguous = axis == 1 ? *ih : *hi;
+    int64_t rows = axis == 1 ? *hi : *ih;
+    if (rows > 1 && (ds[1 - axis] < contiguous || ss[1 - axis] < contiguous))
+      continue;
+    unsigned bytes = element.getIntOrFloatBitWidth() / 8;
+    int64_t lanes = std::min<int64_t>(64 / bytes, contiguous);
+    while (lanes > 1 && contiguous % lanes)
+      --lanes;
+    if (lanes < 2)
+      continue;
+    OpBuilder b(outer);
+    Location loc = outer.getLoc();
+    Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+    Value rowEnd = arith::ConstantIndexOp::create(b, loc, rows);
+    Value colEnd = arith::ConstantIndexOp::create(b, loc, contiguous);
+    Value one = arith::ConstantIndexOp::create(b, loc, 1);
+    Value step = arith::ConstantIndexOp::create(b, loc, lanes);
+    auto row = scf::ForOp::create(b, loc, zero, rowEnd, one);
+    b.setInsertionPointToStart(row.getBody());
+    auto col = scf::ForOp::create(b, loc, zero, colEnd, step);
+    b.setInsertionPointToStart(col.getBody());
+    SmallVector<Value> indices =
+        axis == 1
+            ? SmallVector<Value>{row.getInductionVar(), col.getInductionVar()}
+            : SmallVector<Value>{col.getInductionVar(), row.getInductionVar()};
+    auto vt = VectorType::get({lanes}, element);
+    // vector.load/store require the last dimension to be contiguous. For a
+    // transposed view, transpose the memref descriptor and the indices too.
+    auto canonical = [&](Value value) -> Value {
+      if (axis == 1)
+        return value;
+      auto map =
+          AffineMap::getPermutationMap(ArrayRef<unsigned>{1, 0}, &context);
+      return memref::TransposeOp::create(b, loc, value,
+                                         AffineMapAttr::get(map));
+    };
+    if (axis == 0)
+      std::swap(indices[0], indices[1]);
+    Value fill;
+    if (!load) {
+      auto constant = store.getValue().getDefiningOp<arith::ConstantOp>();
+      fill = arith::ConstantOp::create(b, loc, constant.getValue());
+    }
+    Value value = load ? Value(vector::LoadOp::create(
+                             b, loc, vt, canonical(load.getMemref()), indices))
+                       : Value(vector::BroadcastOp::create(b, loc, vt, fill));
+    vector::StoreOp::create(b, loc, value, canonical(store.getMemref()),
+                            indices);
+    outer.erase();
+  }
+}
+
+// Converter-agnostic preparation the standard lowering expects to have run:
+// linalg to loops (there is no linalg-to-LLVM lowering), strided-metadata
+// expansion, memref expansion and vector-to-SCF.  None of them looks at
+// BOSCAME operations.
+LogicalResult runPreparationPipeline(ModuleOp module, MLIRContext &context) {
+  // The generic math-to-libm pass turns scalar abs into fabsf calls.  Opaque
+  // scalar loops (for example im2col's per-patch max reduction) do not pass
+  // through the pointwise planner, so preserve their exact sign-bit operation
+  // here as well.  This keeps NaN payloads, infinities and signed zero intact
+  // while avoiding a call and its register spills for each input element.
+  SmallVector<math::AbsFOp> scalarAbs;
+  module.walk([&](math::AbsFOp op) {
+    if (op.getType().isF32())
+      scalarAbs.push_back(op);
+  });
+  IRRewriter rewriter(&context);
+  for (math::AbsFOp op : scalarAbs) {
+    rewriter.setInsertionPoint(op);
+    auto bits = arith::BitcastOp::create(
+        rewriter, op.getLoc(), rewriter.getI32Type(), op.getOperand());
+    auto mask =
+        arith::ConstantIntOp::create(rewriter, op.getLoc(), 0x7fffffff, 32);
+    auto positive = arith::AndIOp::create(rewriter, op.getLoc(), bits, mask);
+    auto result = arith::BitcastOp::create(rewriter, op.getLoc(),
+                                           rewriter.getF32Type(), positive);
+    rewriter.replaceOp(op, result.getResult());
+  }
+  PassManager pm(&context, PassManager::getAnyOpAnchorName(),
+                 PassManager::Nesting::Implicit);
+  pm.addPass(createConvertLinalgToLoopsPass());
+  pm.addPass(memref::createExpandStridedMetadataPass());
+  pm.addPass(memref::createExpandOpsPass());
+  pm.addPass(createConvertVectorToSCFPass());
+  pm.addPass(createConvertMathToLibmPass());
+  return pm.run(module);
+}
+
+// Rewrite vector operations into the forms the LLVM conversion understands.
+// This mirrors the `-convert-vector-to-llvm` pipeline (default options) that
+// the shipped Makefile runs after the BOSCAME lowering.
+void prepareVectorOps(ModuleOp module, MLIRContext &context) {
+  RewritePatternSet patterns(&context);
+  vector::populateVectorToVectorCanonicalizationPatterns(patterns);
+  vector::populateVectorBitCastLoweringPatterns(patterns);
+  vector::populateVectorBroadcastLoweringPatterns(patterns);
+  vector::populateVectorContractLoweringPatterns(
+      patterns, vector::VectorContractLowering::Dot);
+  vector::populateVectorMaskOpLoweringPatterns(patterns);
+  vector::populateVectorShapeCastLoweringPatterns(patterns);
+  vector::populateVectorInterleaveLoweringPatterns(patterns);
+  vector::populateVectorTransposeLoweringPatterns(
+      patterns, vector::VectorTransposeLowering::EltWise);
+  vector::populateVectorTransferLoweringPatterns(patterns, 1);
+  vector::populateVectorMaskMaterializationPatterns(patterns, false);
+  vector::populateVectorInsertExtractStridedSliceTransforms(patterns);
+  vector::populateVectorRankReducingFMAPattern(patterns);
+  vector::populateVectorGatherLoweringPatterns(patterns);
+  vector::populateVectorFromElementsUnrollPatterns(patterns);
+  vector::populateVectorToElementsUnrollPatterns(patterns);
+  (void)applyPatternsGreedily(module, std::move(patterns));
+}
+
+// The final conversion: BOSCAME / SPM / DMA / tile plus every standard dialect
+// that still stands between the module and LLVM.
+LogicalResult convertToLLVM(ModuleOp module, MLIRContext &context,
+                            const TileLoweringOptions &tileOptions,
+                            bool scalarF32OrderedReductions,
+                            bool scalarF32MaxReductions) {
+  DataLayoutAnalysis dataLayoutAnalysis(module);
+  LowerToLLVMOptions options(&context, dataLayoutAnalysis.getAtOrAbove(module));
+  LLVMTypeConverter converter(&context, options, &dataLayoutAnalysis);
+  addBOSCAMETypeConversions(converter);
+
+  LLVMConversionTarget target(context);
+  target.addDynamicallyLegalDialect<BOSCAMEDialect>([](Operation *op) {
+    return op->getName().getStringRef().starts_with("bosc_ame.intr.");
+  });
+  target.addIllegalDialect<
+      arith::ArithDialect, affine::AffineDialect, cf::ControlFlowDialect,
+      func::FuncDialect, index::IndexDialect, linalg::LinalgDialect,
+      math::MathDialect, memref::MemRefDialect, scf::SCFDialect, ub::UBDialect,
+      vector::VectorDialect>();
+
+  SymbolTableCollection symbolTables;
+  RewritePatternSet patterns(&context);
+  patterns.add<BOSCAMEToIntrinsicLowering>(converter, &context);
+  patterns.add<SpmViewOpConversion>(converter, &context);
+  patterns.add<DDRFrameConversion, DDRReleaseConversion>(converter, &context);
+  patterns.add<DmaStartOpConversion>(converter, &context);
+  patterns.add<DmaWaitOpConversion>(converter, &context);
+  if (scalarF32OrderedReductions || scalarF32MaxReductions)
+    patterns.add<ScalarOrderedSnapshotLoadLowering,
+                 ScalarOrderedSnapshotStoreLowering>(converter);
+  // The tile patterns share this converter, this target and this pattern set;
+  // they do not run a conversion of their own.
+  populateBOSCAMETileLoweringPatterns(converter, patterns, tileOptions);
+
+  // A loop that carries an AME matrix value changes the type of its iter
+  // arguments.  The structural SCF conversion has to run inside this same
+  // conversion - and before SCF is lowered to a CFG - so that the loop itself,
+  // the value it carries and the tile operations that produce and consume that
+  // value are all rewritten against one converter; a separate type-conversion
+  // pass would have to bridge the two conversions with casts that could not be
+  // reconciled afterwards.
+  scf::populateSCFStructuralTypeConversions(converter, patterns,
+                                            PatternBenefit(10));
+  arith::populateArithToLLVMConversionPatterns(converter, patterns);
+  index::populateIndexToLLVMConversionPatterns(converter, patterns);
+  ub::populateUBToLLVMConversionPatterns(converter, patterns);
+  populateAffineToStdConversionPatterns(patterns);
+  populateSCFToControlFlowConversionPatterns(patterns);
+  cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
+  populateFuncToLLVMConversionPatterns(converter, patterns, &symbolTables);
+  populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns,
+                                                 &symbolTables);
+  populateVectorToLLVMConversionPatterns(converter, patterns);
+  vector::populateVectorTransferLoweringPatterns(patterns);
+  populateMathToLLVMConversionPatterns(converter, patterns);
+
+  return applyPartialConversion(module, target, std::move(patterns));
+}
+
+// Remove the unrealized conversion casts the conversion may have left behind
+// (the equivalent of the final `-reconcile-unrealized-casts` stage).
+void reconcileCasts(ModuleOp module) {
+  SmallVector<UnrealizedConversionCastOp> casts;
+  module.walk([&](UnrealizedConversionCastOp cast) { casts.push_back(cast); });
+  reconcileUnrealizedCasts(casts);
+}
+
+//===----------------------------------------------------------------------===//
+// Pass body
+//===----------------------------------------------------------------------===//
+
+// Options of the shared lowering body.
+struct BOSCAMELoweringOptions {
+  // `-lower-bosc-ame-tile`: the caller states that this pipeline is the FPGA
+  // tile path, so the module has to select an FPGA AME contract even when the
+  // tile operations are not present yet (they may be introduced earlier in the
+  // same pipeline).
+  bool requireFpgaContract = false;
+  // Opt-in FPGA workaround: ordered f32 reductions keep scalar accumulators.
+  bool scalarF32OrderedReductions = false;
+  // Opt-in FPGA workaround: f32 max reductions keep scalar accumulators.
+  bool scalarF32MaxReductions = false;
 };
 
-/// 2. Indexed Move
-template <typename OpTy>
-struct BOSCAMEIndexedMoveLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  BOSCAMEIndexedMoveLowering(LLVMTypeConverter &typeConverter,
-                             StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, i64Type});
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, op.getLoc(), i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val =
-        LLVM::ConstantOp::create(rewriter, op.getLoc(), i64Type,
-                                 rewriter.getI64IntegerAttr(op.getMs1()));
-
-    LLVM::CallOp::create(rewriter, op.getLoc(), TypeRange{}, intrNameAttr,
-                         ValueRange{mdVal, ms1Val, adaptor.getRs2()});
-    rewriter.eraseOp(op);
+// Policy transitions do not clobber RVV registers on the delivered NR target.
+// Keeping them as ABI calls would spill live vectors using
+// vlenb/whole-register instructions that this target does not implement. Run
+// this only after the conservative call-based matrix/DMA check, while
+// declaration provenance is still available; genuine runtime calls retain
+// their ordinary ABI.
+LogicalResult inlineNrCpuDdrPolicies(ModuleOp module) {
+  auto target = module->getAttrOfType<StringAttr>("bosc_ame.target");
+  if (!target || target.getValue() != "nr-fpga")
     return success();
+  SmallVector<func::CallOp> calls;
+  module.walk([&](func::CallOp call) {
+    if (call->hasAttr(buddy::boscame::lowering::kCpuDdrPolicy))
+      calls.push_back(call);
+  });
+  for (func::CallOp call : calls) {
+    StringRef name = call.getCallee();
+    bool write = name == "bosc_ame_ddr_write_begin";
+    auto function = SymbolTable::lookupNearestSymbolFrom<func::FuncOp>(
+        call, call.getCalleeAttr());
+    if ((!write && name != "bosc_ame_ddr_read_begin") || !function ||
+        !function.isExternal() || function.getNumArguments() ||
+        function.getNumResults() || call.getNumOperands() ||
+        call.getNumResults() ||
+        !call->getAttrOfType<UnitAttr>(buddy::boscame::lowering::kCpuDdrPolicy))
+      return call.emitOpError(
+          "compiler DDR policy transition requires a reserved external "
+          "() -> () helper and unit policy provenance");
+    OpBuilder builder(call);
+    // Same defaults as BOSC_AME_DMA_SHARED_READS/WRITES in the NR runtime.
+    // These target intrinsics deliberately do not use an overridable ABI call.
+    int64_t policy =
+        write ? INT64_C(0x0f0f0f0f0f0f0f0f) : INT64_C(0x0f0f000f000f000f);
+    Value value =
+        LLVM::ConstantOp::create(builder, call.getLoc(), builder.getI64Type(),
+                                 builder.getI64IntegerAttr(policy));
+    LLVM::InlineAsmOp::create(
+        builder, call.getLoc(), TypeRange{}, ValueRange{value},
+        "fence iorw, iorw\n\tcsrw 0xbc0, $0", "r,~{memory}", true, false,
+        LLVM::TailCallKind::None, false, LLVM::AsmDialectAttr(), ArrayAttr());
+    call.erase();
   }
-};
+  return success();
+}
 
-/// 3. Immediate Indexed Move
-template <typename OpTy, uint64_t (OpTy::*ImmGetter)()>
-struct BOSCAMEImmIndexedMoveLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  BOSCAMEImmIndexedMoveLowering(LLVMTypeConverter &typeConverter,
-                                StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+// The single lowering body behind both `-lower-bosc-ame` and
+// `-lower-bosc-ame-tile`; the two differ only in which contract they demand
+// from the module, never in how they convert.
+LogicalResult runBOSCAMELowering(ModuleOp module, MLIRContext &context,
+                                 const BOSCAMELoweringOptions &options) {
+  // Stage 1: contract checks, while the SPM annotation is still present.
+  if (failed(verifySpmDmaContract(module)))
+    return failure();
+  if (failed(validateSpmSurface(module)))
+    return failure();
 
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+  // The tile path is opt-in: it is only taken when the module both uses tile
+  // operations and selects a hardware contract this build implements.
+  TileLoweringOptions tileOptions;
+  if (hasTileOps(module) || options.requireFpgaContract) {
+    TileTargetProfile profile;
+    if (failed(resolveTileTargetProfile(module, profile)))
       return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, i64Type});
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, op.getLoc(), i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val =
-        LLVM::ConstantOp::create(rewriter, op.getLoc(), i64Type,
-                                 rewriter.getI64IntegerAttr(op.getMs1()));
-
-    uint64_t imm = (op.*ImmGetter)();
-    Value immVal = LLVM::ConstantOp::create(rewriter, op.getLoc(), i64Type,
-                                            rewriter.getI64IntegerAttr(imm));
-
-    LLVM::CallOp::create(rewriter, op.getLoc(), TypeRange{}, intrNameAttr,
-                         ValueRange{mdVal, ms1Val, immVal});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-/// 4. Matrix to Scalar
-template <typename OpTy>
-struct BOSCAMEMatrixToScalarLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  BOSCAMEMatrixToScalarLowering(LLVMTypeConverter &typeConverter,
-                                StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+    tileOptions.profile = profile;
+    if (failed(verifyBOSCAMETileValues(module)))
       return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type, i64Type});
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value ms1Val =
-        LLVM::ConstantOp::create(rewriter, op.getLoc(), i64Type,
-                                 rewriter.getI64IntegerAttr(op.getMs1()));
-
-    auto callOp = LLVM::CallOp::create(rewriter, op.getLoc(),
-                                       TypeRange{i64Type}, intrNameAttr,
-                                       ValueRange{ms1Val, adaptor.getRs2()});
-    rewriter.replaceOp(op, callOp.getResults());
-    return success();
   }
-};
+  declareDmaRuntimeHelpers(module);
+  if (failed(declareFrameRuntimeHelpers(module)))
+    return failure();
 
-/// 5. Scalar to Matrix
-template <typename OpTy>
-struct BOSCAMEScalarToMatrixLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  BOSCAMEScalarToMatrixLowering(LLVMTypeConverter &typeConverter,
-                                StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+  // Stage 2: preparation.
+  // Reject unsupported ordered forms before canonicalization can erase masks
+  // or supply implicit accumulators. Recheck after preparation, where other
+  // vector rewrites can introduce reductions that also need scalarization.
+  if (options.scalarF32OrderedReductions &&
+      failed(scalarizeF32OrderedReductions(module, false)))
+    return failure();
+  if (options.scalarF32MaxReductions &&
+      failed(scalarizeF32MaxReductions(module, false)))
+    return failure();
+  // Preserve emitted view roots for the private/external alias proof.
+  vectorizeGeneratedMemoryTasks(module, context);
+  if (failed(runPreparationPipeline(module, context)))
+    return failure();
+  prepareVectorOps(module, context);
+  if (options.scalarF32OrderedReductions &&
+      failed(scalarizeF32OrderedReductions(module, true)))
+    return failure();
+  if (options.scalarF32MaxReductions &&
+      failed(scalarizeF32MaxReductions(module, true)))
+    return failure();
+  if (failed(buddy::boscame::lowering::emitCpuDdrPolicies(module)))
+    return failure();
+  // Policy helpers remain calls for this check: an otherwise legal CPU memory
+  // operation may lie inside an ACC lifetime. The NR rewrite below must not
+  // weaken the existing matrix/DMA lifetime boundary.
+  if (module->hasAttr(buddy::boscame::lowering::kCpuDdrPolicy) &&
+      failed(verifySpmDmaContract(module)))
+    return failure();
+  if (failed(inlineNrCpuDdrPolicies(module)))
+    return failure();
 
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
+  // Stage 3: the loop structure follows automatically from the type conversion
+  // of stage 4 (see `convertToLLVM`), which converts the matrix value type and
+  // the operations that carry it - the loop included - in one conversion, so
+  // that no fixed-vector bridge can survive between them.
 
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, i64Type});
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, op.getLoc(), i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-
-    LLVM::CallOp::create(rewriter, op.getLoc(), TypeRange{}, intrNameAttr,
-                         ValueRange{mdVal, adaptor.getRs1(), adaptor.getRs2()});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
+  // Stage 4: the unified BOSCAME / SPM / DMA / standard conversion.
+  if (failed(convertToLLVM(module, context, tileOptions,
+                           options.scalarF32OrderedReductions,
+                           options.scalarF32MaxReductions)))
+    return failure();
+  reconcileCasts(module);
+  return success();
+}
 
 //===----------------------------------------------------------------------===//
-// Tile Register Matrix Multiply Lowering
+// Passes
 //===----------------------------------------------------------------------===//
 
-/// Lowering pattern for tile register matrix multiply
-template <typename OpTy>
-struct BOSCAMEMath3Lowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-
-  BOSCAMEMath3Lowering(LLVMTypeConverter &typeConverter,
-                       StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, i64Type});
-
-    auto intrNameAttr =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
-    Value ms2Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrNameAttr,
-                         ValueRange{mdVal, ms1Val, ms2Val});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-//===----------------------------------------------------------------------===//
-// Pass Definition
-//===----------------------------------------------------------------------===//
+// `-lower-bosc-ame`: the unified BOSCAME / SPM / DMA / tile entry point.
 struct LegalizeBOSCAMEForLLVMExport
     : public PassWrapper<LegalizeBOSCAMEForLLVMExport,
                          OperationPass<ModuleOp>> {
@@ -489,36 +1319,90 @@ struct LegalizeBOSCAMEForLLVMExport
 
   StringRef getArgument() const final { return "lower-bosc-ame"; }
   StringRef getDescription() const final {
-    return "BOSCAME dialect lowering pass.";
+    return "Lower the BOSCAME / SPM / DMA surface and the surrounding standard "
+           "dialects to the LLVM dialect.";
   }
 
   LegalizeBOSCAMEForLLVMExport() = default;
   LegalizeBOSCAMEForLLVMExport(const LegalizeBOSCAMEForLLVMExport &) {}
 
+  Option<bool> scalarF32OrderedReductions{
+      *this, "scalar-f32-ordered-reductions",
+      llvm::cl::desc("Lower fixed rank-one ordered f32 ADD reductions with an "
+                     "accumulator to sequential scalar loads/adds"),
+      llvm::cl::init(false)};
+
+  Option<bool> scalarF32MaxReductions{
+      *this, "scalar-f32-max-reductions",
+      llvm::cl::desc("Lower fixed rank-one f32 maxnum/maximum/maximumnum "
+                     "reductions to scalar loads and matching comparisons"),
+      llvm::cl::init(false)};
+
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<LLVM::LLVMDialect>();
-    registry.insert<BOSCAMEDialect>();
-    registry.insert<arith::ArithDialect>();
-    registry.insert<memref::MemRefDialect>();
+    registry
+        .insert<BOSCAMEDialect, LLVM::LLVMDialect, affine::AffineDialect,
+                arith::ArithDialect, cf::ControlFlowDialect, func::FuncDialect,
+                index::IndexDialect, linalg::LinalgDialect, math::MathDialect,
+                memref::MemRefDialect, scf::SCFDialect, ub::UBDialect,
+                vector::VectorDialect>();
   }
 
   void runOnOperation() override {
-    ModuleOp module = getOperation();
-    MLIRContext &context = getContext();
+    BOSCAMELoweringOptions options;
+    options.scalarF32OrderedReductions = scalarF32OrderedReductions;
+    options.scalarF32MaxReductions = scalarF32MaxReductions;
+    if (failed(runBOSCAMELowering(getOperation(), getContext(), options)))
+      signalPassFailure();
+  }
+};
 
-    LLVMConversionTarget target(context);
-    target.addLegalDialect<LLVM::LLVMDialect>();
-    target.addLegalDialect<arith::ArithDialect>();
-    target.addLegalDialect<memref::MemRefDialect>();
+// `-lower-bosc-ame-tile`: the FPGA tile path of the same lowering.
+//
+// It produces exactly the same boundary as `-lower-bosc-ame` (LLVM dialect,
+// ready for `buddy-translate`) and shares its implementation: the separate
+// entry point only exists so a pipeline can state that it is lowering the
+// FPGA AME tile path and therefore require `bosc_ame.target` to name a
+// contract this build implements, even before the tile operations appear.
+struct LowerBOSCAMETileOps
+    : public PassWrapper<LowerBOSCAMETileOps, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerBOSCAMETileOps)
 
-    target.addIllegalDialect<buddy::boscame::BOSCAMEDialect>();
+  StringRef getArgument() const final { return "lower-bosc-ame-tile"; }
+  StringRef getDescription() const final {
+    return "Lower the BOSCAME tile operations (and the SPM/DMA and standard "
+           "dialect surface they need) to the LLVM dialect on the FPGA target.";
+  }
 
-    LLVMTypeConverter typeConverter(&context);
-    RewritePatternSet patterns(&context);
+  LowerBOSCAMETileOps() = default;
+  LowerBOSCAMETileOps(const LowerBOSCAMETileOps &) {}
 
-    populateBOSCAMELegalizeForLLVMExportPatterns(typeConverter, patterns);
+  Option<bool> scalarF32OrderedReductions{
+      *this, "scalar-f32-ordered-reductions",
+      llvm::cl::desc("Lower fixed rank-one ordered f32 ADD reductions with an "
+                     "accumulator to sequential scalar loads/adds"),
+      llvm::cl::init(false)};
 
-    if (failed(applyPartialConversion(module, target, std::move(patterns))))
+  Option<bool> scalarF32MaxReductions{
+      *this, "scalar-f32-max-reductions",
+      llvm::cl::desc("Lower fixed rank-one f32 maxnum/maximum/maximumnum "
+                     "reductions to scalar loads and matching comparisons"),
+      llvm::cl::init(false)};
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry
+        .insert<BOSCAMEDialect, LLVM::LLVMDialect, affine::AffineDialect,
+                arith::ArithDialect, cf::ControlFlowDialect, func::FuncDialect,
+                index::IndexDialect, linalg::LinalgDialect, math::MathDialect,
+                memref::MemRefDialect, scf::SCFDialect, ub::UBDialect,
+                vector::VectorDialect>();
+  }
+
+  void runOnOperation() override {
+    BOSCAMELoweringOptions options;
+    options.requireFpgaContract = true;
+    options.scalarF32OrderedReductions = scalarF32OrderedReductions;
+    options.scalarF32MaxReductions = scalarF32MaxReductions;
+    if (failed(runBOSCAMELowering(getOperation(), getContext(), options)))
       signalPassFailure();
   }
 };
@@ -527,1034 +1411,27 @@ struct LegalizeBOSCAMEForLLVMExport
 
 void mlir::populateBOSCAMELegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
-  // Configuration patterns
-  patterns.add<BOSCAMEConfigImmLowering<MSettypeiOp, &MSettypeiOp::getTimm>>(
-      converter, "llvm.riscv.bosc.msettypei");
-
-  patterns.add<BOSCAMEConfigImmLowering<MSettypehiOp, &MSettypehiOp::getTimm>>(
-      converter, "llvm.riscv.bosc.msettypehi");
-
-  patterns.add<BOSCAMEConfigImmLowering<MSettilemiOp, &MSettilemiOp::getTilem>>(
-      converter, "llvm.riscv.bosc.msettilemi");
-
-  patterns.add<BOSCAMEConfigImmLowering<MSettileniOp, &MSettileniOp::getTilen>>(
-      converter, "llvm.riscv.bosc.msettileni");
-
-  patterns.add<BOSCAMEConfigImmLowering<MSettilekiOp, &MSettilekiOp::getTilek>>(
-      converter, "llvm.riscv.bosc.msettileki");
-
-  patterns.add<BOSCAMEConfigRegLowering<MSettypeOp>>(
-      converter, "llvm.riscv.bosc.msettype");
-  patterns.add<BOSCAMEConfigRegLowering<MSettilemOp>>(
-      converter, "llvm.riscv.bosc.msettilem");
-  patterns.add<BOSCAMEConfigRegLowering<MSettilenOp>>(
-      converter, "llvm.riscv.bosc.msettilen");
-  patterns.add<BOSCAMEConfigRegLowering<MSettilekOp>>(
-      converter, "llvm.riscv.bosc.msettilek");
-
-  // Element-wise matrix multiply-accumulate patterns
-  // 1. ADD / SUB - No Widen
-  patterns.add<BOSCAMEMath3Lowering<MadduMmOp>>(converter,
-                                                "llvm.riscv.bosc.maddu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MadduHbMmOp>>(
-      converter, "llvm.riscv.bosc.maddu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MadduBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.maddu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MadduHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.maddu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MadduWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.maddu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MadduDwMmOp>>(
-      converter, "llvm.riscv.bosc.maddu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsadduMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msaddu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsadduHbMmOp>>(
-      converter, "llvm.riscv.bosc.msaddu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsadduBMmOp>>(
-      converter, "llvm.riscv.bosc.msaddu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsadduHMmOp>>(
-      converter, "llvm.riscv.bosc.msaddu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsadduWMmOp>>(
-      converter, "llvm.riscv.bosc.msaddu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsadduDwMmOp>>(
-      converter, "llvm.riscv.bosc.msaddu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MaddMmOp>>(converter,
-                                               "llvm.riscv.bosc.madd.mm");
-  patterns.add<BOSCAMEMath3Lowering<MaddHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.madd.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MaddBMmOp>>(converter,
-                                                "llvm.riscv.bosc.madd.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MaddHMmOp>>(converter,
-                                                "llvm.riscv.bosc.madd.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MaddWMmOp>>(converter,
-                                                "llvm.riscv.bosc.madd.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MaddDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.madd.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsaddMmOp>>(converter,
-                                                "llvm.riscv.bosc.msadd.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsaddHbMmOp>>(
-      converter, "llvm.riscv.bosc.msadd.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsaddBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msadd.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsaddHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msadd.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsaddWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msadd.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsaddDwMmOp>>(
-      converter, "llvm.riscv.bosc.msadd.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfaddMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfadd.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfaddCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfadd.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfaddHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfadd.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfaddFMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfadd.f.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfaddDMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfadd.d.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsubuMmOp>>(converter,
-                                                "llvm.riscv.bosc.msubu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubuHbMmOp>>(
-      converter, "llvm.riscv.bosc.msubu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubuBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msubu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubuHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msubu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubuWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msubu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubuDwMmOp>>(
-      converter, "llvm.riscv.bosc.msubu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MssubuMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mssubu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubuHbMmOp>>(
-      converter, "llvm.riscv.bosc.mssubu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubuBMmOp>>(
-      converter, "llvm.riscv.bosc.mssubu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubuHMmOp>>(
-      converter, "llvm.riscv.bosc.mssubu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubuWMmOp>>(
-      converter, "llvm.riscv.bosc.mssubu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubuDwMmOp>>(
-      converter, "llvm.riscv.bosc.mssubu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsubMmOp>>(converter,
-                                               "llvm.riscv.bosc.msub.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msub.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubBMmOp>>(converter,
-                                                "llvm.riscv.bosc.msub.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubHMmOp>>(converter,
-                                                "llvm.riscv.bosc.msub.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubWMmOp>>(converter,
-                                                "llvm.riscv.bosc.msub.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsubDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msub.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MssubMmOp>>(converter,
-                                                "llvm.riscv.bosc.mssub.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubHbMmOp>>(
-      converter, "llvm.riscv.bosc.mssub.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mssub.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mssub.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mssub.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MssubDwMmOp>>(
-      converter, "llvm.riscv.bosc.mssub.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfsubMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfsub.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfsubCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfsub.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfsubHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfsub.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfsubFMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfsub.f.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfsubDMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfsub.d.mm");
-
-  // 2. ADD / SUB - Double Widen
-  patterns.add<BOSCAMEMath3Lowering<MwadduMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwaddu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwadduHbMmOp>>(
-      converter, "llvm.riscv.bosc.mwaddu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwadduBMmOp>>(
-      converter, "llvm.riscv.bosc.mwaddu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwadduHMmOp>>(
-      converter, "llvm.riscv.bosc.mwaddu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwadduWMmOp>>(
-      converter, "llvm.riscv.bosc.mwaddu.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MwaddMmOp>>(converter,
-                                                "llvm.riscv.bosc.mwadd.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwaddHbMmOp>>(
-      converter, "llvm.riscv.bosc.mwadd.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwaddBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwadd.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwaddHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwadd.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwaddWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwadd.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfwaddMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfwadd.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwaddCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfwadd.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwaddHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfwadd.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwaddFMmOp>>(
-      converter, "llvm.riscv.bosc.mfwadd.f.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MwsubuMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwsubu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubuHbMmOp>>(
-      converter, "llvm.riscv.bosc.mwsubu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubuBMmOp>>(
-      converter, "llvm.riscv.bosc.mwsubu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubuHMmOp>>(
-      converter, "llvm.riscv.bosc.mwsubu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubuWMmOp>>(
-      converter, "llvm.riscv.bosc.mwsubu.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MwsubMmOp>>(converter,
-                                                "llvm.riscv.bosc.mwsub.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubHbMmOp>>(
-      converter, "llvm.riscv.bosc.mwsub.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwsub.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwsub.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwsubWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwsub.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfwsubMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfwsub.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwsubCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfwsub.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwsubHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfwsub.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwsubFMmOp>>(
-      converter, "llvm.riscv.bosc.mfwsub.f.mm");
-
-  // 3. MIN / MAX - No Widen
-  patterns.add<BOSCAMEMath3Lowering<MminuMmOp>>(converter,
-                                                "llvm.riscv.bosc.mminu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminuHbMmOp>>(
-      converter, "llvm.riscv.bosc.mminu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminuBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mminu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminuHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mminu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminuWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mminu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminuDwMmOp>>(
-      converter, "llvm.riscv.bosc.mminu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MmaxuMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmaxu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxuHbMmOp>>(
-      converter, "llvm.riscv.bosc.mmaxu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxuBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmaxu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxuHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmaxu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxuWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmaxu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxuDwMmOp>>(
-      converter, "llvm.riscv.bosc.mmaxu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MminMmOp>>(converter,
-                                               "llvm.riscv.bosc.mmin.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmin.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminBMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmin.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminHMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmin.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminWMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmin.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MminDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmin.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MmaxMmOp>>(converter,
-                                               "llvm.riscv.bosc.mmax.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmax.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxBMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmax.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxHMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmax.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxWMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmax.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaxDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmax.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfminMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfmin.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfminCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfmin.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfminHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfmin.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfminFMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfmin.f.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfminDMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfmin.d.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfmaxMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfmax.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmaxCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfmax.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmaxHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfmax.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmaxFMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfmax.f.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmaxDMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfmax.d.mm");
-
-  // 4. MUL / MULH / DIV - No Widen
-  patterns.add<BOSCAMEMath3Lowering<MsmuluMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msmulu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmuluHbMmOp>>(
-      converter, "llvm.riscv.bosc.msmulu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmuluBMmOp>>(
-      converter, "llvm.riscv.bosc.msmulu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmuluHMmOp>>(
-      converter, "llvm.riscv.bosc.msmulu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmuluWMmOp>>(
-      converter, "llvm.riscv.bosc.msmulu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmuluDwMmOp>>(
-      converter, "llvm.riscv.bosc.msmulu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MmulMmOp>>(converter,
-                                               "llvm.riscv.bosc.mmul.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmul.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulBMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmul.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulHMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmul.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulWMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmul.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmul.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsmulMmOp>>(converter,
-                                                "llvm.riscv.bosc.msmul.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulHbMmOp>>(
-      converter, "llvm.riscv.bosc.msmul.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msmul.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msmul.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msmul.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulDwMmOp>>(
-      converter, "llvm.riscv.bosc.msmul.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfmulMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfmul.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmulCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfmul.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmulHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfmul.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmulFMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfmul.f.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmulDMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfmul.d.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MmulhuMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmulhu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhuHbMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhuBMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhuHMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhuWMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhuDwMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MmulhMmOp>>(converter,
-                                                "llvm.riscv.bosc.mmulh.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhHbMmOp>>(
-      converter, "llvm.riscv.bosc.mmulh.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmulh.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmulh.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmulh.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhDwMmOp>>(
-      converter, "llvm.riscv.bosc.mmulh.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MmulhsuMmOp>>(converter,
-                                                  "llvm.riscv.bosc.mmulhsu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhsuHbMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhsu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhsuBMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhsu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhsuHMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhsu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhsuWMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhsu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmulhsuDwMmOp>>(
-      converter, "llvm.riscv.bosc.mmulhsu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsmulsuMmOp>>(converter,
-                                                  "llvm.riscv.bosc.msmulsu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulsuHbMmOp>>(
-      converter, "llvm.riscv.bosc.msmulsu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulsuBMmOp>>(
-      converter, "llvm.riscv.bosc.msmulsu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulsuHMmOp>>(
-      converter, "llvm.riscv.bosc.msmulsu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulsuWMmOp>>(
-      converter, "llvm.riscv.bosc.msmulsu.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmulsuDwMmOp>>(
-      converter, "llvm.riscv.bosc.msmulsu.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfdivMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfdiv.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfdivCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfdiv.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfdivHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfdiv.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfdivFMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfdiv.f.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfdivDMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfdiv.d.mm");
-
-  // 5. MUL - Double Widen
-  patterns.add<BOSCAMEMath3Lowering<MwmuluMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwmulu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmuluHbMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmuluBMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmuluHMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmuluWMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulu.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MwmulMmOp>>(converter,
-                                                "llvm.riscv.bosc.mwmul.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulHbMmOp>>(
-      converter, "llvm.riscv.bosc.mwmul.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulBMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwmul.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulHMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwmul.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulWMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwmul.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MwmulsuMmOp>>(converter,
-                                                  "llvm.riscv.bosc.mwmulsu.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulsuHbMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulsu.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulsuBMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulsu.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulsuHMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulsu.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmulsuWMmOp>>(
-      converter, "llvm.riscv.bosc.mwmulsu.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfwmulMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfwmul.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwmulCfMmOp>>(
-      converter, "llvm.riscv.bosc.mfwmul.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwmulHfMmOp>>(
-      converter, "llvm.riscv.bosc.mfwmul.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwmulFMmOp>>(
-      converter, "llvm.riscv.bosc.mfwmul.f.mm");
-
-  // 6. LOGIC & SHIFT - No Widen (Individual & Multiclass)
-  patterns.add<BOSCAMEMath3Lowering<MandMmOp>>(converter,
-                                               "llvm.riscv.bosc.mand.mm");
-  patterns.add<BOSCAMEMath3Lowering<MorMmOp>>(converter,
-                                              "llvm.riscv.bosc.mor.mm");
-  patterns.add<BOSCAMEMath3Lowering<MxorMmOp>>(converter,
-                                               "llvm.riscv.bosc.mxor.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsllMmOp>>(converter,
-                                               "llvm.riscv.bosc.msll.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsllHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msll.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsllBMmOp>>(converter,
-                                                "llvm.riscv.bosc.msll.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsllHMmOp>>(converter,
-                                                "llvm.riscv.bosc.msll.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsllWMmOp>>(converter,
-                                                "llvm.riscv.bosc.msll.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsllDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msll.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsrlMmOp>>(converter,
-                                               "llvm.riscv.bosc.msrl.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsrlHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msrl.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsrlBMmOp>>(converter,
-                                                "llvm.riscv.bosc.msrl.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsrlHMmOp>>(converter,
-                                                "llvm.riscv.bosc.msrl.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsrlWMmOp>>(converter,
-                                                "llvm.riscv.bosc.msrl.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsrlDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msrl.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsraMmOp>>(converter,
-                                               "llvm.riscv.bosc.msra.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsraHbMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msra.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsraBMmOp>>(converter,
-                                                "llvm.riscv.bosc.msra.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsraHMmOp>>(converter,
-                                                "llvm.riscv.bosc.msra.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsraWMmOp>>(converter,
-                                                "llvm.riscv.bosc.msra.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsraDwMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msra.dw.mm");
-
-  // 7. SQRT - No Widen (Unary, 2-Operands)
-  patterns.add<BOSCAMEMath2Lowering<MfsqrtMOp>>(converter,
-                                                "llvm.riscv.bosc.mfsqrt.m");
-  patterns.add<BOSCAMEMath2Lowering<MfsqrtCfMOp>>(
-      converter, "llvm.riscv.bosc.mfsqrt.cf.m");
-  patterns.add<BOSCAMEMath2Lowering<MfsqrtHfMOp>>(
-      converter, "llvm.riscv.bosc.mfsqrt.hf.m");
-  patterns.add<BOSCAMEMath2Lowering<MfsqrtFMOp>>(converter,
-                                                 "llvm.riscv.bosc.mfsqrt.f.m");
-  patterns.add<BOSCAMEMath2Lowering<MfsqrtDMOp>>(converter,
-                                                 "llvm.riscv.bosc.mfsqrt.d.m");
-
-  // Load/Store patterns
-  // Matrix A
-  patterns.add<BOSCAMELoadLowering<Mlae8mOp>>(converter,
-                                              "llvm.riscv.bosc.mlae8.m");
-  patterns.add<BOSCAMELoadLowering<Mlae16mOp>>(converter,
-                                               "llvm.riscv.bosc.mlae16.m");
-  patterns.add<BOSCAMELoadLowering<Mlae32mOp>>(converter,
-                                               "llvm.riscv.bosc.mlae32.m");
-  patterns.add<BOSCAMELoadLowering<Mlae64mOp>>(converter,
-                                               "llvm.riscv.bosc.mlae64.m");
-
-  patterns.add<BOSCAMELoadLowering<Mlate8mOp>>(converter,
-                                               "llvm.riscv.bosc.mlate8.m");
-  patterns.add<BOSCAMELoadLowering<Mlate16mOp>>(converter,
-                                                "llvm.riscv.bosc.mlate16.m");
-  patterns.add<BOSCAMELoadLowering<Mlate32mOp>>(converter,
-                                                "llvm.riscv.bosc.mlate32.m");
-  patterns.add<BOSCAMELoadLowering<Mlate64mOp>>(converter,
-                                                "llvm.riscv.bosc.mlate64.m");
-
-  patterns.add<BOSCAMELoadLowering<Mltre8mOp>>(converter,
-                                               "llvm.riscv.bosc.mltre8.m");
-  patterns.add<BOSCAMELoadLowering<Mltre16mOp>>(converter,
-                                                "llvm.riscv.bosc.mltre16.m");
-  patterns.add<BOSCAMELoadLowering<Mltre32mOp>>(converter,
-                                                "llvm.riscv.bosc.mltre32.m");
-  patterns.add<BOSCAMELoadLowering<Mltre64mOp>>(converter,
-                                                "llvm.riscv.bosc.mltre64.m");
-
-  // Matrix B
-  patterns.add<BOSCAMELoadLowering<Mlbe8mOp>>(converter,
-                                              "llvm.riscv.bosc.mlbe8.m");
-  patterns.add<BOSCAMELoadLowering<Mlbe16mOp>>(converter,
-                                               "llvm.riscv.bosc.mlbe16.m");
-  patterns.add<BOSCAMELoadLowering<Mlbe32mOp>>(converter,
-                                               "llvm.riscv.bosc.mlbe32.m");
-  patterns.add<BOSCAMELoadLowering<Mlbe64mOp>>(converter,
-                                               "llvm.riscv.bosc.mlbe64.m");
-
-  patterns.add<BOSCAMELoadLowering<Mlbte8mOp>>(converter,
-                                               "llvm.riscv.bosc.mlbte8.m");
-  patterns.add<BOSCAMELoadLowering<Mlbte16mOp>>(converter,
-                                                "llvm.riscv.bosc.mlbte16.m");
-  patterns.add<BOSCAMELoadLowering<Mlbte32mOp>>(converter,
-                                                "llvm.riscv.bosc.mlbte32.m");
-  patterns.add<BOSCAMELoadLowering<Mlbte64mOp>>(converter,
-                                                "llvm.riscv.bosc.mlbte64.m");
-
-  // Matrix C
-  patterns.add<BOSCAMELoadLowering<Mlce8mOp>>(converter,
-                                              "llvm.riscv.bosc.mlce8.m");
-  patterns.add<BOSCAMELoadLowering<Mlce16mOp>>(converter,
-                                               "llvm.riscv.bosc.mlce16.m");
-  patterns.add<BOSCAMELoadLowering<Mlce32mOp>>(converter,
-                                               "llvm.riscv.bosc.mlce32.m");
-  patterns.add<BOSCAMELoadLowering<Mlce64mOp>>(converter,
-                                               "llvm.riscv.bosc.mlce64.m");
-
-  patterns.add<BOSCAMELoadLowering<Mlcte8mOp>>(converter,
-                                               "llvm.riscv.bosc.mlcte8.m");
-  patterns.add<BOSCAMELoadLowering<Mlcte16mOp>>(converter,
-                                                "llvm.riscv.bosc.mlcte16.m");
-  patterns.add<BOSCAMELoadLowering<Mlcte32mOp>>(converter,
-                                                "llvm.riscv.bosc.mlcte32.m");
-  patterns.add<BOSCAMELoadLowering<Mlcte64mOp>>(converter,
-                                                "llvm.riscv.bosc.mlcte64.m");
-
-  patterns.add<BOSCAMELoadLowering<Mlacce8mOp>>(converter,
-                                                "llvm.riscv.bosc.mlacce8.m");
-  patterns.add<BOSCAMELoadLowering<Mlacce16mOp>>(converter,
-                                                 "llvm.riscv.bosc.mlacce16.m");
-  patterns.add<BOSCAMELoadLowering<Mlacce32mOp>>(converter,
-                                                 "llvm.riscv.bosc.mlacce32.m");
-  patterns.add<BOSCAMELoadLowering<Mlacce64mOp>>(converter,
-                                                 "llvm.riscv.bosc.mlacce64.m");
-
-  //===--------------------------------------------------------------------===//
-  // Store Patterns
-  //===--------------------------------------------------------------------===//
-
-  // Matrix A
-  patterns.add<BOSCAMEStoreLowering<Msae8mOp>>(converter,
-                                               "llvm.riscv.bosc.msae8.m");
-  patterns.add<BOSCAMEStoreLowering<Msae16mOp>>(converter,
-                                                "llvm.riscv.bosc.msae16.m");
-  patterns.add<BOSCAMEStoreLowering<Msae32mOp>>(converter,
-                                                "llvm.riscv.bosc.msae32.m");
-  patterns.add<BOSCAMEStoreLowering<Msae64mOp>>(converter,
-                                                "llvm.riscv.bosc.msae64.m");
-
-  patterns.add<BOSCAMEStoreLowering<Msate8mOp>>(converter,
-                                                "llvm.riscv.bosc.msate8.m");
-  patterns.add<BOSCAMEStoreLowering<Msate16mOp>>(converter,
-                                                 "llvm.riscv.bosc.msate16.m");
-  patterns.add<BOSCAMEStoreLowering<Msate32mOp>>(converter,
-                                                 "llvm.riscv.bosc.msate32.m");
-  patterns.add<BOSCAMEStoreLowering<Msate64mOp>>(converter,
-                                                 "llvm.riscv.bosc.msate64.m");
-
-  patterns.add<BOSCAMEStoreLowering<Mstre8mOp>>(converter,
-                                                "llvm.riscv.bosc.mstre8.m");
-  patterns.add<BOSCAMEStoreLowering<Mstre16mOp>>(converter,
-                                                 "llvm.riscv.bosc.mstre16.m");
-  patterns.add<BOSCAMEStoreLowering<Mstre32mOp>>(converter,
-                                                 "llvm.riscv.bosc.mstre32.m");
-  patterns.add<BOSCAMEStoreLowering<Mstre64mOp>>(converter,
-                                                 "llvm.riscv.bosc.mstre64.m");
-
-  // Matrix B
-  patterns.add<BOSCAMEStoreLowering<Msbe8mOp>>(converter,
-                                               "llvm.riscv.bosc.msbe8.m");
-  patterns.add<BOSCAMEStoreLowering<Msbe16mOp>>(converter,
-                                                "llvm.riscv.bosc.msbe16.m");
-  patterns.add<BOSCAMEStoreLowering<Msbe32mOp>>(converter,
-                                                "llvm.riscv.bosc.msbe32.m");
-  patterns.add<BOSCAMEStoreLowering<Msbe64mOp>>(converter,
-                                                "llvm.riscv.bosc.msbe64.m");
-
-  patterns.add<BOSCAMEStoreLowering<Msbte8mOp>>(converter,
-                                                "llvm.riscv.bosc.msbte8.m");
-  patterns.add<BOSCAMEStoreLowering<Msbte16mOp>>(converter,
-                                                 "llvm.riscv.bosc.msbte16.m");
-  patterns.add<BOSCAMEStoreLowering<Msbte32mOp>>(converter,
-                                                 "llvm.riscv.bosc.msbte32.m");
-  patterns.add<BOSCAMEStoreLowering<Msbte64mOp>>(converter,
-                                                 "llvm.riscv.bosc.msbte64.m");
-
-  // Matrix C
-  patterns.add<BOSCAMEStoreLowering<Msce8mOp>>(converter,
-                                               "llvm.riscv.bosc.msce8.m");
-  patterns.add<BOSCAMEStoreLowering<Msce16mOp>>(converter,
-                                                "llvm.riscv.bosc.msce16.m");
-  patterns.add<BOSCAMEStoreLowering<Msce32mOp>>(converter,
-                                                "llvm.riscv.bosc.msce32.m");
-  patterns.add<BOSCAMEStoreLowering<Msce64mOp>>(converter,
-                                                "llvm.riscv.bosc.msce64.m");
-
-  patterns.add<BOSCAMEStoreLowering<Mscte8mOp>>(converter,
-                                                "llvm.riscv.bosc.mscte8.m");
-  patterns.add<BOSCAMEStoreLowering<Mscte16mOp>>(converter,
-                                                 "llvm.riscv.bosc.mscte16.m");
-  patterns.add<BOSCAMEStoreLowering<Mscte32mOp>>(converter,
-                                                 "llvm.riscv.bosc.mscte32.m");
-  patterns.add<BOSCAMEStoreLowering<Mscte64mOp>>(converter,
-                                                 "llvm.riscv.bosc.mscte64.m");
-
-  patterns.add<BOSCAMEStoreLowering<Msacce8mOp>>(converter,
-                                                 "llvm.riscv.bosc.msacce8.m");
-  patterns.add<BOSCAMEStoreLowering<Msacce16mOp>>(converter,
-                                                  "llvm.riscv.bosc.msacce16.m");
-  patterns.add<BOSCAMEStoreLowering<Msacce32mOp>>(converter,
-                                                  "llvm.riscv.bosc.msacce32.m");
-  patterns.add<BOSCAMEStoreLowering<Msacce64mOp>>(converter,
-                                                  "llvm.riscv.bosc.msacce64.m");
-
-  // Data Move / Broadcast / Transpose Patterns
-  // 1. Pure Move (Tile-Tile & Acc-Acc)
-  patterns.add<BOSCAMEPureMoveLowering<MmveTt8Op>>(converter,
-                                                   "llvm.riscv.bosc.mmve8.t.t");
-  patterns.add<BOSCAMEPureMoveLowering<MmveTt16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.t.t");
-  patterns.add<BOSCAMEPureMoveLowering<MmveTt32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.t.t");
-  patterns.add<BOSCAMEPureMoveLowering<MmveTt64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.t.t");
-
-  patterns.add<BOSCAMEPureMoveLowering<MmveAa8Op>>(converter,
-                                                   "llvm.riscv.bosc.mmve8.a.a");
-  patterns.add<BOSCAMEPureMoveLowering<MmveAa16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.a.a");
-  patterns.add<BOSCAMEPureMoveLowering<MmveAa32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.a.a");
-  patterns.add<BOSCAMEPureMoveLowering<MmveAa64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.a.a");
-
-  // 2. GPR Indexed Move
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveAt8Op>>(
-      converter, "llvm.riscv.bosc.mmve8.a.t");
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveAt16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.a.t");
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveAt32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.a.t");
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveAt64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.a.t");
-
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveTa8Op>>(
-      converter, "llvm.riscv.bosc.mmve8.t.a");
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveTa16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.t.a");
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveTa32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.t.a");
-  patterns.add<BOSCAMEIndexedMoveLowering<MmveTa64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.t.a");
-
-  // 3. Immediate Indexed Move
-  patterns.add<BOSCAMEImmIndexedMoveLowering<MmvieAt8Op, &MmvieAt8Op::getImm>>(
-      converter, "llvm.riscv.bosc.mmvie8.a.t");
-  patterns
-      .add<BOSCAMEImmIndexedMoveLowering<MmvieAt16Op, &MmvieAt16Op::getImm>>(
-          converter, "llvm.riscv.bosc.mmvie16.a.t");
-  patterns
-      .add<BOSCAMEImmIndexedMoveLowering<MmvieAt32Op, &MmvieAt32Op::getImm>>(
-          converter, "llvm.riscv.bosc.mmvie32.a.t");
-  patterns
-      .add<BOSCAMEImmIndexedMoveLowering<MmvieAt64Op, &MmvieAt64Op::getImm>>(
-          converter, "llvm.riscv.bosc.mmvie64.a.t");
-
-  patterns.add<BOSCAMEImmIndexedMoveLowering<MmvieTa8Op, &MmvieTa8Op::getImm>>(
-      converter, "llvm.riscv.bosc.mmvie8.t.a");
-  patterns
-      .add<BOSCAMEImmIndexedMoveLowering<MmvieTa16Op, &MmvieTa16Op::getImm>>(
-          converter, "llvm.riscv.bosc.mmvie16.t.a");
-  patterns
-      .add<BOSCAMEImmIndexedMoveLowering<MmvieTa32Op, &MmvieTa32Op::getImm>>(
-          converter, "llvm.riscv.bosc.mmvie32.t.a");
-  patterns
-      .add<BOSCAMEImmIndexedMoveLowering<MmvieTa64Op, &MmvieTa64Op::getImm>>(
-          converter, "llvm.riscv.bosc.mmvie64.t.a");
-
-  // 4. Matrix to Scalar Move
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXt8Op>>(
-      converter, "llvm.riscv.bosc.mmve8.x.t");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXt16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.x.t");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXt32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.x.t");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXt64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.x.t");
-
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXa8Op>>(
-      converter, "llvm.riscv.bosc.mmve8.x.a");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXa16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.x.a");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXa32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.x.a");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MmveXa64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.x.a");
-
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFt8Op>>(
-      converter, "llvm.riscv.bosc.mfmve8.f.t");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFt16Op>>(
-      converter, "llvm.riscv.bosc.mfmve16.f.t");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFt32Op>>(
-      converter, "llvm.riscv.bosc.mfmve32.f.t");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFt64Op>>(
-      converter, "llvm.riscv.bosc.mfmve64.f.t");
-
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFa8Op>>(
-      converter, "llvm.riscv.bosc.mfmve8.f.a");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFa16Op>>(
-      converter, "llvm.riscv.bosc.mfmve16.f.a");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFa32Op>>(
-      converter, "llvm.riscv.bosc.mfmve32.f.a");
-  patterns.add<BOSCAMEMatrixToScalarLowering<MfmveFa64Op>>(
-      converter, "llvm.riscv.bosc.mfmve64.f.a");
-
-  // 5. Scalar GPR to Matrix Move
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveTx8Op>>(
-      converter, "llvm.riscv.bosc.mmve8.t.x");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveTx16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.t.x");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveTx32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.t.x");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveTx64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.t.x");
-
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveAx8Op>>(
-      converter, "llvm.riscv.bosc.mmve8.a.x");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveAx16Op>>(
-      converter, "llvm.riscv.bosc.mmve16.a.x");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveAx32Op>>(
-      converter, "llvm.riscv.bosc.mmve32.a.x");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MmveAx64Op>>(
-      converter, "llvm.riscv.bosc.mmve64.a.x");
-
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveTf8Op>>(
-      converter, "llvm.riscv.bosc.mfmve8.t.f");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveTf16Op>>(
-      converter, "llvm.riscv.bosc.mfmve16.t.f");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveTf32Op>>(
-      converter, "llvm.riscv.bosc.mfmve32.t.f");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveTf64Op>>(
-      converter, "llvm.riscv.bosc.mfmve64.t.f");
-
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveAf8Op>>(
-      converter, "llvm.riscv.bosc.mfmve8.a.f");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveAf16Op>>(
-      converter, "llvm.riscv.bosc.mfmve16.a.f");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveAf32Op>>(
-      converter, "llvm.riscv.bosc.mfmve32.a.f");
-  patterns.add<BOSCAMEScalarToMatrixLowering<MfmveAf64Op>>(
-      converter, "llvm.riscv.bosc.mfmve64.a.f");
-
-  // 6. Broadcast & Transpose Patterns
-  // Broadcast
-  patterns.add<BOSCAMEPureMoveLowering<MbcarMOp>>(converter,
-                                                  "llvm.riscv.bosc.mbcar.m");
-  patterns.add<BOSCAMEPureMoveLowering<MbcbrMOp>>(converter,
-                                                  "llvm.riscv.bosc.mbcbr.m");
-  patterns.add<BOSCAMEPureMoveLowering<MbccrMOp>>(converter,
-                                                  "llvm.riscv.bosc.mbccr.m");
-
-  // Broadcast Col & Elem (32-bit)
-  patterns.add<BOSCAMEPureMoveLowering<Mbcace8Op>>(converter,
-                                                   "llvm.riscv.bosc.mbcace8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcace16Op>>(
-      converter, "llvm.riscv.bosc.mbcace16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcace32Op>>(
-      converter, "llvm.riscv.bosc.mbcace32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcace64Op>>(
-      converter, "llvm.riscv.bosc.mbcace64.m");
-
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbce8Op>>(converter,
-                                                   "llvm.riscv.bosc.mbcbce8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbce16Op>>(
-      converter, "llvm.riscv.bosc.mbcbce16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbce32Op>>(
-      converter, "llvm.riscv.bosc.mbcbce32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbce64Op>>(
-      converter, "llvm.riscv.bosc.mbcbce64.m");
-
-  patterns.add<BOSCAMEPureMoveLowering<Mbccce8Op>>(converter,
-                                                   "llvm.riscv.bosc.mbccce8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbccce16Op>>(
-      converter, "llvm.riscv.bosc.mbccce16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbccce32Op>>(
-      converter, "llvm.riscv.bosc.mbccce32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbccce64Op>>(
-      converter, "llvm.riscv.bosc.mbccce64.m");
-
-  patterns.add<BOSCAMEPureMoveLowering<Mbcaee8Op>>(converter,
-                                                   "llvm.riscv.bosc.mbcaee8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcaee16Op>>(
-      converter, "llvm.riscv.bosc.mbcaee16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcaee32Op>>(
-      converter, "llvm.riscv.bosc.mbcaee32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcaee64Op>>(
-      converter, "llvm.riscv.bosc.mbcaee64.m");
-
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbee8Op>>(converter,
-                                                   "llvm.riscv.bosc.mbcbee8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbee16Op>>(
-      converter, "llvm.riscv.bosc.mbcbee16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbee32Op>>(
-      converter, "llvm.riscv.bosc.mbcbee32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbcbee64Op>>(
-      converter, "llvm.riscv.bosc.mbcbee64.m");
-
-  patterns.add<BOSCAMEPureMoveLowering<Mbccee8Op>>(converter,
-                                                   "llvm.riscv.bosc.mbccee8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbccee16Op>>(
-      converter, "llvm.riscv.bosc.mbccee16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbccee32Op>>(
-      converter, "llvm.riscv.bosc.mbccee32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mbccee64Op>>(
-      converter, "llvm.riscv.bosc.mbccee64.m");
-
-  // Transpose (32-bit)
-  patterns.add<BOSCAMEPureMoveLowering<Mtae8Op>>(converter,
-                                                 "llvm.riscv.bosc.mtae8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtae16Op>>(converter,
-                                                  "llvm.riscv.bosc.mtae16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtae32Op>>(converter,
-                                                  "llvm.riscv.bosc.mtae32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtae64Op>>(converter,
-                                                  "llvm.riscv.bosc.mtae64.m");
-
-  patterns.add<BOSCAMEPureMoveLowering<Mtbe8Op>>(converter,
-                                                 "llvm.riscv.bosc.mtbe8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtbe16Op>>(converter,
-                                                  "llvm.riscv.bosc.mtbe16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtbe32Op>>(converter,
-                                                  "llvm.riscv.bosc.mtbe32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtbe64Op>>(converter,
-                                                  "llvm.riscv.bosc.mtbe64.m");
-
-  patterns.add<BOSCAMEPureMoveLowering<Mtce8Op>>(converter,
-                                                 "llvm.riscv.bosc.mtce8.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtce16Op>>(converter,
-                                                  "llvm.riscv.bosc.mtce16.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtce32Op>>(converter,
-                                                  "llvm.riscv.bosc.mtce32.m");
-  patterns.add<BOSCAMEPureMoveLowering<Mtce64Op>>(converter,
-                                                  "llvm.riscv.bosc.mtce64.m");
-
-  // Tile register matrix multiply patterns
-  // 1. No-widen matrix multiply-accumulate
-  patterns.add<BOSCAMEMath3Lowering<MmaMmOp>>(converter,
-                                              "llvm.riscv.bosc.mma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaHmmOp>>(converter,
-                                               "llvm.riscv.bosc.mma.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaWmmOp>>(converter,
-                                               "llvm.riscv.bosc.mma.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmaDwmmOp>>(converter,
-                                                "llvm.riscv.bosc.mma.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsmaMmOp>>(converter,
-                                               "llvm.riscv.bosc.msma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmaHmmOp>>(converter,
-                                                "llvm.riscv.bosc.msma.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmaWmmOp>>(converter,
-                                                "llvm.riscv.bosc.msma.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmaDwmmOp>>(converter,
-                                                 "llvm.riscv.bosc.msma.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MmauMmOp>>(converter,
-                                               "llvm.riscv.bosc.mmau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmauHmmOp>>(converter,
-                                                "llvm.riscv.bosc.mmau.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmauWmmOp>>(converter,
-                                                "llvm.riscv.bosc.mmau.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MmauDwmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mmau.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MsmauMmOp>>(converter,
-                                                "llvm.riscv.bosc.msmau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmauHmmOp>>(converter,
-                                                 "llvm.riscv.bosc.msmau.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmauWmmOp>>(converter,
-                                                 "llvm.riscv.bosc.msmau.w.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsmauDwmmOp>>(
-      converter, "llvm.riscv.bosc.msmau.dw.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfmaMmOp>>(converter,
-                                               "llvm.riscv.bosc.mfma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmaHfmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfma.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmaFmmOp>>(converter,
-                                                "llvm.riscv.bosc.mfma.f.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfmaDmmOp>>(converter,
-                                                "llvm.riscv.bosc.mfma.d.mm");
-
-  // 2. Double-widen matrix multiply-accumulate
-  patterns.add<BOSCAMEMath3Lowering<MwmauMmOp>>(converter,
-                                                "llvm.riscv.bosc.mwmau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmauHmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwmau.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmauWmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mwmau.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MswmauMmOp>>(converter,
-                                                 "llvm.riscv.bosc.mswmau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MswmauHmmOp>>(
-      converter, "llvm.riscv.bosc.mswmau.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MswmauWmmOp>>(
-      converter, "llvm.riscv.bosc.mswmau.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MwmaMmOp>>(converter,
-                                               "llvm.riscv.bosc.mwma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmaHmmOp>>(converter,
-                                                "llvm.riscv.bosc.mwma.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MwmaWmmOp>>(converter,
-                                                "llvm.riscv.bosc.mwma.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MswmaMmOp>>(converter,
-                                                "llvm.riscv.bosc.mswma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MswmaHmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mswma.h.mm");
-  patterns.add<BOSCAMEMath3Lowering<MswmaWmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mswma.w.mm");
-
-  patterns.add<BOSCAMEMath3Lowering<MfwmaMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfwma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwmaCfmmOp>>(
-      converter, "llvm.riscv.bosc.mfwma.cf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwmaHfmmOp>>(
-      converter, "llvm.riscv.bosc.mfwma.hf.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfwmaFmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mfwma.f.mm");
-
-  // 3. Quad-widen matrix multiply-accumulate
-  patterns.add<BOSCAMEMath3Lowering<MqmauMmOp>>(converter,
-                                                "llvm.riscv.bosc.mqmau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MqmauBmmOp>>(converter,
-                                                 "llvm.riscv.bosc.mqmau.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsqmauMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msqmau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsqmauBmmOp>>(
-      converter, "llvm.riscv.bosc.msqmau.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MqmaMmOp>>(converter,
-                                               "llvm.riscv.bosc.mqma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MqmaBmmOp>>(converter,
-                                                "llvm.riscv.bosc.mqma.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsqmaMmOp>>(converter,
-                                                "llvm.riscv.bosc.msqma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsqmaBmmOp>>(converter,
-                                                 "llvm.riscv.bosc.msqma.b.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfqmaMmOp>>(converter,
-                                                "llvm.riscv.bosc.mfqma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MfqmaCfmmOp>>(
-      converter, "llvm.riscv.bosc.mfqma.cf.mm");
-
-  // 4. Oct-widen matrix multiply-accumulate
-  patterns.add<BOSCAMEMath3Lowering<MomauMmOp>>(converter,
-                                                "llvm.riscv.bosc.momau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MomauHbmmOp>>(
-      converter, "llvm.riscv.bosc.momau.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsomauMmOp>>(converter,
-                                                 "llvm.riscv.bosc.msomau.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsomauHbmmOp>>(
-      converter, "llvm.riscv.bosc.msomau.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MomaMmOp>>(converter,
-                                               "llvm.riscv.bosc.moma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MomaHbmmOp>>(converter,
-                                                 "llvm.riscv.bosc.moma.hb.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsomaMmOp>>(converter,
-                                                "llvm.riscv.bosc.msoma.mm");
-  patterns.add<BOSCAMEMath3Lowering<MsomaHbmmOp>>(
-      converter, "llvm.riscv.bosc.msoma.hb.mm");
+  addBOSCAMETypeConversions(converter);
+  patterns.add<BOSCAMEToIntrinsicLowering>(converter, patterns.getContext());
+  // NOTE: callers of this helper that lower the SPM/DMA surface or
+  // loop-carried matrix values must add the SPM view / DMA patterns and
+  // `scf::populateSCFStructuralTypeConversionsAndLegality` themselves; see the
+  // unified pass above.
 }
 
 void mlir::configureBOSCAMELegalizeForExportTarget(
     LLVMConversionTarget &target) {
-  target.addLegalDialect<arith::ArithDialect>();
-  target.addLegalDialect<memref::MemRefDialect>();
-
-  target.addIllegalDialect<buddy::boscame::BOSCAMEDialect>();
+  target.addDynamicallyLegalDialect<BOSCAMEDialect>([](Operation *op) {
+    return op->getName().getStringRef().starts_with("bosc_ame.intr.");
+  });
 }
 
 std::unique_ptr<Pass> buddy::boscame::createLegalizeForLLVMExportPass() {
   return std::make_unique<LegalizeBOSCAMEForLLVMExport>();
+}
+
+std::unique_ptr<Pass> buddy::boscame::createLowerBOSCAMETilePass() {
+  return std::make_unique<LowerBOSCAMETileOps>();
 }
 
 namespace mlir {
@@ -1562,5 +1439,7 @@ namespace buddy {
 void registerLowerBOSCAMEPass() {
   PassRegistration<LegalizeBOSCAMEForLLVMExport>();
 }
+
+void registerLowerBOSCAMETilePass() { PassRegistration<LowerBOSCAMETileOps>(); }
 } // namespace buddy
 } // namespace mlir

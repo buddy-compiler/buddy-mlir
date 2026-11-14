@@ -189,6 +189,11 @@ def main() -> int:
     parser.add_argument("--artifacts", default="chat_artifacts")
     parser.add_argument("--runner", default="")
     parser.add_argument(
+        "--model-library",
+        default="",
+        help="Buddy-server model plugin URI/name to record in the manifest.",
+    )
+    parser.add_argument(
         "--tokenizer",
         default="meta-llama/Llama-3.1-8B-Instruct",
         help="Local tokenizer/model path recorded in the package manifest.",
@@ -227,13 +232,23 @@ def main() -> int:
     )
     parser.add_argument("--ignore-eos", action="store_true")
     parser.add_argument("--device-token-loop", action="store_true")
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
+    )
     args = parser.parse_args()
 
+    tokenizer_value = args.tokenizer
+    tokenizer_path = _local_path_from_uri(args.tokenizer)
+    if tokenizer_path is not None:
+        tokenizer_value = _file_uri(tokenizer_path)
+
     attrs = {
-        "version": "0.1.0",
+        "version": args.version,
         "model_name": args.model_name,
         "artifacts_uri": _file_uri(args.artifacts),
-        "tokenizer_uri": args.tokenizer,
+        "tokenizer_uri": tokenizer_value,
         "max_cache_len": str(args.max_cache_len),
         "batch_size": str(args.batch_size),
         "ignore_system_desc": "true" if args.ignore_system_desc else "false",
@@ -245,6 +260,8 @@ def main() -> int:
         if args.disable_static_reuse
         else "false",
     }
+    if args.model_library:
+        attrs["model_library"] = _file_uri(args.model_library)
     if args.official_reference_npz:
         attrs["official_reference_uri"] = _file_uri(args.official_reference_npz)
     if args.official_trace_out:

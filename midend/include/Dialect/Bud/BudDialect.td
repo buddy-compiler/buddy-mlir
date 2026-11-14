@@ -35,6 +35,8 @@ def Bud_Dialect : Dialect {
   }];
   let cppNamespace = "::buddy::bud";
   let useDefaultAttributePrinterParser = 1;
+  // Preserve the existing attr-dict syntax for inherent attributes.
+  let useStrictPropertiesInAssemblyFormat = 0;
 }
 
 //===----------------------------------------------------------------------===//

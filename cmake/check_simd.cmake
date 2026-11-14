@@ -142,7 +142,7 @@ check_cxx_source_runs(
 #-------------------------------------------------------------------------------
 
   set(CMAKE_REQUIRED_FLAGS "-march=rv64gcv")
-  check_cxx_source_runs(
+  set(_CHECK_SIMD_RVV_SOURCE
     "
     #include <riscv_vector.h>
     int main() {
@@ -150,7 +150,16 @@ check_cxx_source_runs(
       int vl = __riscv_vsetvl_e32m2(avl);
       return 0;
     }
-    " HAVE_LOCAL_RVV)
+    ")
+  # A cross build cannot run the program (try_run would need
+  # HAVE_LOCAL_RVV_EXITCODE): there, an RVV program that compiles for the
+  # target counts, as the cross builds target RVV boards.
+  if(CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
+    include(CheckCXXSourceCompiles)
+    check_cxx_source_compiles("${_CHECK_SIMD_RVV_SOURCE}" HAVE_LOCAL_RVV)
+  else()
+    check_cxx_source_runs("${_CHECK_SIMD_RVV_SOURCE}" HAVE_LOCAL_RVV)
+  endif()
 
 #-------------------------------------------------------------------------------
 # Check Scalable Vector (RISC-V RVV)

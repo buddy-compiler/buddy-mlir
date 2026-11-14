@@ -15,10 +15,10 @@ func.func @main() -> i8 {
   %i2I32 = arith.constant 2 : i32
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
-  %aArray = memref.alloc() {alignment = 16} : memref<64x64xi8>
-  %bArray = memref.alloc() {alignment = 16}: memref<64x64xi8>
-  %cArray = memref.alloc() {alignment = 16}: memref<64x64xi8>
-  %dArray = memref.alloc() {alignment = 64} : memref<64x64xi32>
+  %aArray = memref.alloc() alignment = 16 : memref<64x64xi8>
+  %bArray = memref.alloc() alignment = 16: memref<64x64xi8>
+  %cArray = memref.alloc() alignment = 16: memref<64x64xi8>
+  %dArray = memref.alloc() alignment = 64 : memref<64x64xi32>
   %dim = memref.dim %aArray, %c0 : memref<64x64xi8>
   scf.for %i = %c0 to %dim step %c1 {
     scf.for %j = %c0 to %dim step %c1 {

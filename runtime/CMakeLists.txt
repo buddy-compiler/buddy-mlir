@@ -7,6 +7,23 @@ add_subdirectory(external_kernels)
 # and the model-agnostic runtime core).
 add_subdirectory(rax)
 
+# RAX runtime dependencies must remain loaded while a runner or server model is
+# alive. Keep the dlopen lifecycle in a shared module used by both frontends.
+add_library(buddy_runtime_rax_dependencies STATIC
+  core/RaxDependenciesHandle.cpp
+)
+target_include_directories(buddy_runtime_rax_dependencies PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/buddy-mlir>
+)
+target_link_libraries(buddy_runtime_rax_dependencies PRIVATE
+  ${CMAKE_DL_LIBS}
+)
+target_compile_features(buddy_runtime_rax_dependencies PUBLIC cxx_std_17)
+install(TARGETS buddy_runtime_rax_dependencies
+        EXPORT BuddyMLIRTargets
+        COMPONENT buddy_runtime)
+
 # Model-agnostic runtime headers: InferenceRunner, ModelManifest, BufferPool.
 # Public includes live under runtime/include/ → #include "buddy/runtime/core/*.h"
 # (CMake stays here — not under include/, which should remain installable headers only.)

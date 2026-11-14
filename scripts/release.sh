@@ -43,6 +43,19 @@ WORKSPACE_LLVM_SRC=/workspace/llvm
 WORKSPACE_BUILD_DIR=/workspace/build-docker
 
 # -----------------------------------------------------------------------------
+# LLVM build configuration
+# -----------------------------------------------------------------------------
+
+# The released LLVM is consumed by downstream projects as well as buddy-mlir, so
+# it must cover every target they need: RISCV for buddy-mlir itself, plus the
+# NVPTX and AMDGPU backends and lld that upstream Triton links against
+# unconditionally. These values participate in the LLVM cache key below, so
+# changing them rebuilds an install cached with different settings.
+LLVM_PROJECTS="mlir;clang;lld"
+LLVM_RUNTIMES="openmp"
+LLVM_TARGETS="host;RISCV;NVPTX;AMDGPU"
+
+# -----------------------------------------------------------------------------
 # Target-specific defaults
 # -----------------------------------------------------------------------------
 
@@ -69,12 +82,18 @@ MANYLINUX_IMAGE="${MANYLINUX_IMAGE:-${DEFAULT_MANYLINUX_IMAGE}}"
 
 MANYLINUX_TAG="${MANYLINUX_TAG:-${DEFAULT_MANYLINUX_TAG}}"
 
+GIT_AUTH_ARGS=()
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  GIT_AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+  GIT_AUTH_ARGS=(-c "http.extraheader=${GIT_AUTH_HEADER}")
+fi
+
 if [ -z "${IN_DOCKER:-}" ]; then
   # ---------------------------------------------------------------------------
   # Host side: validate mounts and re-enter inside the manylinux container
   # ---------------------------------------------------------------------------
 
-  # Hash = pinned LLVM submodule commit.
+  # Hash = pinned LLVM submodule commit + LLVM patches + LLVM build config.
   BUDDY_HASH="${BUDDY_HASH:-$(git -C "${REPO_ROOT}" rev-parse HEAD)}"
   LLVM_COMMIT="$(git -C "${REPO_ROOT}" ls-tree HEAD llvm | awk '{print $3}')"
   LLVM_PATCH_HASH=""
@@ -88,18 +107,29 @@ if [ -z "${IN_DOCKER:-}" ]; then
         awk '{print substr($1, 1, 12)}'
     )"
   fi
-  LLVM_HASH="${LLVM_COMMIT}${LLVM_PATCH_HASH:+-${LLVM_PATCH_HASH}}"
+  LLVM_CONFIG_HASH="$(
+    printf 'projects=%s\nruntimes=%s\ntargets=%s\n' \
+      "${LLVM_PROJECTS}" "${LLVM_RUNTIMES}" "${LLVM_TARGETS}" |
+      sha256sum |
+      awk '{print substr($1, 1, 12)}'
+  )"
+  LLVM_HASH="${LLVM_COMMIT}${LLVM_PATCH_HASH:+-${LLVM_PATCH_HASH}}-${LLVM_CONFIG_HASH}"
 
   # Sync git remote and latest commit
   git submodule sync --recursive
-  git -C "${HOST_LLVM_SRC}" fetch origin "${LLVM_COMMIT}"
+  git -C "${HOST_LLVM_SRC}" "${GIT_AUTH_ARGS[@]}" fetch origin "${LLVM_COMMIT}"
   # Reset to specific commit
   git -C "${HOST_LLVM_SRC}" checkout -f "${LLVM_COMMIT}"
   git -C "${HOST_LLVM_SRC}" reset --hard HEAD
   git -C "${HOST_LLVM_SRC}" clean -fdx
   "${REPO_ROOT}/scripts/apply_llvm_patches.sh" "${HOST_LLVM_SRC}"
 
-  DOCKER_RUN_ARGS=(run --rm -i)
+  # Containers on the default bridge cannot resolve mirrors.almalinux.org
+  # (dnf fails with "Couldn't resolve host name"): on the x64 runner host,
+  # Calico NOTRACKs all UDP in the raw table, which disables conntrack and
+  # stops Docker from masquerading the container's DNS queries. Share the
+  # host network namespace so the build avoids the bridge NAT entirely.
+  DOCKER_RUN_ARGS=(run --rm -i --network host)
 
   # Prepare proxy
   DOCKER_ENV_ARGS=()
@@ -163,6 +193,7 @@ if [ -z "${IN_DOCKER:-}" ]; then
     -e BUDDY_HASH="${BUDDY_HASH}" \
     -e LLVM_HASH="${LLVM_HASH}" \
     -e MANYLINUX_TAG="${MANYLINUX_TAG}" \
+    -e GITHUB_TOKEN \
     \
     -v "${REPO_ROOT}:${WORKSPACE}" \
     -v "${HOST_LLVM_SRC}:${WORKSPACE_LLVM_SRC}:ro" \
@@ -263,6 +294,13 @@ else
   # Prepare serval necessary package for buddy-mlir
   dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel perl
 
+  # soundfile ships no riscv64 wheel, so pip installs its pure-Python wheel,
+  # which loads the system libsndfile.so. Only libsndfile-devel provides the
+  # unversioned .so symlink soundfile looks for, and the import tests need it.
+  if [ "${TARGET_ARCH}" = "riscv64" ]; then
+    dnf "${DNF_INSTALL_ARGS[@]}" libsndfile-devel
+  fi
+
   # Prepare ccache.
   case "${TARGET_ARCH}" in
     x86_64)
@@ -299,7 +337,9 @@ else
 
   # Flatbuffer doesn't exist in riscv image.
   FLATBUFFERS_VERSION="25.12.19"
-  git clone --depth 1 --branch "v${FLATBUFFERS_VERSION}" https://github.com/google/flatbuffers.git /tmp/flatbuffers
+  set +x
+  git "${GIT_AUTH_ARGS[@]}" clone --depth 1 --branch "v${FLATBUFFERS_VERSION}" https://github.com/google/flatbuffers.git /tmp/flatbuffers
+  set -x
   pushd /tmp/flatbuffers
     mkdir build && cd build
     cmake .. \
@@ -316,11 +356,17 @@ else
   # This is necessary, old pip versions fail to resolve the torch package correctly.
   "$PYBIN" -m pip install --upgrade pip
   "$PYBIN" -m pip --version
+  # PyPI has no riscv64 wheels of torch, tokenizers and others; the Ruyi
+  # index has them. requirements.txt used to list it, but x64 and arm64 must
+  # not resolve through it (the proxy 404s files PyPI serves), and release.sh
+  # reads requirements.txt directly, so pass it here for riscv64 only.
+  PIP_INDEX_ARGS=()
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
     # build transformers need rust toolchain.
     dnf "${DNF_INSTALL_ARGS[@]}" rust cargo
+    PIP_INDEX_ARGS+=(--extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/)
   fi
-  "$PYBIN" -m pip install build auditwheel ninja -r requirements.txt
+  "$PYBIN" -m pip install build auditwheel ninja "${PIP_INDEX_ARGS[@]}" -r requirements.txt
   PYTHON_SOABI="$("$PYBIN" -c 'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")')"
 
   LLVM_STAMP_FILE="${LLVM_BUILD_DIR}/.manylinux-llvm-ready"
@@ -391,10 +437,10 @@ EOF
       LLVM_RUNTIMES_CMAKE_ARGS+=("-DRUNTIMES_CMAKE_ARGS=${LLVM_RUNTIMES_CMAKE_ARGS_VALUE}")
     fi
     cmake -G Ninja -S "${WORKSPACE_LLVM_SRC}/llvm" -B "${LLVM_BUILD_DIR}" \
-      -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-      -DLLVM_ENABLE_RUNTIMES="openmp" \
+      -DLLVM_ENABLE_PROJECTS="${LLVM_PROJECTS}" \
+      -DLLVM_ENABLE_RUNTIMES="${LLVM_RUNTIMES}" \
       "${LLVM_RUNTIMES_CMAKE_ARGS[@]}" \
-      -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+      -DLLVM_TARGETS_TO_BUILD="${LLVM_TARGETS}" \
       -DLLVM_ENABLE_ASSERTIONS=OFF \
       -DCMAKE_BUILD_TYPE=RELEASE \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \

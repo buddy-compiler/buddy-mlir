@@ -35,7 +35,7 @@ module attributes { transform.with_named_sequence } {
     transform.apply_patterns to %func {
       transform.apply_patterns.buddy.unroll_vectors_gpu_mma_sync
     } : !transform.any_op
-    transform.buddy.vector.vector_to_mma_conversion %func { use_wmma } : (!transform.any_op) -> ()
+    transform.buddy.vector.vector_to_mma_conversion %func <{use_wmma}> : (!transform.any_op) -> ()
 
     // Apply canonicalization post-hoc to trigger DCE and pass the test
     // (i.e. all vector.contract are dead).
@@ -68,7 +68,7 @@ func.func @mma_sync(%a: memref<16x16xf32>, %b: memref<16x16xf32>, %c: memref<16x
   %vc = vector.transfer_read %c[%c0, %c0], %cst: memref<16x16xf32>, vector<16x16xf32>
 
   // CHECK-NOT: vector.contract
-  //     CHECK: nvgpu.mma.sync{{.*}} tf32Enabled}
+  //     CHECK: nvgpu.mma.sync{{.*}} tf32Enabled
   %vres = vector.contract #matmat_trait %va, %vb, %vc
     : vector<16x16xf32>, vector<16x16xf32> into vector<16x16xf32>
   vector.transfer_write %vres, %c[%c0, %c0]: vector<16x16xf32>, memref<16x16xf32>
@@ -83,7 +83,7 @@ module attributes { transform.with_named_sequence } {
     transform.apply_patterns to %func {
       transform.apply_patterns.buddy.unroll_vectors_gpu_mma_sync
     } : !transform.any_op
-    transform.buddy.vector.vector_to_mma_conversion %func { use_mma_sync } : (!transform.any_op) -> ()
+    transform.buddy.vector.vector_to_mma_conversion %func <{use_mma_sync}> : (!transform.any_op) -> ()
 
     // Apply canonicalization post-hoc to trigger DCE and pass the test
     // (i.e. all vector.contract are dead).

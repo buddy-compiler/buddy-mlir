@@ -44,6 +44,8 @@ def gen_manifest(
     config: dict,
     dep_shared_libs: list[str] | None = None,
     runner_library: str | None = None,
+    model_library: str | None = None,
+    version: str = "0.1.0",
 ) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
@@ -74,6 +76,7 @@ def gen_manifest(
     runner_uri = _normalize_dep_uri(
         runner_library or f"{model_family}_runner.so"
     )
+    model_uri = _normalize_dep_uri(model_library) if model_library else None
 
     dep_uris: list[str] = []
     for item in dep_shared_libs or []:
@@ -81,10 +84,14 @@ def gen_manifest(
 
     # -- Module header ---------------------------------------------------------
     p(f"rhal.module @{model_family} attributes {{")
-    p('    version = "0.1.0",')
+    p(f'    version = "{version}",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{vocab_file}",')
-    p(f'    runner_library = "{runner_uri}"}} {{')
+    p(f'    runner_library = "{runner_uri}"', end="")
+    if model_uri:
+        p(",")
+        p(f'    model_library = "{model_uri}"', end="")
+    p("} {")
     p()
 
     # -- External constants (weight blobs) -------------------------------------
@@ -128,8 +135,12 @@ def gen_manifest(
     p()
 
     # -- Buffer descriptors ----------------------------------------------------
+    # Chunked prefill (prefill_chunk > 0): forward_prefill takes `chunk` tokens
+    # and their start position, like forward_decode.
+    chunk = int(config.get("prefill_chunk", 0))
+    prefill_len = chunk or max_token_len
     p(
-        f'  rhal.buffer @prefill_tokens {{space = "host", type = tensor<1x{max_token_len}xi64>}}'
+        f'  rhal.buffer @prefill_tokens {{space = "host", type = tensor<1x{prefill_len}xi64>}}'
     )
     p('  rhal.buffer @decode_token   {space = "host", type = tensor<1x1xi64>}')
     p('  rhal.buffer @cache_position {space = "host", type = tensor<1xi64>}')
@@ -141,7 +152,9 @@ def gen_manifest(
         p(f'  rhal.buffer @kv{i}{pad} {{space = "dram", type = {kv_tensor}}}')
     p()
 
-    logits_pfx = f"tensor<1x{max_token_len}x{vocab_size}x{logits_mlir}>"
+    # chunked prefill: the logits of the chunk's last row only
+    logits_rows = 1 if chunk else max_token_len
+    logits_pfx = f"tensor<1x{logits_rows}x{vocab_size}x{logits_mlir}>"
     logits_dec = f"tensor<1x1x{vocab_size}x{logits_mlir}>"
     p(f'  rhal.buffer @logits_prefill {{space = "host", type = {logits_pfx}}}')
     p(f'  rhal.buffer @logits_decode  {{space = "host", type = {logits_dec}}}')
@@ -170,9 +183,12 @@ def gen_manifest(
     # Weights are bound via rhal.constant and resolved separately by rax-pack.
 
     # -- forward_prefill -------------------------------------------------------
-    prefill_args = ['"prefill_tokens"'] + _kv_names() + ['"logits_prefill"']
+    prefill_inputs = ['"prefill_tokens"']
+    if chunk:
+        prefill_inputs.append('"cache_position"')
+    prefill_args = prefill_inputs + _kv_names() + ['"logits_prefill"']
     p("  rhal.func @forward_prefill {")
-    p('    inputs   = ["prefill_tokens"],')
+    p(f"    inputs   = [{', '.join(prefill_inputs)}],")
     p('    outputs  = ["logits_prefill"],')
     p('    dispatch = "model_kernels",')
     p(f"    args     = [{_format_args(prefill_args)}]}}")
@@ -224,6 +240,17 @@ def main():
             "If no scheme is given, file: is assumed."
         ),
     )
+    parser.add_argument(
+        "--model-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=("Server model plugin URI/name to place into module attrs."),
+    )
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -234,6 +261,8 @@ def main():
             config,
             dep_shared_libs=args.dep_shared_lib,
             runner_library=args.runner_library,
+            model_library=args.model_library,
+            version=args.version,
         )
     except (ValueError, RuntimeError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)

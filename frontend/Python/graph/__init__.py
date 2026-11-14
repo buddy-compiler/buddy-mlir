@@ -28,6 +28,19 @@ from .partitioned_graph_driver import (
 from .partitioned_graph_driver import (
     SplitStrategy as SplitStrategy,
 )
+from .partitioned_graph_driver import (
+    TemplatePartitionedGraphDriver as TemplatePartitionedGraphDriver,
+)
+from .transformer_partition import (
+    TemplateInstanceBinding as TemplateInstanceBinding,
+)
+from .transformer_partition import TemplateUnit as TemplateUnit
+from .transformer_partition import (
+    TransformerPartitionPlan as TransformerPartitionPlan,
+)
+from .transformer_partition import (
+    build_transformer_partition_plan as build_transformer_partition_plan,
+)
 from .type import (
     DeviceType as DeviceType,
 )

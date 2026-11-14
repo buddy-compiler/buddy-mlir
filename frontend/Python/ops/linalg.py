@@ -1905,7 +1905,9 @@ def neg_op(
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
-    op = linalg.negf(input1, outs=output)
+    op = linalg.elementwise(
+        input1, outs=[output], kind=linalg.ElementwiseKind.negf
+    )
 
     return op
 

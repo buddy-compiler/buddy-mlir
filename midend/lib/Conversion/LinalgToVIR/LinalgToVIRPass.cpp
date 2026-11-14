@@ -20,6 +20,12 @@
 // However, since VIR requires dynamic shape representations, memref
 // transformations are performed first to align the shapes appropriately.
 //
+// The multiply-adds of the matmuls and convolutions (floating point; an
+// integer multiply-add is the same fused or not) become vir.fma: one
+// rounding each, not the two of the arith.mulf and arith.addf of the linalg
+// body. This is the contract of the pass, as of the other vectorizing passes
+// of buddy-mlir (-conv-nhwc-fhwc-optimize, the matmul optimizations).
+//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"
@@ -309,9 +315,17 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal);
 
-enum class SupportedReduceCombinerKind { AddF, MaxNumF };
+/// Whether vir.reduce reduces vectors of `type`: integers (not index) and
+/// f16, f32, f64. (bf16 and f8 sums would be computed by LLVM in another
+/// precision.)
+static bool isReducibleElementType(Type type) {
+  return isa<IntegerType>(type) || type.isF16() || type.isF32() || type.isF64();
+}
 
-static FailureOr<SupportedReduceCombinerKind>
+/// The vir.reduce kind (a vector::CombiningKind) of the combiner of
+/// `reduceOp`: one binary arith op of its two block arguments, in either
+/// order (the ops are commutative), yielded.
+static FailureOr<StringRef>
 getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
                                PatternRewriter &rewriter) {
   Block *body = reduceOp.getBody();
@@ -328,14 +342,198 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
       return failure();
     combiner = &inner;
   }
-  if (!combiner || yield.getOperand(0) != combiner->getResult(0))
+  if (!combiner || yield.getOperand(0) != combiner->getResult(0) ||
+      combiner->getNumOperands() != 2)
+    return failure();
+  Value a = body->getArgument(0), b = body->getArgument(1);
+  Value x = combiner->getOperand(0), y = combiner->getOperand(1);
+  if (!((x == a && y == b) || (x == b && y == a)))
     return failure();
 
-  if (isa<arith::AddFOp>(combiner))
-    return SupportedReduceCombinerKind::AddF;
-  if (isa<arith::MaxNumFOp>(combiner))
-    return SupportedReduceCombinerKind::MaxNumF;
-  return failure();
+  return llvm::TypeSwitch<Operation *, FailureOr<StringRef>>(combiner)
+      .Case<arith::AddFOp, arith::AddIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("add"); })
+      .Case<arith::MulFOp, arith::MulIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("mul"); })
+      .Case<arith::MaxNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maxnumf"); })
+      .Case<arith::MinNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minnumf"); })
+      .Case<arith::MaximumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maximumf"); })
+      .Case<arith::MinimumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minimumf"); })
+      .Case<arith::MaximumNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maximumnumf"); })
+      .Case<arith::MinimumNumFOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minimumnumf"); })
+      .Case<arith::MaxSIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maxsi"); })
+      .Case<arith::MinSIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minsi"); })
+      .Case<arith::MaxUIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("maxui"); })
+      .Case<arith::MinUIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("minui"); })
+      .Case<arith::AndIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("and"); })
+      .Case<arith::OrIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("or"); })
+      .Case<arith::XOrIOp>(
+          [](auto) -> FailureOr<StringRef> { return StringRef("xor"); })
+      .Default([](Operation *) -> FailureOr<StringRef> { return failure(); });
+}
+
+static Value dimOrConstant(OpBuilder &builder, Location loc, Value memref,
+                           int64_t dim);
+
+/// Whether lowerReduceToScalarLoop lowers `reduceOp`: an element type of
+/// isReducibleElementType, a combiner of getSupportedReduceCombinerKind,
+/// and rank-1 -> rank-0 dimensions=[0], rank-2 -> rank-1
+/// dimensions=[1], or with static shapes rank-2 -> rank-1 or rank-3 ->
+/// rank-2 dimensions=[0]. The other reductions that keep the last dim go to
+/// lowerReduceKeepingLastDim.
+static bool hasScalarLoopReduceCase(linalg::ReduceOp reduceOp,
+                                    PatternRewriter &rewriter) {
+  if (!reduceOp.hasPureBufferSemantics() || reduceOp.getInputs().size() != 1 ||
+      reduceOp.getInits().size() != 1)
+    return false;
+  auto inTy = dyn_cast<MemRefType>((*reduceOp.getInputs().begin()).getType());
+  auto outTy = dyn_cast<MemRefType>((*reduceOp.getInits().begin()).getType());
+  if (!inTy || !outTy || inTy.getElementType() != outTy.getElementType() ||
+      !isReducibleElementType(inTy.getElementType()) ||
+      failed(getSupportedReduceCombinerKind(reduceOp, rewriter)))
+    return false;
+  ArrayRef<int64_t> dims = reduceOp.getDimensions();
+  ArrayRef<int64_t> in = inTy.getShape(), out = outTy.getShape();
+  auto sameStatic = [](int64_t a, int64_t b) {
+    return ShapedType::isDynamic(a) || ShapedType::isDynamic(b) || a == b;
+  };
+  if (dims.size() != 1)
+    return false;
+  if (inTy.getRank() == 1 && outTy.getRank() == 0)
+    return dims[0] == 0;
+  if (inTy.getRank() == 2 && outTy.getRank() == 1)
+    return dims[0] == 1 ? sameStatic(in[0], out[0])
+                        : inTy.hasStaticShape() && outTy.hasStaticShape() &&
+                              in[1] == out[0];
+  if (inTy.getRank() == 3 && outTy.getRank() == 2)
+    return dims[0] == 0 && inTy.hasStaticShape() && outTy.hasStaticShape() &&
+           in.drop_front() == out;
+  return false;
+}
+
+/// A linalg.reduce that keeps the last dim (the reduced dims before it),
+/// e.g. tensor<1x16x4x2100xf32> dimensions = [1]: vectorized along the last
+/// dim, each output vector the elementwise combination (the combiner of the
+/// body: one binary op of getSupportedReduceCombinerKind) of the input
+/// vectors along the reduced dims, in their order. Every access is
+/// contiguous and no reduction crosses lanes.
+static LogicalResult lowerReduceKeepingLastDim(linalg::ReduceOp reduceOp,
+                                               PatternRewriter &rewriter) {
+  if (!reduceOp.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(reduceOp,
+                                       "expected pure buffer semantics");
+  if (reduceOp.getInputs().size() != 1 || reduceOp.getInits().size() != 1)
+    return rewriter.notifyMatchFailure(
+        reduceOp, "only single-input single-output reduce supported");
+  Value input = *reduceOp.getInputs().begin();
+  Value init = *reduceOp.getInits().begin();
+  auto inTy = dyn_cast<MemRefType>(input.getType());
+  auto outTy = dyn_cast<MemRefType>(init.getType());
+  if (!inTy || !outTy ||
+      !(isa<FloatType>(inTy.getElementType()) ||
+        isa<IntegerType>(inTy.getElementType())) ||
+      inTy.getElementType() != outTy.getElementType())
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected integer or float memrefs of one element type");
+  int64_t rank = inTy.getRank();
+  ArrayRef<int64_t> dims = reduceOp.getDimensions();
+  if (rank < 2 || llvm::is_contained(dims, rank - 1))
+    return rewriter.notifyMatchFailure(reduceOp, "the last dim is reduced");
+  // the combiner: combine(input element, accumulator)
+  Block *body = reduceOp.getBody();
+  auto yield = cast<linalg::YieldOp>(body->getTerminator());
+  Operation *combiner = yield.getNumOperands() == 1
+                            ? yield.getOperand(0).getDefiningOp()
+                            : nullptr;
+  if (!combiner || combiner->getBlock() != body ||
+      failed(getSupportedReduceCombinerKind(reduceOp, rewriter)))
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected a combiner of one binary op of the arguments");
+  bool inputFirst = combiner->getOperand(0) == body->getArgument(0);
+  if (!(inputFirst ? combiner->getOperand(1) == body->getArgument(1)
+                   : combiner->getOperand(0) == body->getArgument(1) &&
+                         combiner->getOperand(1) == body->getArgument(0)))
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected the combiner of the two block arguments");
+
+  Location loc = reduceOp.getLoc();
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Type elemTy = inTy.getElementType();
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  SmallVector<Value> inIdx(rank, c0);
+  // the kept dims before the last one: loops around the set_vl
+  SmallVector<int64_t> outer;
+  for (int64_t d = 0; d < rank - 1; ++d)
+    if (!llvm::is_contained(dims, d))
+      outer.push_back(d);
+  auto outIdx = [&]() {
+    SmallVector<Value> idx;
+    for (int64_t d = 0; d < rank; ++d)
+      if (!llvm::is_contained(dims, d))
+        idx.push_back(inIdx[d]);
+    return idx;
+  };
+  // the reduced dims, in their order, carrying the accumulator
+  auto emitReduced = [&](auto &&self, OpBuilder &b, size_t i,
+                         Value acc) -> Value {
+    if (i == dims.size()) {
+      Value v =
+          buddy::vir::LoadOp::create(b, loc, vecTy, input, inIdx).getResult();
+      OperationState state(loc, combiner->getName());
+      state.addOperands(inputFirst ? ValueRange{v, acc} : ValueRange{acc, v});
+      state.addTypes(vecTy);
+      state.addAttributes(combiner->getAttrs());
+      return b.create(state)->getResult(0);
+    }
+    Value ub = dimOrConstant(b, loc, input, dims[i]);
+    auto loop = scf::ForOp::create(
+        b, loc, c0, ub, c1, ValueRange{acc},
+        [&](OpBuilder &lb, Location, Value iv, ValueRange args) {
+          inIdx[dims[i]] = iv;
+          scf::YieldOp::create(lb, loc, self(self, lb, i + 1, args[0]));
+        });
+    return loop.getResult(0);
+  };
+  auto emitOuter = [&](auto &&self, OpBuilder &b, size_t i) -> void {
+    if (i == outer.size()) {
+      Value n = dimOrConstant(b, loc, input, rank - 1);
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPoint(b.getInsertionBlock(), b.getInsertionPoint());
+      buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+      Value acc =
+          buddy::vir::LoadOp::create(rewriter, loc, vecTy, init, outIdx())
+              .getResult();
+      acc = emitReduced(emitReduced, rewriter, 0, acc);
+      buddy::vir::StoreOp::create(rewriter, loc, acc, init, outIdx());
+      vector::YieldOp::create(rewriter, loc);
+      rewriter.setInsertionPointAfter(setVl);
+      return;
+    }
+    Value ub = dimOrConstant(b, loc, input, outer[i]);
+    scf::ForOp::create(b, loc, c0, ub, c1, ValueRange{},
+                       [&](OpBuilder &lb, Location, Value iv, ValueRange) {
+                         inIdx[outer[i]] = iv;
+                         self(self, lb, i + 1);
+                         scf::YieldOp::create(lb, loc);
+                       });
+  };
+  emitOuter(emitOuter, rewriter, 0);
+  rewriter.eraseOp(reduceOp);
+  return success();
 }
 
 static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
@@ -353,16 +551,16 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   auto outTy = dyn_cast<MemRefType>(init.getType());
   if (!inTy || !outTy)
     return rewriter.notifyMatchFailure(reduceOp, "expected memref operands");
-  if (!inTy.getElementType().isF32() || !outTy.getElementType().isF32())
-    return rewriter.notifyMatchFailure(reduceOp,
-                                       "only f32 reduction supported");
+  if (inTy.getElementType() != outTy.getElementType() ||
+      !isReducibleElementType(inTy.getElementType()))
+    return rewriter.notifyMatchFailure(
+        reduceOp, "expected an integer or f16/f32/f64 element type");
 
   auto combinerKind = getSupportedReduceCombinerKind(reduceOp, rewriter);
   if (failed(combinerKind))
     return rewriter.notifyMatchFailure(
-        reduceOp,
-        "unsupported reduce combiner (expected single-op addf/maxnumf with "
-        "linalg.yield)");
+        reduceOp, "expected a combiner of one binary arith op of the "
+                  "arguments, yielded");
 
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
 
@@ -370,16 +568,6 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   rewriter.setInsertionPoint(reduceOp);
   Value lower = arith::ConstantIndexOp::create(rewriter, loc, 0);
   Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
-
-  auto kindToString = [&](SupportedReduceCombinerKind k) -> StringRef {
-    switch (k) {
-    case SupportedReduceCombinerKind::AddF:
-      return "add";
-    case SupportedReduceCombinerKind::MaxNumF:
-      return "maxnum";
-    }
-    llvm_unreachable("unknown reduce combiner");
-  };
 
   // Case A: rank-1 -> rank-0, dimensions = [0].
   // Reduce the full 1D buffer into a scalar accumulator.
@@ -403,10 +591,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         buddy::vir::LoadOp::create(rewriter, loc, vecTy, input, ValueRange{c0})
             .getResult();
     Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-    Value reduced = buddy::vir::ReduceOp::create(
-                        rewriter, loc, elemTy, loaded, acc,
-                        rewriter.getStringAttr(kindToString(*combinerKind)))
-                        .getResult();
+    Value reduced =
+        buddy::vir::ReduceOp::create(rewriter, loc, elemTy, loaded, acc,
+                                     rewriter.getStringAttr(*combinerKind))
+            .getResult();
     memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
     vector::YieldOp::create(rewriter, loc);
 
@@ -465,10 +653,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                                ValueRange{i, c0})
                         .getResult();
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-        Value reduced = buddy::vir::ReduceOp::create(
-                            rewriter, loc, elemTy, row, acc,
-                            rewriter.getStringAttr(kindToString(*combinerKind)))
-                            .getResult();
+        Value reduced =
+            buddy::vir::ReduceOp::create(rewriter, loc, elemTy, row, acc,
+                                         rewriter.getStringAttr(*combinerKind))
+                .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
 
@@ -536,10 +724,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                                ValueRange{j, c0})
                         .getResult();
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-        Value reduced = buddy::vir::ReduceOp::create(
-                            rewriter, loc, elemTy, col, acc,
-                            rewriter.getStringAttr(kindToString(*combinerKind)))
-                            .getResult();
+        Value reduced =
+            buddy::vir::ReduceOp::create(rewriter, loc, elemTy, col, acc,
+                                         rewriter.getStringAttr(*combinerKind))
+                .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
 
@@ -630,10 +818,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                                  ValueRange{j, k, c0})
                           .getResult();
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
-        Value reduced = buddy::vir::ReduceOp::create(
-                            rewriter, loc, elemTy, slice, acc,
-                            rewriter.getStringAttr(kindToString(*combinerKind)))
-                            .getResult();
+        Value reduced =
+            buddy::vir::ReduceOp::create(rewriter, loc, elemTy, slice, acc,
+                                         rewriter.getStringAttr(*combinerKind))
+                .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
 
@@ -883,24 +1071,34 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   if (aTy.getRank() != 2 || bTy.getRank() != 2 || cTy.getRank() != 2)
     return rewriter.notifyMatchFailure(matmulOp, "expected rank-2 memrefs");
 
-  Type elemTy = aTy.getElementType();
-  if (elemTy != bTy.getElementType() || elemTy != cTy.getElementType())
-    return rewriter.notifyMatchFailure(matmulOp, "element types must match");
-  if (!isa<FloatType>(elemTy))
+  // Floats: one element type, multiply-adds with one rounding (vir.fma).
+  // Integers: A and B of one type, extended to the type of C, as wide or
+  // wider (the cast of the matmul: sign- or zero-extended), then multiplied
+  // and added (exact), e.g. i8 x i8 -> i32; for an i1 C, and-ed and or-ed,
+  // as linalg.matmul does booleans.
+  Type elemTy = cTy.getElementType();
+  Type inElemTy = aTy.getElementType();
+  if (inElemTy != bTy.getElementType())
     return rewriter.notifyMatchFailure(matmulOp,
-                                       "only floating-point matmul supported");
+                                       "A and B element types must match");
+  bool isInt = isa<IntegerType>(elemTy);
+  if (isInt) {
+    if (!isa<IntegerType>(inElemTy) ||
+        inElemTy.getIntOrFloatBitWidth() > elemTy.getIntOrFloatBitWidth())
+      return rewriter.notifyMatchFailure(
+          matmulOp, "expected integer inputs no wider than the output");
+  } else if (!isa<FloatType>(elemTy) || inElemTy != elemTy) {
+    return rewriter.notifyMatchFailure(
+        matmulOp, "expected floats of one element type or integers");
+  }
+  bool zeroExtend = matmulOp.getCast() == linalg::TypeFn::cast_unsigned;
 
   // Vectorize along N (the last dimension of B/C).
   Value n = memref::DimOp::create(rewriter, loc, c, 1);
 
-  // Create vir.set_vl region to host vector code.
-  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
-
-  // Constants used inside the region.
-  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-
-  // Determine M/K. Prefer static when available, otherwise take dim from
-  // memref.
+  // Determine M/K, before the region (lower-vir-to-vector lowers the ops of
+  // the region, a memref.dim there too, which the loop bounds then used).
+  // Prefer static when available, otherwise take dim from memref.
   Value mVal;
   if (!ShapedType::isDynamic(cTy.getShape()[0])) {
     mVal = arith::ConstantIndexOp::create(rewriter, loc, cTy.getShape()[0]);
@@ -915,8 +1113,28 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
     kVal = memref::DimOp::create(rewriter, loc, a, 1);
   }
 
+  // Create vir.set_vl region to host vector code.
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+
+  // Constants used inside the region.
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+
   auto vecTy =
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  auto inVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, inElemTy);
+  // an integer (or a dynamic vector of them) of the input type extended to
+  // the output type
+  auto extend = [&](OpBuilder &bld, Location l, Type to, Value v) -> Value {
+    if (v.getType() == to)
+      return v;
+    if (isa<buddy::vir::DynamicVectorType>(to))
+      return zeroExtend ? Value(buddy::vir::ExtUIOp::create(bld, l, to, v))
+                        : Value(buddy::vir::ExtSIOp::create(bld, l, to, v));
+    if (zeroExtend)
+      return arith::ExtUIOp::create(bld, l, to, v);
+    return arith::ExtSIOp::create(bld, l, to, v);
+  };
 
   auto loopM = affine::AffineForOp::create(
       rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
@@ -939,18 +1157,31 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
               // aScalar = A[i, k]
               Value aScalar =
                   memref::LoadOp::create(builderK, kLoc, a, ValueRange{i, k});
+              aScalar = extend(builderK, kLoc, elemTy, aScalar);
               // aVec = broadcast(aScalar)
               Value aVec = buddy::vir::BroadcastOp::create(builderK, kLoc,
                                                            vecTy, aScalar)
                                .getResult();
               // bVec = load(B[k, 0:]) as a vector along N.
-              Value bVec = buddy::vir::LoadOp::create(builderK, kLoc, vecTy, b,
-                                                      ValueRange{k, c0})
+              Value bVec = buddy::vir::LoadOp::create(builderK, kLoc, inVecTy,
+                                                      b, ValueRange{k, c0})
                                .getResult();
-              // accOut = fma(aVec, bVec, accIn)
-              Value accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy,
-                                                       aVec, bVec, accIn)
-                                 .getResult();
+              bVec = extend(builderK, kLoc, vecTy, bVec);
+              // accOut = fma(aVec, bVec, accIn); for integers
+              // accIn + aVec * bVec, for i1 accIn | (aVec & bVec), as
+              // linalg.matmul computes booleans (its add and mul of i1)
+              Value accOut;
+              if (elemTy.isInteger(1))
+                accOut = arith::OrIOp::create(
+                    builderK, kLoc, accIn,
+                    arith::AndIOp::create(builderK, kLoc, aVec, bVec));
+              else if (isInt)
+                accOut = arith::AddIOp::create(
+                    builderK, kLoc, accIn,
+                    arith::MulIOp::create(builderK, kLoc, aVec, bVec));
+              else
+                accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy, aVec,
+                                                   bVec, accIn);
               affine::AffineYieldOp::create(builderK, kLoc, accOut);
             });
         Value finalAcc = loopK.getResult(0);
@@ -1035,7 +1266,7 @@ static LogicalResult touchFirstOutputWithVIR(Operation *sourceOp,
 }
 
 static LogicalResult
-lowerGenericToScalarLoopsWithVIRMarker(linalg::GenericOp genericOp,
+lowerGenericToScalarLoopsWithVIRMarker(linalg::LinalgOp genericOp,
                                        PatternRewriter &rewriter) {
   if (!genericOp.hasPureBufferSemantics())
     return rewriter.notifyMatchFailure(genericOp,
@@ -1086,7 +1317,7 @@ lowerGenericToScalarLoopsWithVIRMarker(linalg::GenericOp genericOp,
         mapper.map(bbArg, loaded);
       }
 
-      Block &body = genericOp.getRegion().front();
+      Block &body = *genericOp.getBlock();
       auto yield = dyn_cast<linalg::YieldOp>(body.getTerminator());
       if (!yield)
         return rewriter.notifyMatchFailure(genericOp, "expected linalg.yield");
@@ -1944,13 +2175,20 @@ static LogicalResult lowerSoftmaxToVIR(linalg::SoftmaxOp op,
 
 /// Expand & transpose source memrefs to the common shape, and map them into
 /// `transformedMemRefs`.
+static bool isRank0MemRef(Value v) {
+  auto ty = dyn_cast<MemRefType>(v.getType());
+  return ty && ty.getRank() == 0;
+}
+
 static LogicalResult transformProjectedPermutationOperands(
     linalg::LinalgOp linalgOp, PatternRewriter &rewriter,
     ArrayRef<OpFoldResult> commonShape,
     DenseMap<Value, Value> &transformedMemRefs) {
   Location loc = linalgOp.getLoc();
   for (OpOperand *opOperand : linalgOp.getOpOperandsMatchingBBargs()) {
-    if (linalgOp.isScalar(opOperand)) {
+    // (a rank-0 input is loaded as a scalar, mapInputsToVIRVectors)
+    if (linalgOp.isScalar(opOperand) ||
+        (linalgOp.isDpsInput(opOperand) && isRank0MemRef(opOperand->get()))) {
       continue;
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
@@ -1998,6 +2236,14 @@ static LogicalResult mapInputsToVIRVectors(linalg::LinalgOp linalgOp,
     auto bbArg = linalgOp.getMatchingBlockArgument(opOperand);
     if (linalgOp.isScalar(opOperand)) {
       valueMap.map(bbArg, opOperand->get());
+      continue;
+    }
+    // A rank-0 input is the same element at every point: a scalar, which
+    // the body broadcasts where it meets a vector.
+    if (isRank0MemRef(opOperand->get())) {
+      valueMap.map(bbArg, memref::LoadOp::create(rewriter, loc,
+                                                 opOperand->get(), ValueRange{})
+                              .getResult());
       continue;
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
@@ -2278,12 +2524,9 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
                           .str());
       }
     }
-    if (hasIndexSemantics) {
-      if (auto genericOp = dyn_cast<linalg::GenericOp>(op))
-        return lowerGenericToScalarLoopsWithVIRMarker(genericOp, rewriter);
-      return rewriter.notifyMatchFailure(linalgOp,
-                                         "linalg.index shape unsupported");
-    }
+    // (a linalg.generic or a named op with a body, e.g. linalg.map)
+    if (hasIndexSemantics)
+      return lowerGenericToScalarLoopsWithVIRMarker(linalgOp, rewriter);
     if (hasCastSemantics) {
       if (succeeded(lowerSimpleCastGenericToScalarLoop(linalgOp, rewriter)))
         return success();
@@ -2353,6 +2596,32 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
   }
 };
 
+/// A linalg.fill of a rank-0 memref (the accumulator of a reduction, most
+/// often): one scalar store, nothing to vectorize; the store the loops
+/// would make of it.
+struct LinalgFillRank0Pattern : public OpRewritePattern<linalg::FillOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::FillOp fillOp,
+                                PatternRewriter &rewriter) const override {
+    if (!fillOp.hasPureBufferSemantics())
+      return rewriter.notifyMatchFailure(fillOp,
+                                         "expected pure buffer semantics");
+    Value out = fillOp.getOutputs()[0];
+    auto outTy = dyn_cast<MemRefType>(out.getType());
+    if (!outTy || outTy.getRank() != 0)
+      return rewriter.notifyMatchFailure(fillOp, "expected a rank-0 memref");
+    Value value = fillOp.getInputs()[0];
+    if (value.getType() != outTy.getElementType())
+      return rewriter.notifyMatchFailure(
+          fillOp, "expected a value of the element type");
+    memref::StoreOp::create(rewriter, fillOp.getLoc(), value, out,
+                            ValueRange{});
+    rewriter.eraseOp(fillOp);
+    return success();
+  }
+};
+
 struct LinalgReduceToVIRPattern : public RewritePattern {
   LinalgReduceToVIRPattern(MLIRContext *ctx)
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/3, ctx) {}
@@ -2362,14 +2631,21 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
     auto reduceOp = dyn_cast<linalg::ReduceOp>(op);
     if (!reduceOp)
       return rewriter.notifyMatchFailure(op, "expected linalg.reduce");
-    if (succeeded(lowerReduceToScalarLoop(reduceOp, rewriter)))
+    // (each lowering checks the form before it changes the IR: a pattern
+    // that fails after a change does not let the greedy driver converge)
+    if (hasScalarLoopReduceCase(reduceOp, rewriter))
+      return lowerReduceToScalarLoop(reduceOp, rewriter);
+    if (succeeded(lowerReduceKeepingLastDim(reduceOp, rewriter)))
       return success();
-    reduceOp.emitError(
+    // left to the other passes (loops)
+    return rewriter.notifyMatchFailure(
+        reduceOp,
         "unsupported linalg.reduce for -lower-linalg-to-vir; supported forms "
         "are rank-1->rank-0 dimensions=[0], rank-2->rank-1 dimensions=[1], "
         "static-shape rank-2->rank-1 dimensions=[0], and static-shape "
-        "rank-3->rank-2 dimensions=[0], all with f32 addf/maxnumf combiner");
-    return failure();
+        "rank-3->rank-2 dimensions=[0], with integers or f16/f32/f64, and the "
+        "reductions that keep the last dim, each with one binary arith "
+        "combiner");
   }
 };
 
@@ -2452,6 +2728,162 @@ struct LinalgContractionNamedToVIRPattern : public RewritePattern {
   }
 };
 
+/// linalg.conv_2d_nhwc_hwcf / conv_2d_nhwc_fhwc to VIR, vectorized along the
+/// output channels F (the last dim of the output and of an HWCF filter):
+///
+///   out[n, oh, ow, :] += in[n, oh * sh + kh * dh, ow * sw + kw * dw, c]
+///                        * w[kh, kw, c, :]
+///
+/// one broadcast input element and one fma per (kh, kw, c): every vector
+/// access is contiguous and no reduction crosses lanes. An FHWC filter is
+/// copied into an HWCF buffer first. The rows (n, oh) of the output run in
+/// parallel, each in a vir.set_vl of F lanes, one output pixel after the
+/// other (-lower-vir-to-vector jams the pixels that share each filter load,
+/// as many as the registers hold).
+static LogicalResult lowerConv2DNhwcToVIR(linalg::LinalgOp op, bool fhwc,
+                                          DenseIntElementsAttr strides,
+                                          DenseIntElementsAttr dilations,
+                                          PatternRewriter &rewriter) {
+  if (!op.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+  Location loc = op.getLoc();
+  Value in = op.getDpsInputs()[0];
+  Value w = op.getDpsInputs()[1];
+  Value out = op.getDpsInits()[0];
+  auto inTy = dyn_cast<MemRefType>(in.getType());
+  auto wTy = dyn_cast<MemRefType>(w.getType());
+  auto outTy = dyn_cast<MemRefType>(out.getType());
+  if (!inTy || !wTy || !outTy)
+    return rewriter.notifyMatchFailure(op, "expected memref operands");
+  Type elemTy = outTy.getElementType();
+  if (!isa<FloatType>(elemTy) || inTy.getElementType() != elemTy ||
+      wTy.getElementType() != elemTy)
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+  int64_t sh = strides.getValues<int64_t>()[0];
+  int64_t sw = strides.getValues<int64_t>()[1];
+  int64_t dh = dilations.getValues<int64_t>()[0];
+  int64_t dw = dilations.getValues<int64_t>()[1];
+
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  // the filter dims [f, kh, kw, c] (FHWC) or [kh, kw, c, f] (HWCF)
+  unsigned fDim = fhwc ? 0 : 3, khDim = fhwc ? 1 : 0;
+  Value f = dimOrConstant(rewriter, loc, w, fDim);
+  Value kh = dimOrConstant(rewriter, loc, w, khDim);
+  Value kw = dimOrConstant(rewriter, loc, w, khDim + 1);
+  Value c = dimOrConstant(rewriter, loc, w, khDim + 2);
+  Value batch = dimOrConstant(rewriter, loc, out, 0);
+  Value oh = dimOrConstant(rewriter, loc, out, 1);
+  Value ow = dimOrConstant(rewriter, loc, out, 2);
+
+  // An FHWC filter as HWCF: filter[kh, kw, c, f] = w[f, kh, kw, c].
+  Value filter = w;
+  if (fhwc) {
+    SmallVector<int64_t> shape;
+    SmallVector<Value> dynSizes;
+    for (unsigned d : {1u, 2u, 3u, 0u}) {
+      shape.push_back(wTy.getDimSize(d));
+      if (wTy.isDynamicDim(d))
+        dynSizes.push_back(memref::DimOp::create(rewriter, loc, w, d));
+    }
+    filter = memref::AllocOp::create(rewriter, loc,
+                                     MemRefType::get(shape, elemTy), dynSizes);
+    scf::ParallelOp::create(
+        rewriter, loc, ValueRange{c0, c0, c0}, ValueRange{kh, kw, c},
+        ValueRange{c1, c1, c1}, [&](OpBuilder &b, Location l, ValueRange ivs) {
+          scf::ForOp::create(
+              b, l, c0, f, c1, ValueRange{},
+              [&](OpBuilder &fb, Location fl, Value fi, ValueRange) {
+                Value v = memref::LoadOp::create(
+                    fb, fl, w, ValueRange{fi, ivs[0], ivs[1], ivs[2]});
+                memref::StoreOp::create(fb, fl, v, filter,
+                                        ValueRange{ivs[0], ivs[1], ivs[2], fi});
+                scf::YieldOp::create(fb, fl);
+              });
+        });
+  }
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  scf::ParallelOp::create(
+      rewriter, loc, ValueRange{c0, c0}, ValueRange{batch, oh},
+      ValueRange{c1, c1}, [&](OpBuilder &, Location l, ValueRange nh) {
+        Value n = nh[0], row = nh[1];
+        buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, l, f);
+        auto idx = [&](OpBuilder &b, int64_t v) {
+          return arith::ConstantIndexOp::create(b, l, v).getResult();
+        };
+        Value z = idx(rewriter, 0), one = idx(rewriter, 1);
+        Value ih0 = arith::MulIOp::create(rewriter, l, row, idx(rewriter, sh));
+        // each output pixel of the row, accumulated in a vector
+        scf::ForOp::create(
+            rewriter, l, z, ow, one, ValueRange{},
+            [&](OpBuilder &b, Location, Value o, ValueRange) {
+              Value iw0 = arith::MulIOp::create(b, l, o, idx(b, sw));
+              Value acc = buddy::vir::LoadOp::create(b, l, vecTy, out,
+                                                     ValueRange{n, row, o, z});
+              auto loopKh = scf::ForOp::create(
+                  b, l, z, kh, one, acc,
+                  [&](OpBuilder &hb, Location, Value khi, ValueRange hAcc) {
+                    Value ih = arith::AddIOp::create(
+                        hb, l, ih0,
+                        arith::MulIOp::create(hb, l, khi, idx(hb, dh)));
+                    auto loopKw = scf::ForOp::create(
+                        hb, l, z, kw, one, hAcc,
+                        [&](OpBuilder &wb, Location, Value kwi,
+                            ValueRange wAcc) {
+                          Value iw = arith::AddIOp::create(
+                              wb, l, iw0,
+                              arith::MulIOp::create(wb, l, kwi, idx(wb, dw)));
+                          auto loopC = scf::ForOp::create(
+                              wb, l, z, c, one, wAcc,
+                              [&](OpBuilder &cb, Location, Value ci,
+                                  ValueRange cAcc) {
+                                Value wv = buddy::vir::LoadOp::create(
+                                    cb, l, vecTy, filter,
+                                    ValueRange{khi, kwi, ci, z});
+                                Value x = memref::LoadOp::create(
+                                    cb, l, in, ValueRange{n, ih, iw, ci});
+                                Value xv = buddy::vir::BroadcastOp::create(
+                                    cb, l, vecTy, x);
+                                Value next = buddy::vir::FMAOp::create(
+                                    cb, l, vecTy, xv, wv, cAcc[0]);
+                                scf::YieldOp::create(cb, l, next);
+                              });
+                          scf::YieldOp::create(wb, l, loopC.getResults());
+                        });
+                    scf::YieldOp::create(hb, l, loopKw.getResults());
+                  });
+              buddy::vir::StoreOp::create(b, l, loopKh.getResult(0), out,
+                                          ValueRange{n, row, o, z});
+              scf::YieldOp::create(b, l);
+            });
+        vector::YieldOp::create(rewriter, l);
+        rewriter.setInsertionPointAfter(setVl);
+      });
+  if (fhwc)
+    memref::DeallocOp::create(rewriter, loc, filter);
+  rewriter.eraseOp(op);
+  return success();
+}
+
+struct LinalgConvToVIRPattern : public RewritePattern {
+  LinalgConvToVIRPattern(MLIRContext *ctx)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/3, ctx) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (auto conv = dyn_cast<linalg::Conv2DNhwcHwcfOp>(op))
+      return lowerConv2DNhwcToVIR(conv, /*fhwc=*/false, conv.getStrides(),
+                                  conv.getDilations(), rewriter);
+    if (auto conv = dyn_cast<linalg::Conv2DNhwcFhwcOp>(op))
+      return lowerConv2DNhwcToVIR(conv, /*fhwc=*/true, conv.getStrides(),
+                                  conv.getDilations(), rewriter);
+    return rewriter.notifyMatchFailure(op, "not a supported convolution");
+  }
+};
+
 class LinalgToVIRPass
     : public PassWrapper<LinalgToVIRPass, OperationPass<ModuleOp>> {
 public:
@@ -2467,8 +2899,10 @@ public:
   void runOnOperation() override {
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
+    patterns.add<LinalgFillRank0Pattern>(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
     patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
+    patterns.add<LinalgConvToVIRPattern>(ctx);
     patterns.add<LinalgMatmulToVIRPattern>(ctx);
     patterns.add<LinalgGenericToVIRPattern>(ctx);
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {

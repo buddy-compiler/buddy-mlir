@@ -111,9 +111,19 @@ set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
+# A cross build (a riscv64 buddy-cli, ...) cannot build the host's Python
+# packages: off there unless asked for.
+if(CMAKE_CROSSCOMPILING)
+  set(_BUDDY_PYTHON_PACKAGES_DEFAULT OFF)
+else()
+  set(_BUDDY_PYTHON_PACKAGES_DEFAULT ON)
+endif()
 option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
-  "Build buddy.compiler Python package files used by model lowering scripts"
-  ON)
+  "Build Buddy Python packages and native bindings used by model lowering"
+  ${_BUDDY_PYTHON_PACKAGES_DEFAULT})
+option(BUDDY_RISCV_ENABLE_ZFH_ZVFH
+  "Enable RISC-V Zfh/Zvfh hardware FP16 extensions"
+  OFF)
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
     "Build BuddyTorq example (PyTorch->MLIR + TORQ-Tile RVV GEMM); requires RISC-V RVV toolchain")
@@ -139,6 +149,9 @@ option(BUDDY_BUILD_BGE_M3_MODEL
   OFF)
 option(BUDDY_BUILD_PROTEINGLM_MODEL
   "Build models/proteinglm (masked-LM single-forward .so/.rax package)"
+  OFF)
+option(BUDDY_BUILD_YOLOV8_MODEL
+  "Build models/yolov8 (object detection single-forward .so/.rax package)"
   OFF)
 option(BUDDY_ENABLE_TENSTORRENT
   "Enable optional Tenstorrent/tt-mlir configuration checks for TTIR->TTNN flows"
@@ -198,11 +211,15 @@ option(BUDDY_BUILD_WHISPER_MODEL
   "Build models/whisper (whisper_model.so, whisper.rax, whisper_runner.so)"
   OFF)
 
-# Qwen3-VL (self-contained, vision-language). Off by default. Currently builds
-# only the runner stub library/plugin; the MLIR import/compile pipeline is added
-# after the feasibility spikes pass (see models/qwen3_vl/).
+# Qwen3-VL (self-contained, vision-language). Off by default. Builds the
+# multimodal runner and resident serving plugin when enabled.
 option(BUDDY_BUILD_QWEN3_VL_MODEL
-  "Build models/qwen3_vl (buddy_models_qwen3_vl runner plugin)"
+  "Build models/qwen3_vl (runner and buddy-server serving plugin)"
+  OFF)
+
+# Qwen3-VL-MoE text decoder (buddy-codegen, like DeepSeek R1). Off by default.
+option(BUDDY_BUILD_QWEN3_VL_MOE_MODEL
+  "Build models/qwen3_vl_moe (qwen3_vl_moe_model.so, .rax, runner)"
   OFF)
 
 set(_buddy_require_jpeg OFF)
@@ -243,6 +260,8 @@ include_directories(${BUDDY_MIDEND_INCLUDE_DIR})
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include/Dialect)
+# Generated non-dialect headers are included relative to midend/include.
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
@@ -251,6 +270,9 @@ include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
+
+# ── Header-only third-party dependencies ─────────────────────────────────────
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps.cmake)
 
 find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
 
@@ -371,6 +393,9 @@ add_subdirectory(runtime)
 # Before models/: codegen (buddy_add_model) needs target python-package-buddy and
 # ${CMAKE_BINARY_DIR}/python_packages for import_model.py (buddy.compiler.*).
 add_subdirectory(frontend)
+
+# Release version baked into .rax manifests and tool --version output.
+set(BUDDY_PACKAGE_VERSION "0.0.0" CACHE STRING "Release VERSION")
 add_subdirectory(models)
 
 # Add external dialects before midend so they can be referenced
@@ -424,7 +449,6 @@ configure_package_config_file(
   INSTALL_DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
 )
 
-set(BUDDY_PACKAGE_VERSION "0.0.0" CACHE STRING "Release VERSION")
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
   VERSION ${BUDDY_PACKAGE_VERSION}

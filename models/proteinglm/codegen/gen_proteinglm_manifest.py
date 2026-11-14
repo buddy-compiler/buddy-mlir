@@ -14,7 +14,14 @@ def normalize_uri(raw: str) -> str:
     return f"file:{s}"
 
 
-def gen_manifest(spec: dict, params_size: int, runner_library: str) -> str:
+def gen_manifest(
+    spec: dict,
+    params_size: int,
+    runner_library: str,
+    model_library: str = "",
+    dep_shared_libs: list[str] | None = None,
+    version: str = "0.1.0",
+) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     max_seq_len = int(spec["max_seq_len"])
     vocab_size = int(spec["vocab_size"])
@@ -26,13 +33,17 @@ def gen_manifest(spec: dict, params_size: int, runner_library: str) -> str:
     lines = []
     p = lines.append
     p("rhal.module @proteinglm attributes {")
-    p('    version = "0.1.0",')
+    p(f'    version = "{version}",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{tokenizer_file}",')
     p(f'    max_seq_len = "{max_seq_len}",')
     p(f'    vocab_size = "{vocab_size}",')
     p(f'    top_k = "{top_k}",')
-    p(f'    runner_library = "{runner_library}"}} {{')
+    if model_library:
+        p(f'    runner_library = "{runner_library}",')
+        p(f'    model_library = "{model_library}"}} {{')
+    else:
+        p(f'    runner_library = "{runner_library}"}} {{')
     p("")
     p('  rhal.constant @params {id = 1 : i32, storage = "external",')
     p(f"                         type = tensor<{params_size}xf32>,")
@@ -47,6 +58,12 @@ def gen_manifest(spec: dict, params_size: int, runner_library: str) -> str:
     p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
+    for idx, dep in enumerate(dep_shared_libs or [], start=2):
+        p(
+            f'  rhal.codeobj @runtime_dep_{idx - 1} {{id = {idx} : i32, kind = "host_shared_lib",'
+        )
+        p('                                backend = "cpu",')
+        p(f'                                uri = "{normalize_uri(dep)}"}}')
     p("")
     p(
         f'  rhal.buffer @input_ids {{space = "host", '
@@ -82,7 +99,20 @@ def main() -> int:
     )
     parser.add_argument("--spec", required=True)
     parser.add_argument("--runner-library", default="proteinglm_runner.so")
+    parser.add_argument("--model-library", default="")
     parser.add_argument("-o", "--output", default="-")
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
+    )
+    parser.add_argument(
+        "--dep-shared-lib",
+        action="append",
+        default=[],
+        metavar="URI_OR_NAME",
+        help="Additional shared library dependency URI/name (repeatable).",
+    )
     args = parser.parse_args()
 
     with open(args.spec) as f:
@@ -98,7 +128,12 @@ def main() -> int:
         raise RuntimeError(f"weight file is not f32-aligned: {params_file}")
 
     text = gen_manifest(
-        spec, params_bytes // 4, normalize_uri(args.runner_library)
+        spec,
+        params_bytes // 4,
+        normalize_uri(args.runner_library),
+        normalize_uri(args.model_library) if args.model_library else "",
+        dep_shared_libs=args.dep_shared_lib,
+        version=args.version,
     )
     if args.output == "-":
         sys.stdout.write(text)

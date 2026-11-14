@@ -65,6 +65,7 @@ add_custom_command(
             "PYTHONPATH=${CMAKE_BINARY_DIR}/python_packages:$ENV{PYTHONPATH}"
             ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import_simple_model.py
             --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${BUDDY_PYTHON_IMPORT_DEPENDS}
     COMMENT "Generating MLIR from PyTorch model with oneDNN transform..."
     VERBATIM
 )

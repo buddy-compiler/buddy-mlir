@@ -20,10 +20,11 @@
 #
 # ===---------------------------------------------------------------------------
 
+
 from .. import Graph
 from ..operation import *
+from ..source_meta import merge_source_meta
 from ..type import TensorDType
-import torch
 
 
 def eliminate_matmul_transpose_reshape(graph: Graph):
@@ -290,6 +291,14 @@ def eliminate_matmul_transpose_reshape(graph: Graph):
             # Set tensor_meta with correct output shape
             new_reshape_node.tensor_meta = transpose_node.tensor_meta.copy()
             new_reshape_node.tensor_meta["shape"] = tuple(new_shape)
+            absorbed = [transpose_node, *(node for _, node in skipped_nodes)]
+            body_order = {op: index for index, op in enumerate(graph.body)}
+            new_reshape_node._source_meta = merge_source_meta(
+                *(
+                    op._source_meta
+                    for op in sorted(absorbed, key=body_order.get)
+                )
+            )
             # _op_type is already set to OpType.ReshapeType by ReshapeOp constructor
             new_reshape_node._parents = [input_node_name]
             new_reshape_node._children = list(transpose_node._children)
@@ -389,6 +398,18 @@ def eliminate_matmul_transpose_reshape(graph: Graph):
             # _op_type is already set to OpType.ReshapeType by ReshapeOp constructor
             new_reshape_node._parents = [input_node_name]
             new_reshape_node._children = list(reshape_node._children)
+            absorbed = [
+                *(node for _, node in skipped_nodes),
+                transpose_node,
+                reshape_node,
+            ]
+            body_order = {op: index for index, op in enumerate(graph.body)}
+            new_reshape_node._source_meta = merge_source_meta(
+                *(
+                    op._source_meta
+                    for op in sorted(absorbed, key=body_order.get)
+                )
+            )
 
             # Update children to point to new node
             for child_name in new_reshape_node._children:
@@ -411,6 +432,18 @@ def eliminate_matmul_transpose_reshape(graph: Graph):
             reshape_node = new_reshape_node
             reshape_node_name = new_reshape_node.name
         else:
+            absorbed = [
+                *(node for _, node in skipped_nodes),
+                transpose_node,
+                reshape_node,
+            ]
+            body_order = {op: index for index, op in enumerate(graph.body)}
+            reshape_node._source_meta = merge_source_meta(
+                *(
+                    op._source_meta
+                    for op in sorted(absorbed, key=body_order.get)
+                )
+            )
             # For ReshapeOp/ViewOp, just update the input
             if len(reshape_node.args) > 0:
                 # Check if args[0] matches transpose_node_name (could be string or node name)

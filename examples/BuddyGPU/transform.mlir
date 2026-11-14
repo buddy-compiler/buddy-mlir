@@ -221,7 +221,7 @@ module attributes { transform.with_named_sequence } {
 
     // This converts slices of operations containing vector.contract op into
     // mma operations, targetting warp level tensorcore operations.
-    transform.buddy.vector.vector_to_mma_conversion %17 {use_mma_sync} : (!transform.any_op) -> ()
+    transform.buddy.vector.vector_to_mma_conversion %17 <{use_mma_sync}> : (!transform.any_op) -> ()
 
     // %18 = transform.buddy.eliminate_gpu_barriers %17 : (!transform.any_op) -> !transform.any_op
 

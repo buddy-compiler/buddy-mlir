@@ -1,0 +1,115 @@
+name: test cli
+
+# Builds the models below and runs each with buddy-cli, on x86 and riscv64:
+# running a model with the CLI is what exercises the RAX runtime dependency
+# loading of the CLI (libmlir_c_runner_utils and its own dependencies,
+# libomp, ...).  Add a model by adding one block to the step list.
+#
+# bge_m3 is the lightest of the models buddy-cli can run (a single embedding
+# forward).  deepseek_r1 is the smallest LLM: it runs an OpenMP-parallel
+# decode, which bge_m3 does not, and is only built on x64, where generating
+# its 1.7 GB f16 weight file is a few minutes.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-cli-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Read-only mirror for the snapshot downloads.
+  HF_ENDPOINT: https://hf-mirror.com
+
+jobs:
+  run:
+    name: Build and run the models (${{ matrix.arch }})
+    runs-on:
+      - self-hosted
+      - ${{ matrix.arch }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            llvm_src: "$HOME/actions-runner/workspace/llvm-project"
+            llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
+          - arch: riscv64
+            llvm_src: "$HOME/src/llvm-project"
+            llvm_build_root: "$HOME/llvm-cache"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: 'false'
+          fetch-depth: 300
+
+      - uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: ${{ matrix.llvm_src }}
+
+      - uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
+        with:
+          python-version: "3.12"
+          activate-environment: "true"
+          no-project: "true"
+          enable-cache: "true"
+          cache-dependency-glob: requirements.txt
+
+      - name: Build LLVM/MLIR and buddy-mlir
+        uses: ./.github/actions/ci-common
+        with:
+          arch: ${{ matrix.arch }}
+          llvm-src: ${{ matrix.llvm_src }}
+          llvm-build-root: ${{ matrix.llvm_build_root }}
+
+      - name: check bge_m3
+        run: |
+          set -euo pipefail
+
+          # Prepare
+          snap="$HOME/buddy-cli-cache/snapshots/bge-m3"
+          mkdir -p "$(dirname "$snap")"
+          [ -f "$snap/config.json" ] || hf download BAAI/bge-m3 --local-dir "$snap"
+
+          # Compile
+          python tools/buddy-codegen/build_model.py \
+            --spec models/bge_m3/specs/base.json \
+            --build-dir build \
+            --local-model "$snap"
+
+          # Run.  The whole output goes to the log, a human reads it: the
+          # runner reports the embedding dimension it computed, and reaching
+          # that line at all means libmlir_c_runner_utils, its own dependencies
+          # and libomp loaded.
+          build/bin/buddy-cli --model build/models/bge_m3/bge_m3.rax \
+            --prompt "hello world"
+
+      - name: check deepseek_r1
+        if: matrix.arch == 'x64'
+        run: |
+          set -euo pipefail
+
+          # Prepare
+          snap="$HOME/buddy-cli-cache/snapshots/deepseek-r1-1.5b"
+          mkdir -p "$(dirname "$snap")"
+          [ -f "$snap/config.json" ] ||
+            hf download deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --local-dir "$snap"
+
+          # Compile
+          python tools/buddy-codegen/build_model.py \
+            --spec models/deepseek_r1/specs/f16.json \
+            --build-dir build \
+            --local-model "$snap"
+
+          # Run.  Same as above, whole output to the log: the stats line and
+          # the generated text say whether it is sane.
+          build/bin/buddy-cli --model build/models/deepseek_r1/deepseek_r1.rax \
+            --prompt "hello" --max-tokens 8

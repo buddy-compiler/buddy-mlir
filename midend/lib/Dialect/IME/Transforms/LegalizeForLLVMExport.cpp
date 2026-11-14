@@ -1798,6 +1798,7 @@ struct LegalizeIMEForLLVMExport
 
     LLVMConversionTarget target(context);
     target.addLegalDialect<LLVM::LLVMDialect>();
+    target.addLegalDialect<IMEDialect>();
     target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp,
@@ -1842,6 +1843,7 @@ void mlir::populateIMELegalizeForLLVMExportPatterns(
 }
 
 void mlir::configureIMELegalizeForExportTarget(LLVMConversionTarget &target) {
+  target.addLegalDialect<IMEDialect>();
   target.addLegalDialect<arith::ArithDialect>();
   target.addLegalDialect<memref::MemRefDialect>();
   target.addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp,

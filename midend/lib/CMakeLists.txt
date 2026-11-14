@@ -1,5 +1,6 @@
 add_subdirectory(CAPI)
 add_subdirectory(Dialect)
+add_subdirectory(Analysis)
 add_subdirectory(Conversion)
 add_subdirectory(Target)
 add_subdirectory(Utils)
@@ -10,6 +11,7 @@ set(LinkedLibs
   MLIRFuncDialect
   MLIRIR
   MLIRSupport
+  BuddyKernelContract
   ${extension_libs}
 
   BuddyBOSCAME
@@ -20,6 +22,7 @@ set(LinkedLibs
   BuddyAMETransforms
   BuddyRHAL
   BuddyTile
+  VIR
   ConvOptimization
   CBConvVectorization
   LowerBudPass
@@ -33,6 +36,8 @@ set(LinkedLibs
   LowerIMEPass
   LowerRVVPass
   LowerVectorExpPass
+  LinalgToVIRPass
+  VIRToVectorPass
   MatMulOptimization
   BatchMatMulOptimization
   MatMulParallelVectorization

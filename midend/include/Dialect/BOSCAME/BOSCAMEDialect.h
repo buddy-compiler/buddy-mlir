@@ -1,4 +1,4 @@
-//====- BOSCAMEDialect.h - MLIR Dialect for RISC-V BOSC AME extension -----===//
+//===- BOSCAMEDialect.h - MLIR Dialect for RISC-V BOSC AME ------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// Dialect class for `bosc_ame`: SPM/DMA ops, AME tile transfers, and
+// intrinsics used by the Buddy Kernel Contract -> plan -> emit pipeline.
+// Include BOSCAMEOps.h for op classes; this header only pulls the dialect
+// definition generated from BOSCAME.td.
 //
 //===----------------------------------------------------------------------===//
 

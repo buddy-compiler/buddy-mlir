@@ -3,6 +3,31 @@ BUDDY_OPT := ../../build/bin/buddy-opt
 BUDDY_TRANSLATE := ../../build/bin/buddy-translate
 BUDDY_LLC := ../../build/bin/buddy-llc
 
+.DEFAULT_GOAL := all
+PYTHON ?= python3
+A100_OUT ?= ../../build/ime-a100
+A100_LOWER_FLAGS = -lower-linalg-to-ime="target=k3" -lower-ime="target=k3" \
+	-expand-strided-metadata -convert-scf-to-cf -convert-cf-to-llvm \
+	-convert-arith-to-llvm -convert-func-to-llvm \
+	-finalize-memref-to-llvm -reconcile-unrealized-casts
+
+.PHONY: a100-ssa-object k3-dot-object
+a100-ssa-object:
+	$(PYTHON) generate_a100_tests.py $(A100_OUT)
+	$(BUDDY_TRANSLATE) -buddy-to-llvmir $(A100_OUT)/a100-kernels.mlir \
+		-o $(A100_OUT)/a100-kernels.ll
+	$(BUDDY_LLC) -mtriple=riscv64 -mcpu=spacemit-a100 -verify-machineinstrs \
+		-filetype=obj $(A100_OUT)/a100-kernels.ll -o $(A100_OUT)/a100-kernels.o
+
+k3-dot-object:
+	mkdir -p $(A100_OUT)
+	$(BUDDY_OPT) k3_dot_test.mlir $(A100_LOWER_FLAGS) \
+		-o $(A100_OUT)/k3-dot.mlir
+	$(BUDDY_TRANSLATE) -buddy-to-llvmir $(A100_OUT)/k3-dot.mlir \
+		-o $(A100_OUT)/k3-dot.ll
+	$(BUDDY_LLC) -mtriple=riscv64 -mcpu=spacemit-a100 -verify-machineinstrs \
+		-filetype=obj $(A100_OUT)/k3-dot.ll -o $(A100_OUT)/k3-dot.o
+
 .PHONY: all clean vmadot vmadotu vmadotsu vmadotus vfmadot help \
         vmadot-lower vmadot-translate vmadot-asm vmadot-run \
         vmadotu-lower vmadotu-translate vmadotu-asm vmadotu-run \

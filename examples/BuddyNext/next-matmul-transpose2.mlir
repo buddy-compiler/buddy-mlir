@@ -28,14 +28,14 @@ func.func @test(%a : tensor<1x40x32x128xf32>, %b : tensor<32x40x40xf32>) -> (ten
     %t_start = call @rtclock() : () -> f64
     %a_zp = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
     %b_zp = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
-    %1 = tosa.transpose %a {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
-    %s0 = tosa.const_shape {values = dense<[32, 40, 128]> : tensor<3xindex>} : () -> !tosa.shape<3>
+    %1 = tosa.transpose %a perms([0, 2, 1, 3]) : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
+    %s0 = tosa.const_shape values(dense<[32, 40, 128]> : tensor<3xindex>) : () -> !tosa.shape<3>
     %2 = tosa.reshape %1, %s0 : (tensor<1x32x40x128xf32>, !tosa.shape<3>) -> tensor<32x40x128xf32>
     %3 = tosa.matmul %b, %2, %a_zp, %b_zp : (tensor<32x40x40xf32>, tensor<32x40x128xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<32x40x128xf32>
-    %s1 = tosa.const_shape {values = dense<[1, 32, 40, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+    %s1 = tosa.const_shape values(dense<[1, 32, 40, 128]> : tensor<4xindex>) : () -> !tosa.shape<4>
     %4 = tosa.reshape %3, %s1 : (tensor<32x40x128xf32>, !tosa.shape<4>) -> tensor<1x32x40x128xf32>
     %5 = "tosa.const"() <{values = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
-    %6 = tosa.transpose %4 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x32x40x128xf32>) -> tensor<1x40x32x128xf32>
+    %6 = tosa.transpose %4 perms([0, 2, 1, 3]) : (tensor<1x32x40x128xf32>) -> tensor<1x40x32x128xf32>
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
     // Print timings.

@@ -211,7 +211,7 @@ def DIP_Rotate4DOp : DIP_Op<"rotate_4d"> {
                        DIP_ImageFormatAttr:$image_format);
 
   let assemblyFormat = [{
-    $image_format $memrefI `,` $angle `,` $memrefO attr-dict `:` type($memrefI) `,` type($angle) `,` type($memrefO)
+    enum($image_format) $memrefI `,` $angle `,` $memrefO attr-dict `:` type($memrefI) `,` type($angle) `,` type($memrefO)
   }];
 }
 
@@ -252,7 +252,7 @@ def DIP_Resize2DOp : DIP_Op<"resize_2d">
                        DIP_InterpolationAttr:$interpolation_type);
 
   let assemblyFormat = [{
-     $interpolation_type $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
+     enum($interpolation_type) $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
   }];
 }
 
@@ -295,7 +295,7 @@ def DIP_Resize4D_NHWCOp : DIP_Op<"resize_4d_nhwc">
                        DIP_InterpolationAttr:$interpolation_type);
 
   let assemblyFormat = [{
-     $interpolation_type $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
+     enum($interpolation_type) $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
   }];
 }
 
@@ -338,7 +338,7 @@ def DIP_Resize4D_NCHWOp : DIP_Op<"resize_4d_nchw">
                        DIP_InterpolationAttr:$interpolation_type);
 
   let assemblyFormat = [{
-     $interpolation_type $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
+     enum($interpolation_type) $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
   }];
 }
 

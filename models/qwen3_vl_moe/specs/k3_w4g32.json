@@ -1,0 +1,13 @@
+{
+  "hf_model_path": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+  "model_family": "qwen3_vl_moe",
+  "variant": "w4g32",
+  "max_token_len": 1024,
+  "num_threads": 8,
+  "prefill_chunk": 64,
+  "arena": true,
+  "hugepages": true,
+  "thread_pool": true,
+  "prefill_ime": true,
+  "arena_prefault_mb": 1536
+}

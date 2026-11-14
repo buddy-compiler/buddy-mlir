@@ -36,7 +36,7 @@ module {
 
         %119 = arith.constant dense<1.0> : tensor<1x40x32x128xf32>
         %120 = tosa.identity %119 : (tensor<1x40x32x128xf32>) -> tensor<1x40x32x128xf32>
-        %s = tosa.const_shape {values = dense<[1, 40, 4096]> : tensor<3xindex>} : () -> !tosa.shape<3>
+        %s = tosa.const_shape values(dense<[1, 40, 4096]> : tensor<3xindex>) : () -> !tosa.shape<3>
         %121 = tosa.reshape %120, %s : (tensor<1x40x32x128xf32>, !tosa.shape<3>) -> tensor<1x40x4096xf32>
         %t1_original = call @rtclock() : () -> f64
 
@@ -62,7 +62,7 @@ module {
         %t0_optimized = call @rtclock() : () -> f64
 
         %119 = arith.constant dense<1.0> : tensor<1x40x32x128xf32>
-        %s = tosa.const_shape {values = dense<[1, 40, 4096]> : tensor<3xindex>} : () -> !tosa.shape<3>
+        %s = tosa.const_shape values(dense<[1, 40, 4096]> : tensor<3xindex>) : () -> !tosa.shape<3>
         %121 = tosa.reshape %119, %s : (tensor<1x40x32x128xf32>, !tosa.shape<3>) -> tensor<1x40x4096xf32>
         %t1_optimized = call @rtclock() : () -> f64
 

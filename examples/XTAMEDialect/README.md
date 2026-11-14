@@ -27,6 +27,21 @@ The XTAMEDialect example folder contains the following key files:
 
 The AME dialect provides MLIR operations that map to XuanTie's RISC-V matrix extensions.
 
+The high-level `xt_ame.th.*` operations use explicit matrix register indices
+(`0`–`7` for `m0`–`m7`). `--lower-xt-ame` preserves those choices with
+side-effecting `llvm.inline_asm`, including memory and matrix register clobbers.
+Scalar operands and results use normal LLVM register allocation.
+Broadcast operations use a `.insn` encoding because the current LLVM assembler
+cannot parse the `ms1[index]` syntax emitted by its XTAME instruction printer.
+
+The low-level `xt_ame.intr.th.*` operations follow the current LLVM intrinsic
+interface: matrix loads and zero operations return scalable vector tiles,
+dot products take an accumulator and two matrix values and return a new tile,
+and stores consume a tile. LLVM allocates physical matrix registers for these
+SSA values. See [the intrinsic translation test](../../tests/Conversion/xtame-ssa-intrinsics.mlir)
+for integer, FP32, and widening FP32-to-FP64 examples. Existing fixed-register
+operations cannot be passed to these intrinsics as integer register indices.
+
 ### Matrix Operations
 
 All AME instructions perform the following core matrix multiply-accumulate operation:
@@ -346,20 +361,19 @@ module {
     %ret = arith.constant 0 : i32
     return %ret : i32
   }
-  // For now, we only test the tile-level operations which map directly
-  // to LLVM intrinsics.
+  // The tile-level operations retain their explicit register assignments.
 }
 
 // Expected lowering for tile-based operations:
 // CHECK-LABEL: func.func @main
-// CHECK: llvm.call @llvm.riscv.buddy.th.mcfgmi
-// CHECK: llvm.call @llvm.riscv.buddy.th.mcfgni
-// CHECK: llvm.call @llvm.riscv.buddy.th.mcfgki
-// CHECK: llvm.call @llvm.riscv.buddy.th.mzero
-// CHECK: llvm.call @llvm.riscv.buddy.th.mlde8
-// CHECK: llvm.call @llvm.riscv.buddy.th.mldte8
-// CHECK: llvm.call @llvm.riscv.buddy.th.mmacc.w.b
-// CHECK: llvm.call @llvm.riscv.buddy.th.mste32
+// CHECK: llvm.inline_asm has_side_effects "th.mcfgmi 4"
+// CHECK: llvm.inline_asm has_side_effects "th.mcfgni 4"
+// CHECK: llvm.inline_asm has_side_effects "th.mcfgki 4"
+// CHECK: llvm.inline_asm has_side_effects "th.mzero m0"
+// CHECK: llvm.inline_asm has_side_effects "th.mlde8 m1, $0, $1"
+// CHECK: llvm.inline_asm has_side_effects "th.mldte8 m2, $0, $1"
+// CHECK: llvm.inline_asm has_side_effects "th.mmacc.w.b m0, m2, m1"
+// CHECK: llvm.inline_asm has_side_effects "th.mste32 m0, $0, $1"
 
 ```
 

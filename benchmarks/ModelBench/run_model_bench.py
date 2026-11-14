@@ -228,7 +228,7 @@ def import_deepseek(args: argparse.Namespace, case_dir: Path) -> None:
     run(
         [
             sys.executable,
-            str(DEEPSEEK_EXAMPLE / "import-deepseek-r1.py"),
+            str(DEEPSEEK_EXAMPLE / "import_deepseek_r1.py"),
             "--output-dir",
             str(case_dir),
             "--precision",

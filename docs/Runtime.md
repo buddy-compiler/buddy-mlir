@@ -75,7 +75,7 @@ To add a model, implement an `InferenceRunner` subclass under
 ```
 buddy-cli --model deepseek_r1.rax
   │
-  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → runner / model .so / weights
+  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → runner / model plugin / weights
   ├─ dlopen(deepseek_r1_runner.so)
   ├─ dlsym("buddy_create_inference_runner_v1")
   └─ runner->run(cfg)
@@ -120,6 +120,11 @@ Total KV cache memory: `56 × 2 × 1024 × 128 × 4 bytes = 56 MB`.
 
 ## RAX tools
 
+For the complete format and loading reference, including embedded payload
+layout, URI rewriting, extraction caching, and the `buddy-cli` and
+`buddy-server` loading paths, see
+[RAX Packaging and Runtime Loading](RAXPackagingAndLoadingAnalysis.md).
+
 ### rax-pack
 
 Packs RHAL MLIR dialect (`.mlir`) into a binary `.rax`:
@@ -163,6 +168,96 @@ build-runtime/bin/rax-inspect <file.rax>
 
 ---
 
+## Shared generation API
+
+`buddy_runtime_llm` provides `runServingGeneration` through
+`buddy/runtime/llm/ServingGeneration.h`. Callers supply either an `LLMSession`
+with host sampling or a `ServingTokenSource` whose callbacks perform execution
+and token selection. A `ServingTextCodec` supplies complete prompt encoding,
+raw token bytes, the context length, and an optional decodable vocabulary prefix.
+Encoding must preserve the prompt; adapters apply templates and merge model
+stop IDs into `SamplingParams::stopTokenIds` before calling the controller.
+Token sources must reject sampling options they cannot implement.
+
+`SamplingParams::maxNewTokens` limits newly selected tokens, including the first
+prediction and EOS/stop tokens. Zero performs prefill without selecting a token;
+`-1` uses the remaining context. Oversized prompts are rejected without
+truncation or context shifting. Usage counts the full prompt and every selected
+token, including stop tokens whose bytes are omitted from the returned content.
+String stops match raw bytes across token boundaries before UTF-8 decoding;
+incomplete trailing text is repaired when output is finished.
+
+`seedPolicy` selects random sampling or an explicit `fixedSeed`, including zero.
+It is independent of the legacy `SamplerConfig::seed` convention; `UINT32_MAX`
+is reserved for random selection. The host sampler uses the existing sampling
+formulas and applies repetition penalties to unique IDs in the requested
+history window. Sampling scalars, stop strings, static codec configuration, and
+required callback presence are validated before any source or codec callback
+runs. The controller then resets the source before token validation, encoding,
+and prefill. After these checks, cancellation or an exception, including an
+initial reset failure, triggers a best-effort cleanup reset. The source must
+support repeated reset attempts after partial failure. Cleanup failures
+preserve the original exception but do not guarantee source reuse.
+
+Streaming callbacks receive deltas and a terminal summary. Returning false
+from a delta cancels immediately without a terminal summary. Returning false
+from the terminal summary resets the source but keeps the finalized result
+and its Stop/Length reason consistent with that summary.
+Callback exceptions propagate after cleanup.
+
+For `runServingGeneration`, `prefillMs` includes prefill execution and the first
+token selection; a zero token budget measures prefill alone. `decodeMs` sums
+each subsequent decode and its token selection. `tokensPerSecond` is the number
+of these subsequent selected tokens times 1000 divided by `decodeMs`, or zero
+if no decode occurs or elapsed decode time is zero. EOS/stop tokens count as
+selection work, and cancellation retains the work already completed. For
+example, selecting two tokens with 12 ms of prefill/first selection and 8 ms of
+decode/second selection reports 125 tokens/s. Timings include work inside these
+source callbacks but exclude reset, codec calls, controller-side token
+validation, text/stop processing, and transport callbacks. They are not HTTP
+end-to-end throughput.
+
+The existing `runGeneration` API continues to provide the CLI's historical
+total-token budget and stdout/JSONL behavior. Production CLI and server entry
+points retain their existing generation paths; `runServingGeneration` is an
+additional library interface.
+
+---
+
+## Perplexity
+
+`buddy-cli --perplexity <ids>` reports the perplexity of a model over a file of
+token ids instead of generating text (LLM runners that support it: DeepSeek
+R1). It is scored like llama.cpp's `llama-perplexity`, so that the two can be
+compared on the same tokens:
+
+- the ids are cut into chunks of `--ppl-context` tokens (default 512, at most
+  the model's KV cache); `--ppl-chunks N` keeps the first N chunks (default:
+  all);
+- each chunk starts from an empty KV cache, and only its second half is scored:
+  position j predicts token j + 1 for j in [context / 2, context - 1);
+- the first token of a chunk runs as a one-token prompt, the others one decode
+  step each, so the decode path is measured.
+
+The ids file holds the token ids in order, whatever separates them: the output
+of `llama-tokenize --ids` (`[715, 284, ...]`) or one id per line. To score
+wikitext-2 like `llama-perplexity -f wiki.test.raw -c 512 --chunks 40`, with
+the model's Hugging Face tokenizer (`add_bos_token` false for DeepSeek R1, as
+llama.cpp does here):
+
+```bash
+python3 -c "import sys; from transformers import AutoTokenizer; \
+t = AutoTokenizer.from_pretrained(sys.argv[1]); \
+print(t(open(sys.argv[2]).read(), add_special_tokens=False)['input_ids'])" \
+  deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B wiki.test.raw > wt2.ids
+buddy-cli --model deepseek_r1.rax --perplexity wt2.ids --ppl-chunks 40
+```
+
+`RunConfig`, which `buddy-cli` hands to the runner plugin, gained the
+perplexity fields: use a `buddy-cli` and a `.rax` built from the same sources.
+
+---
+
 ## FAQ
 
 **Q: I changed the manifest (e.g. weight path in the spec or generated MLIR). Do I need to rebuild C++?**
@@ -174,6 +269,15 @@ ninja deepseek_r1_rax
 ```
 
 Paths live in the `.rax` FlatBuffer; C++ reads them at runtime via `ModelManifest`.
+
+Server packages use one optional `model_library` module attribute for the model
+HTTP adapter. `buddy-server --model <file.rax>` resolves that URI, validates the
+adapter's `buddy_server_model_descriptor_v1` descriptor, and invokes every
+service through the unified Server Model ABI operation table. Service type,
+operations, input modalities, result kind, and execution capabilities are
+declared separately. `runner_library` remains the independent `buddy-cli`
+runner ABI. Packages that only export the legacy server ABI are rejected with
+an instruction to use a newly generated `.rax`.
 
 **Q: Do I need to prepare `vocab.txt` manually?**
 

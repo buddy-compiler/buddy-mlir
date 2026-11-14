@@ -36,8 +36,8 @@ jobs:
           - arch: riscv64
             os: linux
             experimental: true
-            llvm_src: "/home/jenkins/src/llvm-project"
-            llvm_build_root: "/home/jenkins/llvm-cache"
+            llvm_src: "$HOME/src/llvm-project"
+            llvm_build_root: "$HOME/llvm-cache"
 
     runs-on:
       - self-hosted
@@ -82,13 +82,17 @@ jobs:
       - name: Run check-buddy
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
+          # Newest first: the latest torch releases break most often, so fail
+          # fast before spending time on the older, stable ones.
           if [ "${{ matrix.arch }}" = "riscv64" ]; then
-            # The Ruyi torch 2.12 riscv64 wheel omits the top-level functorch
-            # compatibility package still imported by torch._dynamo.
+            # PyPI has no riscv64 torch wheels; the Ruyi index has them.
             # https://ruyirepo.ruyicommunity.cn/pypi/simple/torch/
-            torch_versions=(2.10 2.11 2.12 2.13)
+            # Its newest riscv64 build is 2.15.0, which ships the top-level
+            # functorch compatibility package imported by torch._dynamo.
+            torch_versions=(2.15 2.14 2.13 2.12 2.11)
           else
-            torch_versions=(2.10 2.11 2.12 2.13)
+            # torch 2.15.0 is on the CPU index and on PyPI, including cp312.
+            torch_versions=(2.15 2.14 2.13 2.12 2.11)
           fi
 
           for torch_version in "${torch_versions[@]}"; do
@@ -102,11 +106,13 @@ jobs:
             if [ "${{ matrix.arch }}" = "x64" ]; then
               uv_args+=(--torch-backend cpu)
             elif [ "${{ matrix.arch }}" = "riscv64" ]; then
-              uv_args+=(--index-strategy unsafe-best-match)
+              uv_args+=(
+                --index-strategy unsafe-best-match
+                --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/
+              )
             fi
             uv_args+=(
               --extra-index-url https://download.pytorch.org/whl/cpu
-              --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/
               "${torch_packages[@]}"
             )
             uv "${uv_args[@]}"
@@ -114,5 +120,16 @@ jobs:
               import torch
               print("torch:", torch.__version__)
             """))'
-            ninja -C build check-buddy
+            # Only the newest version needs the whole suite: of the 590 cases
+            # check-buddy runs, the 268 that import torch while running all live
+            # in check-tests, plus the matmul roundtrip in examples/BuddyJIT; the
+            # rest consume .mlir checked into the tree, so swapping the wheel
+            # cannot show up in them. Measured per version: check-examples costs
+            # 57s on x64 and 587-707s on riscv64, check-tests 34s and 150-190s,
+            # and the BuddyJIT case is a single test out of those 239.
+            if [ "${torch_version}" = "${torch_versions[0]}" ]; then
+              ninja -C build check-buddy
+            else
+              ninja -C build check-tests check-buddy-examples-buddyjit
+            fi
           done
