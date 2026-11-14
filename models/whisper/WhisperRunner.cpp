@@ -86,6 +86,12 @@ void WhisperRunner::run(const RunConfig &config) {
   printLog("Core model forwards: " +
                std::to_string(result.timings.inferenceMs) + " ms",
            suppress);
+  const auto [encoderMs, decoderMs] = runtime.stageTimingsMs();
+  if (encoderMs > 0.0) {
+    printLog("Encoder: " + std::to_string(encoderMs) + " ms", suppress);
+    printLog("Decoder forwards: " + std::to_string(decoderMs) + " ms",
+             suppress);
+  }
   printLog("End-to-end transcription: " +
                std::to_string(result.timings.totalMs) + " ms",
            suppress);

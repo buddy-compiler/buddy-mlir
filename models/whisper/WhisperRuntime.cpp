@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
 #include <fstream>
@@ -66,6 +67,8 @@ struct WhisperShape {
   int sotToken = kSotToken;
   int eotToken = kEotToken;
   bool f16Weights = false;
+  bool encoderCache = false;
+  std::size_t encoderParamsSize = 0;
 };
 
 std::size_t manifestSize(const ModelManifest &manifest, const char *key,
@@ -95,6 +98,8 @@ using ForwardFn = void (*)(MemRef<float, 3> *, MemRef<float, 1> *,
                            MemRef<float, 3> *, MemRef<std::size_t, 2> *);
 using ForwardF16Fn = void (*)(MemRef<float, 3> *, MemRef<_Float16, 1> *,
                               MemRef<float, 3> *, MemRef<std::size_t, 2> *);
+using EncoderF16Fn = void (*)(MemRef<float, 3> *, MemRef<_Float16, 1> *,
+                              MemRef<float, 3> *);
 
 double milliseconds(Clock::duration duration) {
   return std::chrono::duration<double, std::milli>(duration).count();
@@ -175,6 +180,19 @@ public:
           throw std::invalid_argument("WhisperRuntime: unsupported precision");
         nextShape.f16Weights = precision->second == "f16";
       }
+      auto cache = manifest.moduleAttrs.find("encoder_cache");
+      nextShape.encoderCache =
+          cache != manifest.moduleAttrs.end() && cache->second == "true";
+      if (nextShape.encoderCache) {
+        if (!nextShape.f16Weights)
+          throw std::invalid_argument(
+              "WhisperRuntime: encoder cache requires FP16 weights");
+        nextShape.encoderParamsSize =
+            manifestSize(manifest, "encoder_params_size", 0);
+        if (nextShape.encoderParamsSize >= nextShape.paramsSize)
+          throw std::invalid_argument(
+              "WhisperRuntime: invalid encoder parameter count");
+      }
       if (nextShape.melBins != kMelBins ||
           nextShape.audioFrames != kAudioFrames)
         throw std::invalid_argument(
@@ -228,12 +246,24 @@ public:
                                ": " + dlerror());
     std::unique_ptr<void, SharedLibraryCloser> handleGuard(nextHandle);
 
+    const char *forwardSymbol = nextShape.encoderCache
+                                    ? "_mlir_ciface_forward_decoder"
+                                    : "_mlir_ciface_forward";
     dlerror();
-    void *nextForward = dlsym(nextHandle, "_mlir_ciface_forward");
+    void *nextForward = dlsym(nextHandle, forwardSymbol);
     if (const char *error = dlerror())
-      throw std::runtime_error(
-          "WhisperRuntime: missing _mlir_ciface_forward in " + nextSoPath +
-          ": " + error);
+      throw std::runtime_error("WhisperRuntime: missing " +
+                               std::string(forwardSymbol) + " in " +
+                               nextSoPath + ": " + error);
+    void *nextEncoder = nullptr;
+    if (nextShape.encoderCache) {
+      dlerror();
+      nextEncoder = dlsym(nextHandle, "_mlir_ciface_forward_encoder");
+      if (const char *error = dlerror())
+        throw std::runtime_error(
+            "WhisperRuntime: missing encoder entrypoint: " +
+            std::string(error));
+    }
 
     auto nextVocab = std::make_unique<buddy::Text<std::size_t, 2>>();
     nextVocab->loadVocab(nextVocabPath);
@@ -260,6 +290,22 @@ public:
     if (weights.gcount() != static_cast<std::streamsize>(requiredWeightBytes))
       throw std::runtime_error("WhisperRuntime: short read from weights: " +
                                nextWeightsPath);
+    std::unique_ptr<MemRef<_Float16, 1>> nextEncoderParamsF16;
+    std::unique_ptr<MemRef<_Float16, 1>> nextDecoderParamsF16;
+    if (nextShape.encoderCache) {
+      const auto encoderSize = nextShape.encoderParamsSize;
+      const auto decoderSize = nextShape.paramsSize - encoderSize;
+      nextEncoderParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
+          std::vector<std::size_t>{encoderSize});
+      nextDecoderParamsF16 = std::make_unique<MemRef<_Float16, 1>>(
+          std::vector<std::size_t>{decoderSize});
+      std::memcpy(nextEncoderParamsF16->getData(), nextParamsF16->getData(),
+                  encoderSize * sizeof(_Float16));
+      std::memcpy(nextDecoderParamsF16->getData(),
+                  nextParamsF16->getData() + encoderSize,
+                  decoderSize * sizeof(_Float16));
+      nextParamsF16.reset();
+    }
     const auto loadEnd = Clock::now();
 
     soPath = std::move(nextSoPath);
@@ -271,9 +317,12 @@ public:
     forwardF16 = nextShape.f16Weights
                      ? reinterpret_cast<ForwardF16Fn>(nextForward)
                      : nullptr;
+    encoderF16 = reinterpret_cast<EncoderF16Fn>(nextEncoder);
     vocabulary = std::move(nextVocab);
     params = std::move(nextParams);
     paramsF16 = std::move(nextParamsF16);
+    encoderParamsF16 = std::move(nextEncoderParamsF16);
+    decoderParamsF16 = std::move(nextDecoderParamsF16);
     weightLoadSecs = std::chrono::duration<double>(loadEnd - loadStart).count();
     soHandle = handleGuard.release();
     shape = nextShape;
@@ -283,6 +332,8 @@ public:
                                       const WhisperProgressCallback &progress) {
     std::lock_guard<std::mutex> lock(mutex);
     ensureLoadedUnlocked();
+    lastEncoderMs = 0.0;
+    lastDecoderMs = 0.0;
     validateAudio(audio);
     if (maxTokens <= 0 || maxTokens >= static_cast<int>(shape.maxTokenLength))
       throw std::invalid_argument("max_tokens must be between 1 and " +
@@ -303,6 +354,15 @@ public:
     dap::whisperPreprocess(&rawAudio, &audioInput);
     result.timings.preprocessMs = milliseconds(Clock::now() - preprocessStart);
 
+    MemRef<float, 3> encoderState(
+        std::vector<std::size_t>{1, shape.encSeq, shape.encDim}, false, 0);
+    if (shape.encoderCache) {
+      const auto encoderStart = Clock::now();
+      encoderF16(&encoderState, encoderParamsF16.get(), &audioInput);
+      lastEncoderMs = milliseconds(Clock::now() - encoderStart);
+      result.timings.inferenceMs += lastEncoderMs;
+    }
+
     for (int step = 0; step < maxTokens; ++step) {
       // The compiled function assigns result buffers. Non-owning clean
       // descriptors ensure each iteration starts empty; MemRef destructors
@@ -317,13 +377,18 @@ public:
       };
 
       const auto inferenceStart = Clock::now();
-      if (shape.f16Weights)
+      if (shape.encoderCache)
+        forwardF16(&outputs[1], decoderParamsF16.get(), &encoderState,
+                   &decoderTokens);
+      else if (shape.f16Weights)
         forwardF16(outputs, paramsF16.get(), &audioInput, &decoderTokens);
       else
         forward(outputs, params.get(), &audioInput, &decoderTokens);
       const auto inferenceEnd = Clock::now();
       const double inferenceMs = milliseconds(inferenceEnd - inferenceStart);
       result.timings.inferenceMs += inferenceMs;
+      if (shape.encoderCache)
+        lastDecoderMs += inferenceMs;
 
       const float *row = outputs[1].getData() +
                          static_cast<std::size_t>(step) * shape.vocabSize;
@@ -351,7 +416,15 @@ public:
   bool isLoaded() const {
     std::lock_guard<std::mutex> lock(mutex);
     return soHandle && vocabulary &&
-           (shape.f16Weights ? forwardF16 && paramsF16 : forward && params);
+           (shape.encoderCache ? encoderF16 && encoderParamsF16 && forwardF16 &&
+                                     decoderParamsF16
+                               : (shape.f16Weights ? forwardF16 && paramsF16
+                                                   : forward && params));
+  }
+
+  std::pair<double, double> stageTimingsMs() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    return {lastEncoderMs, lastDecoderMs};
   }
 
   std::string getModelName() const {
@@ -404,7 +477,10 @@ private:
 
   void ensureLoadedUnlocked() const {
     if (!soHandle || !vocabulary ||
-        !(shape.f16Weights ? forwardF16 && paramsF16 : forward && params))
+        !(shape.encoderCache
+              ? encoderF16 && encoderParamsF16 && forwardF16 && decoderParamsF16
+              : (shape.f16Weights ? forwardF16 && paramsF16
+                                  : forward && params)))
       throw std::runtime_error("WhisperRuntime: model is not loaded");
   }
 
@@ -412,8 +488,11 @@ private:
     vocabulary.reset();
     params.reset();
     paramsF16.reset();
+    encoderParamsF16.reset();
+    decoderParamsF16.reset();
     forward = nullptr;
     forwardF16 = nullptr;
+    encoderF16 = nullptr;
     if (soHandle) {
       dlclose(soHandle);
       soHandle = nullptr;
@@ -424,14 +503,19 @@ private:
     loadedModelName.clear();
     shape = {};
     weightLoadSecs = 0.0;
+    lastEncoderMs = 0.0;
+    lastDecoderMs = 0.0;
   }
 
   mutable std::mutex mutex;
   void *soHandle = nullptr;
   ForwardFn forward = nullptr;
   ForwardF16Fn forwardF16 = nullptr;
+  EncoderF16Fn encoderF16 = nullptr;
   std::unique_ptr<MemRef<float, 1>> params;
   std::unique_ptr<MemRef<_Float16, 1>> paramsF16;
+  std::unique_ptr<MemRef<_Float16, 1>> encoderParamsF16;
+  std::unique_ptr<MemRef<_Float16, 1>> decoderParamsF16;
   std::unique_ptr<buddy::Text<std::size_t, 2>> vocabulary;
   std::string soPath;
   std::string weightsPath;
@@ -439,6 +523,8 @@ private:
   std::string loadedModelName;
   WhisperShape shape;
   double weightLoadSecs = 0.0;
+  double lastEncoderMs = 0.0;
+  double lastDecoderMs = 0.0;
 };
 
 WhisperRuntime::WhisperRuntime() : impl(std::make_unique<Impl>()) {}
@@ -463,6 +549,9 @@ std::string WhisperRuntime::weightsPath() const {
 std::string WhisperRuntime::vocabPath() const { return impl->getVocabPath(); }
 double WhisperRuntime::weightLoadSeconds() const {
   return impl->getWeightLoadSeconds();
+}
+std::pair<double, double> WhisperRuntime::stageTimingsMs() const {
+  return impl->stageTimingsMs();
 }
 std::size_t WhisperRuntime::maxTokenLength() const {
   return impl->getMaxTokenLength();

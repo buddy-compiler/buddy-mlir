@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace buddy {
 namespace runtime {
@@ -57,6 +58,7 @@ public:
   std::string weightsPath() const;
   std::string vocabPath() const;
   double weightLoadSeconds() const;
+  std::pair<double, double> stageTimingsMs() const;
 
 private:
   class Impl;

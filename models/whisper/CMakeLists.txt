@@ -14,6 +14,17 @@ set(BUDDY_WHISPER_MODEL_PATH "" CACHE PATH
 option(BUDDY_WHISPER_K3_IME
   "Use shared A100 FP16 IME GEMM and batch-matmul passes for Whisper"
   OFF)
+file(READ "${BUDDY_WHISPER_SPEC}" _whisper_spec_json)
+string(JSON _whisper_encoder_cache ERROR_VARIABLE _whisper_cache_error
+       GET "${_whisper_spec_json}" encoder_cache)
+if(_whisper_cache_error)
+  set(_whisper_encoder_cache OFF)
+endif()
+if(_whisper_encoder_cache AND BUDDY_WHISPER_K3_IME)
+  message(FATAL_ERROR
+    "Cached Whisper encoder currently requires BUDDY_WHISPER_K3_IME=OFF: "
+    "the split encoder IME path fails transcription correctness on K3")
+endif()
 
 set(WHISPER_LLC_ATTRS "")
 if(BUDDY_WHISPER_K3_IME)
@@ -48,6 +59,7 @@ buddy_add_model(
   TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
   SINGLE_FORWARD_IME "${BUDDY_WHISPER_K3_IME}"
+  SINGLE_FORWARD_SPLIT "${_whisper_encoder_cache}"
   SPEC "${BUDDY_WHISPER_SPEC}"
   LLC_ATTRS "${WHISPER_LLC_ATTRS}"
   RUNNER_SRC WhisperRunner.cpp

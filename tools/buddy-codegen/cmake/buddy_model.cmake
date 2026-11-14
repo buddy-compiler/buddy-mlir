@@ -388,7 +388,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;RISCV_RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -1058,7 +1058,13 @@ function(buddy_add_model)
   set(OBJ_FILES)
   set(MLIR_COMPILE_DEPS)
   if(MDL_MODEL_KIND STREQUAL "single_forward")
-    if(MDL_LAYER_PARTITION)
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      foreach(_stage encoder decoder)
+        list(APPEND OBJ_FILES
+          "${BIN}/${_stage}_forward.o"
+          "${BIN}/${_stage}_subgraph.o")
+      endforeach()
+    elseif(MDL_LAYER_PARTITION)
       list(APPEND OBJ_FILES
         "${BIN}/layer_partitioned/forward.o"
         "${BIN}/layer_partitioned/subgraphs.o")
@@ -1119,7 +1125,16 @@ function(buddy_add_model)
     endif()
 
     set(_SINGLE_FORWARD_IMPORT_ARGS)
-    if(MDL_LAYER_PARTITION)
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      list(APPEND _SINGLE_FORWARD_IMPORT_ARGS --split-encoder-decoder)
+      set(_SINGLE_FORWARD_MLIR_DIR "${BIN}")
+      set(_SINGLE_FORWARD_BYPRODUCTS
+        "${BIN}/encoder_forward.mlir"
+        "${BIN}/encoder_subgraph.mlir"
+        "${BIN}/decoder_forward.mlir"
+        "${BIN}/decoder_subgraph.mlir"
+        "${BIN}/arg0.data")
+    elseif(MDL_LAYER_PARTITION)
       list(APPEND _SINGLE_FORWARD_IMPORT_ARGS
         --experimental-template-partitioned)
       set(_SINGLE_FORWARD_MLIR_DIR "${BIN}/layer_partitioned")
@@ -1148,6 +1163,31 @@ function(buddy_add_model)
       VERBATIM
     )
 
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      get_filename_component(_SINGLE_FORWARD_CODEGEN_DIR
+        "${MDL_IMPORT_SCRIPT}" DIRECTORY)
+      foreach(_stage encoder decoder)
+        add_custom_command(
+          OUTPUT "${BIN}/${_stage}_forward.o"
+          COMMAND bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+                  "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
+                  "${BIN}/${_stage}_forward.mlir"
+                  "${BIN}/${_stage}_forward.o" OFF ${MDL_LLC_ATTRS_LIST}
+          DEPENDS "${IMPORT_STAMP}" buddy-opt
+          COMMENT "[${MDL_NAME}] Compiling ${_stage} forward wrapper"
+          VERBATIM)
+        add_custom_command(
+          OUTPUT "${BIN}/${_stage}_subgraph.o"
+          COMMAND bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+                  "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
+                  "${BIN}/${_stage}_subgraph.mlir"
+                  "${BIN}/${_stage}_subgraph.o"
+                  "${MDL_SINGLE_FORWARD_IME}" ${MDL_LLC_ATTRS_LIST}
+          DEPENDS "${IMPORT_STAMP}" buddy-opt
+          COMMENT "[${MDL_NAME}] Compiling ${_stage} compute graph"
+          VERBATIM)
+      endforeach()
+    else()
     add_custom_command(
       OUTPUT "${_SINGLE_FORWARD_MLIR_DIR}/forward.o"
       COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
@@ -1164,8 +1204,11 @@ function(buddy_add_model)
         ${LLVM_TOOLS_BINARY_DIR}/llc
       COMMENT "[${MDL_NAME}] Stage 2: forward.mlir -> forward.o"
       VERBATIM)
+    endif()
 
-    if(MDL_LAYER_PARTITION)
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      # Both stage objects were added above.
+    elseif(MDL_LAYER_PARTITION)
       get_filename_component(
         _SINGLE_FORWARD_CODEGEN_DIR
         "${MDL_IMPORT_SCRIPT}"

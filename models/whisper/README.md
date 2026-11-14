@@ -51,6 +51,14 @@ weights. It supports `--max-tokens` up to 31; use the 448-position spec when a
 transcription may need more tokens. The importer reads `max_token_len` from the
 selected spec, so the graph and runtime manifest use the same decoder length.
 
+To reuse the encoder output across tokens, select
+`models/whisper/specs/base_f16_k3_a100_cached32.json` and set
+`-DBUDDY_WHISPER_K3_IME=OFF`. This package runs the 1500-position encoder once
+per transcription, then calls the 32-position decoder for each token. It also
+supports at most 31 generated tokens. The split encoder IME lowering currently
+fails the K3 transcription correctness check, so CMake rejects that combination.
+The CLI reports separate encoder and decoder timings for cached packages.
+
 The package contains `whisper.rax`, `whisper_model.so`,
 `whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample
 `audio.wav`. The manifest keeps the runner and model plugin entries;

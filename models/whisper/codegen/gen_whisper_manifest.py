@@ -74,6 +74,9 @@ def gen_manifest(
     emit(f'    model_library = "{model_library}",')
     if precision == "f16":
         emit('    precision = "f16",')
+    if spec.get("encoder_cache", False):
+        emit('    encoder_cache = "true",')
+        emit(f'    encoder_params_size = "{spec["encoder_params_size"]}",')
     emit(f'    params_size = "{params_size}",')
     emit(f'    vocab_size = "{vocab_size}",')
     emit(f'    max_token_len = "{max_token_len}",')
