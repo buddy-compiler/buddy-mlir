@@ -147,7 +147,7 @@ def summarize(values):
 def main():
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
-        description="Measure RISC-V EmbeddingGemma inference (Linux/GNU time)."
+        description="Measure native RISC-V EmbeddingGemma inference (Linux/GNU time)."
     )
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--reference-dir", type=Path, required=True)
@@ -161,15 +161,12 @@ def main():
         "--buddy-cli",
         type=Path,
         required=True,
-        help="RISC-V buddy-cli executable or QEMU wrapper",
-    )
-    parser.add_argument(
-        "--execution", choices=["riscv-qemu", "riscv-native"], required=True
+        help="Native RISC-V buddy-cli executable or launcher",
     )
     parser.add_argument(
         "--target",
         required=True,
-        help="CPU/emulator configuration, including QEMU version and VLEN when applicable",
+        help="Hardware configuration, including CPU model and VLEN",
     )
     parser.add_argument(
         "--configuration", choices=["baseline", "optimized"], required=True
@@ -200,8 +197,8 @@ def main():
     args.time_command = shutil.which("time")
     if platform.system() != "Linux" or not args.time_command:
         parser.error("Linux and GNU time are required")
-    if args.execution == "riscv-native" and platform.machine() != "riscv64":
-        parser.error("riscv-native requires a RISC-V host")
+    if platform.machine() != "riscv64":
+        parser.error("Native measurements require a RISC-V host")
     for path in (args.model, args.buddy_cli, args.spec):
         if not path.is_file():
             parser.error(f"File not found: {path}")
@@ -263,18 +260,14 @@ def main():
         "model": str(args.model),
         "configuration": args.configuration,
         "precision": spec["variant"],
-        "execution": args.execution,
+        "execution": "riscv-native",
         "target": args.target,
         "threads": args.threads,
         "batch_size": args.batch_size,
         "sequence_length": args.sequence_length,
         "latency_scope": "first_forward",
         "token_counting": "valid_tokens_including_special_tokens",
-        "memory_scope": (
-            "host_qemu_process_peak_rss"
-            if args.execution == "riscv-qemu"
-            else "runner_process_peak_rss"
-        ),
+        "memory_scope": "runner_process_peak_rss",
         "warmup": args.warmup,
         "repeat": args.repeat,
         "tolerance": args.tolerance,

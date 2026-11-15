@@ -82,12 +82,13 @@ for a larger batch. Every row is an L2-normalized embedding.
 
 ## Baseline measurements
 
-On Linux, `benchmark.py` uses the RISC-V runner and GNU `time` to collect
-embedding latency, sequences/s, tokens/s, batches/s, and peak process RSS.
-It requires NumPy. Use it to measure baseline and optimized Buddy builds with
-the same settings. Original HF/SentenceTransformer outputs serve as the
-correctness golden for both builds. HF preparation may run offline on the build host;
-performance measurements run through RISC-V/QEMU or on a RISC-V host.
+On the K3's Linux/riscv64 system, `benchmark.py` uses the native runner and
+GNU `time` to collect embedding latency, sequences/s, tokens/s, batches/s,
+and peak process RSS. It requires Python 3.10 or newer and NumPy. Use it to
+measure baseline and optimized Buddy builds with the same settings. Original
+HF/SentenceTransformer outputs serve as the correctness golden for both builds.
+HF preparation may run offline on the build host; performance measurements run
+directly on the K3.
 
 Prepare the workload matrix once, using a new output directory. The supplied
 corpus generates distinct texts for batch sizes 1, 2 and 4, at effective
@@ -118,7 +119,6 @@ and save the baseline package before applying optimizations:
 
 ```bash
 EG_BUILD_DIR=/path/to/configured-riscv-build
-EG_BUDDY_CLI=/path/to/riscv-buddy-cli-qemu-wrapper
 cmake -S . -B "$EG_BUILD_DIR" \
   -DBUDDY_BUILD_EMBEDDINGGEMMA_MODEL=ON \
   -DBUDDY_EMBEDDINGGEMMA_MODEL_PATH="$EMBEDDINGGEMMA_MODEL_PATH" \
@@ -128,20 +128,34 @@ cmake --build "$EG_BUILD_DIR" --target embeddinggemma_rax
 EG_CONFIGURATION=baseline
 EG_RAX="$EG_WORKLOAD_DIR/$EG_CASE-baseline.rax"
 cp --no-clobber "$EG_BUILD_DIR/models/embeddinggemma/embeddinggemma.rax" "$EG_RAX"
-EG_RESULTS_DIR="$EG_WORKLOAD_DIR/results/$EG_CASE"
 ```
 
-The QEMU wrapper must execute the RISC-V `buddy-cli` with the matching sysroot,
-runtime libraries and CPU settings, forwarding all arguments. Keep runner
-stats enabled so the script can read the forward timing and token count.
-Measure the saved package with:
+Copy the saved package, its matching workload spec and HF reference directory,
+the RISC-V `buddy-cli`, and `benchmark.py` / `validate_accuracy.py` to the K3.
+Keep the two Python scripts together; the commands below use their repository
+paths. HF/PyTorch packages are only needed on the build host for reference
+generation. Use storage with enough room for the packages and extracted
+payloads; `/tmp` may be backed by RAM.
+
+On the K3, set the destination paths and enter AI process mode before starting
+the benchmark so its runner threads execute on the A100 cores. Set CPU affinity
+for the assigned A100 cores and keep runner stats enabled. Measure with:
 
 ```bash
+EG_WORKLOAD_DIR=/path/to/embeddinggemma-workloads
+EG_CASE=f32-b2-s128
+EG_CONFIGURATION=baseline
+EG_RAX="$EG_WORKLOAD_DIR/$EG_CASE-$EG_CONFIGURATION.rax"
+EG_SPEC="$EG_WORKLOAD_DIR/$EG_CASE.json"
+EG_REFERENCE_DIR="$EG_WORKLOAD_DIR/reference-$EG_CASE"
+EG_RESULTS_DIR="$EG_WORKLOAD_DIR/results/$EG_CASE"
+EG_BUDDY_CLI=/path/to/riscv-buddy-cli
+
+sh -c 'echo 0 > /proc/set_ai_thread && exec "$@"' sh \
 python models/embeddinggemma/benchmark.py \
   --model "$EG_RAX" \
   --buddy-cli "$EG_BUDDY_CLI" \
-  --execution riscv-qemu \
-  --target 'QEMU 10.0.2: max,vlen=1024,elen=64,zfh=true,zvfh=true' \
+  --target 'SpacemiT K3 A100; VLEN=1024' \
   --configuration "$EG_CONFIGURATION" \
   --spec "$EG_SPEC" \
   --reference-dir "$EG_REFERENCE_DIR" \
@@ -151,8 +165,8 @@ python models/embeddinggemma/benchmark.py \
 ```
 
 After applying an optimization, rebuild the affected compiler components and
-the model. Confirm the relevant import/lowering stages reran. Save the new
-package, then repeat the same benchmark command with these variables:
+the model on the build host. Confirm the relevant import/lowering stages reran.
+Save the new package:
 
 ```bash
 cmake --build "$EG_BUILD_DIR" --target embeddinggemma_rax
@@ -161,6 +175,10 @@ EG_RAX="$EG_WORKLOAD_DIR/$EG_CASE-optimized.rax"
 cp --no-clobber "$EG_BUILD_DIR/models/embeddinggemma/embeddinggemma.rax" "$EG_RAX"
 ```
 
+Copy the optimized package to the K3, set `EG_CONFIGURATION=optimized` and
+`EG_RAX="$EG_WORKLOAD_DIR/$EG_CASE-optimized.rax"` there, then repeat the same
+measurement command with a fresh output directory.
+
 For frontend Python changes, rebuild the main `build` tree's Python packages
 and remove the generated
 `$EG_BUILD_DIR/models/embeddinggemma/.buddy_import_done` stamp before rebuilding
@@ -168,11 +186,10 @@ the model so the changed frontend is used for a fresh import.
 
 Use fresh package filenames and result directories for each new candidate;
 the baseline package remains fixed. For a same-precision comparison, keep
-the weights, input texts, B/S, threads, CPU affinity, QEMU CPU configuration,
-warmup and repeat counts identical. `--target` records the actual configuration
-used by the caller. On a RISC-V host, use `--execution riscv-native` and pass
-the native RISC-V `buddy-cli`. The script sets `OMP_NUM_THREADS` and disables
-dynamic OpenMP thread counts; CPU affinity is inherited from the caller.
+the weights, input texts, B/S, threads, CPU affinity, hardware configuration,
+and warmup/repeat counts identical. `--target` records the actual configuration
+used by the caller. The script sets `OMP_NUM_THREADS` and disables dynamic
+OpenMP thread counts; CPU affinity is inherited from the caller.
 
 Warmup rounds prepare the extracted payload cache and are excluded from the
 statistics. Each request starts a new process and reloads the model, so the
@@ -190,15 +207,15 @@ tokens/s    = sum(valid_tokens) * batches/s
 `valid_tokens` counts attention-mask entries equal to one, including BOS/EOS
 and excluding padding. For the prepared full-length workloads, its sum is
 `batch_size * sequence_length`.
-Peak RSS covers the process's entire lifetime. Under QEMU this includes the
-host emulator, weights and temporary data, and is not K3 hardware memory use.
+Peak RSS covers the runner process's entire lifetime, including weights and
+temporary data; it is not limited to allocations within the timed forward.
 
 `report.json` records the baseline/optimized configuration, precision or
 quantization variant from the spec, RISC-V execution target, thread count,
 batch size, sequence length, measurement scopes, and validation status. Each
 sample includes raw measurements and latency/throughput mean, median, min,
-max and population standard deviation, plus maximum peak RSS. QEMU times
-describe emulator execution rather than A100 hardware performance.
+max and population standard deviation, plus maximum peak RSS. The execution
+mode is recorded as `riscv-native`.
 Raw logs and embeddings are kept under
 `runs/<round>/`; `warmup/` holds the unmeasured runs. The extracted payloads are
 cached under `payload/`. After timing, every measured round is checked by
