@@ -21,9 +21,9 @@
 # The buffer/function layout mirrors the AOT forward ABI produced by
 # codegen/import-embeddinggemma.py:
 #   forward(weights: memref<params_size x f32>,
-#           input_ids: memref<1 x max_seq_len x i64>,
-#           attention_mask: memref<1 x max_seq_len x i64>)
-#     -> (embedding: memref<1 x hidden_size x f32>)
+#           input_ids: memref<batch_size x max_seq_len x i64>,
+#           attention_mask: memref<batch_size x max_seq_len x i64>)
+#     -> (embedding: memref<batch_size x hidden_size x f32>)
 #
 # ===----------------------------------------------------------------------===//
 
@@ -51,6 +51,9 @@ def gen_manifest(
     model_id = spec.get("model_id", f"{model_family}_{variant}")
     params_size = int(spec["params_size"])
     max_seq_len = int(spec["max_seq_len"])
+    batch_size = int(spec.get("batch_size", 1))
+    if min(batch_size, max_seq_len) < 1:
+        raise ValueError("batch_size and max_seq_len must be positive")
     max_position_embeddings = int(spec.get("max_position_embeddings", 2048))
     hidden_size = int(spec["hidden_size"])
     so_name = spec.get("so_name", f"{model_family}_model.so")
@@ -64,6 +67,7 @@ def gen_manifest(
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{tokenizer_file}",')
     p(f'    max_seq_len = "{max_seq_len}",')
+    p(f'    batch_size = "{batch_size}",')
     p(f'    max_position_embeddings = "{max_position_embeddings}",')
     p(f'    hidden_size = "{hidden_size}",')
     p(f'    runner_library = "{normalize_uri(runner_library)}"}} {{')
@@ -84,15 +88,15 @@ def gen_manifest(
     p("")
     p(
         f'  rhal.buffer @input_ids {{space = "host", '
-        f"type = tensor<1x{max_seq_len}xi64>}}"
+        f"type = tensor<{batch_size}x{max_seq_len}xi64>}}"
     )
     p(
         f'  rhal.buffer @attention_mask {{space = "host", '
-        f"type = tensor<1x{max_seq_len}xi64>}}"
+        f"type = tensor<{batch_size}x{max_seq_len}xi64>}}"
     )
     p(
         f'  rhal.buffer @embedding {{space = "host", '
-        f"type = tensor<1x{hidden_size}xf32>}}"
+        f"type = tensor<{batch_size}x{hidden_size}xf32>}}"
     )
     p("")
     p("  rhal.func @forward {")

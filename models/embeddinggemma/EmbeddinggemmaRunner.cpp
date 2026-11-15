@@ -22,9 +22,9 @@
 // reimplementation of tokenizer.json), then invokes the AOT forward graph:
 //
 //   forward(weights: memref<params_size x f32>,
-//           input_ids: memref<1 x max_seq_len x i64>,
-//           attention_mask: memref<1 x max_seq_len x i64>)
-//     -> (embedding: memref<1 x hidden_size x f32>)
+//           input_ids: memref<batch_size x max_seq_len x i64>,
+//           attention_mask: memref<batch_size x max_seq_len x i64>)
+//     -> (embedding: memref<batch_size x hidden_size x f32>)
 //
 // The L2-normalized 768-dim embedding (the SentenceTransformer output after
 // Gemma3TextModel -> mean pooling -> two dense layers -> L2 normalize) is
@@ -107,6 +107,7 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
   std::string tokenizerPath;
   size_t maxSeqLen = kDefaultMaxSeqLen;
   size_t hiddenSize = kDefaultHiddenSize;
+  size_t batchSize = 1;
 
   if (!cfg.raxPath.empty()) {
     ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
@@ -120,6 +121,7 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
     tokenizerPath = manifest.vocabPath;
     maxSeqLen = parseSizeAttr(manifest, "max_seq_len", maxSeqLen);
     hiddenSize = parseSizeAttr(manifest, "hidden_size", hiddenSize);
+    batchSize = parseSizeAttr(manifest, "batch_size", batchSize);
   } else {
     if (cfg.modelSoPath.empty() || cfg.weightsPath.empty() ||
         cfg.vocabPath.empty())
@@ -133,8 +135,18 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
   if (tokenizerPath.empty())
     throw std::runtime_error("EmbeddinggemmaRunner: tokenizer path is empty");
 
-  const std::string prompt =
-      !cfg.prompts.empty() ? cfg.prompts.front() : cfg.prompt;
+  if (batchSize == 0 || maxSeqLen == 0 || hiddenSize == 0)
+    throw std::runtime_error("EmbeddinggemmaRunner: invalid tensor dimensions");
+  if (cfg.batchSize < 0 ||
+      (cfg.batchSize > 0 && static_cast<size_t>(cfg.batchSize) != batchSize))
+    throw std::runtime_error(
+        "EmbeddinggemmaRunner: batch size differs from compiled model");
+  std::vector<std::string> prompts = cfg.prompts;
+  if (prompts.empty())
+    prompts.assign(batchSize, cfg.prompt);
+  if (prompts.size() != batchSize)
+    throw std::runtime_error(
+        "EmbeddinggemmaRunner: prompt count differs from compiled batch size");
 
   printLog("Model .so  : " + soPath, suppress);
   printLog("Weights    : " + weightsPath, suppress);
@@ -142,8 +154,19 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
 
   EmbeddinggemmaTokenizer tokenizer =
       EmbeddinggemmaTokenizer::loadFromFile(tokenizerPath);
-  std::vector<int64_t> inputIdVec, attentionMaskVec;
-  tokenizer.encode(prompt, maxSeqLen, inputIdVec, attentionMaskVec);
+  MemRef<int64_t, 2> inputIds({batchSize, maxSeqLen});
+  MemRef<int64_t, 2> attentionMask({batchSize, maxSeqLen});
+  size_t validTokens = 0;
+  for (size_t row = 0; row < batchSize; ++row) {
+    std::vector<int64_t> inputIdVec, attentionMaskVec;
+    tokenizer.encode(prompts[row], maxSeqLen, inputIdVec, attentionMaskVec);
+    validTokens +=
+        std::count(attentionMaskVec.begin(), attentionMaskVec.end(), 1);
+    std::copy(inputIdVec.begin(), inputIdVec.end(),
+              inputIds.getData() + row * maxSeqLen);
+    std::copy(attentionMaskVec.begin(), attentionMaskVec.end(),
+              attentionMask.getData() + row * maxSeqLen);
+  }
 
   void *handle = dlopen(soPath.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!handle)
@@ -168,13 +191,7 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
   MemRef<float, 1> paramsContainer({weightBytes / sizeof(float)});
   loadWeights(weightsPath, paramsContainer);
 
-  MemRef<int64_t, 2> inputIds({1, maxSeqLen});
-  MemRef<int64_t, 2> attentionMask({1, maxSeqLen});
-  std::copy(inputIdVec.begin(), inputIdVec.end(), inputIds.getData());
-  std::copy(attentionMaskVec.begin(), attentionMaskVec.end(),
-            attentionMask.getData());
-
-  MemRef<float, 2> embedding({1, hiddenSize}, false, 0);
+  MemRef<float, 2> embedding({batchSize, hiddenSize}, false, 0);
 
   const auto t0 = std::chrono::high_resolution_clock::now();
   forward(&embedding, &paramsContainer, &inputIds, &attentionMask);
@@ -189,18 +206,29 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
     const double seconds = std::chrono::duration<double>(t1 - t0).count();
     std::cerr << "\033[33;1mEmbeddingGemma Sentence Embedding\033[0m\n";
     std::cerr << "  seq_len : " << maxSeqLen << "\n";
+    std::cerr << "  batch_size : " << batchSize << "\n";
+    std::cerr << "  valid_tokens : " << validTokens << "\n";
     std::cerr << "  dim     : " << hiddenSize << "\n";
     std::cerr << "  time    : " << seconds << "s\n";
     std::cerr << "  |emb|   : " << std::sqrt(norm2) << " (L2-normalized)\n";
   }
 
-  std::cout << "[";
-  for (size_t d = 0; d < hiddenSize; ++d) {
-    if (d)
+  if (batchSize > 1)
+    std::cout << "[";
+  for (size_t row = 0; row < batchSize; ++row) {
+    if (row)
       std::cout << ", ";
-    std::cout << data[d];
+    std::cout << "[";
+    for (size_t d = 0; d < hiddenSize; ++d) {
+      if (d)
+        std::cout << ", ";
+      std::cout << data[row * hiddenSize + d];
+    }
+    std::cout << "]";
   }
-  std::cout << "]\n";
+  if (batchSize > 1)
+    std::cout << "]";
+  std::cout << "\n";
 
   free(embedding.release());
   dlclose(handle);

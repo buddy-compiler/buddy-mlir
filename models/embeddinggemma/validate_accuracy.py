@@ -17,8 +17,15 @@ import sys
 
 import numpy as np
 
+DEFAULT_SPEC = os.path.join(os.path.dirname(__file__), "specs", "f32.json")
+DEFAULT_TOLERANCE = 1e-5
 
-def generate_reference(output_dir: str):
+
+def generate_reference(
+    output_dir: str,
+    spec_path: str = DEFAULT_SPEC,
+    texts_file: str | None = None,
+):
     """Generate HF reference embeddings for validation."""
     import torch
 
@@ -27,9 +34,7 @@ def generate_reference(output_dir: str):
     print("[EmbeddingGemma-Validate] Loading HF model...")
     from sentence_transformers import SentenceTransformer
 
-    with open(
-        os.path.join(os.path.dirname(__file__), "specs", "f32.json")
-    ) as f:
+    with open(spec_path) as f:
         spec = json.load(f)
     model_path = (
         os.environ.get("EMBEDDINGGEMMA_MODEL_PATH")
@@ -45,13 +50,30 @@ def generate_reference(output_dir: str):
         "artificial intelligence and machine learning",
         "the quick brown fox jumps over the lazy dog",
     ]
+    if texts_file is not None:
+        with open(texts_file) as f:
+            test_sentences = json.load(f)
+    batch_size = int(spec.get("batch_size", 1))
+    if (
+        batch_size < 1
+        or not isinstance(test_sentences, list)
+        or not test_sentences
+        or not all(isinstance(text, str) for text in test_sentences)
+        or len(test_sentences) % batch_size
+    ):
+        raise ValueError(
+            "Texts must contain complete, nonempty batches of strings"
+        )
 
     references = {}
-    for i, text in enumerate(test_sentences):
-        print(f"\n[EmbeddingGemma-Validate] Processing: {text!r}")
+    for i, start in enumerate(range(0, len(test_sentences), batch_size)):
+        texts = test_sentences[start : start + batch_size]
+        print(
+            f"\n[EmbeddingGemma-Validate] Processing batch {i}, B={batch_size}"
+        )
 
         tokens = model.tokenizer(
-            [text],
+            texts,
             padding="max_length",
             truncation=True,
             max_length=int(spec["max_seq_len"]),
@@ -62,36 +84,25 @@ def generate_reference(output_dir: str):
             embedding = model(tokens)["sentence_embedding"]
 
         emb_np = embedding.detach().cpu().numpy().astype(np.float32)
+        if (
+            emb_np.shape != (batch_size, int(spec["hidden_size"]))
+            or not np.isfinite(emb_np).all()
+        ):
+            raise ValueError("Invalid HuggingFace reference embedding")
         norm = float(np.linalg.norm(emb_np[0]))
 
         ref = {
-            "text": text,
+            "text": texts[0],
+            "texts": texts,
+            "batch_size": batch_size,
+            "sequence_length": int(spec["max_seq_len"]),
+            "valid_tokens": tokens["attention_mask"].sum(dim=1).tolist(),
             "embedding_dim": int(emb_np.shape[1]),
             "l2_norm": norm,
-            "embedding_mean": float(np.mean(emb_np)),
-            "embedding_std": float(np.std(emb_np)),
-            "top5_indices": np.argsort(emb_np[0])[-5:][::-1].tolist(),
-            "top5_values": emb_np[0][np.argsort(emb_np[0])[-5:][::-1]].tolist(),
         }
         references[f"text_{i}"] = ref
         np.save(os.path.join(output_dir, f"ref_embedding_{i}.npy"), emb_np)
         print(f"   dim={ref['embedding_dim']}, L2 norm={norm:.6f}")
-
-    # Pairwise cosine similarities
-    print(
-        "\n[EmbeddingGemma-Validate] Computing pairwise cosine similarities..."
-    )
-    cos_sims = {}
-    for i in range(len(test_sentences)):
-        for j in range(i + 1, len(test_sentences)):
-            ei = np.load(os.path.join(output_dir, f"ref_embedding_{i}.npy"))[0]
-            ej = np.load(os.path.join(output_dir, f"ref_embedding_{j}.npy"))[0]
-            cs = float(
-                np.dot(ei, ej) / (np.linalg.norm(ei) * np.linalg.norm(ej))
-            )
-            cos_sims[f"{i}_{j}"] = cs
-            print(f"   cos_sim({i},{j}): {cs:.6f}")
-    references["pairwise_cosine"] = cos_sims
 
     with open(os.path.join(output_dir, "reference_manifest.json"), "w") as f:
         json.dump(references, f, indent=2)
@@ -100,7 +111,9 @@ def generate_reference(output_dir: str):
 
 
 def compare_outputs(
-    reference_dir: str, buddy_output_dir: str, tolerance: float = 1e-3
+    reference_dir: str,
+    buddy_output_dir: str,
+    tolerance: float = DEFAULT_TOLERANCE,
 ):
     """Compare Buddy-MLIR embeddings against HF reference."""
     manifest_path = os.path.join(reference_dir, "reference_manifest.json")
@@ -131,7 +144,10 @@ def compare_outputs(
 
         buddy_array = np.load(buddy_path, allow_pickle=False)
         ref_array = np.load(ref_path, allow_pickle=False)
-        expected_shape = (1, int(ref["embedding_dim"]))
+        expected_shape = (
+            int(ref.get("batch_size", 1)),
+            int(ref["embedding_dim"]),
+        )
         if (
             buddy_array.shape != expected_shape
             or ref_array.shape != expected_shape
@@ -144,24 +160,20 @@ def compare_outputs(
             )
             all_passed = False
             continue
-        buddy_emb = buddy_array[0]
-        ref_emb = ref_array[0]
-        compared_count += 1
-
-        cos_sim = float(
-            np.dot(ref_emb, buddy_emb)
-            / (np.linalg.norm(ref_emb) * np.linalg.norm(buddy_emb) + 1e-10)
-        )
-        max_abs_err = float(np.max(np.abs(ref_emb - buddy_emb)))
-
-        passed = cos_sim > 0.99 and max_abs_err < tolerance
-        status = "PASS" if passed else "FAIL"
-        print(
-            f"  {status} | {ref['text'][:40]:40s} | cos={cos_sim:.6f} | max_err={max_abs_err:.2e}"
-        )
-
-        if not passed:
-            all_passed = False
+        texts = ref.get("texts", [ref["text"]])
+        for row, (ref_emb, buddy_emb) in enumerate(zip(ref_array, buddy_array)):
+            compared_count += 1
+            cos_sim = float(
+                np.dot(ref_emb, buddy_emb)
+                / (np.linalg.norm(ref_emb) * np.linalg.norm(buddy_emb) + 1e-10)
+            )
+            max_abs_err = float(np.max(np.abs(ref_emb - buddy_emb)))
+            passed = cos_sim > 0.99 and max_abs_err < tolerance
+            status = "PASS" if passed else "FAIL"
+            print(
+                f"  {status} | row={row} {texts[row][:40]:40s} | cos={cos_sim:.6f} | max_err={max_abs_err:.2e}"
+            )
+            all_passed = passed and all_passed
 
     if compared_count == 0:
         print("[EmbeddingGemma-Validate] ERROR: no embeddings compared")
@@ -186,14 +198,23 @@ def main():
     )
     parser.add_argument("--output-dir", type=str, default="./validation_data")
     parser.add_argument(
+        "--spec",
+        default=DEFAULT_SPEC,
+        help="Variant spec used to generate reference inputs",
+    )
+    parser.add_argument(
+        "--texts-file",
+        help="JSON list of texts, grouped by the spec batch_size",
+    )
+    parser.add_argument(
         "--reference-dir", type=str, default="./validation_data"
     )
     parser.add_argument("--buddy-output-dir", type=str, default="./build")
-    parser.add_argument("--tolerance", type=float, default=1e-3)
+    parser.add_argument("--tolerance", type=float, default=DEFAULT_TOLERANCE)
     args = parser.parse_args()
 
     if args.mode == "reference":
-        generate_reference(args.output_dir)
+        generate_reference(args.output_dir, args.spec, args.texts_file)
     elif args.mode == "compare":
         success = compare_outputs(
             args.reference_dir, args.buddy_output_dir, args.tolerance

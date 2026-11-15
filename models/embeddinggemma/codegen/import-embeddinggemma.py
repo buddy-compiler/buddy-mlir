@@ -24,9 +24,7 @@ import torch
 import torch.nn as nn
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
 from sentence_transformers import SentenceTransformer
 from torch._inductor.decomposition import decompositions as inductor_decomp
@@ -45,7 +43,6 @@ class EmbeddingGemmaWrapper(nn.Module):
 
         # Extract sub-modules
         self.transformer = st_model._first_module()
-        self.pooling = st_model._modules["1"]
         self.dense1 = st_model._modules["2"]
         self.dense2 = st_model._modules["3"]
         self.normalize = st_model._modules["4"]
@@ -56,33 +53,40 @@ class EmbeddingGemmaWrapper(nn.Module):
 
         # Single forward pass only: disable KV cache so Dynamo does not
         # materialize past-key/value tensors in the compiled graph.
-        try:
-            auto_model = getattr(self.transformer, "auto_model", None)
-            if auto_model is not None:
-                auto_model.config.use_cache = False
-        except Exception:  # noqa: BLE001 - best-effort
-            pass
+        self.transformer.auto_model.config.use_cache = False
+        # Trace the HF attention math directly: the frontend's SDPA lowering
+        # currently assumes batch size 1 when reshaping the attention mask.
+        self.transformer.auto_model.set_attn_implementation("eager")
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
         # 1. Transformer (Gemma3TextModel)
         auto_model = self.transformer.auto_model
-        if input_ids.shape[1] > auto_model.config.sliding_window:
-            raise ValueError("Input length exceeds the bidirectional window")
         # Embed IDs first to preserve the runner's (IDs, mask) input order.
         inputs_embeds = auto_model.embed_tokens(input_ids)
-        # Within one bidirectional window, both layer types use this mask.
+        # Full attention masks padding; sliding attention also masks distance.
         additive_mask = (
             1.0 - attention_mask[:, None, None, :].float()
         ) * torch.finfo(inputs_embeds.dtype).min
         additive_mask = additive_mask.expand(
             -1, 1, input_ids.shape[1], -1
         ).contiguous()
+        sliding_mask = additive_mask
+        if input_ids.shape[1] > auto_model.config.sliding_window:
+            positions = torch.arange(
+                input_ids.shape[1], device=input_ids.device
+            )
+            outside_window = (
+                positions[:, None] - positions[None, :]
+            ).abs() >= auto_model.config.sliding_window
+            sliding_mask = additive_mask.masked_fill(
+                outside_window, torch.finfo(inputs_embeds.dtype).min
+            )
         trans_out = self.transformer(
             {
                 "inputs_embeds": inputs_embeds,
                 "attention_mask": {
                     "full_attention": additive_mask,
-                    "sliding_attention": additive_mask,
+                    "sliding_attention": sliding_mask,
                 },
             }
         )
@@ -130,6 +134,9 @@ model_path = (
     or spec.get("hf_model_path", "google/embeddinggemma-300m")
 )
 max_seq_len = int(spec.get("max_seq_len", 128))
+batch_size = int(spec.get("batch_size", 1))
+if min(batch_size, max_seq_len) < 1:
+    raise ValueError("batch_size and max_seq_len must be positive")
 os.makedirs(a.output_dir, exist_ok=True)
 
 # ==============================================================================
@@ -153,8 +160,8 @@ dc = DynamoCompiler(
 # ==============================================================================
 # 4. Dummy inputs (fixed shape; matches the original PR)
 # ==============================================================================
-dummy_input_ids = torch.ones((1, max_seq_len), dtype=torch.int64)
-dummy_attention_mask = torch.ones((1, max_seq_len), dtype=torch.int64)
+dummy_input_ids = torch.ones((batch_size, max_seq_len), dtype=torch.int64)
+dummy_attention_mask = torch.ones((batch_size, max_seq_len), dtype=torch.int64)
 print("[import-embeddinggemma] Dummy inputs:")
 print(f"   input_ids:      {tuple(dummy_input_ids.shape)}")
 print(f"   attention_mask: {tuple(dummy_attention_mask.shape)}")
@@ -186,19 +193,21 @@ print(
 # 6. Graph optimization (simply_fuse ONLY)
 # ==============================================================================
 graph.fuse_ops([simply_fuse])
-graph.op_groups["subgraph0"] = graph.op_groups.pop("subgraph0")
-graph.group_map_device["subgraph0"] = DeviceType.CPU
 
 driver = GraphDriver(graph)
 driver.subgraphs[0].lower_to_top_level_ir()
+subgraph_module = driver.subgraphs[0]._imported_module
+forward_module = driver.construct_main_graph(True)
+subgraph_module.operation.verify()
+forward_module.operation.verify()
 
 # ==============================================================================
 # 7. Save outputs at the output-dir ROOT (single_forward build convention)
 # ==============================================================================
 with open(os.path.join(a.output_dir, "subgraph0.mlir"), "w") as module_file:
-    print(driver.subgraphs[0]._imported_module, file=module_file)
+    print(subgraph_module, file=module_file)
 with open(os.path.join(a.output_dir, "forward.mlir"), "w") as module_file:
-    print(driver.construct_main_graph(True), file=module_file)
+    print(forward_module, file=module_file)
 
 all_param = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params]
