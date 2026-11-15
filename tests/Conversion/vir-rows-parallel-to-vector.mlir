@@ -42,18 +42,18 @@ func.func @global() -> memref<2x8xf32> {
 // CHECK-LABEL: func.func @global
 // CHECK: scf.parallel
 
-// A scalar read and written once per row, at the same address in every row.
+// A scalar read and written once per row, at the same address in every row
+// (an accumulator of all the rows).
 func.func @shared_scalar(%a: memref<2x8xf32>, %s: memref<f32>)
     -> memref<2x8xf32> {
   %vl = arith.constant 8 : index
-  %one = arith.constant 1.0 : f32
   %o = memref.alloc() : memref<2x8xf32>
   %t = memref.alloc() : memref<f32>
   vir.set_vl %vl : index {
     %x = vir.load %a[] : memref<2x8xf32> -> !vir.vec<2x?xf32>
     vir.store %x, %o[] : !vir.vec<2x?xf32> -> memref<2x8xf32>
     %n = memref.load %t[] : memref<f32>
-    %m = arith.addf %n, %one : f32
+    %m = vir.reduce %x, %n {kind = "add"} : !vir.vec<2x?xf32>, f32 -> f32
     memref.store %m, %t[] : memref<f32>
     vector.yield
   }
