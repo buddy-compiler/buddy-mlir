@@ -26,6 +26,7 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
+from buddy_mlir import ir
 from sentence_transformers import SentenceTransformer
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
@@ -198,6 +199,14 @@ driver = GraphDriver(graph)
 driver.subgraphs[0].lower_to_top_level_ir()
 subgraph_module = driver.subgraphs[0]._imported_module
 forward_module = driver.construct_main_graph(True)
+if target_cpu := spec.get("target_cpu"):
+    for module in (subgraph_module, forward_module):
+        with module.context:
+            for op in module.body.operations:
+                if op.operation.name == "func.func":
+                    op.attributes["llvm.target_cpu"] = ir.StringAttr.get(
+                        target_cpu
+                    )
 subgraph_module.operation.verify()
 forward_module.operation.verify()
 

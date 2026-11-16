@@ -53,6 +53,21 @@ the model. For RISC-V builds, configure the toolchain and runtime using
 [CrossCompilingRaxFile.md](../../docs/CrossCompilingRaxFile.md), then build
 EmbeddingGemma with the CMake target above.
 
+For an A100 scheduling candidate, add `"target_cpu": "spacemit-a100"` to a
+copy of the workload spec and build with that spec, using
+`BUDDY_RISCV_VLEN=1024`. The importer sets the standard MLIR
+`llvm.target_cpu` function attribute, which also reaches the outlined OpenMP
+functions. The lowering passes, F32 precision and weights stay the same.
+Omitting `target_cpu` preserves the default build. This option does not add
+IME kernels or force top-down scheduling. Validate the candidate against the
+same HF reference before accepting its K3 performance results.
+
+The model's `codegen/lower_to_obj.sh` keeps the default `single_forward`
+passes and adds `canonicalize` just before OpenMP conversion. This removes
+one-trip parallel loops and combines directly nested parallel loops, so B1
+work is distributed over a useful dimension. Thread selection remains at
+runtime through `OMP_NUM_THREADS`; the build does not fix it to one thread.
+
 The build emits these artifacts under `build/models/embeddinggemma/`:
 
 | File | Description |

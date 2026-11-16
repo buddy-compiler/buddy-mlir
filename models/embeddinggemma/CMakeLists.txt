@@ -21,6 +21,7 @@ buddy_add_model(
   LOCAL_MODEL "${BUDDY_EMBEDDINGGEMMA_MODEL_PATH}"
   LOCAL_MODEL_ENV EMBEDDINGGEMMA_MODEL_PATH
   IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-embeddinggemma.py"
+  LOWER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/lower_to_obj.sh"
   MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_embeddinggemma_manifest.py"
   MODEL_SO_NAME embeddinggemma_model.so
   ASSET_FILES
