@@ -74,6 +74,9 @@ Attention BatchMatMul uses the existing `batchmatmul-optimize` pass with
 32-element vectors. F32 accumulation order and FMA rounding can differ, so
 validate final embeddings against the same HF golden before accepting
 performance results. This build includes the earlier parallel-loop changes.
+After canonicalization folds conditional deallocations,
+`optimize-allocation-liveness` releases temporary buffers after their last
+use without changing the floating-point operations.
 
 The build emits these artifacts under `build/models/embeddinggemma/`:
 

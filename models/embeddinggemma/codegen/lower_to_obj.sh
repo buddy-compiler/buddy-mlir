@@ -27,6 +27,7 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -matmul-vectorization-blis -batchmatmul-optimize \
       -convert-linalg-to-affine-loops \
       -affine-parallelize -lower-affine -canonicalize \
+      -optimize-allocation-liveness \
       -convert-scf-to-openmp -convert-linalg-to-loops -convert-vector-to-scf \
       -expand-strided-metadata -lower-affine -cse -convert-vector-to-llvm \
       -memref-expand -convert-arith-to-llvm -finalize-memref-to-llvm \
