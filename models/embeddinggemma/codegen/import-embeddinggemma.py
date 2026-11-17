@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.transform import eliminate_transpose, simply_fuse
 from buddy.compiler.ops import tosa
 from buddy_mlir import ir
 from sentence_transformers import SentenceTransformer
@@ -191,8 +191,9 @@ print(
 )
 
 # ==============================================================================
-# 6. Graph optimization (simply_fuse ONLY)
+# 6. Graph optimization
 # ==============================================================================
+graph.perform([eliminate_transpose])
 graph.fuse_ops([simply_fuse])
 
 driver = GraphDriver(graph)

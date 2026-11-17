@@ -62,6 +62,10 @@ Omitting `target_cpu` preserves the default build. This option does not add
 IME kernels or force top-down scheduling. Validate the candidate against the
 same HF reference before accepting its K3 performance results.
 
+The importer uses the existing `eliminate_transpose` transform to export
+pretransposed F32 Linear weights and remove their runtime transposes.
+Use the weights and model library from the same build.
+
 The model's `codegen/lower_to_obj.sh` uses the existing BLIS-style matmul
 vectorization pass and canonicalizes loops just before OpenMP conversion.
 This removes one-trip parallel loops and combines nested parallel loops, so B1
