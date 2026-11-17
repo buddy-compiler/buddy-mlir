@@ -13,6 +13,8 @@ if [[ $# -gt 0 ]]; then
   shift
 fi
 LLC_ATTRS=("$@")
+CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
+LOWER_VIR="$("${PYTHON:-python3}" -c 'import sys; sys.path.insert(0, sys.argv[1]); from compile_pipeline import kernels_lower_vir; print(kernels_lower_vir(sys.argv[2:]))' "$CODEGEN" "${LLC_ATTRS[@]}")"
 
 TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))"
 
@@ -26,6 +28,7 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification -bufferization-lower-deallocations \
       -matmul-vectorization-blis -batchmatmul-optimize \
+      -lower-linalg-to-vir "$LOWER_VIR" \
       -convert-linalg-to-affine-loops \
       -affine-parallelize -lower-affine -canonicalize \
       -optimize-allocation-liveness \
