@@ -28,7 +28,7 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification -bufferization-lower-deallocations \
       -matmul-vectorization-blis -batchmatmul-optimize \
-      -lower-linalg-to-vir "$LOWER_VIR" \
+      -lower-linalg-to-vir "$LOWER_VIR" -cse \
       -convert-linalg-to-affine-loops \
       -affine-parallelize -lower-affine -canonicalize \
       -optimize-allocation-liveness \

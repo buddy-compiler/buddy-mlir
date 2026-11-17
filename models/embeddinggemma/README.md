@@ -76,6 +76,8 @@ VIR-to-vector pipeline, as in YOLOv8. The shared `kernels_lower_vir()` helper
 selects scalable vectors for the configured RISC-V VLEN and fixed vectors
 for host builds. Precision stays F32; validate final embeddings against the
 same HF reference before accepting performance results.
+Running `cse` before loop canonicalization exposes redundant copies for
+removal while preserving the matrix vectorization paths.
 As in the other BLIS model pipelines, `affine-loop-fusion` is omitted: its
 combination with the BLIS rewrite produced non-finite embeddings for this graph.
 Attention BatchMatMul uses the existing `batchmatmul-optimize` pass with
