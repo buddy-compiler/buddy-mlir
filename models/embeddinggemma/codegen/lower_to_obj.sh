@@ -20,6 +20,7 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
   | "$LLVM_BIN/mlir-opt" -test-linalg-transform-patterns=test-decompose-pad-tensor \
   | "$BUDDY_OPT" \
       -arith-expand -eliminate-empty-tensors -convert-elementwise-to-linalg \
+      -linalg-fold-into-elementwise \
       -empty-tensor-to-alloc-tensor \
       -one-shot-bufferize=bufferize-function-boundaries \
       -ownership-based-buffer-deallocation \
