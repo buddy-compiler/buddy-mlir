@@ -27,3 +27,9 @@ buddy_add_model(
   ASSET_FILES
     "${BUDDY_EMBEDDINGGEMMA_MODEL_PATH}/tokenizer.json"
 )
+
+add_custom_command(
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o"
+  APPEND
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/codegen/tanh-approx.mlir"
+)

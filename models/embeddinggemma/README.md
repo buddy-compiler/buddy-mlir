@@ -80,6 +80,9 @@ VIR-to-vector pipeline, as in YOLOv8. The shared `kernels_lower_vir()` helper
 selects scalable vectors for the configured RISC-V VLEN and fixed vectors
 for host builds. Precision stays F32; validate final embeddings against the
 same HF reference before accepting performance results.
+GELU's F32 `tanh` uses the existing MLIR polynomial approximation after
+VIR lowering so the approximation retains vector operations. This changes
+F32 rounding; validate final embeddings against HF with the existing thresholds.
 Running `cse` before loop canonicalization exposes redundant copies for
 removal while preserving the matrix vectorization paths.
 As in the other BLIS model pipelines, `affine-loop-fusion` is omitted: its
