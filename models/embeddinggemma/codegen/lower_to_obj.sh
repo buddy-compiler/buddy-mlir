@@ -13,9 +13,7 @@ if [[ $# -gt 0 ]]; then
   shift
 fi
 LLC_ATTRS=("$@")
-CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
 MATH_TRANSFORMS="$(dirname "$0")/tanh-approx.mlir"
-LOWER_VIR="$("${PYTHON:-python3}" -c 'import sys; sys.path.insert(0, sys.argv[1]); from compile_pipeline import kernels_lower_vir; print(kernels_lower_vir(sys.argv[2:]))' "$CODEGEN" "${LLC_ATTRS[@]}")"
 
 TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))"
 
@@ -29,7 +27,6 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification -bufferization-lower-deallocations \
       -matmul-vectorization-blis -batchmatmul-optimize \
-      -lower-linalg-to-vir "$LOWER_VIR" \
       "-transform-preload-library=transform-library-paths=$MATH_TRANSFORMS" \
       -transform-interpreter -cse \
       -convert-linalg-to-affine-loops \
