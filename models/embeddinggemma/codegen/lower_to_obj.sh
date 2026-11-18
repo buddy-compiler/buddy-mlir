@@ -14,6 +14,14 @@ if [[ $# -gt 0 ]]; then
 fi
 LLC_ATTRS=("$@")
 MATH_TRANSFORMS="$(dirname "$0")/tanh-approx.mlir"
+KERNELS="$(dirname "$IN")/embeddinggemma_ime.mlir"
+GRAPH_OUT="$OUT"
+if [[ -f "$KERNELS" ]]; then
+  : "${EMBEDDINGGEMMA_OBJECT_LINKER:?CMake must supply the target object linker}"
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  GRAPH_OUT="$TMP/graph.o"
+fi
 
 TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))"
 
@@ -41,4 +49,18 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
   | "$LLVM_BIN/mlir-translate" -mlir-to-llvmir \
   | "$LLVM_BIN/llvm-as" \
   | "$LLVM_BIN/llc" "${LLC_ATTRS[@]}" \
-      -filetype=obj -relocation-model=pic -O3 -o "$OUT"
+      -filetype=obj -relocation-model=pic -O3 -o "$GRAPH_OUT"
+
+if [[ -f "$KERNELS" ]]; then
+  # Reuse the existing IME pipeline and A100/VLEN validation. Zero leaves
+  # OpenMP thread selection to OMP_NUM_THREADS, as in the F32 graph.
+  CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
+  "${PYTHON:-python3}" -c '
+import shlex, sys
+sys.path.insert(0, sys.argv[1])
+from compile_pipeline import build_stages, run_pipeline
+stages = build_stages("kernels_ime", 0, shlex.join(sys.argv[6:]))
+run_pipeline(stages, sys.argv[4], sys.argv[5], sys.argv[2], sys.argv[3])
+' "$CODEGEN" "$BUDDY_OPT" "$LLVM_BIN" "$KERNELS" "$TMP/kernels.o" "${LLC_ATTRS[@]}"
+  "$EMBEDDINGGEMMA_OBJECT_LINKER" -r "$GRAPH_OUT" "$TMP/kernels.o" -o "$OUT"
+fi

@@ -105,6 +105,76 @@ The build emits these artifacts under `build/models/embeddinggemma/`:
 | `arg0.data` | Flattened model weights (307,581,953 f32 elements, ~1.2 GB) |
 | `tokenizer.json` | Gemma byte-level BPE tokenizer, staged from the local snapshot |
 
+## K3 FFN IME (optional)
+
+`specs/k3_fp16_comp3.json` selects the K3 A100 FFN matrix-engine path.
+The default `specs/f32.json` keeps the F32 path. Configure a separate RISC-V
+build directory with VLEN 1024 and Zfh/Zvfh enabled, following
+[CrossCompilingRaxFile.md](../../docs/CrossCompilingRaxFile.md), then select:
+
+```bash
+EG_IME_BUILD_DIR=/path/to/configured-riscv-ime-build
+cmake -S . -B "$EG_IME_BUILD_DIR" \
+  -DBUDDY_BUILD_EMBEDDINGGEMMA_MODEL=ON \
+  -DBUDDY_EMBEDDINGGEMMA_MODEL_PATH="$EMBEDDINGGEMMA_MODEL_PATH" \
+  -DBUDDY_EMBEDDINGGEMMA_SPEC="$PWD/models/embeddinggemma/specs/k3_fp16_comp3.json"
+cmake --build "$EG_IME_BUILD_DIR" --target embeddinggemma_rax
+```
+
+The importer captures the same complete F32 model, then replaces exactly the
+72 FFN gate/up/down projections with external kernel calls. It reuses the
+existing K3 FP16 matrix loop. Attention, GELU, pooling, the two final dense
+projections and normalization retain their existing F32 lowering. This path
+requires `batch_size * max_seq_len` to be divisible by 8; the representative
+128/256/512-token workloads satisfy this requirement.
+
+Precision `fp16_comp3` means two FP16 components per operand, three matrix
+products, and F32 accumulation, combination and output:
+`high*high + 2^-11 * (low*high + high*low)`. Each operand uses a data-dependent
+power-of-two scale; low components store the residual multiplied by 2^11.
+FP16 subnormals are explicitly flushed while preserving signed zero, matching
+the measured native IME path. The result is rescaled in F32. This changes
+numerics relative to F32 and must pass the existing embedding validation.
+
+Static weights are split and packed offline. The high and low FP16 components
+have the same combined byte count as the original F32 weights. As in YOLOv8,
+they are stored as raw bytes in F32 parameter slots; those slots are byte
+containers, not F32 arithmetic values. `arg0.data`, the forward ABI, manifest
+and runner interface keep their existing sizes and types. Always use the
+weights and code from the same build: F32 and IME files have equal sizes but
+different layouts.
+
+`embeddinggemma_ime.mlir` contains the wrappers and reused matrix loop. The
+existing `kernels_ime` pipeline compiles it for A100 separately; the model's
+lowering script joins the objects with the target relocatable linker. F32
+code keeps its current compilation options. This variant does not use TCM,
+DMA or a different thread pool. `OMP_NUM_THREADS` still selects the threads
+at runtime.
+
+Before bufferization, the importer converts the FFN calls to explicit
+caller-allocated outputs. The kernels write these buffers and return no
+memref. This makes ownership visible to the existing allocation-liveness
+pass, allowing early release without runtime checks for aliases of opaque
+return values. The top-level forward and runner ABI remain unchanged.
+
+Validate against the original HF/F32 golden for the same inputs, using the
+existing `validate_accuracy.py` and `benchmark.py` workflow below. For IME
+measurements pass `--spec specs/k3_fp16_comp3.json` (with the actual path) and
+`--configuration optimized`; the report records precision `fp16_comp3`.
+Keep the F32 baseline labeled `f32`: comparisons between these two variants
+are comparisons across precisions. Accept performance results only after the
+unchanged cosine and maximum-absolute-error gates pass on the K3.
+
+Complete-RAX acceptance on four A100 cores/threads (B1/S128, 128 valid
+tokens, A-B-A-B, one warmup and three measured forwards per group) gave median
+latency 1509.32 ms for F32 and 897.18 ms for `fp16_comp3`, a 40.56% reduction.
+Peak process RSS was 1344.63 MiB and 1344.45 MiB respectively, including model
+loading and runtime rather than isolated kernel workspace.
+The full-length input and four padded short inputs passed the original HF
+gate; maximum absolute error was 5.07e-7. Changing to caller-owned output
+buffers preserved the previous compensated IME outputs bit for bit. Other
+batch/sequence combinations still require complete-RAX board acceptance.
+
 ## Run
 
 ```bash

@@ -18,6 +18,7 @@
 import argparse
 import json
 import os
+import sys
 
 import numpy
 import torch
@@ -128,6 +129,9 @@ a = p.parse_args()
 
 with open(a.spec) as f:
     spec = json.load(f)
+variant = spec.get("variant", "f32")
+if variant not in ("f32", "fp16_comp3"):
+    raise ValueError(f"Unsupported EmbeddingGemma variant: {variant}")
 
 model_path = (
     os.environ.get("EMBEDDINGGEMMA_MODEL_PATH")
@@ -194,11 +198,24 @@ print(
 # 6. Graph optimization
 # ==============================================================================
 graph.perform([eliminate_transpose])
+kernel_path = os.path.join(a.output_dir, "embeddinggemma_ime.mlir")
+if variant == "fp16_comp3":
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from embeddinggemma_ime import gen_kernels, lower_calls, rewrite_graph
+
+    kernels = rewrite_graph(graph, batch_size * max_seq_len)
+    with open(kernel_path, "w") as f:
+        f.write(gen_kernels(kernels))
+    print(f"[import-embeddinggemma] 72 FFN calls, {len(kernels)} IME wrappers")
+elif os.path.exists(kernel_path):
+    os.remove(kernel_path)
 graph.fuse_ops([simply_fuse])
 
 driver = GraphDriver(graph)
 driver.subgraphs[0].lower_to_top_level_ir()
 subgraph_module = driver.subgraphs[0]._imported_module
+if variant == "fp16_comp3":
+    lower_calls(subgraph_module)
 forward_module = driver.construct_main_graph(True)
 if target_cpu := spec.get("target_cpu"):
     for module in (subgraph_module, forward_module):
@@ -222,6 +239,8 @@ with open(os.path.join(a.output_dir, "forward.mlir"), "w") as module_file:
 all_param = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params]
 ).astype(numpy.float32, copy=False)
+if all_param.size != int(spec["params_size"]):
+    raise ValueError("Exported parameter count differs from the model spec")
 all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
 
 print(
