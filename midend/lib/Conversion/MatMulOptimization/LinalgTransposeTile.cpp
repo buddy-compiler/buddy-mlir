@@ -104,8 +104,8 @@ public:
         arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
     Value c1 =
         arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
-    Value cT = arith::ConstantOp::create(
-        rewriter, loc, rewriter.getIndexAttr(tileSize));
+    Value cT = arith::ConstantOp::create(rewriter, loc,
+                                         rewriter.getIndexAttr(tileSize));
 
     // Runtime dimensions of the input.
     SmallVector<Value> dims;
