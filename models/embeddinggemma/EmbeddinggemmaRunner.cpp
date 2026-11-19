@@ -37,17 +37,22 @@
 #include "buddy/runtime/models/EmbeddinggemmaTokenizer.h"
 
 #include "buddy/Core/Container.h"
+#include "llvm/ADT/ScopeExit.h"
+#include "llvm/Support/FileSystem.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <dlfcn.h>
-#include <filesystem>
-#include <fstream>
+#include <fcntl.h>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
+#include <system_error>
+#include <unistd.h>
 #include <vector>
 
 namespace buddy {
@@ -85,17 +90,56 @@ std::string findConstantPath(const ModelManifest &manifest,
   return "";
 }
 
-void loadWeights(const std::string &weightsPath, MemRef<float, 1> &params) {
-  std::ifstream paramFile(weightsPath, std::ios::in | std::ios::binary);
-  if (!paramFile)
-    throw std::runtime_error("EmbeddinggemmaRunner: failed to open weights: " +
-                             weightsPath);
-  paramFile.read(reinterpret_cast<char *>(params.getData()),
-                 sizeof(float) * params.getSize());
-  if (!paramFile)
-    throw std::runtime_error("EmbeddinggemmaRunner: error reading weights: " +
-                             weightsPath);
+llvm::sys::fs::mapped_file_region mapWeights(const std::string &path) {
+  namespace fs = llvm::sys::fs;
+  // A nonblocking open lets us reject a FIFO without waiting for a writer.
+  const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+  if (fd < 0) {
+    const std::error_code error(errno, std::generic_category());
+    throw std::runtime_error("EmbeddinggemmaRunner: failed to open weights " +
+                             path + ": " + error.message());
+  }
+  llvm::scope_exit closeFile([fd] { close(fd); });
+
+  fs::file_status status;
+  if (auto error = fs::status(fd, status))
+    throw std::runtime_error("EmbeddinggemmaRunner: failed to stat weights " +
+                             path + ": " + error.message());
+  if (!fs::is_regular_file(status))
+    throw std::runtime_error(
+        "EmbeddinggemmaRunner: expected a regular weight file: " + path);
+  const uint64_t size = status.getSize();
+  if (size == 0 || size % sizeof(float) != 0 ||
+      size > std::numeric_limits<size_t>::max())
+    throw std::runtime_error(
+        "EmbeddinggemmaRunner: invalid weight file size: " + path);
+
+  std::error_code error;
+  fs::mapped_file_region mapping(fd, fs::mapped_file_region::readonly,
+                                 static_cast<size_t>(size), 0, error);
+  if (error)
+    throw std::runtime_error("EmbeddinggemmaRunner: failed to map weights " +
+                             path + ": " + error.message());
+  return mapping;
 }
+
+class MappedWeights : public MemRef<float, 1> {
+public:
+  explicit MappedWeights(const std::string &path) : mapping(mapWeights(path)) {
+    allocated = aligned = const_cast<float *>(
+        reinterpret_cast<const float *>(mapping.const_data()));
+    sizes[0] = mapping.size() / sizeof(float);
+    setStrides();
+  }
+
+  ~MappedWeights() {
+    // The mapping owns the storage. Keep MemRef from freeing it.
+    allocated = nullptr;
+  }
+
+private:
+  llvm::sys::fs::mapped_file_region mapping;
+};
 
 } // namespace
 
@@ -172,25 +216,16 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
   if (!handle)
     throw std::runtime_error("EmbeddinggemmaRunner: dlopen failed: " + soPath +
                              ": " + dlerror());
+  llvm::scope_exit closeModel([handle] { dlclose(handle); });
   dlerror();
   auto forward =
       reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
-  if (const char *err = dlerror()) {
-    dlclose(handle);
+  if (const char *err = dlerror())
     throw std::runtime_error(
         "EmbeddinggemmaRunner: missing _mlir_ciface_forward in " + soPath +
         ": " + std::string(err));
-  }
 
-  const auto weightBytes = std::filesystem::file_size(weightsPath);
-  if (weightBytes % sizeof(float) != 0) {
-    dlclose(handle);
-    throw std::runtime_error(
-        "EmbeddinggemmaRunner: weight file is not f32-aligned");
-  }
-  MemRef<float, 1> paramsContainer({weightBytes / sizeof(float)});
-  loadWeights(weightsPath, paramsContainer);
-
+  MappedWeights paramsContainer(weightsPath);
   MemRef<float, 2> embedding({batchSize, hiddenSize}, false, 0);
 
   const auto t0 = std::chrono::high_resolution_clock::now();
@@ -231,7 +266,6 @@ void EmbeddinggemmaRunner::run(const RunConfig &cfg) {
   std::cout << "\n";
 
   free(embedding.release());
-  dlclose(handle);
 }
 
 } // namespace runtime

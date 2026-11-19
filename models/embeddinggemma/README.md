@@ -135,6 +135,11 @@ The build emits these artifacts under `build/models/embeddinggemma/`:
 | `arg0.data` | Flattened model weights (307,581,953 f32 elements, ~1.2 GB) |
 | `tokenizer.json` | Gemma byte-level BPE tokenizer, staged from the local snapshot |
 
+The runner maps the weight file read-only and passes the mapped bytes directly
+to the compiled forward. Keep those bytes intact for the lifetime of the
+request. Publish updated weights by atomically replacing the file, since
+truncating a mapped file in place can cause `SIGBUS` during inference.
+
 ## K3 Transformer Linear IME (optional)
 
 `specs/k3_fp16_comp3.json` selects the K3 A100 matrix-engine path.
@@ -424,8 +429,9 @@ Warmup rounds prepare the extracted payload cache and are excluded from the
 statistics. Each request starts a new process and reloads the model, so the
 embedding latency includes first-call initialization and is not resident-model
 steady-state latency. It measures the full compiled forward, including pooling
-and normalization, and excludes loading and tokenization. Latency covers the
-entire batch. Throughput uses the same forward timing:
+and normalization. Tokenization and weight mapping happen before the timer
+starts. First accesses can fault in mapped weight pages during the timed
+forward. Latency covers the entire batch. Throughput uses the same forward timing:
 
 ```text
 batches/s   = 1000 / embedding_latency_ms
@@ -478,6 +484,40 @@ the latter as a comparison across precision policies. Alternate the
 configurations over multiple groups under the same CPU resource budget.
 These first-forward throughput values do not measure a resident service's
 sustained throughput.
+
+### Read-only weight mapping on K3
+
+A `buddy-cli` comparison on four K3 A100 cores with four OpenMP threads and
+VLEN 1024 used `fp16_comp3` in both variants. The baseline at `21ed5d40` copies
+the entire weight file into heap memory. The optimized runner maps the same
+file read-only. The RAX packages differ only in the runner library.
+
+Each measurement starts a new process and reuses an already extracted RAX
+payload. Warm and cold refer to the weight file's page cache. Before each run,
+`mincore` confirmed 100% residency for warm runs or 0% for cold runs. The table
+reports medians from two runs per variant in A-B-A-B order, with full-length
+inputs. GNU `time` records CLI elapsed time and peak RSS. Peak PSS is sampled
+from `/proc/<pid>/smaps_rollup` at 200 ms intervals.
+
+| Batch / sequence | Weight cache | CLI elapsed (s) | First forward (s) | Peak RSS (MiB) | Sampled peak PSS (MiB) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| B1 / S128 | Warm | 5.725 → 4.365 | 0.387 → 0.581 | 1314 → 631 | 1311 → 476 |
+| B1 / S128 | Cold | 6.060 → 4.525 | 0.378 → 0.693 | 1314 → 551 | 1311 → 513 |
+| B4 / S512 | Warm | 16.125 → 14.640 | 9.474 → 9.499 | 1314 → 727 | 1312 → 720 |
+| B4 / S512 | Cold | 16.385 → 15.195 | 9.324 → 10.053 | 1315 → 570 | 1312 → 557 |
+
+Eliminating the private weight copy lowered peak process RSS by 45–58% and
+CLI elapsed time by 7–25%. RSS and PSS describe the process's resident mappings.
+The kernel can also retain weight pages in its file cache. The first-forward
+timer now includes demand paging. In the cold runs, the optimized process
+recorded 521–601 major faults across the two shapes, compared with zero for
+the baseline, which reads the file before timing the forward. With warm weight
+pages, the optimized runs had zero major faults. Warm B1/S128 still took
+0.541–0.621 s in the forward, compared with 0.380–0.393 s for the baseline.
+
+For each shape, the exported embeddings were bit-identical across variants
+and cache states. The maximum absolute error against the HF F32 reference was
+4.99e-7 and the minimum cosine similarity was 0.999999999998.
 
 ## Notes
 
