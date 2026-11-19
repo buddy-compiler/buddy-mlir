@@ -30,12 +30,14 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
   | "$BUDDY_OPT" \
       -arith-expand -eliminate-empty-tensors -convert-elementwise-to-linalg \
       -linalg-fold-into-elementwise \
+      "-transform-preload-library=transform-library-paths=$MATH_TRANSFORMS" \
+      -linalg-inline-scalar-operands \
+      -transform-interpreter=entry-point=__flatten_scalar_muls \
       -empty-tensor-to-alloc-tensor \
       -one-shot-bufferize=bufferize-function-boundaries \
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification -bufferization-lower-deallocations \
       -matmul-vectorization-blis -batchmatmul-optimize \
-      "-transform-preload-library=transform-library-paths=$MATH_TRANSFORMS" \
       -transform-interpreter -cse \
       -convert-linalg-to-affine-loops \
       -affine-parallelize -lower-affine -canonicalize \

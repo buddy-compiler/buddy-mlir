@@ -43,4 +43,24 @@ module attributes {transform.with_named_sequence} {
       : (!transform.any_op) -> !transform.any_op
     transform.yield
   }
+
+  // Run on tensors after scalar inlining, before tensor.extract becomes a
+  // memref.load. Match multiplication only, keeping tanh's tiled path intact.
+  transform.named_sequence @__flatten_scalar_muls(%root: !transform.any_op {transform.readonly}) {
+    %unary = transform.structured.match ops{["linalg.generic"]} attributes {
+      indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+                      affine_map<(d0, d1, d2) -> (d0, d1, d2)>]
+    } in %root : (!transform.any_op) -> !transform.any_op
+    transform.foreach %unary : !transform.any_op {
+    ^bb0(%op: !transform.any_op):
+      %mul = transform.structured.match ops{["arith.mulf"]} in %op
+        : (!transform.any_op) -> !transform.any_op
+      %parent = transform.get_parent_op %mul <deduplicate>
+        : (!transform.any_op) -> !transform.any_op
+      %flat = transform.structured.flatten_elementwise %parent
+        : (!transform.any_op) -> !transform.any_op
+      transform.yield
+    }
+    transform.yield
+  }
 }

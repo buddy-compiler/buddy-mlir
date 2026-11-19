@@ -102,6 +102,17 @@ B4/S512 from 11776.95 to 10468.50 ms (11.11%). Outputs were bit-identical to
 the preceding implementation and passed the original HF gate. B1/S128 and
 B1/S256 RAX packages stayed byte-identical; other sizes need validation.
 
+Before bufferization, `linalg-inline-scalar-operands` exposes scalar reads
+without changing their values. The `__flatten_scalar_muls` entry point in the
+same transform file then flattens rank-three scalar-multiply iteration spaces.
+Running this step on tensors permits captured `tensor.extract` operations;
+the later tanh tiling and binary-elementwise transforms keep their order.
+On four A100 cores/threads, A-B-A-B measurements (four forwards per variant)
+reduced B2/S128 median latency from 886.28 to 842.08 ms (4.99%). B4/S512
+changed from 10547.55 to 10337.70 ms (1.99%), with overlapping measurement
+ranges, so a gain at that size is not established. Validated outputs stayed
+bit-identical and passed the original HF gate; the B1/S128 RAX was unchanged.
+
 Running `cse` before loop canonicalization exposes redundant copies for
 removal while preserving the matrix vectorization paths.
 As in the other BLIS model pipelines, `affine-loop-fusion` is omitted: its
