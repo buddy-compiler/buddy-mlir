@@ -80,9 +80,15 @@ reduced first-forward latency by 10.27% for B1/S128 and 11.08% for B4/S512 on
 SpacemiT K3 A100 (F32, VLEN=1024, four threads at 1.8 GHz), with bit-identical
 exported embeddings in these cases. The BLIS and BatchMatMul RVV paths remain
 enabled.
-GELU's F32 `tanh` uses the existing MLIR polynomial approximation before
-affine lowering. This changes F32 rounding; validate final embeddings against
-HF with the existing thresholds.
+GELU's F32 `tanh` uses the existing MLIR polynomial approximation. Its Linalg
+loops are tiled into `[1, 1, 32]` blocks and vectorized with existing Transform
+operations, retaining parallel execution and the same polynomial. The
+approximation changes F32 rounding relative to HF; validate final embeddings
+with the existing thresholds. On the `fp16_comp3` path with N-major IME
+traversal, a four-core K3 B1/S128 A-B-A-B comparison (six measured forwards per
+variant) reduced median latency from 411.03 to 382.36 ms (6.97%). The full-length
+input and four padded inputs stayed bit-identical to the scalar polynomial
+path and passed the original HF gate.
 Running `cse` before loop canonicalization exposes redundant copies for
 removal while preserving the matrix vectorization paths.
 As in the other BLIS model pipelines, `affine-loop-fusion` is omitted: its

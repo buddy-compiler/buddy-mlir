@@ -20,9 +20,18 @@ module attributes {transform.with_named_sequence} {
       : (!transform.any_op) -> !transform.any_op
     %parents = transform.get_parent_op %tanh <deduplicate>
       : (!transform.any_op) -> !transform.any_op
-    transform.apply_patterns to %parents {
-      transform.apply_patterns.math.polynomial_approximation
-    } : !transform.any_op
+    transform.foreach %parents : !transform.any_op {
+    ^bb0(%parent: !transform.any_op):
+      %tiled, %forall = transform.structured.tile_using_forall %parent tile_sizes [1, 1, 32]
+        : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+      transform.structured.vectorize %tiled vector_sizes [1, 1, 32] : !transform.any_op
+      %parallel = transform.loop.forall_to_parallel %forall
+        : (!transform.any_op) -> !transform.any_op
+      transform.apply_patterns to %parallel {
+        transform.apply_patterns.math.polynomial_approximation
+      } : !transform.any_op
+      transform.yield
+    }
     transform.yield
   }
 }
