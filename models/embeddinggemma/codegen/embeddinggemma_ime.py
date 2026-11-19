@@ -481,8 +481,8 @@ def _kernel(ty, spec):
         ah, al = k3._ptr_i64(ty, high), k3._ptr_i64(ty, low)
         body, (tile,) = k3._parallel(fn, [fn.idx((m // 8) * (n // 64))])
         with ir.InsertionPoint(body):
-            mb = k3._divui(tile, fn.idx(n // 64))
-            nb = arith.RemUIOp(tile, fn.idx(n // 64)).result
+            mb = arith.RemUIOp(tile, fn.idx(m // 8)).result
+            nb = k3._divui(tile, fn.idx(m // 8))
             scope = memref.AllocaScopeOp([])
             block = scope.bodyRegion.blocks.append()
             with ir.InsertionPoint(block):

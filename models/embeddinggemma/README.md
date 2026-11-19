@@ -152,6 +152,14 @@ code keeps its current compilation options. This variant does not use TCM,
 DMA or a different thread pool. `OMP_NUM_THREADS` still selects the threads
 at runtime.
 
+The Linear wrappers visit M tiles within each N tile, allowing consecutive
+tiles on a worker to reuse the same packed weight block. This changes only
+tile traversal, preserving each output's accumulation order. A separate
+four-core B1/S128 A-B-A-B comparison (six measured forwards per variant)
+reduced median latency from 456.23 to 408.03 ms (10.57%). The full-length input
+and four padded inputs remained bit-identical to the previous traversal and
+passed the original HF gate. Other batch/sequence sizes require board validation.
+
 Before bufferization, the importer converts the Linear calls to explicit
 caller-allocated outputs. The kernels write these buffers and return no
 memref. This makes ownership visible to the existing allocation-liveness
