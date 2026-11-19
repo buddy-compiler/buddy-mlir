@@ -6,12 +6,9 @@ add_mlir_library(BuddyAMETransforms
 
   LINK_LIBS PUBLIC
   BuddyAME
-  MLIRArithDialect
-  MLIRFuncDialect
   MLIRIR
   MLIRLLVMCommonConversion
   MLIRLLVMDialect
-  MLIRMemRefDialect
   MLIRPass
   MLIRTransforms
 )
