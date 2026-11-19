@@ -42,20 +42,26 @@ equivalent. This path requires `batch_size * max_seq_len` to be divisible by 8.
 For an F32 build, `"target_cpu": "spacemit-a100"` optionally selects A100 LLVM
 scheduling.
 
-- **IME.** All 168 encoder Linear projections use compensated FP16
-  `high*high + 2^-11 * (low*high + high*low)` with F32 accumulation and
-  output. Weights are packed offline. Tiles reuse weight blocks and write
-  caller-owned outputs. Use the model library and weights from the same build
-  because F32 and IME weights have different layouts.
-- **RVV.** The build uses RVV for attention QK/PV BatchMatMul, encoder RMSNorm,
-  GELU's polynomial `tanh`, and Softmax `exp` on the IME path. Q/K transpose
-  folding, elementwise flattening, and early buffer release reduce copies and
-  addressing overhead. Mean pooling, both final dense layers, and final L2
-  normalization retain F32 arithmetic.
-- **Runner.** Integer-ID BPE preserves vocabulary IDs and merge order. The
-  runner maps `arg0.data` read-only. Keep the weight file intact during
-  inference and publish replacements atomically, since truncating the mapped
-  file in place can cause `SIGBUS`.
+### Optimizations
+
+- **IME.** All 168 encoder attention and feed-forward Linear projections use
+  compensated FP16 `high*high + 2^-11 * (low*high + high*low)` with F32
+  accumulation and output. Offline weight packing and N-major tile traversal
+  let consecutive tiles reuse packed weight blocks. Use the model library and
+  weights from the same build because F32 and IME have different weight layouts.
+- **RVV.** The pipeline vectorizes attention QK/PV BatchMatMul and GELU's
+  polynomial `tanh`. The IME spec also enables fused encoder RMSNorm and
+  vectorized Softmax `exp`. Mean pooling, both final dense layers, and final L2
+  normalization use F32.
+- **Lowering.** Pretranspose F32 Linear weights offline and use BLIS-style
+  MatMul tiling. Canonicalize loops before OpenMP lowering. Fold Q/K transposes
+  into elementwise operations, flatten elementwise loops, and release temporary
+  buffers after their last use. Caller-allocated IME outputs expose buffer
+  ownership to the compiler.
+- **Runner.** Integer-ID BPE looks up symbol pairs while preserving vocabulary
+  IDs and merge order. A read-only `mmap` of `arg0.data` avoids the heap copy.
+  Keep the weight file intact during inference and publish replacements
+  atomically, since truncating the mapped file in place can cause `SIGBUS`.
 
 ## Benchmark and validate
 
@@ -150,6 +156,17 @@ F32 versus `fp16_comp3` explicitly. Accept a benchmark only if
 `report.json` has `validation_passed: true`. The default gate requires
 cosine similarity > 0.99 and maximum absolute error < 1e-5 for every embedding
 row. Raw logs and embeddings are in `runs/`.
+
+## Final K3 results
+
+The final comparison covered batches 1, 2, and 4 at 128, 256, and 512 tokens on
+four A100 cores with four threads. Each configuration had three measured runs
+per shape with warm weight pages and a fresh process per run. The optimized RAX
+(`51b8ba5a`, `fp16_comp3`) was 23.24–38.24× faster on the first forward than
+the F32 RAX baseline (`9c8e15c7`) and 7.11–19.03× faster than native HF F32.
+Peak process RSS fell 71.6–93.5% relative to the RAX baseline. All 81 measured
+runs passed the embedding gate. The optimized RAX reached a maximum absolute
+error of 5.66e-7 and a minimum cosine similarity of 0.9999999999976 against HF F32.
 
 ## Selected K3 measurements
 
