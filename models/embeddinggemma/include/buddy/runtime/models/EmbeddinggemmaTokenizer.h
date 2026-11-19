@@ -44,12 +44,14 @@
 #ifndef BUDDY_RUNTIME_MODELS_EMBEDDINGGEMMATOKENIZER_H
 #define BUDDY_RUNTIME_MODELS_EMBEDDINGGEMMATOKENIZER_H
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <algorithm>
 #include <cstdint>
-#include <map>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -120,6 +122,31 @@ public:
   }
 
 private:
+  using SymbolId = uint32_t;
+  static constexpr SymbolId kUnknownSymbol = 0;
+
+  struct Merge {
+    SymbolId result;
+    size_t rank;
+  };
+
+  // Internal IDs identify strings independently of their output token IDs.
+  // Merge operands and results can exist even without a vocabulary entry.
+  SymbolId internSymbol(llvm::StringRef symbol) {
+    if (tokenIds_.size() > std::numeric_limits<SymbolId>::max())
+      throw std::runtime_error("EmbeddinggemmaTokenizer: too many BPE symbols");
+    auto [it, inserted] =
+        symbols_.try_emplace(symbol, static_cast<SymbolId>(tokenIds_.size()));
+    if (inserted)
+      tokenIds_.emplace_back();
+    return it->getValue();
+  }
+
+  SymbolId findSymbol(llvm::StringRef symbol) const {
+    auto it = symbols_.find(symbol);
+    return it == symbols_.end() ? kUnknownSymbol : it->getValue();
+  }
+
   // ── Loading ───────────────────────────────────────────────────────────
 
   void loadModel(const llvm::json::Object &root) {
@@ -137,21 +164,21 @@ private:
     if (!vocabObj)
       throw std::runtime_error("EmbeddinggemmaTokenizer: missing "
                                "\"model.vocab\"");
-    vocab_.reserve(vocabObj->size());
+    symbols_ = llvm::StringMap<SymbolId>(vocabObj->size());
+    tokenIds_.reserve(vocabObj->size() + 1);
     for (const auto &kv : *vocabObj) {
       auto id = kv.second.getAsInteger();
       if (!id)
         throw std::runtime_error("EmbeddinggemmaTokenizer: vocab id is not an "
                                  "integer");
-      vocab_.emplace(kv.first.str(), *id);
+      tokenIds_[internSymbol(kv.first)] = *id;
     }
 
     const llvm::json::Array *mergesArr = model->getArray("merges");
     if (!mergesArr)
       throw std::runtime_error("EmbeddinggemmaTokenizer: missing "
                                "\"model.merges\"");
-    // std::map has no reserve(); the merge table is built from the ~230k
-    // ranked merges in tokenizer.json.
+    merges_.reserve(mergesArr->size());
     for (size_t i = 0; i < mergesArr->size(); ++i) {
       const llvm::json::Value &entry = (*mergesArr)[i];
       const llvm::json::Array *pair = entry.getAsArray();
@@ -161,15 +188,15 @@ private:
       auto b = (*pair)[1].getAsString();
       if (!a || !b)
         throw std::runtime_error("EmbeddinggemmaTokenizer: malformed merge");
-      mergeRanks_.emplace(std::make_pair(a->str(), b->str()),
-                          static_cast<int>(i));
+      const SymbolId left = internSymbol(*a);
+      const SymbolId right = internSymbol(*b);
+      std::string merged = a->str();
+      merged.append(b->data(), b->size());
+      merges_.try_emplace({left, right}, Merge{internSymbol(merged), i});
     }
 
-    if (auto unk = model->getString("unk_token")) {
-      auto it = vocab_.find(unk->str());
-      if (it != vocab_.end())
-        unkId_ = it->second;
-    }
+    if (auto unk = model->getString("unk_token"))
+      unkId_ = tokenIds_[findSymbol(*unk)].value_or(unkId_);
     byteFallback_ = model->getBoolean("byte_fallback").value_or(false);
   }
 
@@ -261,40 +288,43 @@ private:
 
     // The pre-tokenizer is a no-op after normalization (no literal space
     // remains), so the whole string is one pre-token. Run BPE on it.
-    std::vector<std::string> word;
-    for (const auto &sym : splitCodepoints(norm)) {
-      std::vector<std::string> bytes;
-      if (byteFallback_ && !vocab_.count(sym)) {
+    auto codepoints = splitCodepoints(norm);
+    std::vector<SymbolId> word;
+    word.reserve(codepoints.size());
+    for (const auto &sym : codepoints) {
+      const SymbolId symbol = findSymbol(sym);
+      std::vector<SymbolId> bytes;
+      if (byteFallback_ && !tokenIds_[symbol]) {
         constexpr char hex[] = "0123456789ABCDEF";
         for (unsigned char byte : sym) {
           std::string piece = "<0x00>";
           piece[3] = hex[byte >> 4];
           piece[4] = hex[byte & 15];
-          if (!vocab_.count(piece))
+          const SymbolId byteSymbol = findSymbol(piece);
+          if (!tokenIds_[byteSymbol])
             break;
-          bytes.push_back(piece);
+          bytes.push_back(byteSymbol);
         }
       }
       if (!bytes.empty() && bytes.size() == sym.size())
         word.insert(word.end(), bytes.begin(), bytes.end());
       else
-        word.push_back(sym);
+        word.push_back(symbol);
     }
     bpeMerge(word);
 
     std::vector<int64_t> ids;
     ids.reserve(word.size());
     bool prevUnknown = false;
-    for (const std::string &sym : word) {
-      auto it = vocab_.find(sym);
-      if (it == vocab_.end()) {
+    for (SymbolId symbol : word) {
+      if (auto id = tokenIds_[symbol]) {
+        ids.push_back(*id);
+        prevUnknown = false;
+      } else {
         // fuse_unk=true: consecutive unknown symbols collapse to one <unk>.
         if (!prevUnknown)
           ids.push_back(unkId_);
         prevUnknown = true;
-      } else {
-        ids.push_back(it->second);
-        prevUnknown = false;
       }
     }
     return ids;
@@ -327,30 +357,29 @@ private:
 
   // Greedy byte-pair merging: repeatedly merge the adjacent pair with the
   // lowest rank present in the merges table.
-  void bpeMerge(std::vector<std::string> &word) const {
+  void bpeMerge(std::vector<SymbolId> &word) const {
     while (word.size() > 1) {
-      int bestIdx = -1;
-      int bestRank = -1;
+      size_t bestIdx = 0;
+      const Merge *best = nullptr;
       for (size_t i = 0; i + 1 < word.size(); ++i) {
-        auto it = mergeRanks_.find({word[i], word[i + 1]});
-        if (it == mergeRanks_.end())
-          continue;
-        if (bestIdx < 0 || it->second < bestRank) {
-          bestIdx = static_cast<int>(i);
-          bestRank = it->second;
+        auto it = merges_.find({word[i], word[i + 1]});
+        if (it != merges_.end() && (!best || it->second.rank < best->rank)) {
+          bestIdx = i;
+          best = &it->second;
         }
       }
-      if (bestIdx < 0)
+      if (!best)
         break;
-      word[bestIdx] = word[bestIdx] + word[bestIdx + 1];
+      word[bestIdx] = best->result;
       word.erase(word.begin() + bestIdx + 1);
     }
   }
 
   static const char *kMetaspace;
 
-  std::unordered_map<std::string, int64_t> vocab_;
-  std::map<std::pair<std::string, std::string>, int> mergeRanks_;
+  llvm::StringMap<SymbolId> symbols_;
+  std::vector<std::optional<int64_t>> tokenIds_{std::nullopt};
+  llvm::DenseMap<std::pair<SymbolId, SymbolId>, Merge> merges_;
   std::unordered_map<char, std::vector<std::pair<std::string, int64_t>>>
       addedTokens_;
   bool byteFallback_ = false;

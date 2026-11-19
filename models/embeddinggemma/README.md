@@ -485,5 +485,16 @@ sustained throughput.
   (`build/models/embeddinggemma/`), not in the source tree.
 - The tokenizer used by the runner is a pure-C++ reimplementation
   (`EmbeddinggemmaTokenizer.h`) of the checkpoint's Gemma byte-level BPE over
-  the staged `tokenizer.json`; sequences are wrapped in `<bos>` / `<eos>` and
+  the staged `tokenizer.json`. Sequences are wrapped in `<bos>` / `<eos>` and
   padded to `max_seq_len` with `<pad>`.
+- The tokenizer assigns internal IDs to BPE symbols at load time. The greedy
+  merge loop looks up adjacent ID pairs and keeps the leftmost match at the
+  lowest rank. These internal IDs are independent of the output vocabulary IDs.
+  On the same K3 A100 CPU placement, a tokenizer-only A-B-A-B comparison with
+  one 512-token input reduced median encoding time from 12.16 s to 0.327 s.
+  Tokenizer-process peak RSS fell from 249.29 MiB to 219.59 MiB. The encoding
+  timer starts after tokenizer initialization. With cached payloads, a separate
+  B4/S512 `buddy-cli` A-B-A-B comparison reduced median request time from
+  67.15 s to 16.36 s and median process peak RSS from 1353.98 MiB to
+  1314.40 MiB. The exported embeddings were bit-identical and passed the HF
+  thresholds.
