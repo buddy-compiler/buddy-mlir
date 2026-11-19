@@ -232,6 +232,24 @@ including four padded inputs, passed the original HF gate; maximum candidate
 error was 5.07e-7 and repeated outputs within each configuration were
 bit-identical. Other batch/sequence combinations still require board validation.
 
+On the `fp16_comp3` path, attention Softmax uses MLIR's F32 vector polynomial
+approximation for `exp`. It processes 32 contiguous keys at a time and uses
+masked transfers for a partial tile. The approximation changes rounding, so
+the embedding output can differ from the scalar `expf` path.
+
+On four K3 A100 cores with four threads, an A-B-A-B comparison against
+`e386b9b0` measured the first compiled forward directly with pretokenized
+inputs. Each median uses four formal reads per variant at `fp16_comp3`.
+
+| Batch / sequence | Scalar `expf` (ms) | RVV `exp` (ms) | Latency reduction |
+| --- | ---: | ---: | ---: |
+| 1 / 128 | 433.11 | 425.48 | 1.76% |
+| 2 / 128 | 1026.45 | 1006.56 | 1.94% |
+| 4 / 512 | 11476.38 | 10591.00 | 7.71% |
+
+Full-length and padded inputs passed the original HF embedding thresholds.
+The packaged B4/S512 model also passed through `buddy-cli`.
+
 ## Run
 
 ```bash

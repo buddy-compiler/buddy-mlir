@@ -16,7 +16,9 @@ LLC_ATTRS=("$@")
 MATH_TRANSFORMS="$(dirname "$0")/tanh-approx.mlir"
 KERNELS="$(dirname "$IN")/embeddinggemma_ime.mlir"
 GRAPH_OUT="$OUT"
+SOFTMAX_TRANSFORM=()
 if [[ -f "$KERNELS" ]]; then
+  SOFTMAX_TRANSFORM=(-transform-interpreter=entry-point=__vectorize_softmax_exp)
   : "${EMBEDDINGGEMMA_OBJECT_LINKER:?CMake must supply the target object linker}"
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
@@ -38,7 +40,7 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification -bufferization-lower-deallocations \
       -matmul-vectorization-blis -batchmatmul-optimize \
-      -transform-interpreter -cse \
+      -transform-interpreter "${SOFTMAX_TRANSFORM[@]}" -cse \
       -convert-linalg-to-affine-loops \
       -affine-parallelize -lower-affine -canonicalize \
       -optimize-allocation-liveness \
@@ -47,7 +49,8 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -memref-expand -convert-arith-to-llvm -finalize-memref-to-llvm \
       -convert-scf-to-cf -convert-cf-to-llvm -llvm-request-c-wrappers \
       -convert-openmp-to-llvm -convert-arith-to-llvm -convert-math-to-llvm \
-      -convert-math-to-libm -convert-func-to-llvm -reconcile-unrealized-casts \
+      -convert-math-to-libm -convert-ub-to-llvm -convert-func-to-llvm \
+      -reconcile-unrealized-casts \
   | "$LLVM_BIN/mlir-translate" -mlir-to-llvmir \
   | "$LLVM_BIN/llvm-as" \
   | "$LLVM_BIN/llc" "${LLC_ATTRS[@]}" \

@@ -1,4 +1,4 @@
-//===- tanh-approx.mlir - EmbeddingGemma GELU tanh approximation -----------===//
+//===- tanh-approx.mlir - EmbeddingGemma math vectorization ---------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,28 @@ module attributes {transform.with_named_sequence} {
     } in %root : (!transform.any_op) -> !transform.any_op
     %flat = transform.structured.flatten_elementwise %binary
       : (!transform.any_op) -> !transform.any_op
+    transform.yield
+  }
+
+  transform.named_sequence @__vectorize_softmax_exp(%root: !transform.any_op {transform.readonly}) {
+    %exp = transform.structured.match ops{["math.exp"]} in %root
+      : (!transform.any_op) -> !transform.any_op
+    %parents = transform.get_parent_op %exp <deduplicate>
+      : (!transform.any_op) -> !transform.any_op
+    transform.foreach %parents : !transform.any_op {
+    ^bb0(%parent: !transform.any_op):
+      // Softmax scores are [batch, head, query, key]. Tile the contiguous key axis.
+      %tiled, %forall = transform.structured.tile_using_forall %parent tile_sizes [1, 1, 1, 32]
+        : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+      transform.structured.vectorize %tiled vector_sizes [1, 1, 1, 32] : !transform.any_op
+      %parallel = transform.loop.forall_to_parallel %forall
+        : (!transform.any_op) -> !transform.any_op
+      transform.apply_patterns to %parallel {
+        transform.apply_patterns.math.polynomial_approximation
+        transform.apply_patterns.vector.lower_masked_transfers
+      } : !transform.any_op
+      transform.yield
+    }
     transform.yield
   }
 
