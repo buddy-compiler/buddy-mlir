@@ -3,21 +3,29 @@
 # You may obtain a copy of the License at
 #     http://www.apache.org/licenses/LICENSE-2.0
 
-"""Optional FFN FP16 three-product compensation for the K3 A100.
+"""Optional compensated Linear and F32 RMSNorm kernels for the K3 A100.
 
 Weights retain their F32 parameter slots, as in the YOLOv8 IME importer:
 the slots contain packed FP16 bytes, not numerical F32 weights. Two FP16
 components occupy exactly the original F32 byte count. The original graph's
-remaining operations and the runner ABI are unchanged.
+runner ABI is unchanged. Encoder RMSNorm reuses the existing F32 RVV body.
 """
 
 import math
 from collections import Counter
+from types import SimpleNamespace
 
 import numpy
 import torch
 from buddy.compiler.graph import TensorDType
-from buddy.compiler.graph.operation import CallExternalOp, MatmulOp
+from buddy.compiler.graph.operation import (
+    AddOp,
+    CallExternalOp,
+    MatmulOp,
+    MulOp,
+    PermuteOp,
+    ViewOp,
+)
 from buddy.compiler.graph.transform import k3_w4 as k3
 from buddy_mlir import ir
 from buddy_mlir.dialects import arith, bufferization, cf, func, memref, scf
@@ -25,6 +33,138 @@ from buddy_mlir.dialects import math as mlir_math
 
 KERNELS_MLIR = "embeddinggemma_ime.mlir"
 MMA = "embeddinggemma_comp3_mma"
+PROJECTION_COUNTS = {
+    (768, 1152): 48,  # FFN gate/up.
+    (1152, 768): 24,  # FFN down.
+    (768, 768): 48,  # Attention Q/O.
+    (768, 256): 48,  # Attention K/V.
+}
+RMS_NORM_COUNT = 145
+
+
+def _rewrite_rmsnorm(rw, rows):
+    """Fuse Gemma RMSNorm using the existing matcher and kernel."""
+    count = 0
+    for node in list(rw.g.body):
+        if not isinstance(node, MulOp):
+            continue
+        shape = list(node.tensor_meta.get("shape", []))
+        if (len(shape), shape[-1] if shape else 0) not in ((3, 768), (4, 256)):
+            continue
+        width = shape[-1]
+        for index, arg in enumerate(node.args[:2]):
+            add = rw.g.node_table.get(str(arg))
+            if not isinstance(add, AddOp) or add.args[1] != 1.0:
+                continue
+            weight = str(add.args[0])
+            if rw.param_index(weight) is None or rw.weight(weight).shape != (
+                width,
+            ):
+                continue
+            if add._children != [node.name] or rw.g.node_table[
+                weight
+            ]._children != [add.name]:
+                raise ValueError("Gemma RMSNorm weight has unexpected uses")
+            # Gemma stores the offset from one. Fold that parameter-only add
+            # in F32 so the existing RMSNorm matcher can use the effective weight.
+            rw.set_param(
+                weight,
+                rw.weight(weight) + numpy.float32(1.0),
+                TensorDType.Float32,
+            )
+            node._arguments[index] = weight
+            node._parents = [
+                weight if p == add.name else p for p in node._parents
+            ]
+            rw.g.node_table[weight]._children.append(node.name)
+            add._children.remove(node.name)
+            rw.delete(add)
+            found = rw._rmsnorm_of(node.name)
+            if found is None:
+                raise ValueError("Unexpected Gemma RMSNorm structure")
+            x, norm_weight, eps = found
+            inner = rw.g.node_table[str(node.args[1 - index])]
+            rsqrt = rw.g.node_table[str(inner.args[1])]
+            mean = rw.g.node_table[
+                str(rw.g.node_table[str(rsqrt.args[0])].args[0])
+            ]
+            power = rw.g.node_table[str(mean.args[0])]
+            if mean.args[1:] != [[-1], True] or power.args[1] != 2:
+                raise ValueError("RMSNorm requires a last-axis mean of squares")
+            if list(rw.g.node_table[x].tensor_meta["shape"]) != shape:
+                raise ValueError("Unexpected RMSNorm input shape")
+            permutation = None
+            source_shape = shape
+            if len(shape) == 4:
+                permute = rw.g.node_table[x]
+                if not isinstance(permute, PermuteOp) or permute.args[1] != [
+                    0,
+                    2,
+                    1,
+                    3,
+                ]:
+                    raise ValueError("Expected the Gemma head-axis permutation")
+                permutation = list(permute.args[1])
+                x = str(permute.args[0])
+                source_shape = list(rw.g.node_table[x].tensor_meta["shape"])
+                if [source_shape[i] for i in permutation] != shape:
+                    raise ValueError("Unexpected unpermuted head shape")
+            norm_rows = math.prod(source_shape[:-1])
+            if norm_rows != rows * (shape[1] if len(shape) == 4 else 1):
+                raise ValueError("Unexpected RMSNorm row count")
+            name = f"embeddinggemma_rms_m{norm_rows}_k{width}_e{int(numpy.float32(eps).view(numpy.uint32))}"
+            rw.kernels[name] = {
+                "name": name,
+                "kind": "rms",
+                "m": norm_rows,
+                "k": width,
+                "norm_eps": eps,
+            }
+            view = ViewOp()
+            view._name = node.name + "_rms_input"
+            view._arguments = [x, [norm_rows, width]]
+            view._tensor_meta = {
+                "shape": [norm_rows, width],
+                "dtype": TensorDType.Float32,
+            }
+            rw.insert_before(node, view)
+            rw.link(view, [x])
+            call = rw.call(
+                rw.kernels[name],
+                [view.name, norm_weight],
+                [[norm_rows, width]],
+                node,
+            )
+            restored = ViewOp()
+            restored._name = (
+                node.name
+                if permutation is None
+                else node.name + "_rms_unpermuted"
+            )
+            restored._arguments = [call.name, source_shape]
+            restored._tensor_meta = {
+                "shape": source_shape,
+                "dtype": TensorDType.Float32,
+            }
+            restored.trace_meta = node.trace_meta
+            if permutation is None:
+                rw.replace(node, restored)
+                rw.link(restored, [call.name])
+            else:
+                rw.insert_before(node, restored)
+                rw.link(restored, [call.name])
+                result = PermuteOp()
+                result._name = node.name
+                result._arguments = [restored.name, permutation]
+                result._tensor_meta = dict(node.tensor_meta)
+                result.trace_meta = node.trace_meta
+                rw.replace(node, result)
+                rw.link(result, [restored.name])
+            count += 1
+            break
+    if count != RMS_NORM_COUNT:
+        raise RuntimeError(f"Expected {RMS_NORM_COUNT} RMSNorms, found {count}")
+    rw.remove_dead()
 
 
 def pack_weight(weight):
@@ -67,12 +207,13 @@ def pack_weight(weight):
 
 
 def rewrite_graph(graph, rows):
-    """Replace exactly the 24 gate/up/down projections after eliminate_transpose."""
+    """Replace the 168 encoder projections after eliminate_transpose."""
     if rows < 8 or rows % 8:
         raise ValueError(
-            "FFN IME requires batch_size * max_seq_len divisible by 8"
+            "Linear IME requires batch_size * max_seq_len divisible by 8"
         )
     rw = k3._Rewriter(graph, rows, 0)
+    _rewrite_rmsnorm(rw, rows)
     counts = Counter()
     for node in list(graph.body):
         if not isinstance(node, MatmulOp) or not rw.is_linear(node):
@@ -80,12 +221,12 @@ def rewrite_graph(graph, rows):
         lhs, rhs = map(str, node.args[:2])
         weight = rw.weight(rhs)
         k, n = weight.shape
-        if (k, n) not in ((768, 1152), (1152, 768)):
+        if (k, n) not in PROJECTION_COUNTS:
             continue
         if list(node.tensor_meta["shape"]) != [rows, n]:
-            raise ValueError(f"Unexpected FFN output shape at {node.name}")
+            raise ValueError(f"Unexpected Linear output shape at {node.name}")
         if graph.node_table[rhs]._children != [node.name]:
-            raise ValueError(f"FFN weight has unexpected uses: {rhs}")
+            raise ValueError(f"Linear weight has unexpected uses: {rhs}")
         packed, exponent = pack_weight(weight)
         rw.set_param(rhs, packed, TensorDType.Float32)
         name = f"embeddinggemma_comp3_m{rows}_k{k}_n{n}_e{exponent}"
@@ -108,9 +249,9 @@ def rewrite_graph(graph, rows):
         rw.replace(node, call)
         rw.link(call, [lhs, rhs])
         counts[k, n] += 1
-    if counts != {(768, 1152): 48, (1152, 768): 24}:
+    if counts != PROJECTION_COUNTS:
         raise RuntimeError(
-            f"Expected all 72 FFN projections, found {dict(counts)}"
+            f"Expected all encoder projections, found {dict(counts)}"
         )
     graph._enable_external_calls = True
     return list(rw.kernels.values())
@@ -132,16 +273,20 @@ def lower_calls(module):
             if op.operation.name == "func.func"
             and not op.regions[0].blocks
             and op.attributes["sym_name"].value.startswith(
-                "embeddinggemma_comp3_m"
+                ("embeddinggemma_comp3_m", "embeddinggemma_rms_")
             )
         }
 
         def buffer_type(tensor_type):
             tensor_type = ir.RankedTensorType(tensor_type)
-            if tensor_type.rank != 2:
-                raise ValueError("FFN IME calls require rank-two tensors")
+            if tensor_type.rank not in (1, 2):
+                raise ValueError(
+                    "External kernels require rank-one or rank-two tensors"
+                )
             return k3._memref(
-                list(tensor_type.shape), tensor_type.element_type, [None, None]
+                list(tensor_type.shape),
+                tensor_type.element_type,
+                [None] * tensor_type.rank,
             )
 
         for caller in module.body.operations:
@@ -181,9 +326,10 @@ def lower_calls(module):
                         call.results[0].replace_all_uses_with(result)
                         call.erase()
                         count += 1
-        if count != 72:
+        expected = sum(PROJECTION_COUNTS.values()) + RMS_NORM_COUNT
+        if count != expected:
             raise RuntimeError(
-                f"Expected 72 destination-passing calls, found {count}"
+                f"Expected {expected} destination-passing calls, found {count}"
             )
         for name, declaration in declarations.items():
             signature = ir.FunctionType(
@@ -411,14 +557,36 @@ def _kernel(ty, spec):
         func.ReturnOp([])
 
 
+def _rms_kernel(ty, spec):
+    """Adapt the existing F32 RMSNorm body to a caller-owned output."""
+    fn = k3._Fn(spec["name"] + "_out", [ty.mat, ty.row, ty.mat], [])
+    x, weight, out = fn.args
+    with ir.InsertionPoint(fn.entry):
+        destination = memref.CastOp(
+            k3._memref([spec["m"], spec["k"]], ty.f32), out
+        ).result
+        # Map the shared helper's x and effective-weight argument positions.
+        args = SimpleNamespace(
+            args=[x, None, None, None, weight], idx=fn.idx, const=fn.const
+        )
+        value = k3._moe_norm(args, ty, spec)
+        allocation = value.owner
+        value.replace_all_uses_with(destination)
+        allocation.erase()
+        func.ReturnOp([])
+
+
 def gen_kernels(specs):
-    """Generate wrappers around the existing FP16/F32 IME matrix loop."""
+    """Generate wrappers reusing the K3 matrix and normalization bodies."""
     with ir.Context(), ir.Location.unknown():
         module = ir.Module.create()
         with ir.InsertionPoint(module.body):
             ty = k3._Types()
             k3._attn_mma_fn(ty, MMA, False)
             for spec in specs:
-                _kernel(ty, spec)
+                if spec.get("kind") == "rms":
+                    _rms_kernel(ty, spec)
+                else:
+                    _kernel(ty, spec)
         module.operation.verify()
         return str(module)

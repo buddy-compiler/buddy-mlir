@@ -201,12 +201,21 @@ graph.perform([eliminate_transpose])
 kernel_path = os.path.join(a.output_dir, "embeddinggemma_ime.mlir")
 if variant == "fp16_comp3":
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from embeddinggemma_ime import gen_kernels, lower_calls, rewrite_graph
+    from embeddinggemma_ime import (
+        PROJECTION_COUNTS,
+        RMS_NORM_COUNT,
+        gen_kernels,
+        lower_calls,
+        rewrite_graph,
+    )
 
     kernels = rewrite_graph(graph, batch_size * max_seq_len)
     with open(kernel_path, "w") as f:
         f.write(gen_kernels(kernels))
-    print(f"[import-embeddinggemma] 72 FFN calls, {len(kernels)} IME wrappers")
+    print(
+        f"[import-embeddinggemma] {sum(PROJECTION_COUNTS.values())} Linear calls, "
+        f"{RMS_NORM_COUNT} RMSNorm calls, {len(kernels)} generated wrappers"
+    )
 elif os.path.exists(kernel_path):
     os.remove(kernel_path)
 graph.fuse_ops([simply_fuse])

@@ -105,9 +105,9 @@ The build emits these artifacts under `build/models/embeddinggemma/`:
 | `arg0.data` | Flattened model weights (307,581,953 f32 elements, ~1.2 GB) |
 | `tokenizer.json` | Gemma byte-level BPE tokenizer, staged from the local snapshot |
 
-## K3 FFN IME (optional)
+## K3 Transformer Linear IME (optional)
 
-`specs/k3_fp16_comp3.json` selects the K3 A100 FFN matrix-engine path.
+`specs/k3_fp16_comp3.json` selects the K3 A100 matrix-engine path.
 The default `specs/f32.json` keeps the F32 path. Configure a separate RISC-V
 build directory with VLEN 1024 and Zfh/Zvfh enabled, following
 [CrossCompilingRaxFile.md](../../docs/CrossCompilingRaxFile.md), then select:
@@ -122,9 +122,10 @@ cmake --build "$EG_IME_BUILD_DIR" --target embeddinggemma_rax
 ```
 
 The importer captures the same complete F32 model, then replaces exactly the
-72 FFN gate/up/down projections with external kernel calls. It reuses the
-existing K3 FP16 matrix loop. Attention, GELU, pooling, the two final dense
-projections and normalization retain their existing F32 lowering. This path
+168 encoder projections (72 FFN gate/up/down and 96 Attention Q/K/V/O) with
+external kernel calls. It reuses the existing K3 FP16 matrix loop.
+Attention QK/PV, GELU, pooling, the two final dense
+projections and normalization retain F32 precision. This path
 requires `batch_size * max_seq_len` to be divisible by 8; the representative
 128/256/512-token workloads satisfy this requirement.
 
@@ -151,7 +152,7 @@ code keeps its current compilation options. This variant does not use TCM,
 DMA or a different thread pool. `OMP_NUM_THREADS` still selects the threads
 at runtime.
 
-Before bufferization, the importer converts the FFN calls to explicit
+Before bufferization, the importer converts the Linear calls to explicit
 caller-allocated outputs. The kernels write these buffers and return no
 memref. This makes ownership visible to the existing allocation-liveness
 pass, allowing early release without runtime checks for aliases of opaque
@@ -167,13 +168,31 @@ unchanged cosine and maximum-absolute-error gates pass on the K3.
 
 Complete-RAX acceptance on four A100 cores/threads (B1/S128, 128 valid
 tokens, A-B-A-B, one warmup and three measured forwards per group) gave median
-latency 1509.32 ms for F32 and 897.18 ms for `fp16_comp3`, a 40.56% reduction.
-Peak process RSS was 1344.63 MiB and 1344.45 MiB respectively, including model
+latency 870.17 ms for the previous FFN-only `fp16_comp3` path and 545.73 ms
+with all encoder Linear projections on IME, a 37.29% reduction. The comparison
+uses the same four-core placement. It changes precision coverage: the previous
+Attention projections used F32 and now use the compensated FP16 policy.
+Peak process RSS was 1344.66 MiB and 1344.51 MiB respectively, including model
 loading and runtime rather than isolated kernel workspace.
 The full-length input and four padded short inputs passed the original HF
-gate; maximum absolute error was 5.07e-7. Changing to caller-owned output
-buffers preserved the previous compensated IME outputs bit for bit. Other
+gate; maximum absolute error was 5.07e-7. Repeated outputs within each
+configuration were bit-identical. Other
 batch/sequence combinations still require complete-RAX board acceptance.
+
+The optional path also fuses all 145 encoder RMSNorms (97 token-wise norms of
+width 768 and 48 Q/K head norms of width 256) using the existing K3 F32 RVV
+normalization body. Gemma's parameter-only `weight + 1` is folded offline in
+F32. Q/K normalization runs before the head-axis permutation and restores that
+permutation afterward: each row is still normalized along its last dimension.
+The matcher requires the expected shape, permutation and reduction axis.
+Final embedding L2 normalization retains its existing lowering. Vector FMA and
+reduction change F32 rounding, so final embedding validation remains required.
+In a separate B1/S128 A-B-A-B comparison, extending the 97 fused token norms to
+all 145 norms reduced median latency from 473.22 to 456.54 ms (3.53%). Peak
+process RSS was comparable (1344.70 and 1344.50 MiB). All 24 complete forwards,
+including four padded inputs, passed the original HF gate; maximum candidate
+error was 5.07e-7 and repeated outputs within each configuration were
+bit-identical. Other batch/sequence combinations still require board validation.
 
 ## Run
 
