@@ -73,6 +73,7 @@ target_link_libraries(buddy-opt
   MLIRTransformUtils
   MatMulTransposeBVec
   LinalgToVIRPass
+  PolynomialApproximateMathPass
   VIRToVectorPass
   TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
