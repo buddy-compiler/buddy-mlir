@@ -221,6 +221,14 @@ HF/SentenceTransformer outputs serve as the correctness golden for both builds.
 HF preparation may run offline on the build host; performance measurements run
 directly on the K3.
 
+`--backend buddy` is the default. `--backend hf` measures the original local
+SentenceTransformer on the same K3, using its PyTorch CPU backend in F32.
+Both backends start a fresh child process per request and time only its first
+complete forward after loading and tokenization. HF uses inference mode,
+disables KV cache, and retains its supported default Attention implementation.
+Pooling, both Dense modules and final L2 normalization are included. JSON
+serialization and correctness checks are outside the timed interval.
+
 Prepare the workload matrix once, using a new output directory. The supplied
 corpus generates distinct texts for batch sizes 1, 2 and 4, at effective
 lengths of 128, 256 and 512 tokens including BOS/EOS, with no padding.
@@ -265,7 +273,9 @@ Copy the saved package, its matching workload spec and HF reference directory,
 the RISC-V `buddy-cli`, and `benchmark.py` / `validate_accuracy.py` to the K3.
 Keep the two Python scripts together; the commands below use their repository
 paths. HF/PyTorch packages are only needed on the build host for reference
-generation. Use storage with enough room for the packages and extracted
+generation unless measuring `--backend hf`; that backend needs native
+PyTorch, Transformers and SentenceTransformers on the K3. Use storage with
+enough room for the packages and extracted
 payloads; `/tmp` may be backed by RAM.
 
 On the K3, set the destination paths and enter AI process mode before starting
@@ -294,6 +304,38 @@ python models/embeddinggemma/benchmark.py \
   --timeout 3600 \
   --output-dir "$EG_RESULTS_DIR/$EG_CONFIGURATION"
 ```
+
+For the HF reference, use the same F32 workload spec, texts and reference
+directory. `--model` selects the original local model directory containing
+`modules.json`; downloads are disabled. `--hf-python` selects the native HF
+Python executable or environment launcher and defaults to the interpreter
+running the benchmark. For example, on the K3:
+
+```bash
+EG_HF_MODEL=/path/to/original/embeddinggemma-300m
+EG_HF_PYTHON=/path/to/native-hf-environment/python
+
+OMP_PROC_BIND=FALSE OPENBLAS_NUM_THREADS=4 \
+sh -c 'echo 0 > /proc/set_ai_thread && exec "$@"' sh \
+"$EG_HF_PYTHON" models/embeddinggemma/benchmark.py \
+  --backend hf --configuration reference \
+  --model "$EG_HF_MODEL" --hf-python "$EG_HF_PYTHON" \
+  --target 'SpacemiT K3 A100; VLEN=1024' \
+  --spec "$EG_SPEC" --reference-dir "$EG_REFERENCE_DIR" \
+  --threads 4 --warmup 1 --repeat 3 --tolerance 1e-5 \
+  --output-dir "$EG_RESULTS_DIR/hf-reference"
+```
+
+Set the same A100 CPU affinity before starting either benchmark. The HF
+backend sets PyTorch intra-op and OpenBLAS threads to `--threads`, inter-op
+threads to one, and disables OpenMP per-thread binding so the main thread's
+mask is not narrowed before pthread BLAS workers are created. It rejects a
+parent CPU mask smaller than the requested thread count. Use
+`OMP_PROC_BIND=FALSE` before starting the HF parent as well. The report records
+HF library versions, Attention configuration, CPU mask and actual BLAS thread
+pools; a configuration change between requests fails the measurement.
+HF output files retain the `buddy_embedding_*.npy` names so both backends
+use the same existing accuracy validator.
 
 After applying an optimization, rebuild the affected compiler components and
 the model on the build host. Confirm the relevant import/lowering stages reran.
@@ -347,6 +389,9 @@ batch size, sequence length, measurement scopes, and validation status. Each
 sample includes raw measurements and latency/throughput mean, median, min,
 max and population standard deviation, plus maximum peak RSS. The execution
 mode is recorded as `riscv-native`.
+`backend` identifies `buddy` or `hf`; HF reports use configuration `reference`
+and require an F32 spec. Each invocation measures one selected backend rather
+than performing an automatic comparison.
 Raw logs and embeddings are kept under
 `runs/<round>/`; `warmup/` holds the unmeasured runs. The extracted payloads are
 cached under `payload/`. After timing, every measured round is checked by
@@ -371,7 +416,12 @@ the raw runs and standard deviation alongside them. Latency speedup is
 `baseline_median_ms / optimized_median_ms`. This baseline uses F32. Future
 precision changes need implementation support, matching spec metadata and
 accuracy acceptance before performance is accepted; record and distinguish
-different precisions explicitly.
+different precisions explicitly. For an external reference, compare
+`HF F32 / Buddy F32` separately from `HF F32 / Buddy fp16_comp3` and label
+the latter as a comparison across precision policies. Alternate the
+configurations over multiple groups under the same CPU resource budget.
+These first-forward throughput values do not measure a resident service's
+sustained throughput.
 
 ## Notes
 

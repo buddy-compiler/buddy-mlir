@@ -26,17 +26,120 @@ import shutil
 import signal
 import statistics
 import subprocess
+import sys
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
 from validate_accuracy import DEFAULT_TOLERANCE, compare_outputs
 
 
+def hf_forward(model_path, prompt_file, sequence_length, threads):
+    """Child-process entry point: time one original HF/F32 forward on CPU."""
+    import sentence_transformers
+    import torch
+    import transformers
+    from sentence_transformers import SentenceTransformer
+    from threadpoolctl import threadpool_info
+
+    torch.set_num_threads(int(threads))
+    torch.set_num_interop_threads(1)
+    torch.set_float32_matmul_precision("highest")
+    model = (
+        SentenceTransformer(
+            model_path,
+            device="cpu",
+            backend="torch",
+            local_files_only=True,
+            token=False,
+            model_kwargs={"dtype": torch.float32},
+        )
+        .float()
+        .eval()
+    )
+    model[0].auto_model.config.use_cache = False
+    texts = Path(prompt_file).read_text().splitlines()
+    tokens = model.tokenizer(
+        texts,
+        padding="max_length",
+        truncation=True,
+        max_length=int(sequence_length),
+        return_tensors="pt",
+    )
+    valid_tokens = int(tokens["attention_mask"].sum())
+    with torch.inference_mode():
+        start = time.perf_counter_ns()
+        embedding = model(tokens)["sentence_embedding"]
+        seconds = (time.perf_counter_ns() - start) / 1e9
+    if embedding.dtype != torch.float32:
+        raise ValueError("HF reference must produce F32 embeddings")
+    print(json.dumps(embedding.cpu().tolist(), allow_nan=False))
+    for name, value in (
+        ("seq_len", sequence_length),
+        ("batch_size", len(texts)),
+        ("valid_tokens", valid_tokens),
+        ("time", f"{seconds:.9f}s"),
+    ):
+        print(f"  {name} : {value}", file=sys.stderr)
+    runtime = {
+        "torch": torch.__version__,
+        "transformers": transformers.__version__,
+        "sentence_transformers": sentence_transformers.__version__,
+        "attention_implementation": model[
+            0
+        ].auto_model.config._attn_implementation,
+        "use_cache": model[0].auto_model.config.use_cache,
+        "torch_threads": torch.get_num_threads(),
+        "interop_threads": torch.get_num_interop_threads(),
+        "cpu_affinity": sorted(os.sched_getaffinity(0)),
+        "blas": sorted(
+            [
+                {
+                    key: pool.get(key)
+                    for key in (
+                        "internal_api",
+                        "version",
+                        "num_threads",
+                        "threading_layer",
+                        "architecture",
+                    )
+                }
+                for pool in threadpool_info()
+                if pool["user_api"] == "blas"
+            ],
+            key=lambda pool: (pool["internal_api"], pool["version"] or ""),
+        ),
+    }
+    print("hf_runtime : " + json.dumps(runtime), file=sys.stderr)
+
+
 def run_once(args, index, texts, directory, env, valid_tokens):
     prefix = directory / f"sample_{index}"
     prompt_file = Path(str(prefix) + ".prompts.txt")
     prompt_file.write_text("\n".join(texts) + "\n")
+    if args.backend == "hf":
+        runner = [
+            str(args.hf_python),
+            "-c",
+            "import sys; sys.path.insert(0, sys.argv[1]); "
+            "from benchmark import hf_forward; hf_forward(*sys.argv[2:])",
+            str(Path(__file__).resolve().parent),
+            str(args.model),
+            str(prompt_file),
+            str(args.sequence_length),
+            str(args.threads),
+        ]
+    else:
+        runner = [
+            str(args.buddy_cli),
+            "--model",
+            str(args.model),
+            "--prompt-file",
+            str(prompt_file),
+            "--batch-size",
+            str(args.batch_size),
+        ]
     command = [
         args.time_command,
         "-q",
@@ -44,13 +147,7 @@ def run_once(args, index, texts, directory, env, valid_tokens):
         "%M",
         "-o",
         str(prefix) + ".rss_kib",
-        str(args.buddy_cli),
-        "--model",
-        str(args.model),
-        "--prompt-file",
-        str(prompt_file),
-        "--batch-size",
-        str(args.batch_size),
+        *runner,
     ]
 
     with (
@@ -108,6 +205,24 @@ def run_once(args, index, texts, directory, env, valid_tokens):
         raise ValueError(
             f"Missing timing or unexpected input dimensions/token count in {prefix}.stderr"
         )
+    if args.backend == "hf":
+        metadata = re.findall(r"^hf_runtime : (\{.*\})$", log, re.M)
+        if len(metadata) != 1:
+            raise ValueError(
+                f"Missing HF runtime configuration in {prefix}.stderr"
+            )
+        runtime = json.loads(metadata[0])
+        if (
+            runtime["torch_threads"] != args.threads
+            or runtime["interop_threads"] != 1
+            or runtime["cpu_affinity"] != sorted(os.sched_getaffinity(0))
+        ):
+            raise ValueError(
+                "HF worker thread configuration or CPU mask differs"
+            )
+        if args.hf_runtime is not None and runtime != args.hf_runtime:
+            raise ValueError("HF runtime configuration changed between runs")
+        args.hf_runtime = runtime
     forward_ms = float(timing[0]) * 1000
     peak_rss_kib = int(Path(str(prefix) + ".rss_kib").read_text())
     if not math.isfinite(forward_ms) or forward_ms <= 0 or peak_rss_kib <= 0:
@@ -149,7 +264,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Measure native RISC-V EmbeddingGemma inference (Linux/GNU time)."
     )
-    parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--backend", choices=["buddy", "hf"], default="buddy")
+    parser.add_argument(
+        "--model",
+        type=Path,
+        required=True,
+        help="Buddy .rax file, or local original HF SentenceTransformer directory",
+    )
     parser.add_argument("--reference-dir", type=Path, required=True)
     parser.add_argument(
         "--output-dir",
@@ -160,8 +281,13 @@ def main():
     parser.add_argument(
         "--buddy-cli",
         type=Path,
-        required=True,
         help="Native RISC-V buddy-cli executable or launcher",
+    )
+    parser.add_argument(
+        "--hf-python",
+        type=Path,
+        default=Path(sys.executable),
+        help="Native HF Python executable or launcher (default: this interpreter)",
     )
     parser.add_argument(
         "--target",
@@ -169,7 +295,9 @@ def main():
         help="Hardware configuration, including CPU model and VLEN",
     )
     parser.add_argument(
-        "--configuration", choices=["baseline", "optimized"], required=True
+        "--configuration",
+        choices=["baseline", "optimized", "reference"],
+        required=True,
     )
     parser.add_argument("--spec", type=Path, default=here / "specs/f32.json")
     parser.add_argument("--threads", type=int, default=4)
@@ -199,12 +327,35 @@ def main():
         parser.error("Linux and GNU time are required")
     if platform.machine() != "riscv64":
         parser.error("Native measurements require a RISC-V host")
-    for path in (args.model, args.buddy_cli, args.spec):
+    paths = [args.spec]
+    if args.backend == "buddy":
+        if args.buddy_cli is None:
+            parser.error("--buddy-cli is required for the Buddy backend")
+        if args.configuration == "reference":
+            parser.error("Use baseline or optimized for the Buddy backend")
+        paths.extend([args.model, args.buddy_cli])
+    else:
+        if args.configuration != "reference":
+            parser.error("Use --configuration reference for the HF backend")
+        if not (args.model / "modules.json").is_file():
+            parser.error(
+                "HF model must be a local complete SentenceTransformer directory"
+            )
+        if len(os.sched_getaffinity(0)) < args.threads:
+            parser.error("HF CPU affinity permits fewer CPUs than --threads")
+        paths.append(args.hf_python)
+    for path in paths:
         if not path.is_file():
             parser.error(f"File not found: {path}")
 
     with args.spec.open() as stream:
         spec = json.load(stream)
+    if args.backend == "hf" and spec["variant"] != "f32":
+        parser.error("HF reference uses F32; select a matching f32 spec")
+    if args.backend == "hf":
+        args.model = args.model.resolve()
+        args.hf_python = args.hf_python.resolve()
+    args.hf_runtime = None
     args.sequence_length = int(spec["max_seq_len"])
     args.embedding_dim = int(spec["hidden_size"])
     args.batch_size = int(spec.get("batch_size", 1))
@@ -256,8 +407,19 @@ def main():
         LC_ALL="C",
         BUDDY_RAX_PAYLOAD_DIR=str(args.output_dir / "payload"),
     )
+    if args.backend == "hf":
+        env.update(
+            OPENBLAS_NUM_THREADS=str(args.threads),
+            OMP_PROC_BIND="FALSE",
+            HF_HUB_OFFLINE="1",
+            TRANSFORMERS_OFFLINE="1",
+            HF_HUB_DISABLE_IMPLICIT_TOKEN="1",
+            TOKENIZERS_PARALLELISM="false",
+        )
+        env.pop("OMP_PLACES", None)
     report = {
         "model": str(args.model),
+        "backend": args.backend,
         "configuration": args.configuration,
         "precision": spec["variant"],
         "execution": "riscv-native",
@@ -337,6 +499,9 @@ def main():
     ) as error:
         report["error"] = str(error) or type(error).__name__
         report["validation_passed"] = False
+    if args.backend == "hf":
+        report["hf_python"] = str(args.hf_python)
+        report["runtime"] = args.hf_runtime
     (args.output_dir / "report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     )
