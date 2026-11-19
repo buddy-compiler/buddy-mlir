@@ -32,6 +32,15 @@ module attributes {transform.with_named_sequence} {
       } : !transform.any_op
       transform.yield
     }
+    // Flatten contiguous binary elementwise loops before OpenMP collapsing:
+    // otherwise B > 1 leaves expensive per-element coordinate reconstruction.
+    %binary = transform.structured.match ops{["linalg.generic"]} attributes {
+      indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+                      affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+                      affine_map<(d0, d1, d2) -> (d0, d1, d2)>]
+    } in %root : (!transform.any_op) -> !transform.any_op
+    %flat = transform.structured.flatten_elementwise %binary
+      : (!transform.any_op) -> !transform.any_op
     transform.yield
   }
 }

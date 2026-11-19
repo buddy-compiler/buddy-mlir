@@ -89,6 +89,19 @@ traversal, a four-core K3 B1/S128 A-B-A-B comparison (six measured forwards per
 variant) reduced median latency from 411.03 to 382.36 ms (6.97%). The full-length
 input and four padded inputs stayed bit-identical to the scalar polynomial
 path and passed the original HF gate.
+
+The same transform file uses MLIR's `flatten_elementwise` for rank-three
+binary generic operations whose input/output indexing maps are all identity.
+This turns contiguous elementwise work into a one-dimensional loop before
+OpenMP lowering, avoiding per-element batch/sequence coordinate reconstruction.
+It preserves the floating-point operations and leaves broadcasts, reductions,
+matrix kernels and the tiled tanh loops unchanged.
+On four A100 cores/threads, A-B-A-B comparisons (four measured forwards per
+variant) reduced B2/S128 latency from 1018.65 to 880.10 ms (13.60%) and
+B4/S512 from 11776.95 to 10468.50 ms (11.11%). Outputs were bit-identical to
+the preceding implementation and passed the original HF gate. B1/S128 and
+B1/S256 RAX packages stayed byte-identical; other sizes need validation.
+
 Running `cse` before loop canonicalization exposes redundant copies for
 removal while preserving the matrix vectorization paths.
 As in the other BLIS model pipelines, `affine-loop-fusion` is omitted: its
