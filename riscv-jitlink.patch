@@ -1,0 +1,78 @@
+diff --git a/mlir/lib/ExecutionEngine/ExecutionEngine.cpp b/mlir/lib/ExecutionEngine/ExecutionEngine.cpp
+index 2ecc80400b3d..449864568cbd 100644
+--- a/mlir/lib/ExecutionEngine/ExecutionEngine.cpp
++++ b/mlir/lib/ExecutionEngine/ExecutionEngine.cpp
+@@ -24,6 +24,8 @@
+ #include "llvm/ExecutionEngine/Orc/IRTransformLayer.h"
+ #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+ #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
++#include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
++#include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
+ #include "llvm/IR/IRBuilder.h"
+ #include "llvm/MC/TargetRegistry.h"
+ #include "llvm/Support/Debug.h"
+@@ -315,16 +317,30 @@ ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options,
+   // process and dynamically linked libraries.
+   auto objectLinkingLayerCreator = [&](ExecutionSession &session,
+                                        const Triple &tt) {
+-    auto objectLayer = std::make_unique<RTDyldObjectLinkingLayer>(
+-        session, [sectionMemoryMapper = options.sectionMemoryMapper]() {
+-          return std::make_unique<SectionMemoryManager>(sectionMemoryMapper);
+-        });
+-
+-    // Register JIT event listeners if they are enabled.
+-    if (engine->gdbListener)
+-      objectLayer->registerJITEventListener(*engine->gdbListener);
+-    if (engine->perfListener)
+-      objectLayer->registerJITEventListener(*engine->perfListener);
++    // Check if we should use ObjectLinkingLayer (JITLink)
++    // JITLink supports modern architectures like RISC-V, AArch64
++    // RuntimeDyld is older and provides better compatibility with legacy platforms
++    bool useJITLink = tt.isRISCV() || tt.isAArch64();
++
++    std::unique_ptr<llvm::orc::ObjectLinkingLayer> objectLayer;
++    if (useJITLink) {
++      objectLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
++    } else {
++      objectLayer = std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(
++          session, [sectionMemoryMapper = options.sectionMemoryMapper]() {
++            return std::make_unique<SectionMemoryManager>(sectionMemoryMapper);
++          });
++    }
++
++    // Only enable listeners where supported
++    if (useJITLink) {
++      LLVM_DEBUG(dbgs() << "JITLink doesn't support event listeners\n");
++    } else {
++      if (engine->gdbListener)
++        objectLayer->registerJITEventListener(*engine->gdbListener);
++      if (engine->perfListener)
++        objectLayer->registerJITEventListener(*engine->perfListener);
++    }
+ 
+     // COFF format binaries (Windows) need special handling to deal with
+     // exported symbol visibility.
+diff --git a/mlir/lib/ExecutionEngine/JitRunner.cpp b/mlir/lib/ExecutionEngine/JitRunner.cpp
+index cf462ddf6f17..2e9369993602 100644
+--- a/mlir/lib/ExecutionEngine/JitRunner.cpp
++++ b/mlir/lib/ExecutionEngine/JitRunner.cpp
+@@ -31,6 +31,7 @@
+ #include "llvm/IR/IRBuilder.h"
+ #include "llvm/IR/LLVMContext.h"
+ #include "llvm/IR/LegacyPassNameParser.h"
++#include "llvm/Support/CodeGen.h"
+ #include "llvm/Support/CommandLine.h"
+ #include "llvm/Support/Debug.h"
+ #include "llvm/Support/FileUtilities.h"
+@@ -353,6 +354,11 @@ int mlir::JitRunnerMain(int argc, char **argv, const DialectRegistry &registry,
+     tmBuilderOrError->getTargetTriple().setArchName(options.mArch);
+   }
+ 
++  if (tmBuilderOrError->getTargetTriple().isRISCV()) {
++    tmBuilderOrError->setRelocationModel(llvm::Reloc::PIC_);
++    tmBuilderOrError->setCodeModel(llvm::CodeModel::Medium);
++  }
++
+   // Build TargetMachine
+   auto tmOrError = tmBuilderOrError->createTargetMachine();
+ 
