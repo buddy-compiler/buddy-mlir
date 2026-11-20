@@ -2,16 +2,17 @@
 // RUN: --pre-sparsification-rewrite
 
 #SparseVector = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed" ]
+  map = (d0) -> (d0 : compressed)
 }>
 
 #SortedCOO = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed-nu", "singleton" ]
+  map = (i, j) -> (i : compressed(nonunique), j : singleton)
 }>
 
 #Slice = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed-nu", "singleton" ],
-  slice = [ (?, 1, 1), (?, 3, 1) ]
+  map = (d0 : #sparse_tensor<slice(?, 1, 1)>,
+         d1 : #sparse_tensor<slice(?, 3, 1)>) ->
+        (d0 : compressed(nonunique), d1 : singleton)
 }>
 
 
