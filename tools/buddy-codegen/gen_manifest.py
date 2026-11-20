@@ -71,10 +71,30 @@ def gen_manifest(
     kv_mlir = mlir_types["kv"]
     logits_mlir = mlir_types["logits"]
 
-    so_name = compilation["so_name"]
-    vocab_file = tokens["vocab_file"]
+    stage = config.get("pipeline_stage")
+    stage_attrs = {}
+    first_stage = last_stage = True
+    if stage is not None:
+        stage_attrs["pp_stage_version"] = "1"
+        for field in (
+            "start_layer", "end_layer", "total_layers",
+            "activation_type", "activation_width",
+        ):
+            if field not in stage:
+                raise ValueError(f"missing pipeline_stage.{field}")
+            stage_attrs[f"pp_{field}"] = str(stage[field])
+        first_stage = stage["start_layer"] == 0
+        last_stage = stage["end_layer"] == stage["total_layers"]
+        if (len(weights) != 1 or weights[0]["mlir_type"] != "f16"
+                or weights[0].get("decode_file")):
+            raise ValueError("pipeline_stage requires one external f16 weight")
+        if int(config.get("prefill_chunk", 0)):
+            raise ValueError("pipeline_stage requires prefill_chunk = 0")
+
+    so_name = "stage.so" if stage is not None else compilation["so_name"]
+    runner_suffix = "_pipeline_runner.so" if stage is not None else "_runner.so"
     runner_uri = _normalize_dep_uri(
-        runner_library or f"{model_family}_runner.so"
+        runner_library or f"{model_family}{runner_suffix}"
     )
     model_uri = _normalize_dep_uri(model_library) if model_library else None
 
@@ -86,7 +106,10 @@ def gen_manifest(
     p(f"rhal.module @{model_family} attributes {{")
     p(f'    version = "{version}",')
     p(f'    model_name = "{model_id}",')
-    p(f'    vocab_uri = "file:{vocab_file}",')
+    if first_stage:
+        p(f'    vocab_uri = "file:{tokens["vocab_file"]}",')
+    for key, value in stage_attrs.items():
+        p(f"    {key} = {json.dumps(value)},")
     p(f'    runner_library = "{runner_uri}"', end="")
     if model_uri:
         p(",")
@@ -139,31 +162,47 @@ def gen_manifest(
     # and their start position, like forward_decode.
     chunk = int(config.get("prefill_chunk", 0))
     prefill_len = chunk or max_token_len
-    p(
-        f'  rhal.buffer @prefill_tokens {{space = "host", type = tensor<1x{prefill_len}xi64>}}'
-    )
-    p('  rhal.buffer @decode_token   {space = "host", type = tensor<1x1xi64>}')
+    if first_stage:
+        prefill_input, decode_input = "prefill_tokens", "decode_token"
+        prefill_type = f"tensor<1x{prefill_len}xi64>"
+        decode_type = "tensor<1x1xi64>"
+    else:
+        prefill_input, decode_input = "hidden_prefill_in", "hidden_decode_in"
+        width = stage["activation_width"]
+        prefill_type = f"tensor<1x{prefill_len}x{width}xf16>"
+        decode_type = f"tensor<1x1x{width}xf16>"
+    p(f'  rhal.buffer @{prefill_input} {{space = "host", type = {prefill_type}}}')
+    p(f'  rhal.buffer @{decode_input} {{space = "host", type = {decode_type}}}')
     p('  rhal.buffer @cache_position {space = "host", type = tensor<1xi64>}')
     p()
 
-    kv_tensor = f"tensor<1x{head_num}x{max_token_len}x{hidden_size}x{kv_mlir}>"
-    for i in range(kv_layers):
-        pad = " " * (1 if i < 10 else 0)
-        p(f'  rhal.buffer @kv{i}{pad} {{space = "dram", type = {kv_tensor}}}')
-    p()
+    # Stage implementations own their KV buffers behind the Stage interface.
+    kv_names = []
+    if stage is None:
+        kv_tensor = f"tensor<1x{head_num}x{max_token_len}x{hidden_size}x{kv_mlir}>"
+        for i in range(kv_layers):
+            pad = " " * (1 if i < 10 else 0)
+            p(f'  rhal.buffer @kv{i}{pad} {{space = "dram", type = {kv_tensor}}}')
+            kv_names.append(f'"kv{i}"')
+        p()
 
-    # chunked prefill: the logits of the chunk's last row only
-    logits_rows = 1 if chunk else max_token_len
-    logits_pfx = f"tensor<1x{logits_rows}x{vocab_size}x{logits_mlir}>"
-    logits_dec = f"tensor<1x1x{vocab_size}x{logits_mlir}>"
-    p(f'  rhal.buffer @logits_prefill {{space = "host", type = {logits_pfx}}}')
-    p(f'  rhal.buffer @logits_decode  {{space = "host", type = {logits_dec}}}')
+    if last_stage:
+        prefill_output, decode_output = "logits_prefill", "logits_decode"
+        output_width = vocab_size
+        output_type = logits_mlir if stage is None else "f16"
+    else:
+        prefill_output, decode_output = "hidden_prefill_out", "hidden_decode_out"
+        output_width = stage["activation_width"]
+        output_type = "f16"
+    # Chunked prefill returns the logits of the last row only.
+    output_rows = 1 if chunk else max_token_len
+    prefill_result = f"tensor<1x{output_rows}x{output_width}x{output_type}>"
+    decode_result = f"tensor<1x1x{output_width}x{output_type}>"
+    p(f'  rhal.buffer @{prefill_output} {{space = "host", type = {prefill_result}}}')
+    p(f'  rhal.buffer @{decode_output} {{space = "host", type = {decode_result}}}')
     p()
 
     # -- Helper: build argument list -------------------------------------------
-    def _kv_names():
-        return [f'"kv{i}"' for i in range(kv_layers)]
-
     def _format_args(args: list[str], indent: int = 16) -> str:
         """Format a list of quoted names into wrapped lines."""
         lines = []
@@ -183,26 +222,23 @@ def gen_manifest(
     # Weights are bound via rhal.constant and resolved separately by rax-pack.
 
     # -- forward_prefill -------------------------------------------------------
-    prefill_inputs = ['"prefill_tokens"']
+    prefill_inputs = [f'"{prefill_input}"']
     if chunk:
         prefill_inputs.append('"cache_position"')
-    prefill_args = prefill_inputs + _kv_names() + ['"logits_prefill"']
+    prefill_args = prefill_inputs + kv_names + [f'"{prefill_output}"']
     p("  rhal.func @forward_prefill {")
     p(f"    inputs   = [{', '.join(prefill_inputs)}],")
-    p('    outputs  = ["logits_prefill"],')
+    p(f'    outputs  = ["{prefill_output}"],')
     p('    dispatch = "model_kernels",')
     p(f"    args     = [{_format_args(prefill_args)}]}}")
     p()
 
     # -- forward_decode --------------------------------------------------------
-    decode_args = (
-        ['"decode_token"', '"cache_position"']
-        + _kv_names()
-        + ['"logits_decode"']
-    )
+    decode_inputs = [f'"{decode_input}"', '"cache_position"']
+    decode_args = decode_inputs + kv_names + [f'"{decode_output}"']
     p("  rhal.func @forward_decode {")
-    p('    inputs   = ["decode_token", "cache_position"],')
-    p('    outputs  = ["logits_decode"],')
+    p(f"    inputs   = [{', '.join(decode_inputs)}],")
+    p(f'    outputs  = ["{decode_output}"],')
     p('    dispatch = "model_kernels",')
     p(f"    args     = [{_format_args(decode_args)}]}}")
 

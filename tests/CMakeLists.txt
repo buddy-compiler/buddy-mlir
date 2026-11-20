@@ -1,5 +1,6 @@
 add_subdirectory(Interface)
 add_subdirectory(Runtime)
+add_subdirectory(Pipeline)
 
 add_llvm_executable(buddy-kernel-contract-policy-test
   KernelContract/source-policy.cpp)
@@ -61,6 +62,7 @@ set_target_properties(check-tests PROPERTIES FOLDER "Tests")
 # config dies on config.buddy_mlir_enable_python_packages.
 add_lit_testsuites(BUDDY ${CMAKE_CURRENT_SOURCE_DIR}
   BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}
+  SKIP "^Pipeline"
   DEPENDS ${BUDDY_TEST_DEPENDS})
 
 #------------------------------------------------------------------------------------
