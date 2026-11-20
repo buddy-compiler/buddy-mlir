@@ -90,6 +90,11 @@ public:
   // <|image_pad|>}<|vision_end|>{prompt}<|im_end|>\n<|im_start|>assistant\n
   void tokenizeQwen3VL(const std::string &vocab, size_t length,
                        size_t numImageTokens);
+  // StableLM2 Tokenizer
+  // Byte-level BPE (GPT-NeoX style) for the StableLM-2 base model: raw
+  // continuation, no chat template, no special tokens; pads with 100257.
+  void tokenizeStableLm2(const std::string &vocab, size_t length);
+
   // Gemma4 Tokenizer
   // This function is designed for tokenizing input text for Gemma4 models.
   // Uses SentencePiece-style BPE with '▁' as the space replacement character.
@@ -102,6 +107,7 @@ public:
   std::string revertLlama();
   std::string revertWhisper();
   std::string revertDeepSeekR1();
+  std::string revertStableLm2();
   std::string revertQwen3();
   std::string revertGemma4();
 
@@ -522,6 +528,77 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   }
 }
 
+template <typename T, size_t N>
+void Text<T, N>::tokenizeStableLm2(const std::string &vocab, size_t length) {
+  // Initialize MemRef container members.
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+  // StableLM-2 (GPT-NeoX BPE): bos == eos == pad == <|endoftext|> (100257).
+  this->bos = 100257;
+  this->eos = 100257;
+  this->pad = 100257;
+
+  tokenCnt = 0;
+
+  // Load Vocab
+  loadVocab(vocab);
+
+  // Replace space with the visible byte form G.
+  std::string strWithoutSpace;
+  std::string replace = "\u0120"; // 'G' byte-level space marker
+  for (int i = 0; i < (int)str.size(); i++) {
+    if (str[i] != ' ')
+      strWithoutSpace.push_back(str[i]);
+    if (str[i] == ' ' && (i == 0 || str[i - 1] != ' '))
+      strWithoutSpace.append(replace);
+  }
+
+  int len = strWithoutSpace.length();
+  std::vector<size_t> res;
+  std::vector<float> score(len + 1, 0);
+  std::vector<size_t> prev(len + 1, 0);
+  res.reserve(len);
+
+  // Forward pass: longest-match DP (same scheme as tokenizeDeepSeekR1).
+  for (int i = 0; i < len; i++) {
+    for (int sub_len = 1; sub_len <= len - i; sub_len++) {
+      auto iter_start = strWithoutSpace.begin() + i;
+      auto iter_end = iter_start + sub_len;
+      auto token = tokenToIdMap.find(std::string(iter_start, iter_end));
+      if (token != tokenToIdMap.end()) {
+        int token_score = sub_len * sub_len;
+        int local_score = score[i] + token_score;
+        int next = i + sub_len;
+        if (score[next] < local_score) {
+          score[next] = local_score;
+          prev[next] = token->second;
+        }
+      }
+    }
+  }
+  // Backward pass
+  int i = len;
+  while (i > 0) {
+    size_t token_id = prev[i];
+    res.push_back(token_id);
+    i -= idToTokenVec[token_id].length();
+  }
+
+  // Base model: raw tokens only, no chat preamble/suffix.
+  for (auto it = res.rbegin(); it != res.rend(); ++it) {
+    this->aligned[tokenCnt++] = *it;
+  }
+
+  for (size_t i = tokenCnt; i < length; i++) {
+    this->aligned[i] = pad;
+  }
+}
+
 // Qwen3 Tokenizer
 template <typename T, size_t N>
 void Text<T, N>::tokenizeQwen3(const std::string &vocab, size_t length) {
@@ -839,6 +916,11 @@ template <typename T, size_t N> std::string Text<T, N>::revertWhisper() {
 template <typename T, size_t N> std::string Text<T, N>::revertDeepSeekR1() {
   // DeepSeek R1 Distill uses Qwen's byte-level BPE tokenizer.
   // Reuse the same BPE-to-byte decoding logic as revertQwen3().
+  return revertQwen3();
+}
+
+template <typename T, size_t N> std::string Text<T, N>::revertStableLm2() {
+  // Same byte-level BPE visible-form mapping as revertQwen3().
   return revertQwen3();
 }
 

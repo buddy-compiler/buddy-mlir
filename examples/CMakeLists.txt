@@ -29,6 +29,10 @@ if(BUDDY_QWEN3_EXAMPLES)
   add_subdirectory(BuddyQwen3)
 endif()
 
+if(BUDDY_STABLELM2_EXAMPLES)
+  add_subdirectory(BuddyStableLm2)
+endif()
+
 if(BUDDY_TENSORPARALLEL_EXAMPLES)
   add_subdirectory(BuddyTensorParallel)
 endif()
