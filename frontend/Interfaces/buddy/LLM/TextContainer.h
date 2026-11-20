@@ -78,7 +78,7 @@ public:
   // models.
   void tokenizeStableDiffusion(const std::string &vocab, size_t length);
   // DeepSeekR1 Tokenizer
-  // This function is designed for tokenizing input text for DeepSeekR1 models.
+  // Encode text without adding a conversation template.
   void tokenizeDeepSeekR1(const std::string &vocab, size_t length);
   // Qwen3 Tokenizer
   // This function is designed for tokenizing input text for Qwen3 models.
@@ -452,14 +452,7 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   this->bos = 151646;
   this->eos = 151643;
   this->pad = 151643;
-  const int userToken = 151644;
-  const int assistantToken = 151645;
-  const int thinkToken = 151648;
-
   tokenCnt = 0;
-  this->aligned[tokenCnt++] = bos;
-  this->aligned[tokenCnt++] = bos;
-  this->aligned[tokenCnt++] = userToken;
 
   // Load Vocab
   loadVocab(vocab);
@@ -512,10 +505,6 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   for (auto it = res.rbegin(); it != res.rend(); ++it) {
     this->aligned[tokenCnt++] = *it;
   }
-
-  this->aligned[tokenCnt++] = assistantToken;
-  this->aligned[tokenCnt++] = thinkToken;
-  this->aligned[tokenCnt++] = 198;
 
   for (size_t i = tokenCnt; i < length; i++) {
     this->aligned[i] = pad;

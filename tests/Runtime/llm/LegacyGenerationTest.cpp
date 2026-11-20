@@ -18,6 +18,7 @@
 // RUN:   %S/../../../examples/BuddyDeepSeekR1/vocab.txt \
 // RUN:   %S/Inputs/legacy-generation 2>&1 | FileCheck %s
 
+#include <buddy/LLM/DefaultChatTemplates.h>
 #include <buddy/runtime/llm/TextGeneration.h>
 
 #include <cmath>
@@ -253,6 +254,7 @@ int main(int argc, char **argv) {
     codec.maxTokenLen = kContextLength;
     codec.tokenize = [](Text<size_t, 2> &tokens, const std::string &path) {
       tokens.tokenizeDeepSeekR1(path, kContextLength);
+      applyDefaultDeepSeekR1Template(tokens);
     };
     codec.detokenize = [](Text<size_t, 2> &tokens) {
       return tokens.revertDeepSeekR1();
@@ -328,6 +330,30 @@ int main(int argc, char **argv) {
     // CHECK: seed 42 and repeated session reset: platform reference matched
     std::cout
         << "seed 42 and repeated session reset: platform reference matched\n";
+
+    // A caller that has already applied a chat template uses pure tokenization.
+    // Exercise the actual generation loop and inspect the tokens sent to
+    // prefill.
+    const std::string renderedPrompt =
+        "<|begin▁of▁sentence|><|User|>A<|end▁of▁sentence|><|Assistant|>";
+    TextCodec renderedCodec = codec;
+    renderedCodec.tokenize = [](Text<size_t, 2> &tokens,
+                                const std::string &path) {
+      tokens.tokenizeDeepSeekR1(path, kContextLength);
+    };
+    for (bool jsonl : {false, true}) {
+      FakeSession renderedSession(greedyScript);
+      CaptureStdout capture;
+      const auto result =
+          runGeneration(renderedPrompt, renderedSession, vocabPath, 32, {kEos},
+                        sampler, renderedCodec, true, jsonl);
+      require(renderedSession.promptTokens ==
+                  std::vector<size_t>({151646, 151644, kA, 151643, 151645}),
+              "rendered prompt received an extra default template");
+      require(result.text == "AB", "rendered prompt generation changed");
+    }
+    // CHECK: rendered prompts receive no additional template
+    std::cout << "rendered prompts receive no additional template\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

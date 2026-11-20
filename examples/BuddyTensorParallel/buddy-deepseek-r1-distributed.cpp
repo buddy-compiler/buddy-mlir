@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <buddy/Core/Container.h>
+#include <buddy/LLM/DefaultChatTemplates.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
 #include <cstddef>
@@ -149,6 +150,7 @@ void tokenizeInput(const std::string &vocabFile,
             << std::endl;
   const auto buddyTokenizeStart = HighResClock::now();
   inputContainer.tokenizeDeepSeekR1(vocabFile, MaxTokenLength);
+  applyDefaultDeepSeekR1Template(inputContainer);
   const auto buddyTokenizeEnd = HighResClock::now();
   const std::chrono::duration<double, std::milli> buddyTokenizeTime =
       buddyTokenizeEnd - buddyTokenizeStart;
