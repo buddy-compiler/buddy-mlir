@@ -318,9 +318,9 @@ def gen_impl_tiered(config: dict) -> str:
     logits_memref = config["cpp_types"]["logits_memref"]
     cache_sizes = _tiered_cache_sizes(config)
 
-    if kv_cpp != "float" or logits_cpp != "float":
+    if config["variant"] not in ("f32", "f16"):
         raise RuntimeError(
-            "tiered KV cache ModelSession currently supports f32 only"
+            "tiered KV cache ModelSession currently supports f32/f16 only"
         )
     if not cache_sizes:
         raise RuntimeError("tiered KV cache ModelSession requires cache_sizes")
@@ -331,6 +331,12 @@ def gen_impl_tiered(config: dict) -> str:
         f"MemRef<{w['cpp_type']}, 1> *" for w in weights
     )
     weight_addrs_internal = ", ".join(f"{w['tag']}_.get()" for w in weights)
+    weight_addrs_decode = ", ".join(
+        f"{w['tag']}_decode_.get()"
+        if w.get("decode_file")
+        else f"{w['tag']}_.get()"
+        for w in weights
+    )
 
     p(_CPP_FILE_PROLOGUE)
     p('#include "buddy/runtime/models/ModelSession.h"')
@@ -478,10 +484,10 @@ def gen_impl_tiered(config: dict) -> str:
     )
     p("  for (int k = 0; k < kvLayers; ++k) {")
     p("    for (int h = 0; h < headNum; ++h) {")
-    p("      size_t bytes = (size_t)copyLen * hiddenSize * sizeof(float);")
-    p("      float *srcPtr =")
+    p(f"      size_t bytes = (size_t)copyLen * hiddenSize * sizeof({kv_cpp});")
+    p(f"      {kv_cpp} *srcPtr =")
     p("          src.kv(k).getData() + (size_t)h * srcCacheLen * hiddenSize;")
-    p("      float *dstPtr =")
+    p(f"      {kv_cpp} *dstPtr =")
     p("          dst.kv(k).getData() + (size_t)h * dstCacheLen * hiddenSize;")
     p("      std::memcpy(dstPtr, srcPtr, bytes);")
     p("    }")
@@ -651,12 +657,16 @@ def gen_impl_tiered(config: dict) -> str:
     p("}")
     p()
     p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
-    p(f"  if (paths.size() < {len(weights)}u)")
+    load_targets = [(idx, w, f"{w['tag']}_") for idx, w in enumerate(weights)]
+    for w in weights:
+        if w.get("decode_file"):
+            load_targets.append((len(load_targets), w, f"{w['tag']}_decode_"))
+    p(f"  if (paths.size() < {len(load_targets)}u)")
     p(
-        f'    throw std::runtime_error("[BuddyRuntime] Expected {len(weights)} weight '
+        f'    throw std::runtime_error("[BuddyRuntime] Expected {len(load_targets)} weight '
         f'file(s), got " + std::to_string(paths.size()));'
     )
-    for idx, w in enumerate(weights):
+    for idx, w, member in load_targets:
         tag = w["tag"]
         cpp_type = w["cpp_type"]
         macro_suffix = (
@@ -664,14 +674,14 @@ def gen_impl_tiered(config: dict) -> str:
         )
         p("  {")
         p(f"    intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
-        p(f"    {tag}_ = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
+        p(f"    {member} = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
         p(f"    std::ifstream f(paths[{idx}], std::ios::binary);")
         p("    if (!f)")
         p(
             f'      throw std::runtime_error("[BuddyRuntime] Cannot open weights: " + paths[{idx}]);'
         )
-        p(f"    f.read(reinterpret_cast<char *>({tag}_->getData()),")
-        p(f"           sizeof({cpp_type}) * {tag}_->getSize());")
+        p(f"    f.read(reinterpret_cast<char *>({member}->getData()),")
+        p(f"           sizeof({cpp_type}) * {member}->getSize());")
         p("    if (f.fail())")
         p(
             f'      throw std::runtime_error("[BuddyRuntime] Read failed: " + paths[{idx}]);'
@@ -725,7 +735,7 @@ def gen_impl_tiered(config: dict) -> str:
     p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
     p("    a.dummy(i).getData()[0] = (long long)position_;")
     p(
-        f"  callDecodeFn(impl_->decodeFns[impl_->activeSlot], a, {weight_addrs_internal},"
+        f"  callDecodeFn(impl_->decodeFns[impl_->activeSlot], a, {weight_addrs_decode},"
     )
     p("               decodeTokenInput_.get(), cachePosition_.get());")
     p("  impl_->lastLogitsAreDecode = true;")
@@ -774,10 +784,17 @@ def gen_impl_tiered(config: dict) -> str:
     p()
     p("const float *ModelSession::logitsData(int tokenOffset) const {")
     p("  const int slot = impl_->activeSlot;")
-    p("  if (impl_->lastLogitsAreDecode)")
-    p("    return impl_->decodeAbi[slot].logits().getData();")
-    p("  return impl_->prefillAbi[slot].logits().getData() +")
-    p("         (size_t)tokenOffset * cfg_.vocabSize;")
+    p("  const auto *raw = impl_->lastLogitsAreDecode")
+    p("      ? impl_->decodeAbi[slot].logits().getData()")
+    p("      : impl_->prefillAbi[slot].logits().getData() +")
+    p("            (size_t)tokenOffset * cfg_.vocabSize;")
+    if logits_cpp == "float":
+        p("  return raw;")
+    else:
+        p("  logitsFloat_.resize(cfg_.vocabSize);")
+        p("  for (int i = 0; i < cfg_.vocabSize; ++i)")
+        p("    logitsFloat_[i] = buddy::kvcache::detail::halfToFloat(raw[i]);")
+        p("  return logitsFloat_.data();")
     p("}")
     p()
     p(
