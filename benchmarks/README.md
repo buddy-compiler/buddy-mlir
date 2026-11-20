@@ -43,3 +43,20 @@ is an F32 DeepSeek-R1 benchmark that imports the model through
 one fake-input execution of each phase.
 
 See `benchmarks/ModelBench/README.md` for details.
+
+## XtameBench
+
+`benchmarks/XtameBench` builds `linalg.matmul` for the XuanTie AME extension
+twice - once through `-lower-linalg-to-xtame` and once as scalar loops - and
+compares the instructions each program executes under QEMU, together with the
+number of AME instructions. It reports work, not time: QEMU has no timing model
+for the XuanTie core, so cycles are only meaningful when the same binaries run
+on a board.
+
+```bash
+QEMU_RISCV64=/path/to/qemu-riscv64 \
+    python3 benchmarks/XtameBench/run_xtame_bench.py
+```
+
+See `benchmarks/XtameBench/README.md` for the measurement details and the
+reference table.
