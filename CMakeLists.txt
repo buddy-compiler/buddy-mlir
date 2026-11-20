@@ -153,6 +153,9 @@ option(BUDDY_BUILD_PROTEINGLM_MODEL
 option(BUDDY_BUILD_YOLOV8_MODEL
   "Build models/yolov8 (object detection single-forward .so/.rax package)"
   OFF)
+option(BUDDY_BUILD_MMS_MODEL
+  "Build models/mms (VITS vocoder .so/.rax package)"
+  OFF)
 option(BUDDY_ENABLE_TENSTORRENT
   "Enable optional Tenstorrent/tt-mlir configuration checks for TTIR->TTNN flows"
   OFF)
