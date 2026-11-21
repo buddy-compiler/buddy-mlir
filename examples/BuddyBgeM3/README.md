@@ -2,12 +2,11 @@
 
 ## Introduction
 
-This example compiles the BGE-M3 dense embedding model (single-forward path,
-~568M params, f32) to a RAX package and optimizes it for the SpacemiT K3
-(issue #888). It uses the same self-contained build style as
-`examples/BuddyDeepSeekR1`: the x86 pipeline generates architecture-
-independent artifacts, and the K3 side builds natively with prebuilt LLVM
-and runs the final benchmark.
+This example cross-compiles the BGE-M3 dense embedding model (single-forward
+path, ~568M params, f32) to a self-contained riscv64 RAX package and
+optimizes it for the SpacemiT K3 (issue #888). The whole lowering pipeline
+lives in `CMakeLists.txt`: the build host cross-compiles the `.rax`, and the
+K3 only executes it.
 
 Optimizations live in `midend/lib/Conversion/MatMulOptimization/`:
 
@@ -22,74 +21,57 @@ Every optimization is gated by the embedding cosine gate (cos > 0.999).
 ## Directory layout
 
 ```
-├── CMakeLists.txt       # self-contained x86 build: import -> .o -> .so -> .rax
-├── README.md            # this file (issue #888 answer)
-├── env.sh               # K3 environment (all K3 scripts source it)
-├── a100_kernel.cpp      # hybrid GEMM kernel: X100 pthread pool + A100 spine-runtime
-├── build_runtime.sh     # K3: build runner/embedding plugins (once)
-├── build_seq.sh         # K3: native build of one seq variant
-├── bench.sh             # K3: benchmark, mode A (cold CLI) + mode B (steady server)
-├── bench_all.sh         # K3: serial benchmark of several seq/tag pairs
-├── cos.py               # embedding cosine gate (pure stdlib)
-├── export/              # x86: export MLIR graphs + weights for K3
-└── src/ out/ results/   # K3 workspace (generated, git-ignored)
+├── CMakeLists.txt         # cross-compile the riscv64 .rax (import → .o → .so → .rax)
+├── cmake/rvv-cross.cmake  # cross toolchain + runtime-deps packing helpers
+├── a100_kernel.cpp        # hybrid GEMM kernel: X100 pthread pool + A100 spine-runtime
+├── README.md              # this file (issue #888 answer)
+└── .gitignore             # generated artifacts + local test scripts
 ```
 
-## How to run on non-RISC-V device
+## How to run
 
-0. Prepare Python deps (`torch`, `transformers`, buddy python packages) and
-   a local HuggingFace-format BGE-M3 snapshot.
+The riscv64 `.rax` is cross-compiled on the build host; the K3 only executes
+it. A local helper `cos.py` (git-ignored) runs the embedding cosine gate.
 
-1. Configure and build:
+0. Prerequisites: Python `torch`/`transformers` + the buddy Python packages
+   on the build host, a local HuggingFace-format BGE-M3 snapshot (the
+   git-ignored `export/download_bge_m3.py` downloads it), and a riscv64 cross
+   sysroot / cross MLIR-LLVM / libomp / spine-runtime SDK.
+
+1. Cross-compile the riscv64 `.rax`:
 
 ```bash
-$ cmake -S . -B build -DBUDDY_BGEM3_EXAMPLES=ON \
+$ cmake -S . -B build \
+    -DBUDDY_BGEM3_CROSS=ON \
+    -DBUDDY_BGEM3_A100=ON \
     -DBUDDY_BGE_M3_MODEL_PATH=/path/to/bge-m3-snapshot
 $ ninja -C build bge-m3-optimized
-# output: build/examples/BuddyBgeM3/bge_m3.rax
+# output: build/examples/BuddyBgeM3/bge_m3.rax (riscv64, self-contained:
+# weights + libomp + libmlir_c_runner_utils + libspert)
 ```
 
-2. Export artifacts for K3 (`export/export_artifacts.sh` sources
-   `export/env_x86.sh` first; create it from your own paths):
+`BUDDY_BGEM3_RISCV_SYSROOT` / `BUDDY_BGEM3_RISCV_GCC_TOOLCHAIN` default to
+`~/k3-sysroot` / `~/k3-sysroot/usr`; `SPINE_RUNTIME_SDK` defaults to
+`~/spine-sdk/spine-runtime.riscv64.0.7.1`. `BUDDY_BGEM3_SPEC` selects
+`base`/`seq128`/`seq256`/`seq512`; `A100_PASS_OPTS` keeps the first matmul on
+X100 (`-bge-m3-a100-start=1`) to dodge a K3 llc miscompile.
+
+2. Run on the K3:
 
 ```bash
-$ bash examples/BuddyBgeM3/export/export_artifacts.sh 128 256 512
-$ scp -r examples/BuddyBgeM3/dist \
-    k3:~/buddy-k3/buddy-mlir/examples/BuddyBgeM3/src/
-```
-
-3. Verify on x86 (cosine gate against a saved baseline embedding):
-
-```bash
-$ build/bin/buddy-cli --model build/examples/BuddyBgeM3/bge_m3.rax \
-    --prompt "The quick brown fox jumps over the lazy dog." --no-stats \
-    > /tmp/emb_opt.txt
-$ python3 examples/BuddyBgeM3/cos.py /tmp/emb_baseline.txt /tmp/emb_opt.txt
-```
-
-## How to run on RISC-V machine (SpacemiT K3)
-
-K3 builds natively with prebuilt LLVM + buddy tools (no python/CMake/torch):
-
-```bash
-$ cd ~/buddy-k3/buddy-mlir/examples/BuddyBgeM3
-$ bash build_runtime.sh            # once
-$ bash build_seq.sh 128 baseline   # reference chain (offload OFF)
-$ bash build_seq.sh 128 exp_a100   # optimized chain + A100 offload (default)
-$ python3 cos.py results/seq128-baseline/emb.txt \
-    results/seq128-exp_a100/emb.txt
-$ bash bench.sh 128 baseline && bash bench.sh 128 exp_a100
+$ scp build/examples/BuddyBgeM3/bge_m3.rax k3:~/v2/bgem3/
+$ ssh k3 'cd ~/v2/bgem3 && ~/v2/bin/buddy-cli \
+    --model bge_m3.rax \
+    --prompt "The quick brown fox jumps over the lazy dog." --no-stats'
 ```
 
 Notes:
-- `build_seq.sh` enables the A100 pass by default; build a no-offload
-  reference package with `A100_PASS_OPTS="-bge-m3-a100-limit=0"`.
 - Kernel knobs (env): `BGE_M3_A100_DISABLE=1`, `BGE_M3_A100_NOPOOL=1`,
   `BGE_M3_A100_NOCACHE=1`, `BGE_M3_A100_TIMING=1`, `BGE_M3_A100_TS=1`,
   `BGE_M3_A100_DUMP=<n>[,<m>...]`.
 - Environment: SpacemiT K3, Bianbu 4.0.1 (kernel 6.18.3), riscv64,
   8× Spacemit X100 cores (RVV 1.0, VLEN=256) + 8× A100 intelligent cores,
-  LLVM 24.0.0git (RuyiAI riscv fork), buddy-mlir built natively in user mode.
+  LLVM 24.0.0git (RuyiAI riscv fork).
 
 ---
 
