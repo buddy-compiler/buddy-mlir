@@ -1,5 +1,6 @@
 add_subdirectory(Interface)
 add_subdirectory(Runtime)
+add_subdirectory(Tools)
 
 add_llvm_executable(buddy-kernel-contract-policy-test
   KernelContract/source-policy.cpp)
@@ -26,6 +27,7 @@ set(BUDDY_TEST_DEPENDS
   buddy-sampler-test
   buddy-perplexity-test
   buddy-text-generation-test
+  buddy-bench-utils-test
   buddy-legacy-generation-test
   buddy-serving-generation-test
   mlir-runner
