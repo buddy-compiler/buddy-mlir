@@ -35,6 +35,7 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/MemRef/Utils/MemRefUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -2622,6 +2623,89 @@ struct LinalgFillRank0Pattern : public OpRewritePattern<linalg::FillOp> {
   }
 };
 
+/// Whether finalize-memref-to-llvm copies a memref of `type` with
+/// llvm.memcpy (an identity layout, or contiguous rows of a static shape);
+/// the other copies are calls of memrefCopy, element by element.
+static bool isMemCopyContiguous(MemRefType type) {
+  return type.getLayout().isIdentity() ||
+         (type.hasStaticShape() && type.getNumElements() > 0 &&
+          memref::isStaticShapeAndContiguousRowMajor(type));
+}
+
+/// Whether the last dim of `type` has a static unit stride.
+static bool hasUnitInnerStride(MemRefType type) {
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  return type.getRank() > 0 &&
+         succeeded(type.getStridesAndOffset(strides, offset)) &&
+         strides.back() == 1;
+}
+
+/// A memref.copy that finalize-memref-to-llvm would make a call of
+/// memrefCopy (a dynamic shape or a strided layout: the copies of the masked
+/// loads and stores of Triton), the elements of which have a unit stride in
+/// the last dim on both sides: a vir.set_vl over the last dim, a vector
+/// load and store per row, the rows in loops (their sizes taken before the
+/// region). The copies with llvm.memcpy and the other layouts stay.
+struct MemRefCopyToVIRPattern : public OpRewritePattern<memref::CopyOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::CopyOp copyOp,
+                                PatternRewriter &rewriter) const override {
+    auto srcTy = dyn_cast<MemRefType>(copyOp.getSource().getType());
+    auto dstTy = dyn_cast<MemRefType>(copyOp.getTarget().getType());
+    if (!srcTy || !dstTy || srcTy.getRank() == 0 ||
+        srcTy.getRank() != dstTy.getRank() ||
+        srcTy.getElementType() != dstTy.getElementType())
+      return rewriter.notifyMatchFailure(copyOp, "expected memrefs of a rank "
+                                                 "and an element type");
+    Type elem = srcTy.getElementType();
+    bool supported = (isa<IntegerType>(elem) && !elem.isInteger(1)) ||
+                     elem.isF16() || elem.isBF16() || elem.isF32() ||
+                     elem.isF64();
+    if (!supported)
+      return rewriter.notifyMatchFailure(copyOp, "unsupported element type");
+    if (isMemCopyContiguous(srcTy) && isMemCopyContiguous(dstTy))
+      return rewriter.notifyMatchFailure(copyOp, "copied with llvm.memcpy");
+    if (!hasUnitInnerStride(srcTy) || !hasUnitInnerStride(dstTy))
+      return rewriter.notifyMatchFailure(copyOp,
+                                         "expected a unit inner stride");
+
+    Location loc = copyOp.getLoc();
+    Value src = copyOp.getSource(), dst = copyOp.getTarget();
+    int64_t rank = srcTy.getRank();
+    // the sizes, before the region (lower-vir-to-vector lowers its ops)
+    SmallVector<Value> sizes;
+    for (int64_t d = 0; d < rank; ++d)
+      sizes.push_back(dimOrConstant(rewriter, loc, src, d));
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, sizes.back());
+    auto vecTy =
+        buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elem);
+    SmallVector<Value> idx(rank, c0);
+    auto emit = [&](auto &&self, OpBuilder &b, int64_t d) -> void {
+      if (d == rank - 1) {
+        Value v =
+            buddy::vir::LoadOp::create(b, loc, vecTy, src, idx).getResult();
+        buddy::vir::StoreOp::create(b, loc, v, dst, idx);
+        return;
+      }
+      scf::ForOp::create(b, loc, c0, sizes[d], c1, ValueRange{},
+                         [&](OpBuilder &lb, Location, Value iv, ValueRange) {
+                           idx[d] = iv;
+                           self(self, lb, d + 1);
+                           scf::YieldOp::create(lb, loc);
+                         });
+    };
+    emit(emit, rewriter, 0);
+    vector::YieldOp::create(rewriter, loc);
+    rewriter.setInsertionPointAfter(setVl);
+    rewriter.eraseOp(copyOp);
+    return success();
+  }
+};
+
 struct LinalgReduceToVIRPattern : public RewritePattern {
   LinalgReduceToVIRPattern(MLIRContext *ctx)
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/3, ctx) {}
@@ -2900,6 +2984,7 @@ public:
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
     patterns.add<LinalgFillRank0Pattern>(ctx);
+    patterns.add<MemRefCopyToVIRPattern>(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
     patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
     patterns.add<LinalgConvToVIRPattern>(ctx);

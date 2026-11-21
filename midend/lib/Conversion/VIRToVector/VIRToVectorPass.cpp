@@ -2567,21 +2567,33 @@ private:
         Value vlUpbound = arith::AddIOp::create(
             b, loc, vlUpboundPat, arith::ConstantIndexOp::create(b, loc, 1));
 
-        affine::AffineForOp::create(
-            b, loc, /*lowerBound=*/ValueRange{zero},
-            rewriter.getDimIdentityMap(),
-            /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
-            vectorWid,
-            /*iterArgs=*/ValueRange{},
-            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-              //===------------------------------------------------------------===//
-              // Step 4: Convert operations inside the dynamic vector region.
-              //===------------------------------------------------------------===//
-              DenseMap<Value, Value> virSymbolTable;
-              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
-                         leadingIVs, targetVectorType, /*isTailLoop=*/false);
-              affine::AffineYieldOp::create(bb, bodyLoc);
-            });
+        // A bound computed inside a loop (the vl of a region there) is not
+        // a valid operand of an affine.for: an scf.for then.
+        if (!affine::isValidDim(vlUpbound))
+          scf::ForOp::create(
+              b, loc, zero, vlUpbound, vlStep, /*initArgs=*/ValueRange{},
+              [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+                DenseMap<Value, Value> virSymbolTable;
+                lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                           leadingIVs, targetVectorType, /*isTailLoop=*/false);
+                scf::YieldOp::create(bb, bodyLoc);
+              });
+        else
+          affine::AffineForOp::create(
+              b, loc, /*lowerBound=*/ValueRange{zero},
+              rewriter.getDimIdentityMap(),
+              /*upperBound=*/ValueRange{vlUpbound},
+              rewriter.getDimIdentityMap(), vectorWid,
+              /*iterArgs=*/ValueRange{},
+              [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+                //===------------------------------------------------------------===//
+                // Step 4: Convert operations inside the dynamic vector region.
+                //===------------------------------------------------------------===//
+                DenseMap<Value, Value> virSymbolTable;
+                lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                           leadingIVs, targetVectorType, /*isTailLoop=*/false);
+                affine::AffineYieldOp::create(bb, bodyLoc);
+              });
 
         //===----------------------------------------------------------------===//
         // Step 5: Create a tail loop to process the remaining elements.
@@ -2665,10 +2677,12 @@ private:
                    /*targetVectorType=*/Type{},
                    /*isTailLoop=*/true);
       };
-      if (cast<VectorType>(targetVectorType).isScalable()) {
+      if (cast<VectorType>(targetVectorType).isScalable() ||
+          !affine::isValidDim(tailStart) || !affine::isValidDim(vlValue)) {
         // Inside the loops over leading static dims, the scalable tailStart
         // is not a valid affine symbol (its remsi divisor is not provably
-        // nonzero), so the tail loop is an scf.for as well.
+        // nonzero), so the tail loop is an scf.for as well; so is the one
+        // of fixed vectors when its bounds are computed inside a loop.
         scf::ForOp::create(
             b, loc, tailStart, vlValue,
             arith::ConstantIndexOp::create(b, loc, 1),

@@ -5,6 +5,7 @@ add_mlir_library(LinalgToVIRPass
 	MLIRArithDialect
 	MLIRLinalgDialect
 	MLIRMemRefDialect
+	MLIRMemRefUtils
 	MLIRIR
 	MLIRAffineUtils
 	MLIRTransformUtils
