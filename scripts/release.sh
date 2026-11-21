@@ -416,12 +416,43 @@ EOF
     cp -a "${prefix}/bin/lit" "${prefix}/bin/llvm-lit"
   }
 
+  # The install is packaged and downloaded by every downstream, and most of it
+  # is developer tooling nobody links against. Drop those and strip the rest so
+  # the tarball fits in one release asset: unstripped, the riscv64 one is over
+  # GitHub's 2 GiB limit. Keep every tool the build or the tests reach for.
+  slim_llvm_install() {
+    local unnecessary=(
+      c-index-test dsymutil lli
+      clang-check clang-extdef-mapping clang-installapi clang-linker-wrapper
+      clang-nvlink-wrapper clang-refactor clang-repl clang-sycl-linker
+      llvm-c-test llvm-dwarfutil llvm-exegesis llvm-gsymutil llvm-ir2vec
+      llvm-lto llvm-lto2 llvm-reduce llvm-split
+      mlir-lsp-server mlir-query mlir-reduce mlir-rewrite mlir-runner
+      mlir-transform-opt
+    )
+    local tool
+    # Truncate instead of deleting: LLVMExports.cmake aborts at configure time
+    # when an imported tool target points at a missing file, and nothing runs
+    # these.
+    for tool in "${unnecessary[@]}"; do
+      if [ -f "${LLVM_INSTALL_DIR}/bin/${tool}" ]; then
+        : > "${LLVM_INSTALL_DIR}/bin/${tool}"
+      fi
+    done
+    find "${LLVM_INSTALL_DIR}/bin" -type f -size +0 -perm -u+x \
+      -exec strip --strip-all {} + 2>/dev/null || true
+    find "${LLVM_INSTALL_DIR}/lib" -maxdepth 1 -name "*.so*" -type f \
+      -exec strip --strip-unneeded {} + 2>/dev/null || true
+    rm -rf "${LLVM_INSTALL_DIR}/src" "${LLVM_INSTALL_DIR}/share" "${LLVM_INSTALL_DIR}/libexec"
+  }
+
   package_llvm_install() {
     LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
     LLVM_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${LLVM_VERSION_FILE}" | head -n 1)"
     LLVM_PACKAGE_VERSION="${LLVM_PACKAGE_VERSION:-unknown}"
     LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
     LLVM_TAR_TMP="${BUDDY_BUILD_DIR}/${LLVM_TAR_NAME}"
+    slim_llvm_install
     tar -C "${LLVM_INSTALL_DIR}" -czf "${LLVM_TAR_TMP}" .
     mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
   }
