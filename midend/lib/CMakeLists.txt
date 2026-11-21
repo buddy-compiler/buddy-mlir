@@ -37,6 +37,7 @@ set(LinkedLibs
   LowerRVVPass
   LowerVectorExpPass
   LinalgToVIRPass
+  PolynomialApproximateMathPass
   VIRToVectorPass
   MatMulOptimization
   BatchMatMulOptimization

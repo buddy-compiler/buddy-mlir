@@ -101,6 +101,28 @@ static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
   return strides.back() == 1;
 }
 
+// The byte address of one element, including a view's offset and strides.
+static Value elementPointer(OpBuilder &b, Location loc, Value base,
+                            ArrayRef<Value> indices) {
+  auto type = cast<MemRefType>(base.getType());
+  auto metadata = memref::ExtractStridedMetadataOp::create(b, loc, base);
+  Value linear = metadata.getOffset();
+  for (auto [index, stride] : llvm::zip(indices, metadata.getStrides()))
+    linear = arith::AddIOp::create(
+        b, loc, linear, arith::MulIOp::create(b, loc, index, stride));
+  Value byteOffset = arith::MulIOp::create(
+      b, loc, linear,
+      arith::ConstantIndexOp::create(
+          b, loc, type.getElementType().getIntOrFloatBitWidth() / 8));
+  Value address = arith::AddIOp::create(
+      b, loc, memref::ExtractAlignedPointerAsIndexOp::create(b, loc, base),
+      byteOffset);
+  Value bits = arith::IndexCastOp::create(b, loc, b.getI64Type(), address);
+  unsigned space = type.getMemorySpaceAsInt();
+  return LLVM::IntToPtrOp::create(
+      b, loc, LLVM::LLVMPointerType::get(b.getContext(), space), bits);
+}
+
 // Downstream LLVM lowering may pack vector<...xi1> memory operations, which
 // breaks round-tripping through scalar i1 loads/stores. Keep i1 memref accesses
 // scalarized even inside the vectorized loop.
@@ -127,6 +149,19 @@ static std::optional<vector::CombiningKind> combiningKindOf(StringRef kind) {
   if (kind == "maxnum")
     return vector::CombiningKind::MAXNUMF;
   return vector::symbolizeCombiningKind(kind);
+}
+
+/// The reductions the active-length (VP) lowering handles: floating-point add
+/// (ordered, or reassociable) and maxnum. A region with any other reduction
+/// keeps the fixed-VL lowering with its halving tail.
+static bool isAVLReduction(vir::ReduceOp op) {
+  auto kind = op->getAttrOfType<StringAttr>("kind");
+  if (!kind || (kind.getValue() != "add" && kind.getValue() != "maxnum"))
+    return false;
+  Type elem = op.getAcc().getType();
+  if (auto shaped = dyn_cast<ShapedType>(elem))
+    elem = shaped.getElementType();
+  return isa<FloatType>(elem);
 }
 
 /// The reduction of `vec` into `acc`. vector.reduction takes vector<[1]xT>
@@ -798,11 +833,13 @@ class VIRSetVLLowering : public ConvertOpToLLVMPattern<vir::SetVLOp> {
 public:
   VIRSetVLLowering(LLVMTypeConverter &converter, bool useScalable,
                    int vectorWidth, bool verbose, bool useCustomVecWid,
-                   int rvvVlen, bool rvvVlenExact, bool zvfbfmin)
+                   int rvvVlen, bool rvvVlenExact, bool zvfbfmin,
+                   bool useAVLLoop)
       : ConvertOpToLLVMPattern<vir::SetVLOp>(converter),
         useScalable(useScalable), vectorWidth(vectorWidth), verbose(verbose),
         useCustomVecWid(useCustomVecWid), rvvVlen(rvvVlen),
-        rvvVlenExact(rvvVlenExact), zvfbfmin(zvfbfmin) {}
+        rvvVlenExact(rvvVlenExact), zvfbfmin(zvfbfmin), useAVLLoop(useAVLLoop) {
+  }
 
 private:
   bool useScalable;
@@ -816,6 +853,7 @@ private:
   bool rvvVlenExact;
   // the target has Zvfbfmin (rvv-mattr): RVV holds bf16 vectors
   bool zvfbfmin;
+  bool useAVLLoop;
   // set when lowerBlock meets an op it does not lower
   mutable bool unsupportedOp = false;
 
@@ -856,7 +894,7 @@ private:
   void lowerBlock(OpBuilder &builder, Location loc, Block *block,
                   DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
                   ArrayRef<Value> leadingIVs, Type targetVectorType,
-                  bool isTailLoop) const {
+                  bool isTailLoop, Value activeLength = {}) const {
     // find mapped local Value from virSymbolTable or global Value
     auto findValue = [&virSymbolTable](Value srcValue) {
       if (virSymbolTable.contains(srcValue)) {
@@ -937,6 +975,12 @@ private:
         virSymbolTable[oldResult] = newResult;
     };
 
+    auto activeMask = [&](VectorType type) {
+      return broadcastTo(
+          builder, loc, type.clone(builder.getI1Type()),
+          arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true)));
+    };
+
     for (Operation &innerOp : block->without_terminator()) {
       llvm::TypeSwitch<Operation *>(&innerOp)
           .Case<memref::ExpandShapeOp, memref::SubViewOp, memref::TransposeOp>(
@@ -954,6 +998,13 @@ private:
               auto vecTyOr = deriveVectorTypeFor(op.getResult().getType());
               if (failed(vecTyOr)) {
                 op.emitError("failed to derive vector type for vir.load");
+                return;
+              }
+              if (activeLength) {
+                virSymbolTable[op.getResult()] = LLVM::VPLoadOp::create(
+                    builder, loc, *vecTyOr,
+                    elementPointer(builder, loc, base, destIndices),
+                    activeMask(*vecTyOr), activeLength);
                 return;
               }
               if (shouldScalarizeI1VectorMemoryOp(*vecTyOr)) {
@@ -994,6 +1045,14 @@ private:
               memref::StoreOp::create(builder, loc, valueToStore, base,
                                       destIndices);
             } else {
+              if (activeLength) {
+                auto type = cast<VectorType>(valueToStore.getType());
+                LLVM::VPStoreOp::create(
+                    builder, loc, valueToStore,
+                    elementPointer(builder, loc, base, destIndices),
+                    activeMask(type), activeLength);
+                return;
+              }
               if (auto vecTy = dyn_cast<VectorType>(valueToStore.getType());
                   shouldScalarizeI1VectorMemoryOp(vecTy)) {
                 buildScalarizedI1VectorStore(builder, loc, valueToStore, base,
@@ -1096,6 +1155,34 @@ private:
             auto vecTy = dyn_cast<VectorType>(input.getType());
             if (!vecTy) {
               op.emitError("expected vector input for non-tail vir.reduce");
+              return;
+            }
+
+            if (activeLength) {
+              // emitVectorAndTail only takes the AVL path for floating-point
+              // add and maxnum reductions (isAVLReduction).
+              if (!isAVLReduction(op)) {
+                op.emitError("vir.reduce kind ")
+                    << kind << " has no active-length lowering";
+                return;
+              }
+              Value mask = activeMask(vecTy);
+              if (kind == "add" && op.getReassoc()) {
+                auto reduction = LLVM::CallIntrinsicOp::create(
+                    builder, loc, acc.getType(),
+                    builder.getStringAttr("llvm.vp.reduce.fadd"),
+                    ValueRange{acc, input, mask, activeLength});
+                reduction.setFastmathFlags(LLVM::FastmathFlags::reassoc);
+                virSymbolTable[op.getResult()] = reduction.getResult(0);
+                return;
+              }
+              virSymbolTable[op.getResult()] =
+                  kind == "add" ? Value(LLVM::VPReduceFAddOp::create(
+                                      builder, loc, acc.getType(), acc, input,
+                                      mask, activeLength))
+                                : Value(LLVM::VPReduceFMaxOp::create(
+                                      builder, loc, acc.getType(), acc, input,
+                                      mask, activeLength));
               return;
             }
 
@@ -1205,7 +1292,7 @@ private:
                   // Recursive reduction of blocks inside the loop body
                   lowerBlock(b, bodyLoc, op.getBody(), innerSymbolTable,
                              mainLoopIV, leadingIVs, targetVectorType,
-                             isTailLoop);
+                             isTailLoop, activeLength);
 
                   // Process the termination symbol (affine. field) of the loop
                   // body
@@ -1251,7 +1338,7 @@ private:
                     innerSymbolTable[arg] = newArg;
                   lowerBlock(b, bodyLoc, op.getBody(), innerSymbolTable,
                              mainLoopIV, leadingIVs, targetVectorType,
-                             isTailLoop);
+                             isTailLoop, activeLength);
                   SmallVector<Value> yieldOperands;
                   for (Value operand :
                        op.getBody()->getTerminator()->getOperands()) {
@@ -1469,24 +1556,48 @@ private:
           .Case<arith::DivSIOp>([&](arith::DivSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
+            if (activeLength && isa<VectorType>(lhs.getType())) {
+              virSymbolTable[op.getResult()] = LLVM::VPSDivOp::create(
+                  builder, loc, lhs.getType(), lhs, rhs,
+                  activeMask(cast<VectorType>(lhs.getType())), activeLength);
+              return;
+            }
             auto newOp = arith::DivSIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::DivUIOp>([&](arith::DivUIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
+            if (activeLength && isa<VectorType>(lhs.getType())) {
+              virSymbolTable[op.getResult()] = LLVM::VPUDivOp::create(
+                  builder, loc, lhs.getType(), lhs, rhs,
+                  activeMask(cast<VectorType>(lhs.getType())), activeLength);
+              return;
+            }
             auto newOp = arith::DivUIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::RemSIOp>([&](arith::RemSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
+            if (activeLength && isa<VectorType>(lhs.getType())) {
+              virSymbolTable[op.getResult()] = LLVM::VPSRemOp::create(
+                  builder, loc, lhs.getType(), lhs, rhs,
+                  activeMask(cast<VectorType>(lhs.getType())), activeLength);
+              return;
+            }
             auto newOp = arith::RemSIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::RemUIOp>([&](arith::RemUIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
+            if (activeLength && isa<VectorType>(lhs.getType())) {
+              virSymbolTable[op.getResult()] = LLVM::VPURemOp::create(
+                  builder, loc, lhs.getType(), lhs, rhs,
+                  activeMask(cast<VectorType>(lhs.getType())), activeLength);
+              return;
+            }
             auto newOp = arith::RemUIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
@@ -2542,10 +2653,92 @@ private:
     // !vir.vec<4x?xf32>), we materialize explicit outer loops for those dims
     // and lower the region body per-slice. The innermost loop still
     // vectorizes along the last (dynamic) dimension.
+    bool hasI1Memory = false;
+    region.walk([&](Operation *inner) {
+      Value base;
+      if (auto load = dyn_cast<vir::LoadOp>(inner))
+        base = load.getBase();
+      if (auto store = dyn_cast<vir::StoreOp>(inner))
+        base = store.getBase();
+      if (base &&
+          cast<MemRefType>(base.getType()).getElementType().isInteger(1))
+        hasI1Memory = true;
+    });
     auto emitVectorAndTail = [&](OpBuilder &b, ArrayRef<Value> leadingIVs) {
       Value vlValue = op.getVl();
       Value vlStep = arith::ConstantIndexOp::create(b, loc, vectorWid);
       Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+      auto vecTy = cast<VectorType>(targetVectorType);
+      std::optional<int64_t> constVl = getConstantIntValue(vlValue);
+
+      // A constant region that fits in one register group at the target's
+      // minimum VLEN needs neither strip mining nor a scalar tail. Fixed
+      // vectors carry the exact AVL through vector-to-LLVM lowering and stay
+      // correct when executed with a larger hardware VLEN as well.
+      // Fixed i1 memory vectors are scalarized lane by lane; preserve their
+      // scalable byte-vector lowering instead of unrolling those accesses.
+      if (vecTy.isScalable() && rvvVlenExact && !hasI1Memory && constVl &&
+          *constVl > 0 && *constVl <= int64_t(vectorWid) * (rvvVlen / 64)) {
+        DenseMap<Value, Value> virSymbolTable;
+        lowerBlock(b, loc, &region.front(), virSymbolTable, zero, leadingIVs,
+                   VectorType::get({*constVl}, vecTy.getElementType()),
+                   /*isTailLoop=*/false);
+        return;
+      }
+      // VP memory and reductions carry the exact active length through LLVM.
+      // Keep the existing lowering for packed booleans, bf16 and strided
+      // accesses until they have an equivalent VP representation here.
+      bool canUseAVL =
+          useAVLLoop && cast<VectorType>(targetVectorType).isScalable();
+      region.walk([&](Operation *inner) {
+        if (auto reduce = dyn_cast<vir::ReduceOp>(inner);
+            reduce && !isAVLReduction(reduce))
+          canUseAVL = false;
+        for (Type type : inner->getResultTypes()) {
+          if (auto dyn = dyn_cast<vir::DynamicVectorType>(type))
+            if (dyn.getElementType().isBF16() || dyn.getElementType().isIndex())
+              canUseAVL = false;
+        }
+        Value base;
+        if (auto load = dyn_cast<vir::LoadOp>(inner))
+          base = load.getBase();
+        if (auto store = dyn_cast<vir::StoreOp>(inner))
+          base = store.getBase();
+        if (base) {
+          auto type = cast<MemRefType>(base.getType());
+          if (!hasStaticallyUnitStrideInVectorizedDim(base) ||
+              type.getElementType().isIndex() ||
+              type.getElementType().isInteger(1) ||
+              type.getElementType().isBF16() ||
+              (type.getMemorySpace() &&
+               !isa<IntegerAttr>(type.getMemorySpace())))
+            canUseAVL = false;
+        }
+      });
+      // Bound the complete AVL loop to at most two iterations at the
+      // target VLEN. The accepted one-group constant path above stays first.
+      // Longer/unknown regions retain the unpredicated, fixed-VL main loop:
+      // VP arithmetic can prevent strength reduction and dead-copy removal.
+      bool useShortAVL = canUseAVL && rvvVlenExact && constVl && *constVl > 0 &&
+                         *constVl <= 2 * int64_t(vectorWid) * (rvvVlen / 64);
+      if (useShortAVL) {
+        Value step = arith::MulIOp::create(
+            b, loc, vlStep, vector::VectorScaleOp::create(b, loc));
+        scf::ForOp::create(
+            b, loc, zero, vlValue, step, ValueRange{},
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              Value remaining = arith::SubIOp::create(bb, bodyLoc, vlValue, iv);
+              Value active =
+                  arith::MinUIOp::create(bb, bodyLoc, remaining, step);
+              Value evl = arith::IndexCastOp::create(bb, bodyLoc,
+                                                     bb.getI32Type(), active);
+              DenseMap<Value, Value> virSymbolTable;
+              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                         leadingIVs, targetVectorType, false, evl);
+              scf::YieldOp::create(bb, bodyLoc);
+            });
+        return;
+      }
       Value tailStart;
       if (cast<VectorType>(targetVectorType).isScalable()) {
         // A scalable vector has vectorWid * vscale lanes: the step, and with
@@ -2590,6 +2783,26 @@ private:
         tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
       }
 
+      if (canUseAVL) {
+        // tailStart is a multiple of the runtime vector step; the remainder
+        // fits one vector. Skip an empty tail and preserve increasing lane
+        // order for ordered reductions. EVL masks all memory and reductions.
+        Value remaining = arith::SubIOp::create(b, loc, vlValue, tailStart);
+        Value hasTail = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sgt,
+                                              remaining, zero);
+        scf::IfOp::create(
+            b, loc, hasTail, [&](OpBuilder &bb, Location bodyLoc) {
+              Value evl = arith::IndexCastOp::create(
+                  bb, bodyLoc, bb.getI32Type(), remaining);
+              DenseMap<Value, Value> virSymbolTable;
+              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable,
+                         tailStart, leadingIVs, targetVectorType,
+                         /*isTailLoop=*/false, evl);
+              scf::YieldOp::create(bb, bodyLoc);
+            });
+        return;
+      }
+
       // The lanes past the main loop, fewer than its step, first in vectors
       // of half its width, then a quarter, ...: each at most once, in the
       // order of the lanes, with no mask; the lanes left go to the scalar
@@ -2607,9 +2820,7 @@ private:
       // instructions and cores may have another best size, for a target
       // cost model to give.
       {
-        auto vecTy = cast<VectorType>(targetVectorType);
         bool scalable = vecTy.isScalable();
-        std::optional<int64_t> constVl = getConstantIntValue(vlValue);
         Type elem = vecTy.getElementType();
         int64_t elemBits = elem.isIndex()
                                ? getTypeConverter()->getIndexTypeBitwidth()
@@ -2748,9 +2959,9 @@ void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
                                            bool useScalable, int vectorWidth,
                                            bool verbose, bool useCustomVecWid,
                                            int rvvVlen, bool rvvVlenExact,
-                                           bool zvfbfmin) {
+                                           bool zvfbfmin, bool useAVLLoop) {
   // clang-format off
-  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact, zvfbfmin);
+  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact, zvfbfmin, useAVLLoop);
   // clang-format on
 }
 
@@ -3449,6 +3660,12 @@ public:
       llvm::cl::desc("Use scalable vectors instead of fixed vectors"),
       llvm::cl::init(DEFAULT_USE_SCALABLE)};
 
+  Option<bool> useAVLLoop{
+      *this, "use-avl-loop",
+      llvm::cl::desc(
+          "Use a fixed-VL main loop and one AVL tail; short constants use AVL"),
+      llvm::cl::init(false)};
+
   Option<int> vectorWidth{
       *this, "vector-width",
       llvm::cl::desc("Vector width for fixed/scalable vectors (default: 4)"),
@@ -3569,7 +3786,7 @@ void VIRToVectorPass::runOnOperation() {
                        converter.getIndexTypeBitwidth(), zvfbfmin);
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
                                         vectorWidth, verbose, useCustomVecWid,
-                                        vlen, exactVlen, zvfbfmin);
+                                        vlen, exactVlen, zvfbfmin, useAVLLoop);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     return signalPassFailure();
   // a vir.set_vl left (its lowering reported why) fails the pass
