@@ -114,7 +114,7 @@ for L in "${SEQS[@]}"; do
   "$PY" models/bge_m3/codegen/gen_bge_m3_manifest.py \
     --spec "models/bge_m3/specs/seq$L.json" -o "$DST/generated/bge_m3.mlir" \
     --runner-library bge_m3_runner.so \
-    --embedding-library bge_m3_embedding.so
+    --model-library bge_m3_embedding.so
 
   cp -f "models/bge_m3/specs/seq$L.json" "$DST/"
 

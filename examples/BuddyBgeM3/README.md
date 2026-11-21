@@ -129,6 +129,15 @@ The RAX baseline already reaches/exceeds the native reference at seq 128/256.
 - **Bottleneck ranking**: scalar-strided memory streams + un-parallelized
   sections > weak matmul vectorization > weight transpose copies (4KB
   strided, L3-bound) > OpenMP fork/join overhead (5197 parallel regions).
+- **Op-to-item mapping**: the 144 `linalg.matmul` carry the linear layers
+  (Q/K/V, attention output, FFN); the 48 attention batch matmuls carry
+  Q@K^T and scores@V; the 1063 `linalg.generic` carry softmax, the head
+  reshapes and the elementwise FFN; the embedding lookup is a gather from
+  the token-embedding table; pooling is the CLS slice (first token of
+  `last_hidden_state`); L2 normalization runs in the runner after the
+  forward; the 240 `linalg.transpose` + 302M transposed weight elements
+  cover layout/memory movement; the 5197 OpenMP regions are the runtime
+  overhead.
 
 ### 4. Optimizations (before/after)
 
@@ -153,11 +162,18 @@ Positive results:
 
 End-to-end on K3 (steady-state median, f32):
 
-| seq | RAX before (ms) | optimized chain (ms) | + A100 (ms) | total gain |
+| seq | RAX before (ms) | RVV-only (ms) | + A100 (ms) | total gain |
 |---:|---:|---:|---:|---:|
-| 128 | 19926.6 | 18831.43 | **8154.37** | **-59.1%** |
-| 256 | 39573 | 37231.74 | **14679.94** | **-62.9%** |
-| 512 | 115658.7 | 35661.71 | **32997.34** | **-71.5%** |
+| 128 | 19926.6 | 18071 | **8187** | **-58.9%** |
+| 256 | 39573 | 35934 | **15527** | **-60.8%** |
+| 512 | 115658.7 | 102942 | **34141** | **-70.5%** |
+
+All RAX numbers are re-measured from the CMake cross-compiled .rax
+(host LLVM 24 + board sysroot). The +A100 column matches the native A100
+results (8187 / 15527 / 34141 vs 8154 / 14680 / 32997 ms); the RVV-only
+column matches the native seq128/256 (18071 / 35934 vs 18831 / 37232 ms)
+but is ~3x slower at seq512 (102942 vs 35662 ms), which points at the
+host LLVM 24 llc for the large subgraph rather than the passes.
 
 A100 design notes:
 - IME direct link is not available; the GEMM runs on the A100 cores through
@@ -179,13 +195,23 @@ A100 design notes:
 
 | seq | RAX before (ms) | RAX after (ms) | HF reference (ms) | after/HF |
 |---:|---:|---:|---:|---:|
-| 128 | 19926.6 | **8154.37** | 24681.63 | **0.33x** |
-| 256 | 39573 | **14679.94** | 52744.08 | **0.28x** |
-| 512 | 115658.7 | **32997.34** | 110122.98 | **0.30x** |
+| 128 | 19926.6 | **8187** | 24681.63 | **0.33x** |
+| 256 | 39573 | **15527** | 52744.08 | **0.29x** |
+| 512 | 115658.7 | **34141** | 110122.98 | **0.31x** |
 
 ### 6. Precision & correctness
 
-- Precision: f32 throughout (baseline and optimized). No quantization used.
+- Precision: f32 throughout (baseline and optimized). No quantization used;
+  the K3's A100 GEMM kernels accumulate in f32, so the A100 path keeps the
+  same precision as the RVV path (cos = 1.000000000).
+- Quantization is out of scope for this PR. The generic weight-only
+  INT8/INT4 graph passes (`frontend/Python/graph/transform/quantization`)
+  are not wired into the BGE-M3 importer, and the LLM-only `k3_w4` int4
+  kernels do not apply to this BERT-style encoder. Adding an INT8/INT4
+  BGE-M3 path (with a cos gate) is tracked as follow-up work.
+- Batch: single request (batch = 1). The BGE-M3 dense path in this example
+  runs one sequence per forward, so throughput is reported as sequences/s
+  and tokens/s (§1) rather than batch throughput.
 - Correctness gate: cosine similarity of the 1024-dim embedding against the
   baseline, required > 0.999 after every major optimization. All final
   packages pass at cos = 1.000000000.

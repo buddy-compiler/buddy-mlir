@@ -430,9 +430,8 @@ const float *get_bt(const float *B, uint32_t N, uint32_t K) {
 
 // --- strided GEMV fallback (non-contiguous operands) -----------------------
 void gemv_rows(const float *A, const float *B, float *C, uint32_t m0,
-               uint32_t m1, uint32_t N, uint32_t K, int64_t a_s0,
-               int64_t a_s1, int64_t b_s0, int64_t b_s1, int64_t c_s0,
-               int64_t c_s1) {
+               uint32_t m1, uint32_t N, uint32_t K, int64_t a_s0, int64_t a_s1,
+               int64_t b_s0, int64_t b_s1, int64_t c_s0, int64_t c_s1) {
   constexpr uint32_t VW = 32;
   for (uint32_t m = m0; m < m1; ++m) {
     for (uint32_t n0 = 0; n0 < N; n0 += VW) {
@@ -507,8 +506,17 @@ void launch_gemm(const Memref2DF32 *A, const Memref2DF32 *B,
       A->strides[1] == 1 && B->strides[1] == 1 && C->strides[1] == 1;
   if (!contiguous) {
     const double t0 = g_timing.enabled ? now_s() : 0.0;
-    GemvCtx gctx{a_ptr, b_ptr, c_ptr, N, K, A->strides[0], A->strides[1],
-                 B->strides[0], B->strides[1], C->strides[0], C->strides[1]};
+    GemvCtx gctx{a_ptr,
+                 b_ptr,
+                 c_ptr,
+                 N,
+                 K,
+                 A->strides[0],
+                 A->strides[1],
+                 B->strides[0],
+                 B->strides[1],
+                 C->strides[0],
+                 C->strides[1]};
     pool_for(M, gemv_one_row, &gctx);
     if (g_timing.enabled) {
       g_timing.calls++;
@@ -521,8 +529,8 @@ void launch_gemm(const Memref2DF32 *A, const Memref2DF32 *B,
   if (!bt) {
     // Bt cache exhausted: plain GEMV on X100.
     const double t0 = g_timing.enabled ? now_s() : 0.0;
-    GemvCtx gctx{a_ptr, b_ptr, c_ptr, N, K, (int64_t)K, 1, (int64_t)N, 1,
-                 (int64_t)N, 1};
+    GemvCtx gctx{a_ptr, b_ptr,      c_ptr, N,          K, (int64_t)K,
+                 1,     (int64_t)N, 1,     (int64_t)N, 1};
     pool_for(M, gemv_one_row, &gctx);
     if (g_timing.enabled) {
       g_timing.calls++;
@@ -539,8 +547,12 @@ void launch_gemm(const Memref2DF32 *A, const Memref2DF32 *B,
   const uint32_t x100Rows = M - a100Rows;
   spert::Future f;
   if (a100Rows > 0) {
-    DotArgs gA{a_ptr + (size_t)x100Rows * K, bt, c_ptr + (size_t)x100Rows * N,
-               a100Rows, N, K};
+    DotArgs gA{a_ptr + (size_t)x100Rows * K,
+               bt,
+               c_ptr + (size_t)x100Rows * N,
+               a100Rows,
+               N,
+               K};
     const uint32_t tiles =
         (stream->core_count() > a100Rows) ? a100Rows : stream->core_count();
     f = stream->launch(spert::Grid(tiles), a100_dot_tile, gA);

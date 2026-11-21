@@ -38,7 +38,9 @@
 # Reuse the BGE-M3 importer / manifest generator / runner sources from
 # models/bge_m3; only the lowering pipeline differs.
 set(BGE_M3_SRC "${CMAKE_SOURCE_DIR}/models/bge_m3")
-set(BGE_M3_SPEC "${BGE_M3_SRC}/specs/base.json")
+set(BUDDY_BGEM3_SPEC "base.json" CACHE STRING
+    "BGE-M3 spec under models/bge_m3/specs (base.json, seq128.json, ...)")
+set(BGE_M3_SPEC "${BGE_M3_SRC}/specs/${BUDDY_BGEM3_SPEC}")
 set(BGE_M3_PY_PKG_ROOT "${CMAKE_BINARY_DIR}/python_packages")
 set(BGE_M3_IMPORT_PYTHONPATH
     "${BGE_M3_PY_PKG_ROOT}:$ENV{PYTHONPATH}")
@@ -52,14 +54,69 @@ if(NOT Python3_EXECUTABLE)
 endif()
 
 # ── Target platform: llc attributes / link toolchain ─────────────────────
-if(IS_RVV_CROSSCOMPILE)
-  message(WARNING
-    "[bge-m3-optimized] RVV cross-compile is handled by build_seq.sh; "
-    "this target only supports the native toolchain.")
+if(BUDDY_BGEM3_CROSS)
+  # Cross-compile to riscv64: llc emits RISC-V code; the link and the plugins
+  # use the host clang++ with --target=riscv64 and the riscv64 runtime libs.
+  set(BGE_M3_LLC_ATTRS -march=riscv64 -mattr=+m,+d,+v -mtriple=riscv64-unknown-linux-gnu)
+  set(BUDDY_BGEM3_RISCV_SYSROOT "$ENV{HOME}/k3-sysroot" CACHE PATH
+    "riscv64 sysroot (glibc matching the board, for the A100/libSpert link)")
+  set(BUDDY_BGEM3_RISCV_GCC_TOOLCHAIN "$ENV{HOME}/k3-sysroot/usr" CACHE PATH
+    "riscv64 gcc toolchain root (lib/gcc/... inside)")
+  # The apt cross GCC compiles the system flatbuffers header that clang 24
+  # rejects (deleted vector_downward copy assignment); it auto-detects the
+  # Debian multiarch sysroot (glibc 2.35), matching the cross MLIR libs.
+  set(BGE_M3_CROSS_CXX "riscv64-linux-gnu-g++")
+  set(BGE_M3_CROSS_OPTS)
 elseif(HAVE_LOCAL_RVV)
   set(BGE_M3_LLC_ATTRS -mcpu=native -mattr=+m,+d,+v)
 else()
   set(BGE_M3_LLC_ATTRS -mcpu=native)
+endif()
+
+set(BGE_M3_LINK_CXX "${CMAKE_CXX_COMPILER}")
+set(BGE_M3_LINK_OPTS)
+if(BUDDY_BGEM3_CROSS)
+  # The model .so links with the host clang++ against the board sysroot
+  # (glibc 2.43), which libSpert needs; the plugins above use the apt cross
+  # GCC because it compiles the system flatbuffers header clang 24 rejects.
+  set(BGE_M3_LINK_CXX "${CMAKE_BINARY_DIR}/../llvm/build/bin/clang++")
+  set(BGE_M3_LINK_OPTS
+    --target=riscv64-linux-gnu
+    "--sysroot=${BUDDY_BGEM3_RISCV_SYSROOT}"
+    "--gcc-toolchain=${BUDDY_BGEM3_RISCV_GCC_TOOLCHAIN}")
+endif()
+
+option(BUDDY_BGEM3_A100 "Offload BGE-M3 matmuls to the A100 cores via spine-runtime" OFF)
+set(SPINE_RUNTIME_SDK "$ENV{HOME}/spine-sdk/spine-runtime.riscv64.0.7.1" CACHE PATH
+  "spine-runtime SDK (include/spert.hpp, lib/libspert.so)")
+set(A100_PASS_OPTS "-bge-m3-a100-start=1" CACHE STRING
+  "Options for -bge-m3-matmul-a100 (leave the first matmul on X100 to dodge a K3 llc miscompile)")
+if(BUDDY_BGEM3_A100)
+  set(BGE_M3_A100_PASS -bge-m3-matmul-a100 ${A100_PASS_OPTS})
+else()
+  set(BGE_M3_A100_PASS)
+endif()
+
+# A100 offload kernel object + link libs (cross only). Defined before the
+# model .so link, which consumes BGE_M3_A100_OBJ / BGE_M3_A100_LIBS.
+if(BUDDY_BGEM3_A100 AND BUDDY_BGEM3_CROSS)
+  set(_bgem3_a100_obj "${CMAKE_CURRENT_BINARY_DIR}/rv64/a100_kernel.o")
+  add_custom_command(
+    OUTPUT "${_bgem3_a100_obj}"
+    COMMAND "${BGE_M3_LINK_CXX}" ${BGE_M3_LINK_OPTS}
+            -std=c++17 -O3 -fPIC -march=rv64gcv
+            "-I${SPINE_RUNTIME_SDK}/include"
+            -MD -MF "${_bgem3_a100_obj}.d"
+            -c "${CMAKE_CURRENT_SOURCE_DIR}/a100_kernel.cpp" -o "${_bgem3_a100_obj}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/a100_kernel.cpp"
+    DEPFILE "${_bgem3_a100_obj}.d"
+    COMMENT "[bge-m3-optimized] riscv64: compiling a100_kernel"
+    VERBATIM)
+  set(BGE_M3_A100_OBJ "${_bgem3_a100_obj}")
+  set(BGE_M3_A100_LIBS "-L${SPINE_RUNTIME_SDK}/lib" -lspert)
+else()
+  set(BGE_M3_A100_OBJ)
+  set(BGE_M3_A100_LIBS)
 endif()
 
 # ── Stage 1: import (forward.mlir / subgraph0.mlir / arg0.data) ──────────
@@ -70,12 +127,13 @@ add_custom_command(
     ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
   COMMAND ${CMAKE_COMMAND} -E env
           "PYTHONPATH=${BGE_M3_IMPORT_PYTHONPATH}"
+          "BUDDY_LOCAL_MODEL_PATH=${BUDDY_BGE_M3_MODEL_PATH}"
           ${Python3_EXECUTABLE}
-          "${BGE_M3_SRC}/codegen/import-bge-m3.py"
+          "${BGE_M3_SRC}/codegen/import_bge_m3.py"
           --spec "${BGE_M3_SPEC}"
           --output-dir "${CMAKE_CURRENT_BINARY_DIR}"
   DEPENDS
-    "${BGE_M3_SRC}/codegen/import-bge-m3.py"
+    "${BGE_M3_SRC}/codegen/import_bge_m3.py"
     "${BGE_M3_SPEC}"
   COMMENT "[bge-m3-optimized] Stage 1: importing BGE-M3 -> MLIR + weights"
   VERBATIM
@@ -131,6 +189,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            ${BGE_M3_A100_PASS}
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -bge-m3-batchmatmul-transpose-b-vec=vector-size=64
@@ -175,7 +234,19 @@ add_custom_command(
 # resolves it even though only the model .so is embedded.
 set(BGE_M3_OMP_LINK_ARGS)
 set(BGE_M3_OMP_RPATH_ARGS)
-if(BUDDY_OPENMP_RUNTIME_LIBRARY)
+set(BGE_M3_RUNNER_LINK -lmlir_c_runner_utils)
+if(BUDDY_BGEM3_CROSS)
+  if(NOT RISCV_OMP_SHARED)
+    message(FATAL_ERROR
+      "BUDDY_BGEM3_CROSS=ON requires RISCV_OMP_SHARED (target libomp).")
+  endif()
+  if(NOT RISCV_MLIR_C_RUNNER_UTILS)
+    message(FATAL_ERROR
+      "BUDDY_BGEM3_CROSS=ON requires RISCV_MLIR_C_RUNNER_UTILS.")
+  endif()
+  list(APPEND BGE_M3_OMP_LINK_ARGS "${RISCV_OMP_SHARED}")
+  set(BGE_M3_RUNNER_LINK "${RISCV_MLIR_C_RUNNER_UTILS}")
+elseif(BUDDY_OPENMP_RUNTIME_LIBRARY)
   list(APPEND BGE_M3_OMP_LINK_ARGS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
   get_filename_component(_BGE_M3_OMP_DIR
     "${BUDDY_OPENMP_RUNTIME_LIBRARY}" DIRECTORY)
@@ -188,22 +259,25 @@ endif()
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/bge_m3_model.so
-  COMMAND ${CMAKE_CXX_COMPILER}
+  COMMAND ${BGE_M3_LINK_CXX} ${BGE_M3_LINK_OPTS}
             -shared -fPIC
             -Wl,-soname,bge_m3_model.so
             -Wl,--allow-multiple-definition
             -o ${CMAKE_CURRENT_BINARY_DIR}/bge_m3_model.so
             ${CMAKE_CURRENT_BINARY_DIR}/forward.o
             ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+            ${BGE_M3_A100_OBJ}
             -L${LLVM_LIBRARY_DIR}
             ${BGE_M3_OMP_LINK_ARGS}
-            -lmlir_c_runner_utils
+            ${BGE_M3_RUNNER_LINK}
+            ${BGE_M3_A100_LIBS}
             ${BGE_M3_OMP_RPATH_ARGS}
             "-Wl,-rpath,${LLVM_LIBRARY_DIR}"
             -Wl,-rpath,'$ORIGIN' -lm
   DEPENDS
     ${CMAKE_CURRENT_BINARY_DIR}/forward.o
     ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+    ${BGE_M3_A100_OBJ}
   COMMENT "[bge-m3-optimized] Stage 3: linking bge_m3_model.so"
   VERBATIM
 )
@@ -246,6 +320,45 @@ set_target_properties(bge_m3_embedding_opt PROPERTIES
 target_compile_features(bge_m3_embedding_opt PRIVATE cxx_std_17)
 target_link_libraries(bge_m3_embedding_opt PRIVATE bge_m3_runner_opt_core)
 
+# Cross-compiled plugins replace the native ones when BUDDY_BGEM3_CROSS.
+if(BUDDY_BGEM3_CROSS)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rvv-cross.cmake)
+  set_target_properties(bge_m3_runner_opt bge_m3_embedding_opt PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/host"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/host")
+  set(BGE_M3_PLUGIN_DEPS ${BGE_M3_CROSS_PLUGIN_FILES})
+  # Pack the riscv64 runtime deps (libomp + libmlir*) into the .rax so the
+  # dlopen'ed model .so resolves them without an extra LD_LIBRARY_PATH.
+  file(GLOB _bgem3_mlir_deps
+    "${RISCV_LLVM_BUILD_DIR}/lib/libmlir*${CMAKE_SHARED_LIBRARY_SUFFIX}*")
+  set(BGE_M3_RUNTIME_DEPS ${_bgem3_mlir_deps} "${RISCV_OMP_SHARED}")
+  if(BUDDY_BGEM3_A100)
+    file(GLOB _bgem3_spert_deps "${SPINE_RUNTIME_SDK}/lib/libspert.so*")
+    list(APPEND BGE_M3_RUNTIME_DEPS ${_bgem3_spert_deps})
+  endif()
+  set(BGE_M3_DEP_SHARED_LIB_ARGS)
+  set(BGE_M3_RUNTIME_DEP_FILES)
+  # buddy-cli dlopens the deps in manifest order with RTLD_GLOBAL, so each
+  # library must follow the libraries its DT_NEEDED entries name.
+  _buddy_order_runtime_deps(_bgem3_ordered_deps ${BGE_M3_RUNTIME_DEPS})
+  foreach(_lib ${_bgem3_ordered_deps})
+    get_filename_component(_name "${_lib}" NAME)
+    add_custom_command(
+      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${_name}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "${_lib}" "${CMAKE_CURRENT_BINARY_DIR}/${_name}"
+      DEPENDS "${_lib}"
+      COMMENT "[bge-m3-optimized] Copying runtime dep ${_name}"
+      VERBATIM)
+    list(APPEND BGE_M3_DEP_SHARED_LIB_ARGS --dep-shared-lib "file:${_name}")
+    list(APPEND BGE_M3_RUNTIME_DEP_FILES "${CMAKE_CURRENT_BINARY_DIR}/${_name}")
+  endforeach()
+else()
+  set(BGE_M3_PLUGIN_DEPS bge_m3_runner_opt bge_m3_embedding_opt)
+  set(BGE_M3_DEP_SHARED_LIB_ARGS)
+  set(BGE_M3_RUNTIME_DEP_FILES)
+endif()
+
 # ── Stage 4: manifest + rax-pack ─────────────────────────────────────────
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tokenizer.json
@@ -263,7 +376,8 @@ add_custom_command(
           "${BGE_M3_SRC}/codegen/gen_bge_m3_manifest.py"
           --spec "${BGE_M3_SPEC}"
           --runner-library "bge_m3_runner.so"
-          --embedding-library "bge_m3_embedding.so"
+          --model-library "bge_m3_embedding.so"
+          ${BGE_M3_DEP_SHARED_LIB_ARGS}
           -o "${CMAKE_CURRENT_BINARY_DIR}/bge_m3.mlir"
   DEPENDS
     "${BGE_M3_SRC}/codegen/gen_bge_m3_manifest.py"
@@ -284,8 +398,8 @@ add_custom_command(
     ${CMAKE_CURRENT_BINARY_DIR}/bge_m3_model.so
     ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
     ${CMAKE_CURRENT_BINARY_DIR}/tokenizer.json
-    bge_m3_runner_opt
-    bge_m3_embedding_opt
+    ${BGE_M3_PLUGIN_DEPS}
+    ${BGE_M3_RUNTIME_DEP_FILES}
   COMMENT "[bge-m3-optimized] Stage 4: packing bge_m3.rax"
   VERBATIM
 )

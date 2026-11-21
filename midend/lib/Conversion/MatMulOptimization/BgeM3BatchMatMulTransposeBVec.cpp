@@ -239,7 +239,8 @@ private:
 /// SCF + Vector operations, guarded for the BGE-M3 attention patterns.
 namespace {
 class BgeM3BatchMatMulTransVecPass
-    : public PassWrapper<BgeM3BatchMatMulTransVecPass, OperationPass<ModuleOp>> {
+    : public PassWrapper<BgeM3BatchMatMulTransVecPass,
+                         OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(BgeM3BatchMatMulTransVecPass)
   StringRef getArgument() const final {

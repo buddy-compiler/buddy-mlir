@@ -44,9 +44,9 @@ constexpr const char *kOffloadFn = "bge_m3_a100_gemm";
 
 // Debug knobs: offload only matmuls in [offload-start, start+offload-limit).
 // Used to bisect which matmul group breaks numerical correctness.
-static llvm::cl::opt<int> clOffloadStart(
-    "bge-m3-a100-start", llvm::cl::init(0),
-    llvm::cl::desc("First matmul index to offload (0-based)"));
+static llvm::cl::opt<int>
+    clOffloadStart("bge-m3-a100-start", llvm::cl::init(0),
+                   llvm::cl::desc("First matmul index to offload (0-based)"));
 static llvm::cl::opt<int> clOffloadLimit(
     "bge-m3-a100-limit", llvm::cl::init(-1),
     llvm::cl::desc("Max number of matmuls to offload (-1 = all)"));
@@ -78,25 +78,24 @@ public:
 
     // One callee with dynamic-shape memrefs; cast each operand to it so all
     // matmul shapes share a single function signature.
-    auto dynF32 = MemRefType::get(
-        {ShapedType::kDynamic, ShapedType::kDynamic},
-        aType.getElementType());
+    auto dynF32 = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic},
+                                  aType.getElementType());
 
     func::FuncOp fn = module.lookupSymbol<func::FuncOp>(kOffloadFn);
     if (!fn) {
       // Declare the external kernel once per module.
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
-      fn = rewriter.create<func::FuncOp>(
-          loc, kOffloadFn,
-          rewriter.getFunctionType(
-              TypeRange{dynF32, dynF32, dynF32}, TypeRange{}));
+      fn = func::FuncOp::create(
+          rewriter, loc, kOffloadFn,
+          rewriter.getFunctionType(TypeRange{dynF32, dynF32, dynF32},
+                                   TypeRange{}));
       fn.setPrivate();
     }
 
-    Value dynA = rewriter.create<memref::CastOp>(loc, dynF32, A);
-    Value dynB = rewriter.create<memref::CastOp>(loc, dynF32, B);
-    Value dynC = rewriter.create<memref::CastOp>(loc, dynF32, C);
+    Value dynA = memref::CastOp::create(rewriter, loc, dynF32, A);
+    Value dynB = memref::CastOp::create(rewriter, loc, dynF32, B);
+    Value dynC = memref::CastOp::create(rewriter, loc, dynF32, C);
 
     // The offload kernel fully overwrites C, so a zero-fill producer is dead.
     // Remove it: if the fill loop survives as a standalone affine loop,
@@ -115,7 +114,7 @@ public:
         rewriter.replaceOp(fill, fill.getInputs().front());
     }
 
-    rewriter.create<func::CallOp>(loc, fn, ValueRange{dynA, dynB, dynC});
+    func::CallOp::create(rewriter, loc, fn, ValueRange{dynA, dynB, dynC});
     rewriter.eraseOp(op);
     return success();
   }
@@ -189,8 +188,6 @@ void BgeM3MatMulA100Pass::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerBgeM3MatMulA100Pass() {
-  PassRegistration<BgeM3MatMulA100Pass>();
-}
+void registerBgeM3MatMulA100Pass() { PassRegistration<BgeM3MatMulA100Pass>(); }
 } // namespace buddy
 } // namespace mlir

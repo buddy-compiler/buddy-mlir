@@ -266,7 +266,7 @@ else
   python3 "$REPO/models/bge_m3/codegen/gen_bge_m3_manifest.py" \
     --spec "$SPEC" -o "$OUTD/bge_m3.mlir" \
     --runner-library bge_m3_runner.so \
-    --embedding-library bge_m3_embedding.so
+    --model-library bge_m3_embedding.so
 fi
 
 ( cd "$OUTD" && "$BUDDYBIN/rax-pack" bge_m3.mlir -o bge_m3.rax \

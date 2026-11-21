@@ -10,3 +10,9 @@
 
 # Optional local x86 environment file (contains personal paths).
 /export/env_x86.sh
+
+# Benchmark / correctness helpers are local test scripts, not part of the PR.
+/bench.sh
+/bench_all.sh
+/cos.py
+/export/hf_bench.py
