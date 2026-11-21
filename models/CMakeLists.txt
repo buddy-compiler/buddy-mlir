@@ -22,6 +22,10 @@ if(BUDDY_BUILD_BGE_M3_MODEL)
   add_subdirectory(bge_m3)
 endif()
 
+if(BUDDY_BUILD_EMBEDDINGGEMMA_MODEL)
+  add_subdirectory(embeddinggemma)
+endif()
+
 if(BUDDY_BUILD_PROTEINGLM_MODEL)
   add_subdirectory(proteinglm)
 endif()

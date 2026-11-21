@@ -147,6 +147,9 @@ option(BUDDY_BUILD_LLAMA32_TT_MODEL
 option(BUDDY_BUILD_BGE_M3_MODEL
   "Build models/bge_m3 dense embedding runner and .rax package"
   OFF)
+option(BUDDY_BUILD_EMBEDDINGGEMMA_MODEL
+  "Build models/embeddinggemma (single-forward .so/.rax package)"
+  OFF)
 option(BUDDY_BUILD_PROTEINGLM_MODEL
   "Build models/proteinglm (masked-LM single-forward .so/.rax package)"
   OFF)
