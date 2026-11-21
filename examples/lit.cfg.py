@@ -79,6 +79,7 @@ config.excludes = [
     "BOSCAMEFPGA",
     "BuddyLeNet",
     "BuddyBert",
+    "BuddyBgeM3",
     "BuddyLlama",
     "BuddyLlama31-8B",
     "BuddyGemma4",

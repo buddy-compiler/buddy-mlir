@@ -1,0 +1,21 @@
+# Generated artifacts and raw outputs (multi-GB) are not committed.
+/dist/
+/out/
+/out_x86/
+/results/
+/results_x86/
+/profile/
+/src/
+/logs/
+
+# Optional local x86 environment file (contains personal paths).
+/export/env_x86.sh
+
+# Local-only helpers (not part of the PR).
+/export/download_bge_m3.py
+
+# Benchmark / correctness helpers are local test scripts, not part of the PR.
+/bench.sh
+/bench_all.sh
+/cos.py
+/export/hf_bench.py

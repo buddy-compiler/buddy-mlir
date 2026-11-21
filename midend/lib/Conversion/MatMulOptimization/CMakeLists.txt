@@ -18,6 +18,8 @@ add_mlir_library(MatMulOptimization
   BatchMatMulTileOptimize.cpp
   BatchMatMulSCFOptimize.cpp
   BatchMatMulTransBVec.cpp
+  BgeM3BatchMatMulTransposeBVec.cpp
+  BgeM3MatMulA100.cpp
   MatMulTransposeBUnrollVec.cpp
   MatmulAMX.cpp
   LINK_LIBS PUBLIC
