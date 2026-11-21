@@ -18,6 +18,7 @@
 
 #include "buddy/Core/Container.h"
 #include "buddy/LLM/ChatTemplate.h"
+#include "buddy/LLM/DefaultChatTemplates.h"
 #include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/core/ModelError.h"
 #include "buddy/runtime/core/ModelManifest.h"
@@ -210,8 +211,11 @@ private:
       chatTemplate.reset();
     }
 
-    codec.tokenize = [](Text<size_t, 2> &t, const std::string &vocab) {
+    codec.tokenize = [useDefaultTemplate = !chatTemplate](
+                         Text<size_t, 2> &t, const std::string &vocab) {
       t.tokenizeDeepSeekR1(vocab, BUDDY_DSR1_MAX_TOKEN_LEN);
+      if (useDefaultTemplate)
+        applyDefaultDeepSeekR1Template(t);
     };
     codec.detokenize = [](Text<size_t, 2> &t) { return t.revertDeepSeekR1(); };
     codec.maxTokenLen = BUDDY_DSR1_MAX_TOKEN_LEN;
@@ -249,6 +253,7 @@ private:
                                   bool countOnly) const {
     Text<size_t, 2> tokens(content);
     tokens.tokenizeDeepSeekR1(vocabPath, BUDDY_DSR1_MAX_TOKEN_LEN);
+    applyDefaultDeepSeekR1Template(tokens);
 
     TokenizeResult result;
     result.count = tokens.getTokenCnt();
@@ -264,8 +269,9 @@ private:
   completeStreamUnlocked(const CompletionRequest &request,
                          const CompletionStreamCallback &callback) {
     const std::string id = nextCompletionId();
-    const int promptTokens =
-        static_cast<int>(tokenizeUnlocked(request.prompt, true).count);
+    Text<size_t, 2> inputTokens(request.prompt);
+    codec.tokenize(inputTokens, vocabPath);
+    const int promptTokens = static_cast<int>(inputTokens.getTokenCnt());
     buddy::Sampler sampler(request.sampling.samplerConfig);
     const std::vector<long long> effectiveStopTokenIds =
         mergeStopTokenIds(stopTokenIds, request.sampling.stopTokenIds);

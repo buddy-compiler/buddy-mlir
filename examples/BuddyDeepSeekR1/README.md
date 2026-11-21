@@ -134,6 +134,13 @@ $ ./bin/buddy-deepseek-r1-cli --interactive --no-stats
 - Provide prompts via `--prompt`, `--prompt-file`, or standard input. Generated text goes to STDOUT while logs and performance metrics go to STDERR.
 - Use options like `--max-tokens` and `--eos-id` to constrain the generation length/termination. Add `--no-stats` when you want pure text output without the performance summary.
 - `--interactive` starts a REPL similar to `buddy-deepseek-r1-main.cpp`, handling one prompt and one response at a time. `--prompt` can act as a system prefix prepended to every user entry.
+- With `--chat-template <path.json>`, the rendered prompt is tokenized without
+  adding the default DeepSeek template again. Without this option, the original
+  default format is retained. The text encoding rules are unchanged.
+
+For C++ callers, `Text::tokenizeDeepSeekR1()` only tokenizes text. Include
+`buddy/LLM/DefaultChatTemplates.h` and call `applyDefaultDeepSeekR1Template()`
+after tokenization when the historical default template is required.
 
 6. Enjoy it!
 

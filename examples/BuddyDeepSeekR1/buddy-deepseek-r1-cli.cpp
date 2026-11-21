@@ -20,6 +20,7 @@
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/ChatTemplate.h>
 #include <buddy/LLM/ConversationManager.h>
+#include <buddy/LLM/DefaultChatTemplates.h>
 #include <buddy/LLM/TextContainer.h>
 #include <buddy/runtime/llm/Sampler.h>
 #include <chrono>
@@ -617,7 +618,8 @@ GenerationResult runGeneration(const std::string &prompt,
                                MemRef<float, 1> &paramsContainer,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
-                               std::ostream &tokenStream, Sampler &sampler) {
+                               std::ostream &tokenStream, Sampler &sampler,
+                               bool useDefaultTemplate) {
   GenerationResult stats;
   const RopeFreqArray ropeInverseFreqs =
       buildInverseRopeFreqs(RopeThetaOpt.getValue());
@@ -707,6 +709,8 @@ GenerationResult runGeneration(const std::string &prompt,
 
   outputContainer.loadVocab(vocabPath);
   inputContainerPrefill.tokenizeDeepSeekR1(vocabPath, MaxTokenLength);
+  if (useDefaultTemplate)
+    applyDefaultDeepSeekR1Template(inputContainerPrefill);
   if (inputContainerPrefill.getTokenCnt() > MaxTokenLength) {
     llvm::errs() << "[Error] Token count "
                  << inputContainerPrefill.getTokenCnt()
@@ -1025,7 +1029,7 @@ void runInteractiveSession(const std::string &systemPrompt,
     }
     GenerationResult result =
         runGeneration(finalPrompt, paramsContainer, vocabPath, maxNewTokens,
-                      stopTokenIds, std::cout, sampler);
+                      stopTokenIds, std::cout, sampler, !hasConv);
     if (hasConv) {
       conv->addMessage("assistant", result.finalText);
     }
@@ -1292,9 +1296,10 @@ int main(int argc, char **argv) {
         std::vector<Message> msgs = {{"user", prompt}};
         finalPrompt = tmpl.apply(msgs);
       }
-      GenerationResult result = runGeneration(
-          finalPrompt, paramsContainer, vocabPath,
-          static_cast<int>(maxNewTokens), stopTokenIds, std::cout, sampler);
+      GenerationResult result =
+          runGeneration(finalPrompt, paramsContainer, vocabPath,
+                        static_cast<int>(maxNewTokens), stopTokenIds, std::cout,
+                        sampler, ChatTemplateOpt.empty());
       if (!SuppressStatsOpt) {
         printStats(result);
       }
