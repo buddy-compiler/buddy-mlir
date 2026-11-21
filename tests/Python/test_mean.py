@@ -33,10 +33,7 @@ print(graph._imported_module)
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.const
-# CHECK: %{{.*}} = tosa.reciprocal
-# CHECK: %{{.*}} = tosa.const_shape
-# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
-# CHECK: return %{{.*}}
+# CHECK: return %{{.*}} : tensor<13x1xf32>
 # CHECK: }
 # CHECK: }

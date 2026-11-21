@@ -742,9 +742,9 @@ class Graph:
             element_dtype=element_dtype,
         )
 
-    def lower_to_llvm_ir(self):
+    def lower_to_llvm_ir(self, *, contiguous_inputs=False):
         """
-        Lower graph to llvm ir.
+        Lower graph to LLVM IR, optionally requiring contiguous input buffers.
         """
         if self._imported_module is None:
             self.lower_to_top_level_ir()
@@ -760,7 +760,43 @@ class Graph:
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
-            pm.add("one-shot-bufferize{bufferize-function-boundaries}")
+            if contiguous_inputs:
+                for function in self._imported_module.body.operations:
+                    if (
+                        function.operation.name != "func.func"
+                        or ir.StringAttr(function.attributes["sym_name"]).value
+                        != self._func_name
+                        or not function.regions[0].blocks
+                    ):
+                        continue
+                    arguments = function.regions[0].blocks[0].arguments
+                    existing = function.attributes.get("arg_attrs")
+                    attrs = []
+                    for i, argument in enumerate(arguments):
+                        values = (
+                            {item.name: item.attr for item in existing[i]}
+                            if existing is not None
+                            else {}
+                        )
+                        if isinstance(argument.type, ir.RankedTensorType):
+                            rank = ir.RankedTensorType(argument.type).rank
+                            # Only the minor stride is needed by vector loads.
+                            # Keep other descriptor fields explicit at runtime.
+                            dynamic = (
+                                ir.ShapedType.get_dynamic_stride_or_offset()
+                            )
+                            strides = [dynamic] * rank
+                            if strides:
+                                strides[-1] = 1
+                            values["bufferization.buffer_layout"] = (
+                                ir.StridedLayoutAttr.get(dynamic, strides)
+                            )
+                        attrs.append(ir.DictAttr.get(values))
+                    function.attributes["arg_attrs"] = ir.ArrayAttr.get(attrs)
+            pm.add(
+                "one-shot-bufferize{bufferize-function-boundaries "
+                "function-boundary-type-conversion=fully-dynamic-layout-map}"
+            )
             pm.add("expand-strided-metadata")
             pm.add("ownership-based-buffer-deallocation")
             pm.add("canonicalize")
@@ -770,9 +806,34 @@ class Graph:
             pm.add("canonicalize")
             pm.add("func.func(optimize-allocation-liveness)")
             pm.add("func.func(eliminate-memref-copy)")
-            pm.add("func.func(assume-tight-memref-layout)")
-            pm.add("func.func(staticize-memref-layout)")
-            pm.add("matmul-vectorization")
+            # Internal views may have non-unit strides and nonzero offsets.
+            # Do not replace their runtime layout with a contiguous assumption.
+            pm.run(self._imported_module.operation)
+
+            def supports_matmul_vectors(operation):
+                # The custom matmul pass emits vector.load/store for B and C.
+                # Keep ordinary loop lowering when their minor stride is unknown
+                # or non-unit; the pass currently does not check this itself.
+                if operation.name == "linalg.matmul":
+                    for value in operation.operands[1:3]:
+                        try:
+                            strides, _ = ir.MemRefType(
+                                value.type
+                            ).get_strides_and_offset()
+                        except ValueError:
+                            return False
+                        if strides[-1] != 1:
+                            return False
+                return all(
+                    supports_matmul_vectors(child)
+                    for region in operation.regions
+                    for block in region.blocks
+                    for child in block.operations
+                )
+
+            pm = PassManager("builtin.module")
+            if supports_matmul_vectors(self._imported_module.operation):
+                pm.add("matmul-vectorization")
             pm.add("convert-linalg-to-affine-loops")
             pm.add("convert-vector-to-scf")
             pm.add("lower-affine")
@@ -796,12 +857,12 @@ class Graph:
             pm.add("reconcile-unrealized-casts")
             pm.run(self._imported_module.operation)
 
-    def compile(self):
+    def compile(self, *, contiguous_inputs=False):
         """
         Compile graph from Buddy Graph to LLVM IR.
         """
         self.lower_to_top_level_ir()
-        self.lower_to_llvm_ir()
+        self.lower_to_llvm_ir(contiguous_inputs=contiguous_inputs)
 
 
 class GraphImporter:
