@@ -10,7 +10,11 @@ BUDDY_LLC ?= ../../build/bin/buddy-llc
 	ame-matmul-4x4-lower ame-matmul-4x4-translate \
 	ame-matmul-4x4-asm ame-matmul-4x4-obj \
 	ame-matmul-demo-lower ame-matmul-demo-translate \
-	ame-matmul-demo-asm ame-matmul-demo-obj
+	ame-matmul-demo-asm ame-matmul-demo-obj \
+	linalg-to-ame-matmul-lower linalg-to-ame-matmul-translate \
+	linalg-to-ame-matmul-asm linalg-to-ame-matmul-obj \
+	linalg-to-ame-generic-lower linalg-to-ame-generic-translate \
+	linalg-to-ame-generic-asm linalg-to-ame-generic-obj
 
 all: ame-matmul-asm
 
@@ -221,6 +225,136 @@ ame-matmul-demo-obj:
 		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
 		-o ame-matmul-demo.o
 
+#===----------------------------------------------------------------------===#
+# linalg-to-ame-matmul (Linalg matmul + AME lowering + scalar verification)
+#===----------------------------------------------------------------------===#
+
+linalg-to-ame-matmul-lower:
+	${BUDDY_OPT} linalg-to-ame-matmul.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		-o linalg-to-ame-matmul-lowered.mlir
+
+linalg-to-ame-matmul-translate:
+	@${BUDDY_OPT} linalg-to-ame-matmul.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir -o linalg-to-ame-matmul.ll
+
+linalg-to-ame-matmul-asm:
+	@${BUDDY_OPT} linalg-to-ame-matmul.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 -target-abi=lp64 \
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o linalg-to-ame-matmul.s
+
+linalg-to-ame-matmul-obj:
+	@${BUDDY_OPT} linalg-to-ame-matmul.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -target-abi=lp64 \
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o linalg-to-ame-matmul.o
+
+# linalg.generic -> AME operations -> LLVM IR -> XAME instructions
+
+linalg-to-ame-generic-lower:
+	${BUDDY_OPT} linalg-to-ame-generic.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		-o linalg-to-ame-generic-lowered.mlir
+
+linalg-to-ame-generic-translate:
+	@${BUDDY_OPT} linalg-to-ame-generic.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir -o linalg-to-ame-generic.ll
+
+linalg-to-ame-generic-asm:
+	@${BUDDY_OPT} linalg-to-ame-generic.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 -target-abi=lp64 \
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o linalg-to-ame-generic.s
+
+linalg-to-ame-generic-obj:
+	@${BUDDY_OPT} linalg-to-ame-generic.mlir \
+		--lower-linalg-to-ame='target=gem5' \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -target-abi=lp64 \
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o linalg-to-ame-generic.o
+
 help:
 	@echo "ame-matmul-lower      Lower AME operations to intrinsic calls"
 	@echo "ame-matmul-translate  Compile ame-matmul.mlir to LLVM IR (.ll)"
@@ -234,6 +368,14 @@ help:
 	@echo "ame-matmul-demo-translate Translate the initialized demo to LLVM IR (.ll)"
 	@echo "ame-matmul-demo-asm  Compile the initialized demo to XAME assembly (.s)"
 	@echo "ame-matmul-demo-obj  Compile the initialized demo to a RISC-V object (.o)"
+	@echo "linalg-to-ame-matmul-lower Convert Linalg matmul to AME operations"
+	@echo "linalg-to-ame-matmul-translate Compile Linalg matmul to LLVM IR (.ll)"
+	@echo "linalg-to-ame-matmul-asm Compile Linalg matmul to XAME assembly (.s)"
+	@echo "linalg-to-ame-matmul-obj Compile Linalg matmul to a RISC-V object (.o)"
+	@echo "linalg-to-ame-generic-lower Convert linalg.generic regions to AME operations"
+	@echo "linalg-to-ame-generic-translate Compile generic regions to LLVM IR (.ll)"
+	@echo "linalg-to-ame-generic-asm Compile generic regions to XAME assembly (.s)"
+	@echo "linalg-to-ame-generic-obj Compile generic regions to a RISC-V object (.o)"
 	@echo "clean                Remove generated files"
 
 clean:

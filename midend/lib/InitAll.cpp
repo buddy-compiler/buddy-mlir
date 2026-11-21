@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy-mlir-c/InitAll.h"
+#include "Conversion/LowerLinalgToAME/LowerLinalgToAME.h"
 
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -126,6 +127,7 @@ void mlir::buddy::registerAllPasses() {
 #endif
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToBOSCAMEPass();
+  mlir::buddy::registerLowerLinalgToAMEPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
