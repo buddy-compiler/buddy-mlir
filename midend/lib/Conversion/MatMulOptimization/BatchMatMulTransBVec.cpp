@@ -57,18 +57,19 @@ namespace {
 class BatchMatMulTransVecPattern : public ConversionPattern {
 public:
   explicit BatchMatMulTransVecPattern(MLIRContext *context,
-                                      int64_t vecSizeParam, bool scalableParam)
+                                      int64_t vecSizeParam, bool scalableParam,
+                                      bool parallelParam)
       : ConversionPattern(linalg::BatchMatmulTransposeBOp::getOperationName(),
                           1, context) {
     vecSize = vecSizeParam;
     scalable = scalableParam;
+    parallel = parallelParam;
   }
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    auto ctx = op->getContext();
 
     // Retrieve input tensors A, B, and C.
     Value A = op->getOperand(0);
@@ -106,14 +107,24 @@ public:
     Value tailSize = arith::RemUIOp::create(rewriter, loc, bRow, vlStep);
     Value mainSize = arith::SubIOp::create(rewriter, loc, bRow, tailSize);
 
-    // Create nested scf.for loops instead of affine loops.
-    auto batchLoop = scf::ForOp::create(rewriter, loc, c0, batch, c1);
-    rewriter.setInsertionPointToStart(batchLoop.getBody());
-    Value batchIdx = batchLoop.getInductionVar();
+    Value batchIdx;
+    Value aRowIdx;
+    if (parallel) {
+      auto parallelLoop =
+          scf::ParallelOp::create(rewriter, loc, ValueRange{c0, c0},
+                                  ValueRange{batch, aRow}, ValueRange{c1, c1});
+      rewriter.setInsertionPointToStart(parallelLoop.getBody());
+      batchIdx = parallelLoop.getInductionVars()[0];
+      aRowIdx = parallelLoop.getInductionVars()[1];
+    } else {
+      auto batchLoop = scf::ForOp::create(rewriter, loc, c0, batch, c1);
+      rewriter.setInsertionPointToStart(batchLoop.getBody());
+      batchIdx = batchLoop.getInductionVar();
 
-    auto aRowLoop = scf::ForOp::create(rewriter, loc, c0, aRow, c1);
-    rewriter.setInsertionPointToStart(aRowLoop.getBody());
-    Value aRowIdx = aRowLoop.getInductionVar();
+      auto aRowLoop = scf::ForOp::create(rewriter, loc, c0, aRow, c1);
+      rewriter.setInsertionPointToStart(aRowLoop.getBody());
+      aRowIdx = aRowLoop.getInductionVar();
+    }
 
     auto bColLoop = scf::ForOp::create(rewriter, loc, c0, bCol, c1);
     rewriter.setInsertionPointToStart(bColLoop.getBody());
@@ -194,6 +205,7 @@ public:
 private:
   int64_t vecSize;
   bool scalable;
+  bool parallel;
 };
 } // end anonymous namespace
 
@@ -234,6 +246,10 @@ public:
       *this, "vector-type",
       llvm::cl::desc("Specify vector type: fixed or scalable."),
       llvm::cl::init("fixed")};
+  Option<bool> parallel{
+      *this, "parallel",
+      llvm::cl::desc("Parallelize outer batch and row loops."),
+      llvm::cl::init(false)};
 };
 } // end anonymous namespace.
 
@@ -250,7 +266,8 @@ void BatchMatMulTransVecPass::runOnOperation() {
 
   RewritePatternSet patterns(context);
   bool isScalable = (vectorType == "scalable");
-  patterns.add<BatchMatMulTransVecPattern>(context, vecSize, isScalable);
+  patterns.add<BatchMatMulTransVecPattern>(context, vecSize, isScalable,
+                                           parallel);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
