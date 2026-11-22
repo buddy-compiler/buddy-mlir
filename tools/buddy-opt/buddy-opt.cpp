@@ -131,6 +131,7 @@ void registerConvertStridedMemrefCopyToLinalgPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerMatMulTransposeBVecDecodePass();
+void registerFuseMatMulTransposeBPass();
 void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
@@ -138,6 +139,8 @@ void registerMatMulVectorizationBLISPass();
 void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
 void registerVectorExpApproximationPass();
+void registerFuseAttentionSoftmaxPass();
+void registerLowerVectorSoftmaxErfPass();
 void registerPrefillElementwiseFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
@@ -223,6 +226,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerStaticizeMemRefLayoutPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
   mlir::buddy::registerMatMulTransposeBVecDecodePass();
+  mlir::buddy::registerFuseMatMulTransposeBPass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
   // Register minimal TOSA reshape simplification pass.
@@ -237,6 +241,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvertTraceToLLVMPass();
   mlir::buddy::registerSiLUFusionPass();
   mlir::buddy::registerVectorExpApproximationPass();
+  mlir::buddy::registerFuseAttentionSoftmaxPass();
+  mlir::buddy::registerLowerVectorSoftmaxErfPass();
   mlir::buddy::registerPrefillElementwiseFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
