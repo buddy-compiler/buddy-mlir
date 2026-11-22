@@ -88,6 +88,8 @@ add_custom_command(
       -extend-dap
       -one-shot-bufferize
       -convert-linalg-to-loops
+      -canonicalize
+      -cse
       -convert-scf-to-cf
       -expand-strided-metadata
       -lower-affine
@@ -106,7 +108,7 @@ add_custom_command(
     ${LLVM_TOOLS_BINARY_DIR}/llc
       -mtriple=${BUDDY_TARGET_TRIPLE}
       -mattr=${BUDDY_OPT_ATTR}
-      -filetype=obj -relocation-model=pic
+      -O3 -filetype=obj -relocation-model=pic
       -o ${CMAKE_CURRENT_BINARY_DIR}/DAP-extend.o
   DEPENDS mlir-translate llc buddy-opt
 )

@@ -3433,7 +3433,7 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
 
   scf::IfOp::create(
       opBuilder, loc, condition, [&](OpBuilder &builder, Location loc) {
-        Value flag = memref::AllocOp::create(
+        Value flag = memref::AllocaOp::create(
             builder, loc, MemRefType::get(1, builder.getIndexType()));
         memref::StoreOp::create(builder, loc, c1, flag, c0);
         Value l1_raw = arith::AddIOp::create(builder, loc, n, c0);
@@ -3539,6 +3539,7 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
             });
 
         copy_and_norm(builder, loc, c, p1_raw, n, fct, flag);
+        memref::DeallocOp::create(builder, loc, ch);
 
         scf::YieldOp::create(builder, loc);
       });
@@ -3551,15 +3552,14 @@ void absPower(OpBuilder &builder, Location loc, Value bufferMem,
   Value c200 = ConstantIndexOp::create(builder, loc, 200);
   Value c398 = ConstantIndexOp::create(builder, loc, 398);
   Value c399 = ConstantIndexOp::create(builder, loc, 399);
-  Value power = ConstantIndexOp::create(builder, loc, 2);
 
   Value firstNum = memref::LoadOp::create(builder, loc, bufferMem, c0);
-  Value firstPow = math::FPowIOp::create(builder, loc, firstNum, power);
+  Value firstPow = arith::MulFOp::create(builder, loc, firstNum, firstNum);
   memref::StoreOp::create(builder, loc, firstPow, resultMem,
                           ValueRange{idx, c0});
 
   Value lastNum = memref::LoadOp::create(builder, loc, bufferMem, c399);
-  Value lastPow = math::FPowIOp::create(builder, loc, lastNum, power);
+  Value lastPow = arith::MulFOp::create(builder, loc, lastNum, lastNum);
   memref::StoreOp::create(builder, loc, lastPow, resultMem,
                           ValueRange{idx, c200});
 
@@ -3569,8 +3569,8 @@ void absPower(OpBuilder &builder, Location loc, Value bufferMem,
         Value j = arith::AddIOp::create(b, loc, iv, c1);
         Value num1 = memref::LoadOp::create(b, loc, bufferMem, iv);
         Value num2 = memref::LoadOp::create(b, loc, bufferMem, j);
-        Value pow1 = math::FPowIOp::create(b, loc, num1, power);
-        Value pow2 = math::FPowIOp::create(b, loc, num2, power);
+        Value pow1 = arith::MulFOp::create(b, loc, num1, num1);
+        Value pow2 = arith::MulFOp::create(b, loc, num2, num2);
         Value add = arith::AddFOp::create(b, loc, pow1, pow2);
         memref::StoreOp::create(b, loc, add, resultMem,
                                 ValueRange{idx, iargs[0]});
@@ -3586,133 +3586,197 @@ void absPower(OpBuilder &builder, Location loc, Value bufferMem,
 // Compute Log Mel Spectrogram
 Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
                   Value c1, Value c2, Value c3, Value c4, Value c5, Value input,
-                  Value window, Value melFilters) {
+                  Value window, Value melFilters, Value inputFeaturesSize) {
   FloatType f64Ty = rewriter.getF64Type();
 
   Value numFrames = ConstantIndexOp::create(rewriter, loc, 3001);
   Value hopLength = ConstantIndexOp::create(rewriter, loc, 160);
+  Value c200 = ConstantIndexOp::create(rewriter, loc, 200);
+  Value c201 = ConstantIndexOp::create(rewriter, loc, 201);
   Value c400 = ConstantIndexOp::create(rewriter, loc, 400);
+  Value c479600 = ConstantIndexOp::create(rewriter, loc, 479600);
+  Value c480400 = ConstantIndexOp::create(rewriter, loc, 480400);
+  Value f1 =
+      ConstantFloatOp::create(rewriter, loc, f64Ty, APFloat(double(1.0)));
 
   MemRefType spectrogramTy = MemRefType::get({3001, 201}, f64Ty);
   Value spectrogram = memref::AllocOp::create(rewriter, loc, spectrogramTy);
 
-  RankedTensorType tensorTy0 = RankedTensorType::get({400}, f64Ty);
-  MemRefType mTp = MemRefType::get({400}, f64Ty);
+  // Build the 400-point RFFT plan once and reuse it across all 3001 frames.
+  std::vector<Value> rfftPlan = make_rfftp_plan(rewriter, loc, c400);
+  Value frameBuf =
+      memref::AllocaOp::create(rewriter, loc, MemRefType::get({400}, f64Ty));
+  Value frameBufDyn = memref::CastOp::create(
+      rewriter, loc, MemRefType::get(ShapedType::kDynamic, f64Ty), frameBuf);
 
-  // #mulf_trait for 'linalg.generic' operation.
-  AffineMap mulFIdMap =
-      AffineMap::getMultiDimIdentityMap(1, rewriter.getContext());
-  SmallVector<AffineMap> mulFIndexingMaps = {mulFIdMap, mulFIdMap, mulFIdMap};
-  SmallVector<utils::IteratorType> mulFIteratorTypes = {
-      utils::IteratorType::parallel};
+  // For audio shorter than 30s (inputFeaturesSize <= 479600), all reflect-
+  // padded samples at index >= inputFeaturesSize + 200 are strictly 0.0, so
+  // frames starting at or after activeEnd have an exact all-zero power
+  // spectrum.
+  Value shortAudio = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::ule, inputFeaturesSize, c479600);
+  Value activeEnd = arith::SelectOp::create(
+      rewriter, loc, shortAudio,
+      arith::AddIOp::create(rewriter, loc, inputFeaturesSize, c200), c480400);
 
   scf::ForOp::create(
       rewriter, loc, c0, numFrames, c1, ValueRange{c0},
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iargs) {
-        auto extractSliceOp = tensor::ExtractSliceOp::create(
-            rewriter, loc, input, iargs[0], c400, c1);
-        Value buffer400 = extractSliceOp.getResult();
-        Value buffer =
-            tensor::CastOp::create(rewriter, loc, tensorTy0, buffer400);
-
-        // 'linalg.generic' operation use #mulf_trait.
-        auto mulfOp = linalg::GenericOp::create(
-            rewriter, loc, /*resultTensorTypes=*/tensorTy0,
-            /*inputs=*/ValueRange{buffer, window},
-            /*outputs=*/ValueRange{buffer}, mulFIndexingMaps, mulFIteratorTypes,
-            [&](OpBuilder &b, Location loc, ValueRange args) {
-              Value elem = arith::MulFOp::create(b, loc, args[0], args[1]);
-              linalg::YieldOp::create(b, loc, elem);
+        Value timestep = iargs[0];
+        Value isZeroFrame = arith::CmpIOp::create(
+            builder, loc, arith::CmpIPredicate::uge, timestep, activeEnd);
+        scf::IfOp::create(
+            builder, loc, isZeroFrame,
+            [&](OpBuilder &tb, Location tl) {
+              scf::ForOp::create(
+                  tb, tl, c0, c201, c1, ValueRange{},
+                  [&](OpBuilder &zb, Location zl, Value k, ValueRange) {
+                    memref::StoreOp::create(zb, zl, f0, spectrogram,
+                                            ValueRange{iv, k});
+                    scf::YieldOp::create(zb, zl);
+                  });
+              scf::YieldOp::create(tb, tl);
+            },
+            [&](OpBuilder &eb, Location el) {
+              scf::ForOp::create(
+                  eb, el, c0, c400, c1, ValueRange{},
+                  [&](OpBuilder &wb, Location wl, Value k, ValueRange) {
+                    Value srcIdx = arith::AddIOp::create(wb, wl, timestep, k);
+                    Value sample =
+                        tensor::ExtractOp::create(wb, wl, input, srcIdx);
+                    Value win = tensor::ExtractOp::create(wb, wl, window, k);
+                    Value prod = arith::MulFOp::create(wb, wl, sample, win);
+                    memref::StoreOp::create(wb, wl, prod, frameBuf, k);
+                    scf::YieldOp::create(wb, wl);
+                  });
+              rfftp_forward(eb, el, rfftPlan[0], rfftPlan[1], rfftPlan[2],
+                            rfftPlan[3], rfftPlan[4], rfftPlan[5], frameBufDyn,
+                            f1);
+              absPower(eb, el, frameBuf, spectrogram, iv, c0, c1, c2);
+              scf::YieldOp::create(eb, el);
             });
-        Value multiplied = mulfOp.getResult(0);
-
-        Value bufferMem_raw =
-            bufferization::ToBufferOp::create(builder, loc, mTp, multiplied);
-
-        MemRefType type0 = MemRefType::get({400}, f64Ty);
-        MemRefType type1 = MemRefType::get(ShapedType::kDynamic, f64Ty);
-
-        Value bufferMem_rfft =
-            memref::CastOp::create(builder, loc, type1, bufferMem_raw);
-
-        // Compute 'dap.rfft' operation, result stores in `bufferMem`.
-        dap::RFFTOp::create(builder, loc, bufferMem_rfft);
-
-        Value bufferMem =
-            memref::CastOp::create(builder, loc, type0, bufferMem_rfft);
-
-        // Store the result in a single line specified by `iv`.
-        absPower(builder, loc, bufferMem, spectrogram, iv, c0, c1, c2);
 
         Value timestepNext =
-            arith::AddIOp::create(builder, loc, iargs[0], hopLength);
-
+            arith::AddIOp::create(builder, loc, timestep, hopLength);
         scf::YieldOp::create(builder, loc, timestepNext);
       });
 
-  // TODO: check alloc and dealloc
-  // MemRefType melFiltersTransposeTy = MemRefType::get({80, 201}, f64Ty);
-  // Value alloc0 = rewriter.create<memref::AllocOp>(loc,
-  // melFiltersTransposeTy); Value init0 =
-  // rewriter.create<bufferization::ToTensorOp>(loc, alloc0);
-  Value init0 =
-      tensor::EmptyOp::create(rewriter, loc, ArrayRef<int64_t>{80, 201}, f64Ty);
-  auto transposeOp0 =
-      linalg::TransposeOp::create(rewriter, loc, /*input=*/melFilters,
-                                  /*init=*/init0,
-                                  /*permutation=*/ArrayRef<int64_t>{1, 0});
-  Value melFiltersT = transposeOp0.getResult()[0];
+  // Free RFFT plan allocations.
+  Value c25 = ConstantIndexOp::create(rewriter, loc, 25);
+  scf::ForOp::create(rewriter, loc, c0, c25, c1, ValueRange{},
+                     [&](OpBuilder &fb, Location fl, Value i, ValueRange) {
+                       Value tw_i =
+                           memref::LoadOp::create(fb, fl, rfftPlan[1], i);
+                       Value tws_i =
+                           memref::LoadOp::create(fb, fl, rfftPlan[2], i);
+                       memref::DeallocOp::create(fb, fl, tw_i);
+                       memref::DeallocOp::create(fb, fl, tws_i);
+                       scf::YieldOp::create(fb, fl);
+                     });
+  for (Value v : rfftPlan)
+    memref::DeallocOp::create(rewriter, loc, v);
 
-  Value gram = bufferization::ToTensorOp::create(
-      rewriter, loc, memref::getTensorTypeFromMemRefType(spectrogram.getType()),
-      spectrogram, /*restrict=*/true, /*writable=*/false);
-  Value init1 = tensor::EmptyOp::create(rewriter, loc,
-                                        ArrayRef<int64_t>{201, 3001}, f64Ty);
-  auto transposeOp1 =
-      linalg::TransposeOp::create(rewriter, loc, /*input=*/gram,
-                                  /*init=*/init1,
-                                  /*permutation=*/ArrayRef<int64_t>{1, 0});
-  Value spectrogramT = transposeOp1.getResult()[0];
+  // Mel filterbank projection + log10, computed directly on buffers:
+  //   logSpec[m, j] = log10(max(1e-10, sum_k melT[m, k] * spec[j, k]))
+  // Zero (silence) frames have an exact all-zero power spectrum, so their
+  // result is log10(1e-10) = -10 without any arithmetic.
+  Value c80 = ConstantIndexOp::create(rewriter, loc, 80);
+  Value c192 = ConstantIndexOp::create(rewriter, loc, 192);
+  Value c16 = ConstantIndexOp::create(rewriter, loc, 16);
+  Value fMelFloor = ConstantFloatOp::create(rewriter, loc, f64Ty,
+                                            APFloat(double(0.0000000001)));
+  Value fNeg10 =
+      ConstantFloatOp::create(rewriter, loc, f64Ty, APFloat(double(-10.0)));
+  auto vec16Ty = VectorType::get({16}, f64Ty);
+  Value vZero16 = vector::BroadcastOp::create(rewriter, loc, vec16Ty, f0);
 
+  Value melFiltersMem = bufferization::ToBufferOp::create(
+      rewriter, loc, MemRefType::get({201, 80}, f64Ty), melFilters);
+  Value melFiltersT =
+      memref::AllocOp::create(rewriter, loc, MemRefType::get({80, 201}, f64Ty));
+  scf::ForOp::create(
+      rewriter, loc, c0, c201, c1, ValueRange{},
+      [&](OpBuilder &kb, Location kl, Value k, ValueRange) {
+        scf::ForOp::create(
+            kb, kl, c0, c80, c1, ValueRange{},
+            [&](OpBuilder &mb, Location ml, Value m, ValueRange) {
+              Value v = memref::LoadOp::create(mb, ml, melFiltersMem,
+                                               ValueRange{k, m});
+              memref::StoreOp::create(mb, ml, v, melFiltersT, ValueRange{m, k});
+              scf::YieldOp::create(mb, ml);
+            });
+        scf::YieldOp::create(kb, kl);
+      });
+
+  Value logSpecMem = memref::AllocOp::create(
+      rewriter, loc, MemRefType::get({80, 3001}, f64Ty));
+  scf::ForOp::create(
+      rewriter, loc, c0, numFrames, c1, ValueRange{},
+      [&](OpBuilder &jb, Location jl, Value j, ValueRange) {
+        Value timestep = arith::MulIOp::create(jb, jl, j, hopLength);
+        Value isZeroFrame = arith::CmpIOp::create(
+            jb, jl, arith::CmpIPredicate::uge, timestep, activeEnd);
+        scf::IfOp::create(
+            jb, jl, isZeroFrame,
+            [&](OpBuilder &tb, Location tl) {
+              scf::ForOp::create(
+                  tb, tl, c0, c80, c1, ValueRange{},
+                  [&](OpBuilder &mb, Location ml, Value m, ValueRange) {
+                    memref::StoreOp::create(mb, ml, fNeg10, logSpecMem,
+                                            ValueRange{m, j});
+                    scf::YieldOp::create(mb, ml);
+                  });
+              scf::YieldOp::create(tb, tl);
+            },
+            [&](OpBuilder &eb, Location el) {
+              scf::ForOp::create(
+                  eb, el, c0, c80, c1, ValueRange{},
+                  [&](OpBuilder &mb, Location ml, Value m, ValueRange) {
+                    auto vecFor = scf::ForOp::create(
+                        mb, ml, c0, c192, c16, ValueRange{vZero16},
+                        [&](OpBuilder &kb, Location kl, Value k,
+                            ValueRange it) {
+                          Value vm = vector::LoadOp::create(
+                              kb, kl, vec16Ty, melFiltersT, ValueRange{m, k});
+                          Value vs = vector::LoadOp::create(
+                              kb, kl, vec16Ty, spectrogram, ValueRange{j, k});
+                          Value acc =
+                              vector::FMAOp::create(kb, kl, vm, vs, it[0]);
+                          scf::YieldOp::create(kb, kl, acc);
+                        });
+                    Value sum = vector::ReductionOp::create(
+                        mb, ml, vector::CombiningKind::ADD, vecFor.getResult(0),
+                        f0, arith::FastMathFlags::reassoc);
+                    auto tailFor = scf::ForOp::create(
+                        mb, ml, c192, c201, c1, ValueRange{sum},
+                        [&](OpBuilder &kb, Location kl, Value k,
+                            ValueRange it) {
+                          Value a = memref::LoadOp::create(kb, kl, melFiltersT,
+                                                           ValueRange{m, k});
+                          Value b = memref::LoadOp::create(kb, kl, spectrogram,
+                                                           ValueRange{j, k});
+                          Value prod = arith::MulFOp::create(kb, kl, a, b);
+                          Value next =
+                              arith::AddFOp::create(kb, kl, it[0], prod);
+                          scf::YieldOp::create(kb, kl, next);
+                        });
+                    Value clamped = arith::MaximumFOp::create(
+                        mb, ml, tailFor.getResult(0), fMelFloor);
+                    Value logv = math::Log10Op::create(mb, ml, clamped);
+                    memref::StoreOp::create(mb, ml, logv, logSpecMem,
+                                            ValueRange{m, j});
+                    scf::YieldOp::create(mb, ml);
+                  });
+              scf::YieldOp::create(eb, el);
+            });
+        scf::YieldOp::create(jb, jl);
+      });
+  memref::DeallocOp::create(rewriter, loc, melFiltersT);
   memref::DeallocOp::create(rewriter, loc, spectrogram);
 
-  Value init2 = tensor::EmptyOp::create(rewriter, loc,
-                                        ArrayRef<int64_t>{80, 3001}, f64Ty);
-  auto matmulOp = linalg::MatmulOp::create(
-      rewriter, loc, /*inputs=*/ValueRange{melFiltersT, spectrogramT},
-      /*outputs=*/ValueRange{init2});
-  Value matMulResult = matmulOp.getResultTensors()[0];
-
-  // Initialize a tensor with constant `1e-10`.
-  RankedTensorType tensorTy1 = RankedTensorType::get({80, 3001}, f64Ty);
-  Value cMelFloor = ConstantFloatOp::create(rewriter, loc, f64Ty,
-                                            APFloat(double(0.0000000001)));
-  Value melFloor = tensor::SplatOp::create(rewriter, loc, tensorTy1, cMelFloor);
-
-  auto linalgMaxOp = linalg::ElementwiseOp::create(
-      rewriter, loc, /*input=*/ValueRange{melFloor, matMulResult},
-      /*outputs=*/ValueRange{melFloor}, linalg::ElementwiseKind::max_signed);
-  Value spectrogramMax = linalgMaxOp.getResultTensors()[0];
-
-  // #log10_trait for 'linalg.generic' operation.
-  AffineMap log10IdMap =
-      AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
-  SmallVector<AffineMap> log10IndexingMaps = {log10IdMap, log10IdMap};
-  SmallVector<utils::IteratorType> log10IteratorTypes = {
-      utils::IteratorType::parallel, utils::IteratorType::parallel};
-
-  // 'linalg.generic' operation use #log10_trait.
-  auto log10Op = linalg::GenericOp::create(
-      rewriter, loc, /*resultTensorTypes=*/tensorTy1,
-      /*inputs=*/ValueRange{spectrogramMax},
-      /*outputs=*/ValueRange{spectrogramMax}, log10IndexingMaps,
-      log10IteratorTypes, [&](OpBuilder &b, Location loc, ValueRange args) {
-        Value elem = math::Log10Op::create(b, loc, args[0]);
-        linalg::YieldOp::create(b, loc, elem);
-      });
-  Value spectrogramLog10 = log10Op.getResult(0);
-
-  return spectrogramLog10;
+  return bufferization::ToTensorOp::create(
+      rewriter, loc, RankedTensorType::get({80, 3001}, f64Ty), logSpecMem,
+      /*restrict=*/true, /*writable=*/false);
 }
 
 namespace {
@@ -3834,8 +3898,9 @@ public:
     // Reflect pad for paddedInput, both left and right part pad with length 200
     Value finalPaddedInput =
         padReflect(rewriter, loc, c0, c1, paddedInput, 200, 200);
-    Value logSpec = spectrogram(rewriter, loc, f0, c0, c1, c2, c3, c4, c5,
-                                finalPaddedInput, window, melFilter);
+    Value logSpec =
+        spectrogram(rewriter, loc, f0, c0, c1, c2, c3, c4, c5, finalPaddedInput,
+                    window, melFilter, inputFeaturesSize);
 
     auto extractSliceOp =
         tensor::ExtractSliceOp::create(rewriter, loc, /*source=*/logSpec,
