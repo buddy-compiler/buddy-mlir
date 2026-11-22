@@ -45,6 +45,8 @@ Routes are selected by the descriptor service kind:
 * Embedding: `/v1/embeddings`
 * MaskedLM: `/v1/masked-lm`
 * Transcription: `/v1/audio/transcriptions`
+* Vocoder: `/v1/audio/vocoder` (float32 latents to mono waveform; see
+  [MMS serving and real-model validation](../../models/mms/README.md#serve-the-vocoder))
 
 ## Source layout
 
