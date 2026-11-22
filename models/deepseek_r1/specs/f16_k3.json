@@ -5,12 +5,11 @@
   "max_token_len": 128,
   "num_threads": 8,
   "decode_pack_vector_size": 32,
-  "ime_decode_kernel": "gemv",
-  "ime_decode_shapes": [
-    "1536x8960",
-    "8960x1536",
-    "1536x1536",
-    "1536x256"
+  "ime_decode_packing": [
+    {"weight_shape": [1536, 8960], "packed_shape": [280, 192, 4, 8, 8]},
+    {"weight_shape": [8960, 1536], "packed_shape": [48, 1120, 4, 8, 8]},
+    {"weight_shape": [1536, 1536], "packed_shape": [48, 192, 4, 8, 8]},
+    {"weight_shape": [1536, 256], "packed_shape": [8, 192, 4, 8, 8]}
   ],
   "prefill_rvv_vlen_bits": 1024,
   "prefill_rvv_vector_size": 64,

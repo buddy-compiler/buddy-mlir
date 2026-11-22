@@ -618,6 +618,43 @@ def derive_thread_pool(spec: dict) -> bool:
     return raw
 
 
+def decode_panel_widths(rules: list) -> dict:
+    """Validate [N/tile_n, K/8, tile_n/8, N8, K8] and derive tile_n."""
+    if not isinstance(rules, list) or not rules:
+        raise ValueError("ime_decode_packing must be a nonempty list")
+    widths = {}
+    for rule in rules:
+        if not isinstance(rule, dict):
+            raise ValueError("expected a weight_shape and packed_shape")
+        weight = rule.get("weight_shape")
+        packed = rule.get("packed_shape")
+        for shape, rank in ((weight, 2), (packed, 5)):
+            if (
+                not isinstance(shape, list)
+                or len(shape) != rank
+                or any(type(dim) is not int or dim <= 0 for dim in shape)
+            ):
+                raise ValueError(
+                    f"expected {rank} positive dimensions: {shape}"
+                )
+        k, n = weight
+        panels, k_blocks, groups, n8, k8 = packed
+        width = groups * 8
+        if (
+            (n8, k8) != (8, 8)
+            or groups > 4
+            or (panels * width, k_blocks * 8) != (n, k)
+        ):
+            raise ValueError(
+                f"incompatible A100 packed shape {packed} for {weight}"
+            )
+        key = f"{k}x{n}"
+        if key in widths:
+            raise ValueError(f"duplicate Decode packing rule for {key}")
+        widths[key] = width
+    return widths
+
+
 def derive_decode_pack(hf: dict, spec: dict) -> dict:
     """Opt-in panel-packing of the decode matmul weights (see the
     pack_decode_matmul_weights graph transform). Off unless the spec sets
@@ -652,7 +689,12 @@ def derive_decode_pack(hf: dict, spec: dict) -> dict:
         # it covers lm_head and the attention projections, not just the FFN.
         "decode_file": "arg0-decode.data",
     }
-    if spec.get("ime_decode_kernel") == "gemv":
+    if "ime_decode_packing" in spec:
+        widths = decode_panel_widths(spec["ime_decode_packing"])
+        packed.update(
+            ime_shapes=list(widths), ime_layout="tiled_k8", ime_widths=widths
+        )
+    elif spec.get("ime_decode_kernel") == "gemv":
         packed["ime_shapes"] = spec.get("ime_decode_shapes", [])
         packed["ime_layout"] = "n32k8"
     return packed
@@ -676,8 +718,18 @@ def derive_fp16_optimizations(spec: dict, variant: str) -> dict:
         return value
 
     decode_shapes = shapes("ime_decode_shapes")
+    has_packing = "ime_decode_packing" in spec
+    if has_packing:
+        if (
+            "ime_decode_shapes" in spec
+            or spec.get("ime_decode_kernel", "gemv") != "gemv"
+        ):
+            raise ValueError(
+                "ime_decode_packing replaces the legacy Decode shape list and selects GEMV"
+            )
+        decode_shapes = list(decode_panel_widths(spec["ime_decode_packing"]))
     prefill_shapes = shapes("ime_prefill_shapes")
-    kernel = spec.get("ime_decode_kernel", "generic")
+    kernel = spec.get("ime_decode_kernel", "gemv" if has_packing else "generic")
     vlen = spec.get("prefill_rvv_vlen_bits", 0)
     width = spec.get("prefill_rvv_vector_size", 0)
     silu = spec.get("prefill_optimize_silu", False)
@@ -702,13 +754,16 @@ def derive_fp16_optimizations(spec: dict, variant: str) -> dict:
     if kernel == "gemv" and (
         not decode_shapes
         or spec.get("decode_pack_vector_size") != 32
-        or any(
-            int(shape.split("x")[0]) % 16 or int(shape.split("x")[1]) % 32
-            for shape in decode_shapes
+        or (
+            not has_packing
+            and any(
+                int(shape.split("x")[0]) % 16 or int(shape.split("x")[1]) % 32
+                for shape in decode_shapes
+            )
         )
     ):
         raise ValueError(
-            "A100 GEMV needs selected K%16=0, N%32=0 shapes and packed width 32"
+            "A100 GEMV requires Decode packing (vector size 32); legacy shapes need K%16=0 and N%32=0"
         )
     if prefill_shapes and (
         vlen != 1024

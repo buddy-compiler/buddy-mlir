@@ -20,6 +20,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace mlir;
 using namespace buddy::ime;
 namespace {
@@ -283,62 +285,84 @@ struct IMEGemvF16Lowering : public ConvertOpToLLVMPattern<GemvF16Op> {
     };
     Value a = pointer(op.getVs1(), index(0));
     Value base = arith::MulIOp::create(rewriter, loc, op.getColumn(), index(k));
+    int64_t width = op.getTileN();
+    if (width < 8 || width > 32 || width % 8)
+      return op.emitError("expected one to four native 8-output tiles");
+    int64_t groups = width / 8;
+    // Pass each panel address as an operand so LLVM hoists the same address
+    // calculations as in the original four-panel kernel.
     SmallVector<Value> operands{a};
-    for (int64_t panel = 0; panel < 4; ++panel) {
-      Value offset =
-          arith::AddIOp::create(rewriter, loc, base, index(panel * 64));
+    for (int g = 0; g < groups; ++g) {
+      Value offset = arith::AddIOp::create(rewriter, loc, base, index(g * 64));
       operands.push_back(pointer(op.getVs2(), offset));
     }
     operands.push_back(pointer(op.getVd(), op.getColumn()));
     operands.push_back(LLVM::ConstantOp::create(
         rewriter, loc, rewriter.getI64Type(),
         rewriter.getI64IntegerAttr(k / (unroll ? 16 : 8))));
-    std::string assembly =
-        "mv t1, $0\n\tmv t2, $1\n\tmv t3, $2\n\tmv t4, $3\n\tmv t5, $4\n\tmv "
-        "t6, $6\n\t"
-        "vsetvli t0, zero, e32, m2, tu, mu\n\t"
-        "vmv.v.i v16, 0\n\tvmv.v.i v18, 0\n\tvmv.v.i v20, 0\n\tvmv.v.i v22, "
-        "0\n\t"
-        "vsetivli zero, 8, e16, m1, tu, mu\n\t"
-        "vle16.v v6, ($5)\n\tvfwcvt.f.f.v v16, v6\n\t"
-        "addi t0, $5, 16\n\tvle16.v v6, (t0)\n\tvfwcvt.f.f.v v18, v6\n\t"
-        "addi t0, $5, 32\n\tvle16.v v6, (t0)\n\tvfwcvt.f.f.v v20, v6\n\t"
-        "addi t0, $5, 48\n\tvle16.v v6, (t0)\n\tvfwcvt.f.f.v v22, v6\n\t"
-        "vsetvli t0, zero, e16, m1, tu, mu\n\t"
-        "vmv.v.i v2, 0\n\tvid.v v4\n\tvmsltu.vi v0, v4, 8\n\t1:\n\t";
+
+    std::string assembly;
+    llvm::raw_string_ostream out(assembly);
+    out << "mv t1, $0\n\t";
+    for (int g = 0; g < groups; ++g)
+      out << "mv t" << 2 + g << ", $" << 1 + g << "\n\t";
+    out << "mv t6, $" << groups + 2 << "\n\t";
+    out << "vsetvli t0, zero, e32, m2, tu, mu\n\t";
+    for (int g = 0; g < groups; ++g)
+      out << "vmv.v.i v" << 16 + 2 * g << ", 0\n\t";
+    out << "vsetivli zero, 8, e16, m1, tu, mu\n\t";
+    std::string outputOperand = "$" + std::to_string(groups + 1);
+    auto outputAddress = [&](int group) -> StringRef {
+      if (group == 0)
+        return outputOperand;
+      out << "addi t0, " << outputOperand << ", " << 16 * group << "\n\t";
+      return "t0";
+    };
+    for (int g = 0; g < groups; ++g) {
+      auto addr = outputAddress(g);
+      out << "vle16.v v6, (" << addr << ")\n\tvfwcvt.f.f.v v" << 16 + 2 * g
+          << ", v6\n\t";
+    }
+    out << "vsetvli t0, zero, e16, m1, tu, mu\n\t"
+           "vmv.v.i v2, 0\n\tvid.v v4\n\tvmsltu.vi v0, v4, 8\n\t1:\n\t";
     if (distance)
-      assembly += "prefetch.r " + std::to_string(distance) +
-                  "(t2)\n\t"
-                  "prefetch.r " +
-                  std::to_string(distance) + "(t4)\n\t";
-    std::string body =
-        "vle16.v v2, (t1), v0.t\n\t"
-        "vle16.v v8, (t2)\n\tvle16.v v10, (t3)\n\t"
-        "vle16.v v12, (t4)\n\tvle16.v v14, (t5)\n\t"
-        ".word 0x9e81482b # smt.vfwmadot v16, v2, v8\n\t"
-        ".word 0x9ea1492b # smt.vfwmadot v18, v2, v10\n\t"
-        ".word 0x9ec14a2b # smt.vfwmadot v20, v2, v12\n\t"
-        ".word 0x9ee14b2b # smt.vfwmadot v22, v2, v14\n\t"
-        "addi t1, t1, 16\n\taddi t2, t2, 512\n\taddi t3, t3, 512\n\t"
-        "addi t4, t4, 512\n\taddi t5, t5, 512\n\t";
-    assembly += body;
-    if (unroll)
-      assembly += body;
-    assembly +=
-        "addi t6, t6, -1\n\tbnez t6, 1b\n\t"
-        "vsetivli zero, 8, e16, m1, tu, mu\n\t"
-        "vfncvt.f.f.w v6, v16\n\tvse16.v v6, ($5)\n\t"
-        "addi t0, $5, 16\n\tvfncvt.f.f.w v6, v18\n\tvse16.v v6, (t0)\n\t"
-        "addi t0, $5, 32\n\tvfncvt.f.f.w v6, v20\n\tvse16.v v6, (t0)\n\t"
-        "addi t0, $5, 48\n\tvfncvt.f.f.w v6, v22\n\tvse16.v v6, (t0)";
+      for (int g = 0; g < groups; g += 2)
+        out << "prefetch.r " << distance << "(t" << 2 + g << ")\n\t";
+    for (int i = 0; i < (unroll ? 2 : 1); ++i) {
+      out << "vle16.v v2, (t1), v0.t\n\t";
+      for (int g = 0; g < groups; ++g)
+        out << "vle16.v v" << 8 + 2 * g << ", (t" << 2 + g << ")\n\t";
+      for (int g = 0; g < groups; ++g) {
+        // smt.vfwmadot vd, v2, vs2: vd and vs2 advance by two registers.
+        uint32_t opcode = 0x9e81482b + (g << 21) + (g << 8);
+        out << ".word 0x" << llvm::utohexstr(opcode, true)
+            << " # smt.vfwmadot v" << 16 + 2 * g << ", v2, v" << 8 + 2 * g
+            << "\n\t";
+      }
+      out << "addi t1, t1, 16\n\t";
+      for (int g = 0; g < groups; ++g)
+        out << "addi t" << 2 + g << ", t" << 2 + g << ", " << groups * 128
+            << "\n\t";
+    }
+    out << "addi t6, t6, -1\n\tbnez t6, 1b\n\t"
+           "vsetivli zero, 8, e16, m1, tu, mu\n\t";
+    for (int g = 0; g < groups; ++g) {
+      auto addr = outputAddress(g);
+      out << "vfncvt.f.f.w v6, v" << 16 + 2 * g << "\n\tvse16.v v6, (" << addr
+          << ")";
+      if (g + 1 < groups)
+        out << "\n\t";
+    }
+    std::string constraints;
+    for (size_t i = 0; i < operands.size(); ++i)
+      constraints += "r,";
+    constraints += "~{t0},~{t1},~{t2},~{t3},~{t4},~{t5},~{t6},"
+                   "~{v0},~{v2},~{v4},~{v6},~{v8},~{v10},~{v12},~{v14},"
+                   "~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},"
+                   "~{vl},~{vtype},~{memory}";
     LLVM::InlineAsmOp::create(
-        rewriter, loc, Type{}, operands, assembly,
-        "r,r,r,r,r,r,r,~{t0},~{t1},~{t2},~{t3},~{t4},~{t5},~{t6},"
-        "~{v0},~{v2},~{v4},~{v6},~{v8},~{v10},~{v12},~{v14},"
-        "~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},"
-        "~{vl},~{vtype},~{memory}",
-        true, false, LLVM::TailCallKind::None, false, LLVM::AsmDialectAttr{},
-        ArrayAttr{});
+        rewriter, loc, Type{}, operands, assembly, constraints, true, false,
+        LLVM::TailCallKind::None, false, LLVM::AsmDialectAttr{}, ArrayAttr{});
     rewriter.eraseOp(op);
     return success();
   }

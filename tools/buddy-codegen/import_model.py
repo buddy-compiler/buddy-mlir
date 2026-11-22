@@ -653,6 +653,7 @@ def pack_decode_weights(graph_decode, decode_pack: dict) -> None:
         graph_decode,
         vecsize=decode_pack["vector_size"],
         ime_shapes=decode_pack.get("ime_shapes"),
+        ime_widths=decode_pack.get("ime_widths"),
     )
     print(
         f"[import] packed {len(packed)} decode matmul weights into panel "

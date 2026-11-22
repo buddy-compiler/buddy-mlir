@@ -136,17 +136,17 @@ def GemmF16Op : IME_Op<"gemm_f16"> {
 }
 
 def GemvF16Op : IME_Op<"gemv_f16"> {
-  let summary = "A100 32-output GEMV with register-resident FP32 accumulators";
+  let summary = "A100 tiled GEMV with register-resident FP32 accumulators";
   let description = [{
-    Computes one 32-column block of C += A * B with FP16 input/output and
-    FP32 accumulation. B uses offline [N/32][K/8][4][8][8] layout. Requires
+    Computes one tile_n-column block of C += A * B with FP16 input/output and
+    FP32 accumulation. B uses offline [N/tile_n][K/8][tile_n/8][8][8] layout. Requires
     A100 VLEN=1024. K is divisible by 8, or 16 when unroll2 is enabled.
   }];
   let arguments = (ins MemRefRankOf<[F16], [2]>:$vd,
                        MemRefRankOf<[F16], [2]>:$vs1,
                        MemRefRankOf<[F16], [2]>:$vs2,
                        Index:$column, I64Attr:$k, I64Attr:$prefetch,
-                       BoolAttr:$unroll2);
+                       BoolAttr:$unroll2, DefaultValuedAttr<I64Attr, "32">:$tile_n);
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 `,` $column attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
 

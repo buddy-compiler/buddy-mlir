@@ -286,11 +286,11 @@ def build_stages(
         if fast_ime and (
             not decode_pack
             or not decode_pack.get("enabled")
-            or decode_pack.get("ime_layout") != "n32k8"
+            or decode_pack.get("ime_layout") not in ("n32k8", "tiled_k8")
             or set(decode_pack.get("ime_shapes", [])) != set(ime_shapes)
         ):
             raise ValueError(
-                "A100 GEMV requires matching offline n32k8 weight packing"
+                "A100 GEMV requires matching offline IME weight packing"
             )
         features = ["+xsmtvdotii"] + (["+zicbop"] if fast_ime else [])
         llc_base_args.append("-mattr=" + ",".join(features))
@@ -439,16 +439,24 @@ def build_stages(
                 if decode_pack and decode_pack.get("enabled")
                 else 0
             )
-            opts.extend(
-                [
+            groups = {packed_width: ime_shapes}
+            if fast_ime and decode_pack["ime_layout"] == "tiled_k8":
+                widths = decode_pack["ime_widths"]
+                if set(widths) != set(ime_shapes):
+                    raise ValueError(
+                        "Decode packing and GEMV shape lists differ"
+                    )
+                groups = {}
+                for shape, width in widths.items():
+                    groups.setdefault(width, []).append(shape)
+            for width, shapes in groups.items():
+                opts.append(
                     "-lower-linalg-to-ime="
-                    f"target=k3 matmul-shapes={','.join(ime_shapes)} "
-                    f"packed-vector-size={packed_width} parallel-tiles=true "
-                    f"a100-fp16=true verify-fp16=true a100-gemv={'true' if fast_ime else 'false'}",
-                    "-lower-ime=target=k3",
-                    "-expand-strided-metadata",
-                ]
-            )
+                    f"target=k3 matmul-shapes={','.join(shapes)} "
+                    f"packed-vector-size={width} parallel-tiles=true "
+                    f"a100-fp16=true verify-fp16=true a100-gemv={'true' if fast_ime else 'false'}"
+                )
+            opts.extend(["-lower-ime=target=k3", "-expand-strided-metadata"])
         if variant in ("w8a32", "w8a16"):
             opts.append("-dequant-matmul-vectorization-decode=vector-size=32")
             opts.append("-matmul-vectorization-decode=vector-size=32")

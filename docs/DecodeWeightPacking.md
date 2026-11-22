@@ -61,6 +61,28 @@ reuses each resident tile of `B` across many rows of `A` -- and it reads
 row-major `B`. Handing it packed bytes does not fail loudly: it reads them as
 row-major and produces fluent but wrong output.
 
+## K3 A100 FP16 Decode
+
+The K3 spec selects IME GEMV projections by their logical `[K, N]` weight
+shape. Each rule also specifies the physical order of its FP16 elements:
+
+```json
+{
+  "decode_pack_vector_size": 32,
+  "ime_decode_packing": [
+    {"weight_shape": [1536, 8960], "packed_shape": [560, 192, 2, 8, 8]}
+  ]
+}
+```
+
+The axes are `[N / tile_n, K / 8, tile_n / 8, output lane, K lane]`.
+The last two axes each have eight lanes. One to four native tiles fit in
+the kernel's register allocation, giving 8, 16, 24, or 32 outputs per block.
+The example generates 16 outputs per block. The compiler parallelizes over
+output blocks and keeps their FP32 sums in registers across the K loop.
+Unlisted projections use the RVV panel width. Regenerate both the Decode
+weight file and compiled model after changing a rule.
+
 ## Default Build Integration
 
 Packing is off by default. It is enabled per spec, by setting

@@ -307,13 +307,14 @@ public:
 
     if (fastGemv) {
       if (!a100 || !isFloatMatmul || !CElemType.isF16() || M != 1 ||
-          packedWidth != 32 || K % 16 || N % 32)
-        return matmulOp.emitError("A100 fast GEMV requires FP16 M=1, K%16=0, "
-                                  "N%32=0 and tile32-packed weights");
+          packedWidth < 8 || packedWidth > 32 || packedWidth % 8 || K % 8 ||
+          N % packedWidth)
+        return matmulOp.emitError("A100 fast GEMV requires FP16 M=1, K%8=0, "
+                                  "and aligned 8/16/24/32-column panels");
       Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value bound = arith::ConstantIndexOp::create(rewriter, loc, N);
-      Value step = arith::ConstantIndexOp::create(rewriter, loc, 32);
-      bool unroll = N <= 256 || K == N;
+      Value step = arith::ConstantIndexOp::create(rewriter, loc, packedWidth);
+      bool unroll = K % 16 == 0 && (N <= 256 || K == N);
       int64_t prefetch = N <= 256 ? 0 : (unroll ? 1024 : 512);
       auto loop = scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
                                           ValueRange{bound}, ValueRange{step});
@@ -321,7 +322,8 @@ public:
       GemvF16Op::create(rewriter, loc, C, A, B, loop.getInductionVars()[0],
                         rewriter.getI64IntegerAttr(K),
                         rewriter.getI64IntegerAttr(prefetch),
-                        rewriter.getBoolAttr(unroll));
+                        rewriter.getBoolAttr(unroll),
+                        rewriter.getI64IntegerAttr(packedWidth));
       rewriter.eraseOp(matmulOp);
       return success();
     }
@@ -1528,7 +1530,7 @@ public:
 
   Option<bool> a100Gemv{
       *this, "a100-gemv",
-      llvm::cl::desc("Use register-resident GEMV and offline N32/K8 tiles"),
+      llvm::cl::desc("Use register-resident GEMV with offline K8 panels"),
       llvm::cl::init(false)};
 
   Option<bool> a100Gemm{

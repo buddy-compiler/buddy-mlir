@@ -30,7 +30,7 @@ _WEIGHT_OPERAND = {MatmulOp: 1, AddMMOp: 2}
 
 
 def pack_decode_matmul_weights(
-    graph: Graph, vecsize: int = 32, ime_shapes=None
+    graph: Graph, vecsize: int = 32, ime_shapes=None, ime_widths=None
 ):
     """Rewrite every matmul weight in `graph` into panel-blocked layout:
 
@@ -51,10 +51,11 @@ def pack_decode_matmul_weights(
         graph (Graph): the decode Graph. Mutated in place.
         vecsize (int): panel width. Must equal the vector-size given to
             -matmul-vectorization-decode-packed, and must divide every
-            weight's N.
+            RVV-packed weight's N.
         ime_shapes: optional KxN strings. Selected weights use A100
-            [N/32][K/8][4][8][8] layout; all other weights keep the RVV
+            [N/width][K/8][width/8][8][8] layout; all other weights keep the RVV
             panel layout. The compiler's IME selection must match this list.
+        ime_widths: panel width per selected shape (legacy default: 32).
 
     Returns:
         list[int]: indices into graph._params_ref that were repacked.
@@ -72,6 +73,9 @@ def pack_decode_matmul_weights(
     name_to_index = {p.name: i for i, p in enumerate(graph.params)}
 
     ime_shapes = set(ime_shapes or [])
+    widths = dict.fromkeys(ime_shapes, 32) if ime_widths is None else ime_widths
+    if set(widths) != ime_shapes:
+        raise ValueError("IME packing widths must match selected shapes")
     packed_indices = []
     unpacked = 0
     for node in graph.body:
@@ -98,23 +102,23 @@ def pack_decode_matmul_weights(
             unpacked += 1
             continue
         k, n = weight.shape
-        if n % vecsize != 0:
+        width = widths.get(f"{k}x{n}")
+        if width is None and n % vecsize != 0:
             raise RuntimeError(
                 f"pack_decode_matmul_weights: weight '{weight_name}' has "
                 f"N={n}, not divisible by vecsize={vecsize}."
             )
 
         # Rebind, never mutate: prefill's graph holds the same tensor object.
-        if f"{k}x{n}" in ime_shapes:
-            if vecsize != 32 or k % 16:
+        if width is not None:
+            if width not in (8, 16, 24, 32) or n % width or k % 8:
                 raise RuntimeError(
-                    "A100 GEMV packing requires vecsize=32 and K%16=0"
+                    f"Invalid A100 GEMV width {width} for {k}x{n}"
                 )
-            # [K/8, K8, N/32, 4, N8] -> [N/32, K/8, 4, N8, K8].
-            # Four contiguous native IME tiles feed one 32-output kernel.
+            # Store [N/width, K/8, width/8, N8, K8] in the weight blob.
             graph._params_ref[index] = (
                 weight.detach()
-                .reshape(k // 8, 8, n // 32, 4, 8)
+                .reshape(k // 8, 8, n // width, width // 8, 8)
                 .permute(2, 0, 3, 4, 1)
                 .contiguous()
                 .reshape(k, n)
