@@ -45,6 +45,8 @@ struct PerplexityOptions {
   int maxChunks = 0;
   /// No per-chunk progress lines.
   bool quiet = false;
+  /// Pad a fixed-size prefill input with valid token IDs; 0: dynamic input.
+  int prefillCapacity = 0;
 };
 
 struct PerplexityResult {

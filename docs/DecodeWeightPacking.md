@@ -218,3 +218,26 @@ These numbers are machine-dependent. Note also that end-to-end decode tokens/s
 is a poor measure here: on the test machine it varied by about 65% run to run
 for the same binary, so the per-operator figures above were taken from
 instrumented per-region timings averaged over a full generation.
+
+## Qwen3 A100 Prefill packing declaration
+
+The Qwen3 K3 spec uses `ime_prefill_packing` rules with `weight_shape: [K, N]`
+and `packed_shape: [N/32, K/8, 4, 8, 8]`. The final two axes are N8 and K8.
+Each rule selects a GEMM weight shape and declares its logical panel layout.
+Only 32-column panels are supported by the current Prefill kernel. Invalid
+dimensions, duplicate shapes, alternative panel widths, and simultaneous
+`ime_prefill_shapes` and `ime_prefill_packing` declarations are rejected.
+
+The generated Prefill configuration carries the selected shapes and panel
+widths to `lower-linalg-to-ime` through `gemm-panel-width=32`. GEMM lowering
+uses this width for the output-column loop and its K-by-32 scratch allocation;
+the pass rejects other widths because the packing and GEMM microkernels
+support 32 columns only. Existing `ime_prefill_shapes` specs continue to
+select the same default 32-column kernel.
+
+This declaration does not produce an offline-packed Prefill weight file.
+Prefill still reads the plain weights and packs one 32-column B panel at
+runtime, reusing that panel across its 8-row output tiles. Decode separately
+reads its offline-packed weight blob. The logical full-matrix packed shape
+therefore describes Prefill's runtime panel organization, not its input ABI
+or a second persistent Prefill buffer.

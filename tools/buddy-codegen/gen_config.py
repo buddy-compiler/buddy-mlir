@@ -128,6 +128,18 @@ def text_decoder_config(hf: dict) -> dict:
     return text
 
 
+def resolve_model_path(config: dict) -> str:
+    """Select one checkpoint for configuration, import and weight reuse."""
+    model_env = {
+        "deepseek_r1": "DEEPSEEKR1_MODEL_PATH",
+        "qwen3": "QWEN3_MODEL_PATH",
+        "qwen3_vl_moe": "QWEN3_VL_MOE_MODEL_PATH",
+    }.get(config.get("model_family"))
+    return (os.environ.get(model_env) if model_env else None) or config[
+        "hf_model_path"
+    ]
+
+
 def load_hf_config(spec: dict, cli_hf_config: str | None) -> dict:
     """Load HuggingFace config.json with cascading fallbacks; a
     vision-language model gives its text decoder (text_decoder_config)."""
@@ -145,7 +157,7 @@ def _load_hf_config(spec: dict, cli_hf_config: str | None) -> dict:
         with open(spec["hf_config_path"]) as f:
             return json.load(f)
 
-    model_path = spec["hf_model_path"]
+    model_path = resolve_model_path(spec)
 
     # 3. Try transformers library
     try:
@@ -177,12 +189,14 @@ def _load_hf_config(spec: dict, cli_hf_config: str | None) -> dict:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def _count_params_torch(model_path: str) -> dict:
+def _count_params_torch(
+    model_path: str, hf_config_path: str | None = None
+) -> dict:
     """Instantiate model from config (no pretrained weights) and count params."""
     import torch
     from transformers import AutoConfig, AutoModelForCausalLM
 
-    cfg = AutoConfig.from_pretrained(model_path)
+    cfg = AutoConfig.from_pretrained(hf_config_path or model_path)
     with torch.no_grad():
         model = AutoModelForCausalLM.from_config(cfg)
 
@@ -214,7 +228,7 @@ def _count_params_torch(model_path: str) -> dict:
     }
 
 
-def count_params(spec: dict) -> dict:
+def count_params(spec: dict, hf_config_path: str | None = None) -> dict:
     """Count parameters, using torch if available, otherwise from overrides."""
     overrides = spec.get("weights_override", {})
     if overrides:
@@ -228,7 +242,10 @@ def count_params(spec: dict) -> dict:
         }
 
     try:
-        counts = _count_params_torch(spec["hf_model_path"])
+        counts = _count_params_torch(
+            resolve_model_path(spec),
+            hf_config_path or spec.get("hf_config_path"),
+        )
         print(
             f"[gen_config] Param count from model: {counts['total']:,}",
             file=sys.stderr,
@@ -618,10 +635,10 @@ def derive_thread_pool(spec: dict) -> bool:
     return raw
 
 
-def decode_panel_widths(rules: list) -> dict:
+def packing_panel_widths(rules: list, option: str) -> dict:
     """Validate [N/tile_n, K/8, tile_n/8, N8, K8] and derive tile_n."""
     if not isinstance(rules, list) or not rules:
-        raise ValueError("ime_decode_packing must be a nonempty list")
+        raise ValueError(f"{option} must be a nonempty list")
     widths = {}
     for rule in rules:
         if not isinstance(rule, dict):
@@ -650,7 +667,7 @@ def decode_panel_widths(rules: list) -> dict:
             )
         key = f"{k}x{n}"
         if key in widths:
-            raise ValueError(f"duplicate Decode packing rule for {key}")
+            raise ValueError(f"duplicate packing rule for {key}")
         widths[key] = width
     return widths
 
@@ -690,7 +707,9 @@ def derive_decode_pack(hf: dict, spec: dict) -> dict:
         "decode_file": "arg0-decode.data",
     }
     if "ime_decode_packing" in spec:
-        widths = decode_panel_widths(spec["ime_decode_packing"])
+        widths = packing_panel_widths(
+            spec["ime_decode_packing"], "ime_decode_packing"
+        )
         packed.update(
             ime_shapes=list(widths), ime_layout="tiled_k8", ime_widths=widths
         )
@@ -727,8 +746,24 @@ def derive_fp16_optimizations(spec: dict, variant: str) -> dict:
             raise ValueError(
                 "ime_decode_packing replaces the legacy Decode shape list and selects GEMV"
             )
-        decode_shapes = list(decode_panel_widths(spec["ime_decode_packing"]))
+        decode_shapes = list(
+            packing_panel_widths(
+                spec["ime_decode_packing"], "ime_decode_packing"
+            )
+        )
     prefill_shapes = shapes("ime_prefill_shapes")
+    prefill_widths = None
+    if "ime_prefill_packing" in spec:
+        if "ime_prefill_shapes" in spec:
+            raise ValueError("ime_prefill_packing replaces ime_prefill_shapes")
+        prefill_widths = packing_panel_widths(
+            spec["ime_prefill_packing"], "ime_prefill_packing"
+        )
+        if any(width != 32 for width in prefill_widths.values()):
+            raise ValueError(
+                "A100 Prefill packing only supports 32-column panels"
+            )
+        prefill_shapes = list(prefill_widths)
     kernel = spec.get("ime_decode_kernel", "gemv" if has_packing else "generic")
     vlen = spec.get("prefill_rvv_vlen_bits", 0)
     width = spec.get("prefill_rvv_vector_size", 0)
@@ -785,6 +820,8 @@ def derive_fp16_optimizations(spec: dict, variant: str) -> dict:
             "ime_shapes": prefill_shapes,
             "optimize_silu": silu,
         }
+    if prefill_widths is not None:
+        result["prefill"]["ime_widths"] = prefill_widths
     return result
 
 
@@ -795,6 +832,46 @@ def derive_tokens(hf: dict, spec: dict) -> dict:
         "tokenizer": spec.get("model_family", "unknown"),
         "vocab_file": spec.get("vocab_file", "vocab.txt"),
     }
+
+
+def derive_attention_optimizations(hf: dict, spec: dict) -> dict:
+    """Optional attention/Decode tuning on top of the shared FP16 settings."""
+    result = {}
+    head_dim = hf.get(
+        "head_dim", hf["hidden_size"] // hf["num_attention_heads"]
+    )
+    for phase in ("prefill", "decode"):
+        key = f"{phase}_attention_vector_size"
+        width = spec.get(key, 0)
+        if (
+            type(width) is not int
+            or width not in (0, 16, 32, 64, 128)
+            or (width and head_dim % width)
+        ):
+            raise ValueError(f"{key} must divide head_dim")
+        if width:
+            result.setdefault(phase, {})["attention_vector_size"] = width
+    splits = spec.get("decode_kv_splits", 0)
+    if type(splits) is not int or splits not in (0, 1, 2, 4, 8):
+        raise ValueError("decode_kv_splits must be 1, 2, 4 or 8")
+    if splits:
+        tiered = derive_tiered_kv_cache(spec)
+        cache_sizes = (
+            tiered["cache_sizes"]
+            if tiered["enabled"]
+            else [spec.get("max_token_len", 1024)]
+        )
+        if any(size % (splits * 16) for size in cache_sizes):
+            raise ValueError(
+                "Decode cache length must be divisible by 16 times the KV splits"
+            )
+        result.setdefault("decode", {})["kv_splits"] = splits
+    silu = spec.get("decode_optimize_silu", False)
+    if type(silu) is not bool:
+        raise ValueError("decode_optimize_silu must be a boolean")
+    if silu:
+        result.setdefault("decode", {})["optimize_silu"] = True
+    return result
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -812,6 +889,12 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
 
     shape = derive_shapes(hf, spec)
     tokens = derive_tokens(hf, spec)
+    for phase, options in derive_attention_optimizations(hf, spec).items():
+        fp16_optimizations.setdefault(phase, {}).update(options)
+    separate_output_embedding = spec.get("separate_output_embedding", False)
+    if type(separate_output_embedding) is not bool:
+        raise ValueError("separate_output_embedding must be a boolean")
+
     precision = VARIANT_PRECISION.get(variant, VARIANT_PRECISION["f32"])
     tiered_kv_cache = derive_tiered_kv_cache(spec)
     prefill_chunk = derive_prefill_chunk(
@@ -824,7 +907,7 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
             derive_prefill_ime(spec, variant, prefill_chunk),
         )
         if variant == "w4g32"
-        else count_params(spec)
+        else count_params(spec, hf_config_path)
     )
     weights = compute_weights(variant, param_counts)
     decode_pack = derive_decode_pack(hf, spec)
@@ -879,7 +962,12 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "model_family": model_family,
         "variant": variant,
         "model_id": model_id,
-        "hf_model_path": spec["hf_model_path"],
+        "hf_model_path": resolve_model_path(spec),
+        **(
+            {"separate_output_embedding": True}
+            if separate_output_embedding
+            else {}
+        ),
         "architecture": (
             hf["architectures"][0]
             if "architectures" in hf
