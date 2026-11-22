@@ -1044,7 +1044,14 @@ function(buddy_add_model)
 
   set(OBJ_FILES)
   set(MLIR_COMPILE_DEPS)
+  set(_SINGLE_FORWARD_KV_CACHE OFF)
   if(MDL_MODEL_KIND STREQUAL "single_forward")
+    file(READ "${MDL_SPEC}" _sf_spec_json)
+    string(JSON _sf_kv_cache ERROR_VARIABLE _sf_kv_err
+      GET "${_sf_spec_json}" kv_cache)
+    if(NOT _sf_kv_err AND (_sf_kv_cache STREQUAL "ON" OR _sf_kv_cache STREQUAL "true"))
+      set(_SINGLE_FORWARD_KV_CACHE ON)
+    endif()
     if(MDL_LAYER_PARTITION)
       list(APPEND OBJ_FILES
         "${BIN}/layer_partitioned/forward.o"
@@ -1053,6 +1060,11 @@ function(buddy_add_model)
       list(APPEND OBJ_FILES
         "${BIN}/forward.o"
         "${BIN}/subgraph0.o")
+      if(_SINGLE_FORWARD_KV_CACHE)
+        list(APPEND OBJ_FILES
+          "${BIN}/decode_forward.o"
+          "${BIN}/decode_subgraph0.o")
+      endif()
     endif()
   elseif(MDL_TIERED_KV_CACHE)
     foreach(CACHE_SIZE ${MDL_TIERED_CACHE_SIZES})
@@ -1120,6 +1132,11 @@ function(buddy_add_model)
         "${BIN}/forward.mlir"
         "${BIN}/subgraph0.mlir"
         "${BIN}/arg0.data")
+      if(_SINGLE_FORWARD_KV_CACHE)
+        list(APPEND _SINGLE_FORWARD_BYPRODUCTS
+          "${BIN}/decode_forward.mlir"
+          "${BIN}/decode_subgraph0.mlir")
+      endif()
     endif()
     foreach(_extra_weight ${MDL_EXTRA_WEIGHT_FILES})
       list(APPEND _SINGLE_FORWARD_BYPRODUCTS "${BIN}/${_extra_weight}")
@@ -1182,6 +1199,36 @@ function(buddy_add_model)
           ${LLVM_TOOLS_BINARY_DIR}/llc
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o (${MDL_LOWER_SCRIPT})"
         VERBATIM)
+      if(_SINGLE_FORWARD_KV_CACHE)
+        add_custom_command(
+          OUTPUT "${BIN}/decode_forward.o"
+          COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+                    "${BIN}/decode_forward.mlir"
+                    -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg)" |
+                  ${BUDDY_BINARY_DIR}/buddy-opt
+                    -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
+                  ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+                  ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+                  ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic
+                    ${MDL_LLC_ATTRS_LIST}
+                    -O0 -o "${BIN}/decode_forward.o"
+          DEPENDS "${IMPORT_STAMP}" buddy-opt
+            ${LLVM_TOOLS_BINARY_DIR}/llc
+          COMMENT "[${MDL_NAME}] Stage 2: decode_forward.mlir -> decode_forward.o"
+          VERBATIM)
+        add_custom_command(
+          OUTPUT "${BIN}/decode_subgraph0.o"
+          COMMAND ${CMAKE_COMMAND} -E env "PYTHON=${Python3_EXECUTABLE}"
+                  bash "${MDL_LOWER_SCRIPT}"
+                  "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
+                  "${BIN}/decode_subgraph0.mlir" "${BIN}/decode_subgraph0.o"
+                  "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
+          DEPENDS "${IMPORT_STAMP}" "${MDL_LOWER_SCRIPT}"
+            "${BUDDY_CODEGEN_DIR}/compile_pipeline.py" buddy-opt buddy-translate
+            ${LLVM_TOOLS_BINARY_DIR}/llc
+          COMMENT "[${MDL_NAME}] Stage 2: decode_subgraph0.mlir -> decode_subgraph0.o (${MDL_LOWER_SCRIPT})"
+          VERBATIM)
+      endif()
     else()
       add_custom_command(
         OUTPUT "${BIN}/subgraph0.o"

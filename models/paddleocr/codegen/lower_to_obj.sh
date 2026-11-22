@@ -52,6 +52,17 @@ if [[ "$USE_IME" == ON ]]; then
     A100_LLC_ATTRS+=(-riscv-v-vector-bits-max=1024)
   fi
 
+  # Decode graphs keep small M=1 softmax reductions where affine-parallelize
+  # can race on reduction accumulators, and pass per-layer KV-cache subviews
+  # whose strided offsets must not be dropped by staticize-memref-layout;
+  # heavy M=1 GEMVs are already parallelized by lower-linalg-to-ime.
+  AFFINE_PASSES=(-convert-linalg-to-affine-loops -affine-parallelize -lower-affine)
+  STATICIZE_PASSES=(-staticize-memref-layout)
+  if [[ "${BUDDY_PADDLEOCR_NO_AFFINE:-OFF}" == ON ]] || grep -q '@subgraph_decode' "$IN"; then
+    AFFINE_PASSES=(-convert-linalg-to-loops)
+    STATICIZE_PASSES=()
+  fi
+
   "$BUDDY_OPT" "$IN" -simplify-tosa-reshape -silu-fusion \
     | "$LLVM_BIN/mlir-opt" -pass-pipeline "$TOSA_PIPELINE" \
     | "$LLVM_BIN/mlir-opt" -test-linalg-transform-patterns=test-decompose-pad-tensor \
@@ -67,7 +78,7 @@ if [[ "$USE_IME" == ON ]]; then
         -ownership-based-buffer-deallocation \
         -buffer-deallocation-simplification \
         -bufferization-lower-deallocations \
-        -staticize-memref-layout \
+        "${STATICIZE_PASSES[@]}" \
         '-lower-linalg-to-ime=target=k3 a100-fp16=true a100-gemm=true verify-fp16=true' \
         -lower-ime \
         -expand-strided-metadata \
@@ -78,9 +89,7 @@ if [[ "$USE_IME" == ON ]]; then
         -lower-linalg-to-vir=exp-only=true \
         -lower-vir-to-vector=vector-width=32 \
         -approximate-vector-exp \
-        -convert-linalg-to-affine-loops \
-        -affine-parallelize \
-        -lower-affine \
+        "${AFFINE_PASSES[@]}" \
         "-convert-scf-to-openmp=num-threads=${THREADS}" \
         -convert-linalg-to-loops \
         -convert-vector-to-scf \

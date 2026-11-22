@@ -88,6 +88,18 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     if spec.get("sample_image"):
         p(f'    fixed_prompt = "{spec.get("prompt", "OCR:")}",')
     p(f'    patch_size = "{patch_size}",')
+    if spec.get("kv_cache", False):
+        p('    kv_cache = "true",')
+        p(f'    max_cache_len = "{int(spec.get("max_cache_len", 384))}",')
+        p(f'    max_new_tokens = "{int(spec.get("max_new_tokens", 64))}",')
+        p(f'    eos_token_id = "{int(spec.get("eos_token_id", 2))}",')
+        p(
+            f'    num_hidden_layers = "{int(spec.get("num_hidden_layers", 18))}",'
+        )
+        p(
+            f'    num_key_value_heads = "{int(spec.get("num_key_value_heads", 2))}",'
+        )
+        p(f'    head_dim = "{int(spec.get("head_dim", 128))}",')
     p(f'    runner_library = "{normalize_uri(runner_library)}"}} {{')
     p("")
     p('  rhal.constant @params {id = 1 : i32, storage = "external",')

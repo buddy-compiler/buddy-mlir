@@ -2495,6 +2495,10 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
       if (!hasExp || llvm::any_of(linalgOp.getIteratorTypesArray(),
                                   linalg::isReductionIterator))
         return failure();
+      for (AffineMap map : linalgOp.getIndexingMapsArray()) {
+        if (!map.isPermutation())
+          return failure();
+      }
     }
     // Guardrail: current VIR lowering handles elementwise/matmul-like patterns.
     // Reject reduction/index-based forms early to avoid partial rewrites.

@@ -55,6 +55,7 @@
 #include "buddy/runtime/core/ModelManifest.h"
 
 #include "buddy/Core/Container.h"
+#include "llvm/Support/JSON.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "PaddleocrImagePreprocess.h"
@@ -68,9 +69,12 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -102,6 +106,146 @@ using ForwardF16Fn = void (*)(MemRef<_Float16, 3> *, MemRef<_Float16, 1> *,
                               MemRef<float, 1> *, MemRef<int64_t, 2> *,
                               MemRef<_Float16, 4> *, MemRef<int64_t, 2> *,
                               MemRef<int64_t, 3> *);
+
+template <typename Scalar> struct KvForwardResult {
+  MemRef<Scalar, 3> logits;
+  MemRef<Scalar, 4> k;
+  MemRef<Scalar, 4> v;
+};
+
+using PrefillKvF16Fn = void (*)(KvForwardResult<_Float16> *,
+                                MemRef<_Float16, 1> *, MemRef<float, 1> *,
+                                MemRef<int64_t, 2> *, MemRef<_Float16, 4> *,
+                                MemRef<int64_t, 2> *, MemRef<int64_t, 3> *);
+
+using DecodeKvF16Fn = void (*)(KvForwardResult<_Float16> *,
+                               MemRef<_Float16, 1> *, MemRef<float, 1> *,
+                               MemRef<int64_t, 2> *, MemRef<int64_t, 3> *,
+                               MemRef<_Float16, 4> *, MemRef<_Float16, 4> *,
+                               MemRef<_Float16, 4> *);
+
+class PaddleocrTokenizer {
+public:
+  bool load(const std::string &path) {
+    if (path.empty())
+      return false;
+    std::ifstream ifs(path);
+    if (!ifs)
+      return false;
+    std::ostringstream ss;
+    ss << ifs.rdbuf();
+    auto parsed = llvm::json::parse(ss.str());
+    if (!parsed) {
+      llvm::consumeError(parsed.takeError());
+      return false;
+    }
+    const auto *root = parsed->getAsObject();
+    if (!root)
+      return false;
+    if (const auto *model = root->getObject("model")) {
+      if (const auto *vocab = model->getObject("vocab")) {
+        for (const auto &entry : *vocab) {
+          if (auto id = entry.second.getAsInteger())
+            idToToken_[*id] = entry.first.str();
+        }
+      }
+    }
+    if (const auto *added = root->getArray("added_tokens")) {
+      for (const auto &item : *added) {
+        if (const auto *obj = item.getAsObject()) {
+          auto id = obj->getInteger("id");
+          auto content = obj->getString("content");
+          if (id && content) {
+            idToToken_[*id] = content->str();
+            if (obj->getBoolean("special").value_or(false))
+              specialIds_.insert(*id);
+          }
+        }
+      }
+    }
+    return !idToToken_.empty();
+  }
+
+  std::string decode(const std::vector<int64_t> &ids,
+                     int64_t eosTokenId) const {
+    std::string out;
+    for (int64_t id : ids) {
+      if (id == eosTokenId || specialIds_.count(id))
+        continue;
+      auto it = idToToken_.find(id);
+      if (it == idToToken_.end())
+        continue;
+      const std::string &tok = it->second;
+      if (tok.size() == 6 && tok[0] == '<' && tok[1] == '0' && tok[2] == 'x' &&
+          tok[5] == '>') {
+        auto hexVal = [](char c) -> int {
+          if (c >= '0' && c <= '9')
+            return c - '0';
+          if (c >= 'a' && c <= 'f')
+            return 10 + (c - 'a');
+          if (c >= 'A' && c <= 'F')
+            return 10 + (c - 'A');
+          return -1;
+        };
+        int hi = hexVal(tok[3]), lo = hexVal(tok[4]);
+        if (hi >= 0 && lo >= 0) {
+          out.push_back(static_cast<char>((hi << 4) | lo));
+          continue;
+        }
+      }
+      // Replace SentencePiece Metaspace U+2581 (\xE2\x96\x81) with ASCII space.
+      for (size_t i = 0; i < tok.size();) {
+        if (i + 2 < tok.size() && static_cast<unsigned char>(tok[i]) == 0xE2 &&
+            static_cast<unsigned char>(tok[i + 1]) == 0x96 &&
+            static_cast<unsigned char>(tok[i + 2]) == 0x81) {
+          out.push_back(' ');
+          i += 3;
+        } else {
+          out.push_back(tok[i]);
+          ++i;
+        }
+      }
+    }
+    return out;
+  }
+
+private:
+  std::unordered_map<int64_t, std::string> idToToken_;
+  std::unordered_set<int64_t> specialIds_;
+};
+
+std::string escapeJson(const std::string &s) {
+  std::string out;
+  out.reserve(s.size() + 8);
+  for (unsigned char c : s) {
+    switch (c) {
+    case '"':
+      out += "\\\"";
+      break;
+    case '\\':
+      out += "\\\\";
+      break;
+    case '\n':
+      out += "\\n";
+      break;
+    case '\r':
+      out += "\\r";
+      break;
+    case '\t':
+      out += "\\t";
+      break;
+    default:
+      if (c < 0x20) {
+        char buf[8];
+        std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(c));
+        out += buf;
+      } else {
+        out.push_back(static_cast<char>(c));
+      }
+    }
+  }
+  return out;
+}
 
 void printLog(const std::string &msg, bool suppress) {
   if (!suppress)
@@ -244,6 +388,195 @@ executeForward(void *symbol, const std::string &weightsPath,
   return result;
 }
 
+struct KvGenerationOutput {
+  std::vector<float> firstLogits;
+  std::vector<int64_t> generatedTokens;
+  double prefillSeconds = 0.0;
+  double decodeSeconds = 0.0;
+};
+
+KvGenerationOutput executeKvGenerationF16(
+    void *prefillSym, void *decodeSym, const std::string &weightsPath,
+    const std::string &f32WeightsPath, size_t paramsF32Size,
+    const RunConfig &cfg, const std::string &prompt, size_t paramsSize,
+    size_t maxSeqLen, size_t vocabSize, size_t numImagePatches,
+    size_t numImageTokens, size_t patchSize, size_t gridH, size_t gridW,
+    size_t numLayers, size_t numKvHeads, size_t headDim, size_t maxCacheLen,
+    size_t maxNewTokens, int64_t eosTokenId, bool suppress) {
+  namespace fs = std::filesystem;
+  const size_t weightBytes = paramsSize * sizeof(_Float16);
+  if (fs::file_size(weightsPath) != weightBytes)
+    throw std::runtime_error("PaddleocrRunner: weight file size does not "
+                             "match manifest precision");
+  if (paramsF32Size == 0 || f32WeightsPath.empty())
+    throw std::runtime_error("PaddleocrRunner: missing FP32 auxiliary weights");
+
+  printLog("Loading weights", suppress);
+  MemRef<_Float16, 1> params({paramsSize});
+  readExact(weightsPath, params.getData(), weightBytes);
+  MemRef<float, 1> f32Params({paramsF32Size});
+  readExact(f32WeightsPath, f32Params.getData(), paramsF32Size * sizeof(float));
+  printLog("Weights loaded", suppress);
+
+  const size_t textSlots = maxSeqLen - numImageTokens;
+  MemRef<int64_t, 2> inputIds({1, maxSeqLen});
+  for (size_t i = 0; i < maxSeqLen; ++i)
+    inputIds.getData()[i] = i < numImageTokens ? kImageTokenId : kPadTokenId;
+  encodeText(prompt, textSlots, inputIds.getData() + numImageTokens);
+
+  MemRef<_Float16, 4> pixelValues({numImagePatches, 3, patchSize, patchSize},
+                                  0);
+  MemRef<int64_t, 2> attentionMask({1, maxSeqLen}, 1);
+  MemRef<int64_t, 3> positionIds({3, 1, maxSeqLen}, 0);
+  if (!cfg.imagePath.empty()) {
+    const fs::path imagePath(cfg.imagePath);
+    const bool preprocessed = fs::is_directory(imagePath);
+    if (!preprocessed &&
+        (!fs::is_regular_file(imagePath) || cfg.raxPath.empty()))
+      throw std::runtime_error("PaddleocrRunner: invalid --image path");
+    const fs::path inputDir =
+        preprocessed ? imagePath : fs::path(cfg.raxPath).parent_path();
+    readExact(inputDir / "input_ids.i64", inputIds.getData(),
+              maxSeqLen * sizeof(int64_t));
+    if (preprocessed) {
+      readExact(inputDir / "pixel_values.f16", pixelValues.getData(),
+                pixelValues.getSize() * sizeof(_Float16));
+    } else {
+      if (gridH * gridW != numImagePatches)
+        throw std::runtime_error("PaddleocrRunner: image grid mismatch");
+      std::vector<float> pixels;
+      paddleocr_image::preprocessImage(imagePath.string(), gridH, gridW,
+                                       patchSize, pixels);
+      for (size_t i = 0; i < pixels.size(); ++i)
+        pixelValues.getData()[i] = static_cast<_Float16>(pixels[i]);
+    }
+    readExact(inputDir / "attention_mask.i64", attentionMask.getData(),
+              maxSeqLen * sizeof(int64_t));
+    readExact(inputDir / "position_ids.i64", positionIds.getData(),
+              3 * maxSeqLen * sizeof(int64_t));
+  }
+
+  KvGenerationOutput out;
+  KvForwardResult<_Float16> prefillRes{
+      MemRef<_Float16, 3>({1, 1, vocabSize}, /*needMalloc=*/false, 0),
+      MemRef<_Float16, 4>({numLayers, numKvHeads, maxSeqLen, headDim},
+                          /*needMalloc=*/false, 0),
+      MemRef<_Float16, 4>({numLayers, numKvHeads, maxSeqLen, headDim},
+                          /*needMalloc=*/false, 0)};
+
+  auto prefillFn = reinterpret_cast<PrefillKvF16Fn>(prefillSym);
+  auto decodeFn = reinterpret_cast<DecodeKvF16Fn>(decodeSym);
+
+  printLog("Calling _mlir_ciface_forward (Prefill + KV cache)", suppress);
+  const auto t0 = std::chrono::steady_clock::now();
+  prefillFn(&prefillRes, &params, &f32Params, &inputIds, &pixelValues,
+            &attentionMask, &positionIds);
+  out.prefillSeconds =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
+          .count();
+  printLog("Prefill complete", suppress);
+
+  out.firstLogits.resize(vocabSize);
+  int64_t nextToken = 0;
+  float bestLogit = -1e30f;
+  const _Float16 *prefillLogitsPtr = prefillRes.logits.getData();
+  for (size_t v = 0; v < vocabSize; ++v) {
+    float val = static_cast<float>(prefillLogitsPtr[v]);
+    out.firstLogits[v] = val;
+    if (val > bestLogit) {
+      bestLogit = val;
+      nextToken = static_cast<int64_t>(v);
+    }
+  }
+  out.generatedTokens.push_back(nextToken);
+
+  const size_t maxPastLen = maxCacheLen - 1;
+  MemRef<_Float16, 4> cacheK({numLayers, numKvHeads, maxPastLen, headDim},
+                             static_cast<_Float16>(0.0f));
+  MemRef<_Float16, 4> cacheV({numLayers, numKvHeads, maxPastLen, headDim},
+                             static_cast<_Float16>(0.0f));
+  const size_t copySeq = std::min(maxSeqLen, maxPastLen);
+  const size_t rowBytes = headDim * sizeof(_Float16);
+  for (size_t l = 0; l < numLayers; ++l) {
+    for (size_t h = 0; h < numKvHeads; ++h) {
+      const size_t srcBase = ((l * numKvHeads + h) * maxSeqLen) * headDim;
+      const size_t dstBase = ((l * numKvHeads + h) * maxPastLen) * headDim;
+      std::memcpy(cacheK.getData() + dstBase, prefillRes.k.getData() + srcBase,
+                  copySeq * rowBytes);
+      std::memcpy(cacheV.getData() + dstBase, prefillRes.v.getData() + srcBase,
+                  copySeq * rowBytes);
+    }
+  }
+  free(prefillRes.logits.release());
+  free(prefillRes.k.release());
+  free(prefillRes.v.release());
+
+  MemRef<_Float16, 4> attnMask({1, 1, 1, maxCacheLen},
+                               static_cast<_Float16>(-10000.0f));
+  for (size_t i = 0; i < copySeq; ++i)
+    attnMask.getData()[i] = static_cast<_Float16>(0.0f);
+  attnMask.getData()[maxPastLen] = static_cast<_Float16>(0.0f);
+
+  size_t curLen = copySeq;
+  int64_t nextPos = positionIds.getData()[maxSeqLen - 1] + 1;
+  MemRef<int64_t, 2> decTokenId({1, 1}, 0);
+  MemRef<int64_t, 3> decPosIds({3, 1, 1}, 0);
+
+  printLog("Running KV-cache Decode loop", suppress);
+  const auto td0 = std::chrono::steady_clock::now();
+  while (nextToken != eosTokenId && out.generatedTokens.size() < maxNewTokens &&
+         curLen < maxPastLen) {
+    decTokenId.getData()[0] = nextToken;
+    decPosIds.getData()[0] = nextPos;
+    decPosIds.getData()[1] = nextPos;
+    decPosIds.getData()[2] = nextPos;
+
+    KvForwardResult<_Float16> decRes{
+        MemRef<_Float16, 3>({1, 1, vocabSize}, /*needMalloc=*/false, 0),
+        MemRef<_Float16, 4>({numLayers, numKvHeads, 1, headDim},
+                            /*needMalloc=*/false, 0),
+        MemRef<_Float16, 4>({numLayers, numKvHeads, 1, headDim},
+                            /*needMalloc=*/false, 0)};
+    decodeFn(&decRes, &params, &f32Params, &decTokenId, &decPosIds, &cacheK,
+             &cacheV, &attnMask);
+
+    for (size_t l = 0; l < numLayers; ++l) {
+      for (size_t h = 0; h < numKvHeads; ++h) {
+        const size_t srcBase = (l * numKvHeads + h) * headDim;
+        const size_t dstBase =
+            ((l * numKvHeads + h) * maxPastLen + curLen) * headDim;
+        std::memcpy(cacheK.getData() + dstBase, decRes.k.getData() + srcBase,
+                    rowBytes);
+        std::memcpy(cacheV.getData() + dstBase, decRes.v.getData() + srcBase,
+                    rowBytes);
+      }
+    }
+    attnMask.getData()[curLen] = static_cast<_Float16>(0.0f);
+    ++curLen;
+    ++nextPos;
+
+    const _Float16 *decLogitsPtr = decRes.logits.getData();
+    nextToken = 0;
+    bestLogit = -1e30f;
+    for (size_t v = 0; v < vocabSize; ++v) {
+      float val = static_cast<float>(decLogitsPtr[v]);
+      if (val > bestLogit) {
+        bestLogit = val;
+        nextToken = static_cast<int64_t>(v);
+      }
+    }
+    free(decRes.logits.release());
+    free(decRes.k.release());
+    free(decRes.v.release());
+    out.generatedTokens.push_back(nextToken);
+  }
+  out.decodeSeconds =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - td0)
+          .count();
+  printLog("Decode complete", suppress);
+  return out;
+}
+
 } // namespace
 
 void PaddleocrRunner::run(const RunConfig &cfg) {
@@ -265,10 +598,19 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
   size_t gridH = 54, gridW = 72;
   std::string precision = "f32";
   std::string fixedPrompt;
+  std::string vocabPath;
+  bool kvCache = false;
+  size_t maxCacheLen = 384;
+  size_t maxNewTokens = 64;
+  int64_t eosTokenId = 2;
+  size_t numLayers = 18;
+  size_t numKvHeads = 2;
+  size_t headDim = 128;
 
   if (!cfg.raxPath.empty()) {
     ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
     soPath = manifest.soPath;
+    vocabPath = manifest.vocabPath;
     weightsPath = findConstantPath(manifest, "params");
     if (weightsPath.empty() && !manifest.weightPaths.empty())
       weightsPath = manifest.weightPaths.front();
@@ -294,12 +636,30 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
     if (auto it = manifest.moduleAttrs.find("fixed_prompt");
         it != manifest.moduleAttrs.end())
       fixedPrompt = it->second;
+    if (auto it = manifest.moduleAttrs.find("kv_cache");
+        it != manifest.moduleAttrs.end() && it->second == "true")
+      kvCache = true;
+    maxCacheLen = parseSizeAttr(manifest, "max_cache_len", maxCacheLen);
+    maxNewTokens = parseSizeAttr(manifest, "max_new_tokens", maxNewTokens);
+    eosTokenId = static_cast<int64_t>(parseSizeAttr(
+        manifest, "eos_token_id", static_cast<size_t>(eosTokenId)));
+    numLayers = parseSizeAttr(manifest, "num_hidden_layers", numLayers);
+    numKvHeads = parseSizeAttr(manifest, "num_key_value_heads", numKvHeads);
+    headDim = parseSizeAttr(manifest, "head_dim", headDim);
   } else {
     if (cfg.modelSoPath.empty() || cfg.weightsPath.empty())
       throw std::runtime_error(
           "PaddleocrRunner: legacy mode requires --model-so and --weights");
     soPath = cfg.modelSoPath;
     weightsPath = cfg.weightsPath;
+  }
+  if (cfg.maxNewTokens > 0)
+    maxNewTokens =
+        std::min(maxNewTokens, static_cast<size_t>(cfg.maxNewTokens));
+  if (vocabPath.empty() && !cfg.raxPath.empty()) {
+    fs::path candidate = fs::path(cfg.raxPath).parent_path() / "tokenizer.json";
+    if (fs::is_regular_file(candidate))
+      vocabPath = candidate.string();
   }
 
   const std::string prompt =
@@ -335,9 +695,29 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
 
   if (maxSeqLen <= numImageTokens || logitsSeqLen == 0)
     throw std::runtime_error("PaddleocrRunner: invalid sequence dimensions");
+  void *forwardDecode = dlsym(handle, "_mlir_ciface_forward_decode");
   double forwardSeconds = 0.0;
+  double decodeSeconds = 0.0;
   std::vector<float> lastLogits;
-  if (precision == "f16") {
+  std::vector<int64_t> generatedTokens;
+  std::string decodedText;
+  const bool useKvDecode =
+      kvCache && precision == "f16" && forwardDecode != nullptr;
+
+  if (useKvDecode) {
+    KvGenerationOutput kvOut = executeKvGenerationF16(
+        forward, forwardDecode, weightsPath, f32WeightsPath, paramsF32Size, cfg,
+        prompt, paramsSize, maxSeqLen, vocabSize, numImagePatches,
+        numImageTokens, patchSize, gridH, gridW, numLayers, numKvHeads, headDim,
+        maxCacheLen, maxNewTokens, eosTokenId, suppress);
+    lastLogits = std::move(kvOut.firstLogits);
+    generatedTokens = std::move(kvOut.generatedTokens);
+    forwardSeconds = kvOut.prefillSeconds;
+    decodeSeconds = kvOut.decodeSeconds;
+    PaddleocrTokenizer tokenizer;
+    if (tokenizer.load(vocabPath))
+      decodedText = tokenizer.decode(generatedTokens, eosTokenId);
+  } else if (precision == "f16") {
     lastLogits = executeForward<_Float16>(
         forward, weightsPath, f32WeightsPath, paramsF32Size, cfg, prompt,
         paramsSize, maxSeqLen, logitsSeqLen, vocabSize, numImagePatches,
@@ -378,27 +758,66 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
       [](const auto &a, const auto &b) { return a.first > b.first; });
   topK.resize(5);
 
-  if (!suppress) {
-    std::cerr << "\033[33;1mPaddleOCR-VL Last-Token Logits\033[0m\n";
-    std::cerr << "  logits shape : 1 x " << logitsSeqLen << " x " << vocabSize
-              << "\n";
-    std::cerr << "  time         : " << forwardSeconds << "s\n";
+  if (useKvDecode) {
+    const double totalSeconds = forwardSeconds + decodeSeconds;
+    const size_t decodeSteps =
+        generatedTokens.size() > 1 ? generatedTokens.size() - 1 : 0;
+    if (!suppress) {
+      std::cerr << "\033[33;1mPaddleOCR-VL OCR Result\033[0m\n";
+      std::cerr << "  prefill time : " << forwardSeconds << "s\n";
+      std::cerr << "  decode time  : " << decodeSeconds << "s (" << decodeSteps
+                << " tokens";
+      if (decodeSeconds > 0.0 && decodeSteps > 0)
+        std::cerr << ", " << (static_cast<double>(decodeSteps) / decodeSeconds)
+                  << " tok/s";
+      std::cerr << ")\n";
+      std::cerr << "  total time   : " << totalSeconds << "s\n";
+      std::cerr << "  text         :\n" << decodedText << "\n";
+    }
+    std::cout << "{\"text\": \"" << escapeJson(decodedText) << "\",\n";
+    std::cout << " \"generated_tokens\": [";
+    for (size_t i = 0; i < generatedTokens.size(); ++i) {
+      if (i)
+        std::cout << ", ";
+      std::cout << generatedTokens[i];
+    }
+    std::cout << "],\n";
+    std::cout << " \"prefill_time_s\": " << forwardSeconds << ",\n";
+    std::cout << " \"decode_time_s\": " << decodeSeconds << ",\n";
+    std::cout << " \"total_time_s\": " << totalSeconds << ",\n";
+    std::cout << " \"logits_shape\": [1, " << logitsSeqLen << ", " << vocabSize
+              << "],\n";
+    std::cout << " \"top5\": [";
+    for (size_t i = 0; i < topK.size(); ++i) {
+      if (i)
+        std::cout << ", ";
+      std::cout << "{\"token\": " << topK[i].second
+                << ", \"logit\": " << topK[i].first << "}";
+    }
+    std::cout << "]}\n";
+  } else {
+    if (!suppress) {
+      std::cerr << "\033[33;1mPaddleOCR-VL Last-Token Logits\033[0m\n";
+      std::cerr << "  logits shape : 1 x " << logitsSeqLen << " x " << vocabSize
+                << "\n";
+      std::cerr << "  time         : " << forwardSeconds << "s\n";
+    }
+    std::cout << "{\"logits_shape\": [1, " << logitsSeqLen << ", " << vocabSize
+              << "],\n";
+    std::cout << " \"last_logits_sum\": " << sum << ",\n";
+    std::cout << " \"last_logits_mean\": " << mean << ",\n";
+    std::cout << " \"last_logits_max\": " << maxV << ",\n";
+    std::cout << " \"last_logits_rms\": " << std::sqrt(sumSq / vocabSize)
+              << ",\n";
+    std::cout << " \"top5\": [";
+    for (size_t i = 0; i < topK.size(); ++i) {
+      if (i)
+        std::cout << ", ";
+      std::cout << "{\"token\": " << topK[i].second
+                << ", \"logit\": " << topK[i].first << "}";
+    }
+    std::cout << "]}\n";
   }
-  std::cout << "{\"logits_shape\": [1, " << logitsSeqLen << ", " << vocabSize
-            << "],\n";
-  std::cout << " \"last_logits_sum\": " << sum << ",\n";
-  std::cout << " \"last_logits_mean\": " << mean << ",\n";
-  std::cout << " \"last_logits_max\": " << maxV << ",\n";
-  std::cout << " \"last_logits_rms\": " << std::sqrt(sumSq / vocabSize)
-            << ",\n";
-  std::cout << " \"top5\": [";
-  for (size_t i = 0; i < topK.size(); ++i) {
-    if (i)
-      std::cout << ", ";
-    std::cout << "{\"token\": " << topK[i].second
-              << ", \"logit\": " << topK[i].first << "}";
-  }
-  std::cout << "]}\n";
 
   dlclose(handle);
 }

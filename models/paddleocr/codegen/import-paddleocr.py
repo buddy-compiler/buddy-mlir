@@ -411,20 +411,157 @@ print(f"   pixel_values:  {pixel_values.shape}")
 print(f"   position_ids:  {position_ids.shape}")
 
 # ==============================================================================
-# 5. Trace the model (single forward graph)
+# 5. Trace the model (single forward or Prefill + static KV-cache Decode)
 # ==============================================================================
 
-print("\n[PaddleOCR-Import] Tracing forward graph...")
-with torch.no_grad():
-    graphs = dynamo_compiler.importer(
-        model,
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        pixel_values=pixel_values,
-        image_grid_thw=static_image_grid_thw,
-        position_ids=position_ids,
-        return_dict=False,
-    )
+kv_cache_enabled = bool(spec.get("kv_cache", False))
+max_cache_len = int(spec.get("max_cache_len", 384))
+
+if kv_cache_enabled:
+    import sys as _sys
+
+    _model_mod = _sys.modules[model.__class__.__module__]
+    num_layers = int(model.config.num_hidden_layers)
+    num_kv_heads = int(model.config.num_key_value_heads)
+    head_dim = int(model.config.head_dim)
+    num_attn_heads = int(model.config.num_attention_heads)
+    hidden_size = int(model.config.hidden_size)
+    max_past_len = max_cache_len - 1
+
+    class StaticListCache:
+        def __init__(self, n_layers):
+            self.keys = [None] * n_layers
+            self.values = [None] * n_layers
+
+        def update(
+            self, key_states, value_states, layer_idx, cache_kwargs=None
+        ):
+            self.keys[layer_idx] = key_states
+            self.values[layer_idx] = value_states
+            return key_states, value_states
+
+        def get_seq_length(self, layer_idx=0):
+            return (
+                0
+                if self.keys[layer_idx] is None
+                else self.keys[layer_idx].shape[2]
+            )
+
+        def get_mask_sizes(self, cache_position, layer_idx=0):
+            q_len = (
+                cache_position
+                if isinstance(cache_position, int)
+                else cache_position.shape[0]
+            )
+            return q_len, 0
+
+    class PrefillKVWrapper(torch.nn.Module):
+        def __init__(self, inner, grid_thw):
+            super().__init__()
+            self.inner = inner
+            self.grid_thw = grid_thw
+
+        def forward(
+            self, input_ids, attention_mask, pixel_values, position_ids
+        ):
+            cache = StaticListCache(num_layers)
+            out = self.inner(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                pixel_values=pixel_values,
+                image_grid_thw=self.grid_thw,
+                position_ids=position_ids,
+                past_key_values=cache,
+                use_cache=True,
+                return_dict=True,
+            )
+            prefill_k = torch.cat(cache.keys, dim=0)
+            prefill_v = torch.cat(cache.values, dim=0)
+            return out.logits, prefill_k, prefill_v
+
+    class DecodeKVWrapper(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner
+
+        def forward(self, input_ids, position_ids, cache_k, cache_v, attn_mask):
+            h = self.inner.model.embed_tokens(input_ids)
+            cos, sin = self.inner.model.rotary_emb(h, position_ids)
+            new_ks = []
+            new_vs = []
+            for idx, layer in enumerate(self.inner.model.layers):
+                residual = h
+                h_norm = layer.input_layernorm(h)
+                attn = layer.self_attn
+                q = (
+                    attn.q_proj(h_norm)
+                    .view(1, 1, num_attn_heads, head_dim)
+                    .transpose(1, 2)
+                )
+                k = (
+                    attn.k_proj(h_norm)
+                    .view(1, 1, num_kv_heads, head_dim)
+                    .transpose(1, 2)
+                )
+                v = (
+                    attn.v_proj(h_norm)
+                    .view(1, 1, num_kv_heads, head_dim)
+                    .transpose(1, 2)
+                )
+                q, k = _model_mod.apply_multimodal_rotary_pos_emb(
+                    q, k, cos, sin, attn.rope_scaling["mrope_section"]
+                )
+                new_ks.append(k)
+                new_vs.append(v)
+                full_k = torch.cat([cache_k[idx : idx + 1], k], dim=2)
+                full_v = torch.cat([cache_v[idx : idx + 1], v], dim=2)
+                full_k_rep = _model_mod.repeat_kv(
+                    full_k, attn.num_key_value_groups
+                )
+                full_v_rep = _model_mod.repeat_kv(
+                    full_v, attn.num_key_value_groups
+                )
+                scores = (
+                    torch.matmul(q, full_k_rep.transpose(2, 3)) * attn.scaling
+                    + attn_mask
+                )
+                probs = torch.softmax(scores, dim=-1, dtype=torch.float32).to(
+                    q.dtype
+                )
+                a_out = (
+                    torch.matmul(probs, full_v_rep)
+                    .transpose(1, 2)
+                    .reshape(1, 1, num_attn_heads * head_dim)
+                )
+                h = residual + attn.o_proj(a_out)
+                residual = h
+                h = residual + layer.mlp(layer.post_attention_layernorm(h))
+            h = self.inner.model.norm(h)
+            logits = self.inner.lm_head(h)
+            return logits, torch.cat(new_ks, dim=0), torch.cat(new_vs, dim=0)
+
+    print("\n[PaddleOCR-Import] Tracing Prefill (with KV cache) graph...")
+    prefill_wrapper = PrefillKVWrapper(model, static_image_grid_thw).eval()
+    with torch.no_grad():
+        graphs = dynamo_compiler.importer(
+            prefill_wrapper,
+            input_ids,
+            attention_mask,
+            pixel_values,
+            position_ids,
+        )
+else:
+    print("\n[PaddleOCR-Import] Tracing forward graph...")
+    with torch.no_grad():
+        graphs = dynamo_compiler.importer(
+            model,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            pixel_values=pixel_values,
+            image_grid_thw=static_image_grid_thw,
+            position_ids=position_ids,
+            return_dict=False,
+        )
 
 assert len(graphs) == 1, f"Expected 1 forward graph, got {len(graphs)}"
 graph = graphs[0]
@@ -466,15 +603,20 @@ print("[PaddleOCR-Import] Writing weight data...")
 dtypes = sorted({param.dtype for param in params}, key=str)
 if len(dtypes) > 2:
     raise RuntimeError(f"Unsupported parameter dtypes: {dtypes}")
+prefill_param_map = {}
+prefill_totals = {}
 for index, dtype in enumerate(dtypes):
     if dtype not in (torch.float16, torch.float32):
         raise RuntimeError(f"Unsupported parameter dtype: {dtype}")
+    dtype_params = [param for param in params if param.dtype == dtype]
+    offset = 0
+    for param in dtype_params:
+        key = (param.data_ptr(), param.numel())
+        prefill_param_map.setdefault(key, (index, offset))
+        offset += param.numel()
+    prefill_totals[index] = offset
     packed = numpy.concatenate(
-        [
-            param.detach().numpy().reshape([-1])
-            for param in params
-            if param.dtype == dtype
-        ]
+        [param.detach().numpy().reshape([-1]) for param in dtype_params]
     )
     expected = spec["params_size" if index == 0 else "params_f32_size"]
     if packed.size != expected:
@@ -485,6 +627,166 @@ for index, dtype in enumerate(dtypes):
     print(
         f"   arg{index}.data: {packed.size:,} {dtype} elements "
         f"({packed.nbytes / 1e9:.3f} GB)"
+    )
+
+if kv_cache_enabled:
+    print("\n[PaddleOCR-Import] Tracing Decode (1-token KV cache) graph...")
+    decode_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_decode",
+    )
+    decode_wrapper = DecodeKVWrapper(model).eval()
+    dec_dtype = (
+        torch.float16 if spec.get("precision") == "f16" else torch.float32
+    )
+    dec_input_ids = torch.zeros((1, 1), dtype=torch.int64)
+    dec_position_ids = torch.zeros((3, 1, 1), dtype=torch.int64)
+    dec_cache_k = torch.zeros(
+        (num_layers, num_kv_heads, max_past_len, head_dim), dtype=dec_dtype
+    )
+    dec_cache_v = torch.zeros(
+        (num_layers, num_kv_heads, max_past_len, head_dim), dtype=dec_dtype
+    )
+    dec_attn_mask = torch.zeros((1, 1, 1, max_cache_len), dtype=dec_dtype)
+
+    with torch.no_grad():
+        dec_graphs = decode_compiler.importer(
+            decode_wrapper,
+            dec_input_ids,
+            dec_position_ids,
+            dec_cache_k,
+            dec_cache_v,
+            dec_attn_mask,
+        )
+    assert len(dec_graphs) == 1, (
+        f"Expected 1 decode graph, got {len(dec_graphs)}"
+    )
+    dec_graph = dec_graphs[0]
+    dec_params = decode_compiler.imported_params[dec_graph]
+    print(
+        f"[PaddleOCR-Import] Decode graph captured. Params: {len(dec_params)} "
+        f"tensors, {sum(p.numel() for p in dec_params):,} elements."
+    )
+    dec_graph.fuse_ops([simply_fuse])
+    dec_graph.op_groups["subgraph0"] = dec_graph.op_groups.pop("subgraph0")
+    dec_graph.group_map_device["subgraph0"] = DeviceType.CPU
+    dec_driver = GraphDriver(dec_graph)
+    dec_driver.subgraphs[0].lower_to_top_level_ir()
+
+    dec_subgraph_ir = str(dec_driver.subgraphs[0]._imported_module).replace(
+        "@subgraph0", "@subgraph_decode"
+    )
+    dec_forward_ir = str(dec_driver.construct_main_graph(True)).replace(
+        "@subgraph0", "@subgraph_decode"
+    )
+
+    # Remap decode_forward.mlir parameter subview offsets to share Prefill's
+    # arg0.data / arg1.data without duplicating weights on disk or in RAM.
+    dec_dtypes = sorted({param.dtype for param in dec_params}, key=str)
+    mlir_type_names = {torch.float16: "f16", torch.float32: "f32"}
+    dec_lines = dec_forward_ir.splitlines()
+
+    def _row_major_strides(dims):
+        strides = [1] * len(dims)
+        for k in range(len(dims) - 2, -1, -1):
+            strides[k] = strides[k + 1] * dims[k + 1]
+        return strides
+
+    def _strided_type(dims_str, ty, off):
+        if off == 0:
+            return f"memref<{dims_str}x{ty}>"
+        dims = [int(d) for d in dims_str.split("x")]
+        st = ", ".join(str(s) for s in _row_major_strides(dims))
+        return f"memref<{dims_str}x{ty}, strided<[{st}], offset: {off}>>"
+
+    for dec_arg_idx, dtype in enumerate(dec_dtypes):
+        dtype_params = [param for param in dec_params if param.dtype == dtype]
+        dec_total = sum(p.numel() for p in dtype_params)
+        prefill_arg_idx = dtypes.index(dtype)
+        prefill_total = prefill_totals[prefill_arg_idx]
+        mlir_ty = mlir_type_names[dtype]
+        offset_map = {}
+        old_off = 0
+        for param in dtype_params:
+            key = (param.data_ptr(), param.numel())
+            if key not in prefill_param_map:
+                raise RuntimeError(
+                    f"Decode param ({dtype}, numel={param.numel()}) not found in Prefill params"
+                )
+            p_arg, p_off = prefill_param_map[key]
+            assert p_arg == prefill_arg_idx
+            offset_map[(old_off, param.numel())] = p_off
+            old_off += param.numel()
+
+        # Track SSA values whose static offset changed so expand_shape/cast match.
+        ssa_remap = {}
+        new_lines = []
+        subview_pat = re.compile(
+            rf"^(\s*)(%\S+)\s*=\s*memref\.subview\s+%arg{dec_arg_idx}\[(\d+)\]\s+\[(\d+)\]\s+\[1\]\s*:\s*memref<{dec_total}x{mlir_ty}>\s+to\s+(.+)$"
+        )
+        expand_pat = re.compile(
+            rf"^(\s*)(%\S+)\s*=\s*memref\.expand_shape\s+(%\S+)\s+(\[.+?\]\s+output_shape\s+\[.+?\])\s*:\s*(memref<.+?>)\s+into\s+memref<([\dx]+)x{mlir_ty}(?:,\s*strided<\[[^\]]+\],\s*offset:\s*\d+>)?>\s*$"
+        )
+        cast_pat = re.compile(
+            r"^(\s*)(%\S+)\s*=\s*memref\.cast\s+(%\S+)\s*:\s*(memref<.+?>)\s+to\s+(.+)$"
+        )
+
+        for line in dec_lines:
+            if f"%arg{dec_arg_idx}: memref<{dec_total}x{mlir_ty}>" in line:
+                line = line.replace(
+                    f"%arg{dec_arg_idx}: memref<{dec_total}x{mlir_ty}>",
+                    f"%arg{dec_arg_idx}: memref<{prefill_total}x{mlir_ty}>",
+                )
+                new_lines.append(line)
+                continue
+            m = subview_pat.match(line)
+            if m:
+                indent, res, o_str, s_str, _ = m.groups()
+                o_val, s_val = int(o_str), int(s_str)
+                if (o_val, s_val) not in offset_map:
+                    raise RuntimeError(
+                        f"Unmapped decode subview offset={o_val} size={s_val} on %arg{dec_arg_idx}"
+                    )
+                new_o = offset_map[(o_val, s_val)]
+                new_ty = _strided_type(str(s_val), mlir_ty, new_o)
+                ssa_remap[res] = (new_o, new_ty)
+                new_lines.append(
+                    f"{indent}{res} = memref.subview %arg{dec_arg_idx}[{new_o}] [{s_val}] [1] "
+                    f": memref<{prefill_total}x{mlir_ty}> to {new_ty}"
+                )
+                continue
+            m = expand_pat.match(line)
+            if m and m.group(3) in ssa_remap:
+                indent, res, src_ssa, middle, _, out_dims = m.groups()
+                new_o, src_ty = ssa_remap[src_ssa]
+                out_ty = _strided_type(out_dims, mlir_ty, new_o)
+                ssa_remap[res] = (new_o, out_ty)
+                new_lines.append(
+                    f"{indent}{res} = memref.expand_shape {src_ssa} {middle} "
+                    f": {src_ty} into {out_ty}"
+                )
+                continue
+            m = cast_pat.match(line)
+            if m and m.group(3) in ssa_remap:
+                indent, res, src_ssa, _, dst_ty = m.groups()
+                _, src_ty = ssa_remap[src_ssa]
+                new_lines.append(
+                    f"{indent}{res} = memref.cast {src_ssa} : {src_ty} to {dst_ty}"
+                )
+                continue
+            new_lines.append(line)
+        dec_lines = new_lines
+
+    dec_forward_ir = "\n".join(dec_lines) + "\n"
+
+    with open(os.path.join(output_dir, "decode_subgraph0.mlir"), "w") as f:
+        f.write(dec_subgraph_ir)
+    with open(os.path.join(output_dir, "decode_forward.mlir"), "w") as f:
+        f.write(dec_forward_ir)
+    print(
+        "[PaddleOCR-Import] Written decode_subgraph0.mlir and decode_forward.mlir "
+        "(sharing Prefill arg0.data/arg1.data)."
     )
 
 print(f"[PaddleOCR-Import] Done! {n_param_elems:,} total elements.")

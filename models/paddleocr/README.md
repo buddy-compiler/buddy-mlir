@@ -8,14 +8,16 @@ HuggingFace remote code, compiles the fixed-shape OCR forward graph to MLIR,
 links `paddleocr_model.so`, and packs a `paddleocr.rax` manifest plus an
 `InferenceRunner` plugin that `buddy-cli` loads at run time.
 
-The runner emits the **last-token logits** (a 103424-dim vector over the OCR
-vocabulary) together with the top-5 token hypotheses, i.e. a single-shot OCR
-forward over a deterministic fixed-shape input.
+The FP16 K3 variant (`specs/f16_ocr_sample_last_token.json`) runs full
+end-to-end OCR text generation (Prefill + static KV-cache Decode + C++
+`tokenizer.json` decoding) directly from a local PNG/JPEG image. The original
+F32 spec remains available for single-shot last-token logits.
 
 `specs/f16_ocr_sample_last_token.json` is the K3 development variant. It
-traces a real OCR sample and the official `OCR:` prompt, uses FP16 weights and
-activations while retaining 82 FP32 auxiliary parameters, and computes only
-the final position's LM-head logits. The original F32 spec remains available.
+traces a real OCR sample and the official `OCR:` prompt with FP16 weights and
+activations (plus 82 FP32 auxiliary parameters), exports Prefill and Decode
+graphs that share the same weight buffers (`arg0.data` / `arg1.data`) with zero
+duplication, and decodes the generated token sequence into text in C++.
 
 ## Prerequisites
 
@@ -57,22 +59,19 @@ Select the FP16 variant with
 `-DBUDDY_PADDLEOCR_SPEC=$PWD/models/paddleocr/specs/f16_ocr_sample_last_token.json`.
 It produces `arg0.data` (FP16) and `arg1.data` (FP32); both are needed by the
 compiled forward ABI. K3 cross builds also require the RISC-V sysroot, target
-OpenMP/MLIR runtime libraries, and `BUDDY_RISCV_VLEN=1024` for A100. Pass
-`-DBUDDY_PADDLEOCR_K3_IME=ON` (with `BUDDY_RISCV_VLEN=1024` and `precision=f16`)
-to lower `M >= 8` `linalg.matmul` ops, Vision patch-embedding `linalg.conv_2d_nhwc_fhwc`
-(padded `K=588->592`), `M=1` transposed `[N, K]` FP32 vector GEMV (`1x1024x103424`), and all
-45 Attention `bmm1 -> scale -> softmax -> bmm2` blocks via K3 A100 FP16 IME (`codegen/lower_to_obj.sh`,
-reusing PR #997's `-simplify-tosa-reshape`, `-silu-fusion`, `-fuse-prefill-elementwise`,
-`target=k3 a100-fp16=true a100-gemm=true verify-fp16=true`, zero-copy `memref.transpose` weight
-folding with unit-row-stride packing, L1-resident FP32 softmax + `-approximate-vector-exp`,
-`-lower-linalg-to-vir=exp-only=true` for FP32 SiLU, `-matmul-vectorization-blis=vector-size=64 target-vlen-bits=1024`,
-plus `M%8` / `N%32` tails and parallel `batch_matmul` vectorization). On `K3-002` (A100 CPUs 8–15, 8 threads,
-after `echo 0 > /proc/set_ai_thread`), this reduces `paddleocr_model.so` from `64M` to `37M` and
-lowers single-forward latency from `525.7s` (FP16 RVV) and `61.5s–61.9s` (non-fused IME) down to
-`24.75s–25.96s` (`~20.3x–21.2x` over FP16 RVV) while preserving Top-5 token order
-(`[35875, 93978, 13415, 85456, 93970]`), improving `max_abs_error` vs PyTorch FP16 reference from
-`0.334` to `0.145` (pre-processed tensors, `rel_l2=0.94%`, `cos=0.999955`)
-and `0.131` (direct PNG `--image` input, `24.99s`, `rel_l2=0.88%`, `cos=0.999960`).
+OpenMP/MLIR runtime libraries, and `BUDDY_RISCV_VLEN=1024` for A100. Pass `-DBUDDY_PADDLEOCR_K3_IME=ON` (with `BUDDY_RISCV_VLEN=1024` and
+`precision=f16`) to enable SpacemiT K3 A100 FP16 IME lowering
+(`codegen/lower_to_obj.sh`): fused Flash-Attention with A100 FP16 IME,
+zero-copy transposed-weight folding and unit-stride packing, transposed-weight
+`M=1` FP32 vector GEMV, Vision patch-embedding conv-to-IME lowering, and
+PR #997's elementwise/SiLU/VIR vector optimizations. On `K3-002` (A100 CPUs
+8–15, 8 threads, after `echo 0 > /proc/set_ai_thread`) with direct PNG input
+(`test_text.png`, `--prompt "OCR:"`), this reduces `paddleocr_model.so` from
+`64M` to `38M` (including both Prefill and Decode), lowers Prefill latency from
+`525.7s` (FP16 RVV) to `25.04s` (`~21x` speedup), and runs KV-cache Decode at
+`3.11 tok/s` (`5.78s` for 18 decode steps, `30.82s` total), outputting the
+exact OCR text matching PyTorch FP16 `model.generate`
+(`Buddy MLIR\nQwen3-VL OCR\n2026`).
 
 `-DBUDDY_PADDLEOCR_MODEL_PATH` must point to a local HuggingFace-format
 PaddleOCR-VL-0.9B snapshot directory (it is staged into the build as
@@ -102,13 +101,9 @@ The build emits these artifacts under `build/models/paddleocr/`:
 - `--no-stats` suppresses runner logs and prints only the JSON output.
 
 With the FP16 sample variant, pass `--image <local PNG/JPEG> --prompt "OCR:"`.
-The runner decodes and resizes the image in C++ to the compiled `[1,20,40]`
-grid. `--image <directory>` instead reads the exact preprocessed tensors for
-compiler correctness checks. The prompt and grid are fixed by this variant;
-the runner currently returns first-token logits, not a full OCR transcript.
-
-The output is a JSON object with the logits shape, summary statistics of the
-last-token logits vector, and the top-5 token hypotheses.
+The runner decodes and resizes the image in C++, runs Prefill + KV-cache Decode,
+and decodes the generated token IDs via `tokenizer.json` to emit the recognized
+OCR text (both human-readable summary on stderr and JSON on stdout).
 
 ## Notes
 
