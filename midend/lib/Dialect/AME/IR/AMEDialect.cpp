@@ -35,3 +35,22 @@ void AMEDialect::initialize() {
 #include "AME/AME.cpp.inc"
       >();
 }
+
+/// LLVM returns zip/unzip pairs as a literal struct. The intrinsic overload
+/// requires both fields and both sources to have exactly the same matrix type.
+static LogicalResult verifyMatrixPair(Operation *op) {
+  auto result = llvm::cast<LLVM::LLVMStructType>(op->getResult(0).getType());
+  if (result.isIdentified() || result.isOpaque() || result.isPacked() ||
+      result.getBody().size() != 2 ||
+      result.getBody()[0] != op->getOperand(0).getType() ||
+      result.getBody()[1] != op->getOperand(0).getType() ||
+      op->getOperand(1).getType() != op->getOperand(0).getType())
+    return op->emitOpError("requires a literal, unpacked two-matrix result "
+                           "matching both operands");
+  return success();
+}
+
+LogicalResult McolunzipEwOp::verify() { return verifyMatrixPair(*this); }
+LogicalResult McolzipEwOp::verify() { return verifyMatrixPair(*this); }
+LogicalResult MrowunzipEwOp::verify() { return verifyMatrixPair(*this); }
+LogicalResult MrowzipEwOp::verify() { return verifyMatrixPair(*this); }

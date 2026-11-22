@@ -1,217 +1,240 @@
-#!/usr/bin/env bash
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
 
-BUDDY_OPT := ../../build/bin/buddy-opt
-BUDDY_TRANSLATE := ../../build/bin/buddy-translate
-BUDDY_LLC := ../../build/bin/buddy-llc
+BUDDY_OPT ?= ../../build/bin/buddy-opt
+BUDDY_TRANSLATE ?= ../../build/bin/buddy-translate
+BUDDY_LLC ?= ../../build/bin/buddy-llc
 
 .PHONY: all clean help \
-	mqma-b-mm mqma-b-mm-lower mqma-b-mm-translate mqma-b-mm-asm \
-	mma-w-mm mma-w-mm-lower mma-w-mm-translate mma-w-mm-asm \
-	mma-dw-mm mma-dw-mm-lower mma-dw-mm-translate mma-dw-mm-asm \
-	mma-complete mma-complete-lower mma-complete-translate mma-complete-asm
+	ame-matmul-lower ame-matmul-translate ame-matmul-asm ame-matmul-obj \
+	ame-matmul-4x4-lower ame-matmul-4x4-translate \
+	ame-matmul-4x4-asm ame-matmul-4x4-obj \
+	ame-matmul-demo-lower ame-matmul-demo-translate \
+	ame-matmul-demo-asm ame-matmul-demo-obj
 
-all: mqma-b-mm mma-w-mm mma-dw-mm
-
-
+all: ame-matmul-asm
 
 #===----------------------------------------------------------------------===#
-# mqma.b.mm (int8 quad-widen matrix multiply: int8 -> int32)
+# ame-matmul (ZTT v0.6: configure + load + compute + store)
+# Copy this four-target block when adding another example.
 #===----------------------------------------------------------------------===#
 
-# Alias for backward compatibility
-mqma-b-mm: mqma-b-mm-lower
+ame-matmul-lower:
+	@echo "=== Lowering AME matrix multiply-accumulate demo ==="
+	${BUDDY_OPT} ame-matmul.mlir \
+		--lower-ame \
+		-o ame-matmul-lowered.mlir
+	@echo "Lowered MLIR saved to ame-matmul-lowered.mlir"
 
-mqma-b-mm-lower:
-	@echo "=== Lowering AME mqma.b.mm (int8 -> int32 matrix multiply) ==="
-	${BUDDY_OPT} mqma-b-mm.mlir \
-	        --lower-ame \
-	        -o mqma-b-mm-lowered.mlir
-	@echo "Lowered MLIR saved to mqma-b-mm-lowered.mlir"
-
-mqma-b-mm-translate:
-	@echo "=== Translating mqma.b.mm to LLVM IR ==="
-	@${BUDDY_OPT} mqma-b-mm.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
+ame-matmul-translate:
+	@echo "=== Translating AME matrix multiply-accumulate demo to LLVM IR ==="
+	@${BUDDY_OPT} ame-matmul.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir \
-	        -o mqma-b-mm.ll
-	@echo "LLVM IR saved to mqma-b-mm.ll"
+		-o ame-matmul.ll
+	@echo "Output saved to ame-matmul.ll"
 
-mqma-b-mm-asm:
-	@echo "=== Generating assembly for mqma.b.mm ==="
-	@${BUDDY_OPT} mqma-b-mm.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
+ame-matmul-asm:
+	@echo "=== Generating XAME assembly ==="
+	@${BUDDY_OPT} ame-matmul.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-	        -mattr=+m,+v,+buddyext \
-	        -o mqma-b-mm.s
-	@echo "Assembly saved to mqma-b-mm.s"
+		-mattr=+m,+xame -verify-machineinstrs \
+		-o ame-matmul.s
+	@echo "Output saved to ame-matmul.s"
+
+ame-matmul-obj:
+	@echo "=== Generating a RISC-V XAME object ==="
+	@${BUDDY_OPT} ame-matmul.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+m,+xame -verify-machineinstrs \
+		-o ame-matmul.o
+	@echo "Output saved to ame-matmul.o"
 
 #===----------------------------------------------------------------------===#
-# mma.w.mm (int32 matrix multiply-accumulate)
+# ame-matmul-4x4 (ZTT v0.6: AME_gem5-compatible profile)
 #===----------------------------------------------------------------------===#
 
-# Alias for backward compatibility
-mma-w-mm: mma-w-mm-lower
+ame-matmul-4x4-lower:
+	@echo "=== Lowering AME 4x4 matrix multiply-accumulate demo ==="
+	${BUDDY_OPT} ame-matmul-4x4.mlir \
+		--lower-ame \
+		-o ame-matmul-4x4-lowered.mlir
+	@echo "Lowered MLIR saved to ame-matmul-4x4-lowered.mlir"
 
-mma-w-mm-lower:
-	@echo "=== Lowering AME mma.w.mm (int32 matrix multiply-accumulate) ==="
-	${BUDDY_OPT} mma-w-mm.mlir \
-	        --lower-ame \
-	        -o mma-w-mm-lowered.mlir
-	@echo "Lowered MLIR saved to mma-w-mm-lowered.mlir"
-
-mma-w-mm-translate:
-	@echo "=== Translating mma.w.mm to LLVM IR ==="
-	@${BUDDY_OPT} mma-w-mm.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
+ame-matmul-4x4-translate:
+	@echo "=== Translating AME 4x4 matrix multiply-accumulate demo to LLVM IR ==="
+	@${BUDDY_OPT} ame-matmul-4x4.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir \
-	        -o mma-w-mm.ll
-	@echo "LLVM IR saved to mma-w-mm.ll"
+		-o ame-matmul-4x4.ll
+	@echo "Output saved to ame-matmul-4x4.ll"
 
-mma-w-mm-asm:
-	@echo "=== Generating assembly for mma.w.mm ==="
-	@${BUDDY_OPT} mma-w-mm.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
+ame-matmul-4x4-asm:
+	@echo "=== Generating XAME AME_gem5-profile assembly ==="
+	@${BUDDY_OPT} ame-matmul-4x4.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-	        -mattr=+m,+v,+buddyext \
-	        -o mma-w-mm.s
-	@echo "Assembly saved to mma-w-mm.s"
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o ame-matmul-4x4.s
+	@echo "Output saved to ame-matmul-4x4.s"
 
-#===----------------------------------------------------------------------===#
-# mma.dw.mm (int64 double-widen matrix multiply-accumulate: int32 -> int64)
-#===----------------------------------------------------------------------===#
-
-# Alias for backward compatibility
-mma-dw-mm: mma-dw-mm-lower
-
-mma-dw-mm-lower:
-	@echo "=== Lowering AME mma.dw.mm (int32 -> int64 matrix multiply-accumulate) ==="
-	${BUDDY_OPT} mma-dw-mm.mlir \
-	        --lower-ame \
-	        -o mma-dw-mm-lowered.mlir
-	@echo "Lowered MLIR saved to mma-dw-mm-lowered.mlir"
-
-mma-dw-mm-translate:
-	@echo "=== Translating mma.dw.mm to LLVM IR ==="
-	@${BUDDY_OPT} mma-dw-mm.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
-	${BUDDY_TRANSLATE} --buddy-to-llvmir \
-	        -o mma-dw-mm.ll
-	@echo "LLVM IR saved to mma-dw-mm.ll"
-
-mma-dw-mm-asm:
-	@echo "=== Generating assembly for mma.dw.mm ==="
-	@${BUDDY_OPT} mma-dw-mm.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
+ame-matmul-4x4-obj:
+	@echo "=== Generating an AME_gem5-profile RISC-V object ==="
+	@${BUDDY_OPT} ame-matmul-4x4.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-	        -mattr=+m,+v,+buddyext \
-	        -o mma-dw-mm.s
-	@echo "Assembly saved to mma-dw-mm.s"
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o ame-matmul-4x4.o
+	@echo "Output saved to ame-matmul-4x4.o"
 
 #===----------------------------------------------------------------------===#
-# mma-complete (complete demo: config + load + compute + store)
+# ame-matmul-demo (initialize + AME compute + print + scalar verification)
 #===----------------------------------------------------------------------===#
 
-mma-complete: mma-complete-lower
+ame-matmul-demo-lower:
+	${BUDDY_OPT} ame-matmul-demo.mlir --lower-ame \
+		-o ame-matmul-demo-lowered.mlir
 
-mma-complete-lower:
-	@echo "=== Lowering AME Complete MMA Demo ==="
-	${BUDDY_OPT} mma-complete-demo.mlir \
-	        --lower-ame \
-	        -o mma-complete-demo-lowered.mlir
-	@echo "Lowered MLIR saved to mma-complete-demo-lowered.mlir"
+ame-matmul-demo-translate:
+	@${BUDDY_OPT} ame-matmul-demo.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir -o ame-matmul-demo.ll
 
-mma-complete-translate:
-	@echo "=== Translating complete MMA demo to LLVM IR ==="
-	@${BUDDY_OPT} mma-complete-demo.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
-	${BUDDY_TRANSLATE} --buddy-to-llvmir \
-	        -o mma-complete-demo.ll
-	@echo "LLVM IR saved to mma-complete-demo.ll"
-
-mma-complete-asm:
-	@echo "=== Generating assembly for complete MMA demo ==="
-	@${BUDDY_OPT} mma-complete-demo.mlir \
-	        --lower-ame \
-	        -convert-linalg-to-loops \
-	        -lower-affine \
-	        -convert-scf-to-cf \
-	        -convert-cf-to-llvm \
-	        -convert-arith-to-llvm \
-	        -convert-math-to-llvm \
-	        -convert-func-to-llvm \
-	        -finalize-memref-to-llvm \
-	        -reconcile-unrealized-casts | \
+ame-matmul-demo-asm:
+	@${BUDDY_OPT} ame-matmul-demo.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-	        -mattr=+m,+v,+buddyext \
-	        -o mma-complete-demo.s
-	@echo "Assembly saved to mma-complete-demo.s"
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 -target-abi=lp64 \
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o ame-matmul-demo.s
+
+ame-matmul-demo-obj:
+	@${BUDDY_OPT} ame-matmul-demo.mlir \
+		--lower-ame \
+		--convert-linalg-to-loops \
+		--lower-affine \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-cf-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-func-to-llvm \
+		--finalize-memref-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -target-abi=lp64 \
+		-mattr=+m,+xame,+xame-gem5 -verify-machineinstrs \
+		-o ame-matmul-demo.o
+
+help:
+	@echo "ame-matmul-lower      Lower AME operations to intrinsic calls"
+	@echo "ame-matmul-translate  Compile ame-matmul.mlir to LLVM IR (.ll)"
+	@echo "ame-matmul-asm        Compile ame-matmul.mlir to XAME assembly (.s; default)"
+	@echo "ame-matmul-obj        Compile ame-matmul.mlir to a RISC-V object (.o)"
+	@echo "ame-matmul-4x4-lower Lower the 4x4 example to AME intrinsic calls"
+	@echo "ame-matmul-4x4-translate Compile the 4x4 example to LLVM IR (.ll)"
+	@echo "ame-matmul-4x4-asm   Compile the 4x4 example with the AME_gem5 profile (.s)"
+	@echo "ame-matmul-4x4-obj   Compile the 4x4 example with the AME_gem5 profile (.o)"
+	@echo "ame-matmul-demo-lower Lower the initialized 4x4 demo to intrinsic calls"
+	@echo "ame-matmul-demo-translate Translate the initialized demo to LLVM IR (.ll)"
+	@echo "ame-matmul-demo-asm  Compile the initialized demo to XAME assembly (.s)"
+	@echo "ame-matmul-demo-obj  Compile the initialized demo to a RISC-V object (.o)"
+	@echo "clean                Remove generated files"
 
 clean:
-	rm -f *.mlir.out *.ll *.s *-lowered.mlir
+	$(RM) *-lowered.mlir *.ll *.s *.o
