@@ -136,6 +136,7 @@ def GemmF16Op : IME_Op<"gemm_f16"> {
 }
 
 def GemvF16Op : IME_Op<"gemv_f16"> {
+  let hasVerifier = 1;
   let summary = "A100 tiled GEMV with register-resident FP32 accumulators";
   let description = [{
     Computes one tile_n-column block of C += A * B with FP16 input/output and

@@ -396,6 +396,10 @@ struct IMEGemvF16Lowering : public ConvertOpToLLVMPattern<GemvF16Op> {
   LogicalResult
   matchAndRewrite(GemvF16Op op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    // Conversion must also reject unsupported views when pass verification is
+    // off.
+    if (failed(op.verify()))
+      return failure();
     Location loc = op.getLoc();
     int64_t k = op.getKAttr().getInt();
     int64_t distance = op.getPrefetchAttr().getInt();

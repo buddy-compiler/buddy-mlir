@@ -76,12 +76,12 @@ namespace {
 // hardware. Check a known nonzero product before enabling a model's IME path.
 static void insertFP16IMECheck(PatternRewriter &rewriter, Location loc,
                                ModuleOp module, bool a100,
-                               StringRef functionName) {
+                               func::FuncOp caller) {
   // C-wrapper export makes helper symbols external. Scope each helper to its
   // graph so separately compiled Prefill and Decode partitions can be linked.
   std::string name =
       (a100 ? "__buddy_check_a100_fp16_ime_" : "__buddy_check_fp16_ime_") +
-      functionName.str();
+      caller.getSymName().str();
   if (!module.lookupSymbol<func::FuncOp>(name)) {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(module.getBody());
@@ -127,8 +127,41 @@ static void insertFP16IMECheck(PatternRewriter &rewriter, Location loc,
         "FP16 IME numerical self-test failed; this hardware does not execute "
         "the selected matrix instruction correctly");
     func::ReturnOp::create(rewriter, loc);
+    rewriter.setInsertionPointToStart(&caller.front());
+    func::CallOp::create(rewriter, loc, name, TypeRange{}, ValueRange{});
   }
-  func::CallOp::create(rewriter, loc, name, TypeRange{}, ValueRange{});
+}
+
+// Establish dynamic strides once, before the output-tile loop. Static
+// incompatibilities are diagnosed by the GEMV op verifier. Preserve offsets.
+static Value checkGemvStrides(PatternRewriter &rewriter, Location loc,
+                              Value value) {
+  auto type = cast<MemRefType>(value.getType());
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  if (failed(type.getStridesAndOffset(strides, offset)))
+    return value;
+  ValueRange actual;
+  for (int dim = 0; dim < 2; ++dim) {
+    if (type.getDimSize(dim) == 1 || !ShapedType::isDynamic(strides[dim]))
+      continue;
+    if (actual.empty())
+      actual = memref::ExtractStridedMetadataOp::create(rewriter, loc, value)
+                   .getStrides();
+    strides[dim] = dim == 0 ? type.getDimSize(1) : 1;
+    Value expected =
+        arith::ConstantIndexOp::create(rewriter, loc, strides[dim]);
+    Value matches = arith::CmpIOp::create(
+        rewriter, loc, arith::CmpIPredicate::eq, actual[dim], expected);
+    cf::AssertOp::create(rewriter, loc, matches,
+                         "A100 GEMV requires contiguous operands");
+  }
+  if (actual.empty())
+    return value;
+  auto layout = StridedLayoutAttr::get(rewriter.getContext(), offset, strides);
+  auto checked = MemRefType::get(type.getShape(), type.getElementType(), layout,
+                                 type.getMemorySpace());
+  return memref::CastOp::create(rewriter, loc, checked, value);
 }
 
 class MatmulToIMELowering : public OpRewritePattern<linalg::MatmulOp> {
@@ -247,9 +280,8 @@ public:
       return rewriter.notifyMatchFailure(
           matmulOp, "A100 GEMM requires contiguous FP16 A/C, M%8=K%8=N%32=0");
     if (verifyFP16 && isFloatMatmul)
-      insertFP16IMECheck(
-          rewriter, loc, matmulOp->getParentOfType<ModuleOp>(), a100,
-          matmulOp->getParentOfType<func::FuncOp>().getSymName());
+      insertFP16IMECheck(rewriter, loc, matmulOp->getParentOfType<ModuleOp>(),
+                         a100, matmulOp->getParentOfType<func::FuncOp>());
 
     if (fastGemm) {
       auto index = [&](int64_t value) -> Value {
@@ -314,6 +346,9 @@ public:
       Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value bound = arith::ConstantIndexOp::create(rewriter, loc, N);
       Value step = arith::ConstantIndexOp::create(rewriter, loc, packedWidth);
+      A = checkGemvStrides(rewriter, loc, A);
+      B = checkGemvStrides(rewriter, loc, B);
+      C = checkGemvStrides(rewriter, loc, C);
       bool unroll = K % 16 == 0 && (N <= 256 || K == N);
       int64_t prefetch = N <= 256 ? 0 : (unroll ? 1024 : 512);
       auto loop = scf::ParallelOp::create(rewriter, loc, ValueRange{zero},

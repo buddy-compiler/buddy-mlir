@@ -260,18 +260,30 @@ def build_stages(
             raise ValueError("Invalid Prefill VLEN")
         if not any("riscv" in arg for arg in llc_base_args):
             raise ValueError("Native Prefill VLEN requires a RISC-V target")
-        if any(
-            arg.startswith("-riscv-v-vector-bits-") for arg in llc_base_args
-        ):
+        build_vlen = exact_rvv_vlen(llc_base_args)
+        if build_vlen is not None and build_vlen != native_vlen:
             raise ValueError(
-                "Specify Prefill VLEN either in config or llc attrs"
+                f"Prefill VLEN {native_vlen} conflicts with build VLEN {build_vlen}"
             )
-        llc_base_args.extend(
-            [
-                f"-riscv-v-vector-bits-min={native_vlen}",
-                f"-riscv-v-vector-bits-max={native_vlen}",
-            ]
-        )
+        if build_vlen is None:
+            # Tighten an unspecified (or compatible partial) build range.
+            for bound in ("min", "max"):
+                prefix = f"-riscv-v-vector-bits-{bound}="
+                for arg in llc_base_args:
+                    if arg.startswith(prefix):
+                        value = int(arg[len(prefix) :])
+                        if value > 0 and (
+                            (bound == "min" and value > native_vlen)
+                            or (bound == "max" and value < native_vlen)
+                        ):
+                            raise ValueError(
+                                f"Prefill VLEN {native_vlen} conflicts with {arg}"
+                            )
+                llc_base_args = [
+                    arg for arg in llc_base_args if not arg.startswith(prefix)
+                ]
+                llc_base_args.append(f"{prefix}{native_vlen}")
+            exact_rvv_vlen(llc_base_args)  # Also validate the +zvl minimum.
     if prefill_shapes and native_vlen != 1024:
         raise ValueError("A100 IME Prefill requires VLEN=1024")
     blis_option = "-matmul-vectorization-blis"
@@ -412,7 +424,7 @@ def build_stages(
                 "-staticize-memref-layout",
                 "-lower-linalg-to-ime="
                 f"target=k3 matmul-shapes={','.join(prefill_shapes)} "
-                "a100-fp16=true a100-gemm=true verify-fp16=true",
+                "a100-fp16=true a100-gemm=true",
                 "-lower-ime=target=k3",
                 "-expand-strided-metadata",
             ]
@@ -427,12 +439,9 @@ def build_stages(
     ):
         opts.append("-eliminate-memref-copy")
     if pipeline_type == "subgraph_decode":
-        opts.extend(
-            [
-                "-assume-tight-memref-layout",
-                "-staticize-memref-layout",
-            ]
-        )
+        if not fast_ime:
+            opts.append("-assume-tight-memref-layout")
+        opts.append("-staticize-memref-layout")
         if use_ime:
             packed_width = (
                 decode_pack["vector_size"]
@@ -454,9 +463,12 @@ def build_stages(
                     "-lower-linalg-to-ime="
                     f"target=k3 matmul-shapes={','.join(shapes)} "
                     f"packed-vector-size={width} parallel-tiles=true "
-                    f"a100-fp16=true verify-fp16=true a100-gemv={'true' if fast_ime else 'false'}"
+                    f"a100-fp16=true a100-gemv={'true' if fast_ime else 'false'}"
                 )
             opts.extend(["-lower-ime=target=k3", "-expand-strided-metadata"])
+        if fast_ime:
+            # Check GEMV's original descriptors before tightening other uses.
+            opts.append("-assume-tight-memref-layout")
         if variant in ("w8a32", "w8a16"):
             opts.append("-dequant-matmul-vectorization-decode=vector-size=32")
             opts.append("-matmul-vectorization-decode=vector-size=32")

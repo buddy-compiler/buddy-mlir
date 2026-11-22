@@ -83,6 +83,12 @@ output blocks and keeps their FP32 sums in registers across the K loop.
 Unlisted projections use the RVV panel width. Regenerate both the Decode
 weight file and compiled model after changing a rule.
 
+GEMV accepts contiguous views with arbitrary base offsets. For dynamic
+strides the compiler checks the descriptor before entering the tile loop.
+The normal pipeline omits the hardware dot-product self-test. To diagnose
+a board, pass `verify-fp16=true` to `lower-linalg-to-ime` to run the check
+once per invocation of a function containing a selected matmul.
+
 ## Default Build Integration
 
 Packing is off by default. It is enabled per spec, by setting
