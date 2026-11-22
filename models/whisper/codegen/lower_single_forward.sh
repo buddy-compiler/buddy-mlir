@@ -10,6 +10,22 @@ use_ime="$5"
 shift 5
 llc_attrs=("$@")
 
+pre_buf_opts=()
+if [[ "${BUDDY_SINGLE_FORWARD_FUSE_TB:-OFF}" == ON ]]; then
+  pre_buf_opts+=(-fuse-attention-softmax)
+fi
+if [[ "${BUDDY_SINGLE_FORWARD_ELIM_ZERO:-OFF}" == ON ]]; then
+  pre_buf_opts+=(-eliminate-large-zero-constants)
+fi
+if [[ "${BUDDY_SINGLE_FORWARD_FUSE_TB:-OFF}" == ON ]]; then
+  pre_buf_opts+=(-fuse-matmul-transpose-b)
+fi
+
+post_buf_opts=()
+if [[ "${BUDDY_SINGLE_FORWARD_ELIM_COPY:-OFF}" == ON ]]; then
+  post_buf_opts+=(-eliminate-memref-copy)
+fi
+
 ime_opts=()
 if [[ "$use_ime" == ON ]]; then
   ime_pass='-lower-linalg-to-ime=target=k3 a100-fp16=true a100-gemm=true verify-fp16=true'
@@ -17,11 +33,28 @@ if [[ "$use_ime" == ON ]]; then
     ime_pass+=" matmul-shapes=${BUDDY_SINGLE_FORWARD_IME_SHAPES}"
   fi
   ime_opts=(
+    -expand-strided-metadata
+    -assume-tight-memref-layout
     -staticize-memref-layout
+    -lower-vector-softmax-erf
+    -approximate-vector-exp
     "$ime_pass"
     -lower-ime=target=k3
     -expand-strided-metadata
   )
+elif [[ "${BUDDY_SINGLE_FORWARD_DECODE_TB:-OFF}" == ON ]]; then
+  ime_opts=(
+    -expand-strided-metadata
+    -assume-tight-memref-layout
+    -staticize-memref-layout
+    -lower-vector-softmax-erf
+    -approximate-vector-exp
+  )
+fi
+
+decode_tb_opts=()
+if [[ "${BUDDY_SINGLE_FORWARD_DECODE_TB:-OFF}" == ON ]]; then
+  decode_tb_opts+=(-matmul-transpose-b-vectorization-decode="vector-size=32 unroll=4 n-tile=4")
 fi
 
 batch_opts=(-batchmatmul-optimize)
@@ -38,6 +71,7 @@ fi
   -pass-pipeline 'builtin.module(func.func(tosa-to-linalg-named,tosa-to-linalg,tosa-to-tensor,tosa-to-arith))' \
   | "$llvm_bin/mlir-opt" -test-linalg-transform-patterns=test-decompose-pad-tensor \
   | "$buddy_opt" \
+      "${pre_buf_opts[@]}" \
       -arith-expand \
       -eliminate-empty-tensors \
       -convert-elementwise-to-linalg \
@@ -46,13 +80,16 @@ fi
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification \
       -bufferization-lower-deallocations \
+      "${post_buf_opts[@]}" \
       "${ime_opts[@]}" \
+      "${decode_tb_opts[@]}" \
       -matmul-parallel-vectorization-optimize \
       "${batch_opts[@]}" \
       -convert-linalg-to-affine-loops \
       "${affine_fusion_opts[@]}" \
       -affine-parallelize \
       -lower-affine \
+      -canonicalize \
       -convert-scf-to-openmp \
       -convert-linalg-to-loops \
       -convert-vector-to-scf \

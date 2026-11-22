@@ -81,7 +81,9 @@ if precision not in ("f32", "f16"):
     raise ValueError(f"Unsupported Whisper precision: {precision}")
 max_token_len = spec.get("max_token_len", 448)
 if not isinstance(max_token_len, int) or not 2 <= max_token_len <= 448:
-    raise ValueError("Whisper max_token_len must be an integer between 2 and 448")
+    raise ValueError(
+        "Whisper max_token_len must be an integer between 2 and 448"
+    )
 model_path = os.environ.get("WHISPER_MODEL_PATH") or spec.get("hf_model_path")
 if not model_path:
     model_path = "openai/whisper-base"
@@ -98,14 +100,17 @@ try:
     import transformers.masking_utils as _mu
 
     _mu.find_packed_sequence_indices = lambda *a, **k: None
-except Exception as _e:  # pragma: no cover - older transformers without this util
-    print(f"[import-whisper] packed-sequence patch skipped: {_e}")
+except (
+    Exception
+) as _e:  # pragma: no cover - older transformers without this util
+    print(f"[import_whisper] packed-sequence patch skipped: {_e}")
 
 if args.split_encoder_decoder:
     if precision != "f16":
         raise ValueError("Split Whisper encoder/decoder requires FP16")
-    from transformers.modeling_outputs import BaseModelOutput
     from transformers.cache_utils import EncoderDecoderCache, StaticCache
+    from transformers.modeling_outputs import BaseModelOutput
+
     kv_cache = bool(spec.get("kv_cache", False))
     if kv_cache and not spec.get("last_logits_only", False):
         raise ValueError("Whisper KV cache requires last_logits_only")
@@ -133,7 +138,9 @@ if args.split_encoder_decoder:
             if precision == "f16":
                 encoder_hidden_state = encoder_hidden_state.half()
             result = self.inner(
-                encoder_outputs=BaseModelOutput(last_hidden_state=encoder_hidden_state),
+                encoder_outputs=BaseModelOutput(
+                    last_hidden_state=encoder_hidden_state
+                ),
                 decoder_input_ids=decoder_input_ids,
             )
             return result.logits.float()
@@ -143,8 +150,9 @@ if args.split_encoder_decoder:
             super().__init__()
             self.inner = inner
 
-        def forward(self, encoder_hidden_state, decoder_input_ids,
-                    past_key_values):
+        def forward(
+            self, encoder_hidden_state, decoder_input_ids, past_key_values
+        ):
             result = self.inner(
                 encoder_outputs=BaseModelOutput(
                     last_hidden_state=encoder_hidden_state.half()
@@ -180,9 +188,11 @@ if args.split_encoder_decoder:
         compute = str(driver.subgraphs[0]._imported_module).replace(
             "@subgraph0", f"@subgraph_{stage}"
         )
-        forward = str(driver.construct_main_graph(True)).replace(
-            "@subgraph0", f"@subgraph_{stage}"
-        ).replace("@forward(", f"@forward_{stage}(")
+        forward = (
+            str(driver.construct_main_graph(True))
+            .replace("@subgraph0", f"@subgraph_{stage}")
+            .replace("@forward(", f"@forward_{stage}(")
+        )
         with open(os.path.join(output_dir, f"{stage}_subgraph.mlir"), "w") as f:
             f.write(compute)
         with open(os.path.join(output_dir, f"{stage}_forward.mlir"), "w") as f:
@@ -192,47 +202,65 @@ if args.split_encoder_decoder:
         ).tofile(os.path.join(output_dir, f"arg_{stage}.data"))
 
     export_stage(
-        "encoder", EncoderCore(model),
+        "encoder",
+        EncoderCore(model),
         {"input_features": torch.zeros((1, 80, 3000), dtype=torch.float32)},
     )
     if kv_cache:
         kv_core = KvDecoderCore(model)
         kv_inputs = {
-            "encoder_hidden_state": torch.zeros((1, 1500, 512), dtype=torch.float32),
+            "encoder_hidden_state": torch.zeros(
+                (1, 1500, 512), dtype=torch.float32
+            ),
             "decoder_input_ids": torch.full((1, 1), 50258, dtype=torch.long),
         }
         init_cache = make_kv_cache()
-        export_stage("kv_init", kv_core,
-                     {**kv_inputs, "past_key_values": init_cache})
+        export_stage(
+            "kv_init", kv_core, {**kv_inputs, "past_key_values": init_cache}
+        )
         step_cache = make_kv_cache()
         with torch.no_grad():
-            kv_core(kv_inputs["encoder_hidden_state"],
-                    kv_inputs["decoder_input_ids"], step_cache)
-        export_stage("kv_step", kv_core,
-                     {**kv_inputs, "past_key_values": step_cache})
+            kv_core(
+                kv_inputs["encoder_hidden_state"],
+                kv_inputs["decoder_input_ids"],
+                step_cache,
+            )
+        export_stage(
+            "kv_step", kv_core, {**kv_inputs, "past_key_values": step_cache}
+        )
         stages = ("encoder", "kv_init", "kv_step")
     else:
         decoder_inputs = {
-            "encoder_hidden_state": torch.zeros((1, 1500, 512), dtype=torch.float32),
-            "decoder_input_ids": torch.zeros((1, max_token_len), dtype=torch.long),
+            "encoder_hidden_state": torch.zeros(
+                (1, 1500, 512), dtype=torch.float32
+            ),
+            "decoder_input_ids": torch.zeros(
+                (1, max_token_len), dtype=torch.long
+            ),
         }
         export_stage("decoder", DecoderCore(model), decoder_inputs)
         stages = ("encoder", "decoder")
     with open(os.path.join(output_dir, "arg0.data"), "wb") as combined:
         for stage in stages:
-            with open(os.path.join(output_dir, f"arg_{stage}.data"), "rb") as part:
+            with open(
+                os.path.join(output_dir, f"arg_{stage}.data"), "rb"
+            ) as part:
                 shutil.copyfileobj(part, combined)
-    encoder_bytes = os.path.getsize(os.path.join(output_dir, "arg_encoder.data"))
+    encoder_bytes = os.path.getsize(
+        os.path.join(output_dir, "arg_encoder.data")
+    )
     if encoder_bytes != spec["encoder_params_size"] * 2:
         raise ValueError("Split Whisper encoder parameters do not match spec")
     if kv_cache:
-        init_bytes = os.path.getsize(os.path.join(output_dir, "arg_kv_init.data"))
+        init_bytes = os.path.getsize(
+            os.path.join(output_dir, "arg_kv_init.data")
+        )
         if init_bytes != spec["decoder_init_params_size"] * 2:
             raise ValueError("Whisper KV init parameters do not match spec")
     expected_bytes = spec["params_size"] * (2 if precision == "f16" else 4)
     if os.path.getsize(os.path.join(output_dir, "arg0.data")) != expected_bytes:
         raise ValueError("Split Whisper parameters do not match params_size")
-    print("[import-whisper] Wrote split encoder and decoder graphs")
+    print("[import_whisper] Wrote split encoder and decoder graphs")
     raise SystemExit(0)
 
 if precision == "f16":

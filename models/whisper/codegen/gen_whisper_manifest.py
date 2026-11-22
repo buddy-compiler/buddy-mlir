@@ -83,7 +83,9 @@ def gen_manifest(
         emit('    last_logits_only = "true",')
     if kv_cache:
         emit('    kv_cache = "true",')
-        emit(f'    decoder_init_params_size = "{spec["decoder_init_params_size"]}",')
+        emit(
+            f'    decoder_init_params_size = "{spec["decoder_init_params_size"]}",'
+        )
     emit(f'    params_size = "{params_size}",')
     emit(f'    vocab_size = "{vocab_size}",')
     emit(f'    max_token_len = "{max_token_len}",')

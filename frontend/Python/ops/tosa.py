@@ -3720,7 +3720,9 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             pad_constant = _create_shape_operand(
                 [0, 0, 0, 0, input_padding[0], input_padding[0]]
             )
-            input_element_type = ir.RankedTensorType(input_val.type).element_type
+            input_element_type = ir.RankedTensorType(
+                input_val.type
+            ).element_type
             ty = ir.RankedTensorType.get([1], input_element_type)
             pad_zp = tosa.ConstOp(
                 ir.DenseElementsAttr.get_splat(

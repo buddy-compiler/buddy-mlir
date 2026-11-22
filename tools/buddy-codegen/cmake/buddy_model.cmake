@@ -1176,15 +1176,39 @@ function(buddy_add_model)
         set(_stage_ime_shapes "")
         set(_stage_skip_batch OFF)
         set(_stage_skip_affine_fusion OFF)
+        set(_stage_fuse_tb OFF)
+        set(_stage_elim_zero OFF)
+        set(_stage_elim_copy OFF)
+        set(_stage_decode_tb OFF)
         if(_stage STREQUAL "encoder")
           set(_stage_ime "${MDL_SINGLE_FORWARD_IME}")
           set(_stage_ime_shapes "${MDL_SINGLE_FORWARD_IME_SHAPES}")
           set(_stage_skip_affine_fusion
               "${MDL_SINGLE_FORWARD_SKIP_AFFINE_FUSION}")
+          if(MDL_SINGLE_FORWARD_KV AND MDL_SINGLE_FORWARD_IME)
+            set(_stage_fuse_tb ON)
+            set(_stage_elim_zero ON)
+          endif()
+        elseif(_stage STREQUAL "kv_init")
+          if(MDL_SINGLE_FORWARD_IME)
+            set(_stage_ime ON)
+            set(_stage_skip_affine_fusion ON)
+            set(_stage_fuse_tb ON)
+            set(_stage_elim_zero ON)
+            set(_stage_elim_copy ON)
+            set(_stage_decode_tb ON)
+          endif()
         elseif(_stage STREQUAL "kv_step")
           # Static cache views can have non-unit inner stride; the current
           # batch-matmul vectorizer emits an invalid vector.load for them.
           set(_stage_skip_batch ON)
+          if(MDL_SINGLE_FORWARD_IME)
+            set(_stage_skip_affine_fusion ON)
+            set(_stage_fuse_tb ON)
+            set(_stage_elim_zero ON)
+            set(_stage_elim_copy ON)
+            set(_stage_decode_tb ON)
+          endif()
         endif()
         add_custom_command(
           OUTPUT "${BIN}/${_stage}_forward.o"
@@ -1201,12 +1225,16 @@ function(buddy_add_model)
                   "BUDDY_SINGLE_FORWARD_IME_SHAPES=${_stage_ime_shapes}"
                   "BUDDY_SINGLE_FORWARD_SKIP_BATCH=${_stage_skip_batch}"
                   "BUDDY_SINGLE_FORWARD_SKIP_AFFINE_FUSION=${_stage_skip_affine_fusion}"
+                  "BUDDY_SINGLE_FORWARD_FUSE_TB=${_stage_fuse_tb}"
+                  "BUDDY_SINGLE_FORWARD_ELIM_ZERO=${_stage_elim_zero}"
+                  "BUDDY_SINGLE_FORWARD_ELIM_COPY=${_stage_elim_copy}"
+                  "BUDDY_SINGLE_FORWARD_DECODE_TB=${_stage_decode_tb}"
                   bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
                   "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/${_stage}_subgraph.mlir"
                   "${BIN}/${_stage}_subgraph.o"
                   "${_stage_ime}" ${MDL_LLC_ATTRS_LIST}
-          DEPENDS "${IMPORT_STAMP}" buddy-opt
+          DEPENDS "${IMPORT_STAMP}" "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh" buddy-opt
           COMMENT "[${MDL_NAME}] Compiling ${_stage} compute graph"
           VERBATIM)
       endforeach()
