@@ -14,10 +14,7 @@
   "prefill_rvv_vlen_bits": 1024,
   "prefill_rvv_vector_size": 64,
   "weights_override": {
-    "total": 1777088064,
-    "linear_elements": 0,
-    "linear_output_channels": 0,
-    "other_elements": 0
+    "total": 1777088064
   },
   "ime_prefill_shapes": [
     "1536x8960",
