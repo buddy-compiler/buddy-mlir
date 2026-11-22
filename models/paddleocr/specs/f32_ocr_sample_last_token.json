@@ -1,0 +1,23 @@
+{
+  "model_family": "paddleocr",
+  "variant": "f32_ocr_sample_last_token",
+  "model_id": "lvyufeng/PaddleOCR-VL-0.9B",
+  "hf_model_path": "lvyufeng/PaddleOCR-VL-0.9B",
+  "params_size": 905601730,
+  "max_seq_len": 213,
+  "hidden_size": 1024,
+  "vocab_size": 103424,
+  "num_hidden_layers": 18,
+  "num_image_patches": 800,
+  "num_image_tokens": 200,
+  "image_grid_thw": [1, 20, 40],
+  "patch_size": 14,
+  "image_token_id": 100295,
+  "so_name": "paddleocr_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "tokenizer.json",
+  "num_threads": 8,
+  "sample_image": "models/qwen3_vl/test_text.png",
+  "prompt": "OCR:",
+  "last_token_only": true
+}

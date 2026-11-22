@@ -50,13 +50,21 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     variant = spec.get("variant", "f32")
     model_id = spec.get("model_id", f"{model_family}_{variant}")
     params_size = int(spec["params_size"])
+    params_f32_size = int(spec.get("params_f32_size", 0))
+    precision = spec.get("precision", "f32")
+    if precision not in ("f32", "f16"):
+        raise ValueError(f"Unsupported PaddleOCR precision: {precision}")
     max_seq_len = int(spec["max_seq_len"])
+    logits_seq_len = 1 if spec.get("last_token_only", False) else max_seq_len
     hidden_size = int(spec["hidden_size"])
     vocab_size = int(spec["vocab_size"])
     num_image_patches = int(spec.get("num_image_patches", 3888))
+    num_image_tokens = int(spec.get("num_image_tokens", 972))
+    image_grid = spec.get("image_grid_thw", [1, 54, 72])
     patch_size = int(spec.get("patch_size", 14))
     so_name = spec.get("so_name", f"{model_family}_model.so")
     weight_file = spec.get("weight_file", "arg0.data")
+    f32_weight_file = spec.get("f32_weight_file", "arg1.data")
     tokenizer_file = spec.get("tokenizer_file", "tokenizer.json")
 
     lines = []
@@ -66,16 +74,29 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{tokenizer_file}",')
     p(f'    max_seq_len = "{max_seq_len}",')
+    p(f'    logits_seq_len = "{logits_seq_len}",')
     p(f'    hidden_size = "{hidden_size}",')
     p(f'    vocab_size = "{vocab_size}",')
     p(f'    params_size = "{params_size}",')
+    if params_f32_size:
+        p(f'    params_f32_size = "{params_f32_size}",')
+    p(f'    precision = "{precision}",')
     p(f'    num_image_patches = "{num_image_patches}",')
+    p(f'    num_image_tokens = "{num_image_tokens}",')
+    p(f'    image_grid_h = "{image_grid[1]}",')
+    p(f'    image_grid_w = "{image_grid[2]}",')
+    if spec.get("sample_image"):
+        p(f'    fixed_prompt = "{spec.get("prompt", "OCR:")}",')
     p(f'    patch_size = "{patch_size}",')
     p(f'    runner_library = "{normalize_uri(runner_library)}"}} {{')
     p("")
     p('  rhal.constant @params {id = 1 : i32, storage = "external",')
-    p(f"                         type = tensor<{params_size}xf32>,")
+    p(f"                         type = tensor<{params_size}x{precision}>,")
     p(f'                         uri = "file:{weight_file}"}}')
+    if params_f32_size:
+        p('  rhal.constant @params_f32 {id = 2 : i32, storage = "external",')
+        p(f"                             type = tensor<{params_f32_size}xf32>,")
+        p(f'                             uri = "file:{f32_weight_file}"}}')
     p("")
     p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
     p('                                backend = "cpu",')
@@ -91,7 +112,7 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     )
     p(
         f'  rhal.buffer @pixel_values {{space = "host", '
-        f"type = tensor<{num_image_patches}x3x{patch_size}x{patch_size}xf32>}}"
+        f"type = tensor<{num_image_patches}x3x{patch_size}x{patch_size}x{precision}>}}"
     )
     p(
         f'  rhal.buffer @position_ids {{space = "host", '
@@ -99,7 +120,7 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     )
     p(
         f'  rhal.buffer @logits {{space = "host", '
-        f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}"
+        f"type = tensor<1x{logits_seq_len}x{vocab_size}x{precision}>}}"
     )
     p("")
     p("  rhal.func @forward {")

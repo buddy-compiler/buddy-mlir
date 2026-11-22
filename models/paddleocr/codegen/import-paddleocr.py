@@ -141,14 +141,14 @@ old_thw_loop = """                pro = 0
                     thw_tuple = tuple(thw.detach().cpu().numpy().tolist())
                     numel = np.prod(thw_tuple)
                     image_grid_hws.append(thw_tuple)
-                    image_position_ids = torch.arange(numel) % int(np.prod(thw_tuple[1:]))
+                    image_position_ids = torch.arange(numel) % np.prod(thw_tuple[1:])
                     siglip_position_ids.append(image_position_ids)
                     sample_indices.append(torch.full((numel,), idx, dtype=torch.int64))
                     cu_seqlens.append(cu_seqlens[-1] + numel)"""
 
 new_thw_loop = """                pro = 0
                 for idx, thw in enumerate(image_grid_thw):
-                    thw_tuple = tuple(thw) if isinstance(thw, (list, tuple)) else tuple(thw.tolist())
+                    thw_tuple = tuple(thw)
                     t, h, w = int(thw_tuple[0]), int(thw_tuple[1]), int(thw_tuple[2])
                     numel = t * h * w
                     image_grid_hws.append(thw_tuple)
@@ -157,23 +157,12 @@ new_thw_loop = """                pro = 0
                     sample_indices.append(torch.full((numel,), idx, dtype=torch.int64))
                     cu_seqlens.append(cu_seqlens[-1] + numel)"""
 
-if old_thw_loop in code:
-    code = code.replace(old_thw_loop, new_thw_loop)
-    print("   -> (A) thw loop replaced (numpy/detach removed).")
-else:
-    print("   -> (A) thw loop block not found, using fallback...")
-    code = code.replace(
-        "thw_tuple = tuple(thw.detach().cpu().numpy().tolist())",
-        "thw_tuple = tuple(thw) if isinstance(thw, (list, tuple)) else tuple(thw.tolist())",
+if old_thw_loop not in code:
+    raise RuntimeError(
+        "Unsupported PaddleOCR-VL image-grid source; update patch A"
     )
-    code = code.replace(
-        "numel = np.prod(thw_tuple)", "numel = int(np.prod(thw_tuple))"
-    )
-    code = re.sub(
-        r"int\(np\.prod\(thw_tuple\[1:\]\)\)",
-        "(int(thw_tuple[1]) * int(thw_tuple[2]))",
-        code,
-    )
+code = code.replace(old_thw_loop, new_thw_loop)
+print("   -> (A) thw loop replaced (numpy/detach removed).")
 
 # --- (B) data-dependent assert -> True / disabled ---
 code = re.sub(
@@ -225,6 +214,17 @@ if old_check in code:
     print("   -> (D) n_image_tokens check removed.")
 else:
     print("   -> (D) n_image_tokens block not found.")
+
+# In inference only the final position predicts the next token. Avoid a
+# [sequence, vocabulary] projection when the package requests one logit row.
+if spec.get("last_token_only", False):
+    old_head = "logits = self.lm_head(hidden_states)"
+    if code.count(old_head) != 1:
+        raise RuntimeError("Unsupported PaddleOCR-VL LM head source")
+    code = code.replace(
+        old_head, "logits = self.lm_head(hidden_states[:, -1:, :])"
+    )
+    print("   -> LM head restricted to the final token.")
 
 # --- (E) SigLIPRotaryEmbedding.forward: fixed-size rope table ---
 old_rope_forward = """    def forward(self, seqlen: int) -> torch.Tensor:
@@ -301,7 +301,12 @@ if "default" not in ROPE_INIT_FUNCTIONS:
     print("   -> (F) ROPE_INIT_FUNCTIONS 'default' monkey-patched.")
 
 print("[PaddleOCR-Import] Loading PaddleOCR-VL-0.9B model...")
-model = AutoModel.from_pretrained(staged_dir, trust_remote_code=True).eval()
+model = AutoModel.from_pretrained(
+    staged_dir,
+    trust_remote_code=True,
+    local_files_only=True,
+    dtype=torch.float16 if spec.get("precision") == "f16" else torch.float32,
+).eval()
 model.config.use_cache = False
 
 image_token_id = model.config.image_token_id
@@ -318,25 +323,88 @@ dynamo_compiler = DynamoCompiler(
 )
 
 # ==============================================================================
-# 4. Dummy inputs (fixed shapes, replicated from the original PR)
+# 4. Fixed-shape trace inputs. A sample_image spec uses the model's actual
+#    OCR processor and records the tensors for an identical runtime smoke test.
 # ==============================================================================
-# image_grid_thw = [1, 54, 72] -> 3888 patches (t*h*w with merge kept upstream)
-# Projector merge_kernel_size=(2,2) -> 3888/4 = 972 image tokens
-# + 10 text tokens = 982 total sequence length.
+if spec.get("sample_image"):
+    from PIL import Image
+    from transformers import AutoProcessor
 
-n_img_tokens = 972
-total_len = 982
+    repo_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../..")
+    )
+    image_path = spec["sample_image"]
+    if not os.path.isabs(image_path):
+        image_path = os.path.join(repo_root, image_path)
+    processor = AutoProcessor.from_pretrained(
+        model_path,
+        trust_remote_code=True,
+        local_files_only=True,
+        use_fast=False,
+    )
+    image = Image.open(image_path).convert("RGB")
+    prompt = spec.get("prompt", "OCR:")
+    inputs = processor.apply_chat_template(
+        [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+        tokenize=True,
+        add_generation_prompt=True,
+        return_dict=True,
+        return_tensors="pt",
+    )
+    input_ids = inputs["input_ids"]
+    attention_mask = inputs["attention_mask"]
+    pixel_values = inputs["pixel_values"].to(model.visual.dtype)
+    image_grid_thw = inputs["image_grid_thw"]
+    position_ids, _ = model.get_rope_index(
+        input_ids=input_ids,
+        image_grid_thw=image_grid_thw,
+        attention_mask=attention_mask,
+    )
+    static_image_grid_thw = image_grid_thw.tolist()
+    if static_image_grid_thw != [spec["image_grid_thw"]]:
+        raise RuntimeError("OCR image grid does not match spec")
+    n_img_tokens = int((input_ids == image_token_id).sum())
+    total_len = input_ids.shape[1]
+    if total_len != int(spec["max_seq_len"]):
+        raise RuntimeError(
+            f"OCR input has {total_len} tokens; spec expects {spec['max_seq_len']}"
+        )
+    if pixel_values.shape[0] != int(spec["num_image_patches"]):
+        raise RuntimeError("OCR patch count does not match spec")
+    if n_img_tokens != int(spec["num_image_tokens"]):
+        raise RuntimeError("OCR image token count does not match spec")
+    for name, tensor, ext in (
+        ("input_ids", input_ids, "i64"),
+        (
+            "pixel_values",
+            pixel_values,
+            "f16" if spec.get("precision") == "f16" else "f32",
+        ),
+        ("attention_mask", attention_mask, "i64"),
+        ("position_ids", position_ids, "i64"),
+    ):
+        tensor.contiguous().numpy().tofile(
+            os.path.join(output_dir, f"{name}.{ext}")
+        )
+else:
+    n_img_tokens = 972
+    total_len = 982
+    input_ids = torch.full((1, total_len), 1, dtype=torch.int64)
+    input_ids[0, :n_img_tokens] = image_token_id
+    attention_mask = torch.ones((1, total_len), dtype=torch.int64)
+    pixel_values = torch.zeros((3888, 3, 14, 14), dtype=model.visual.dtype)
+    position_ids = torch.zeros((3, 1, total_len), dtype=torch.int64)
+    static_image_grid_thw = [[1, 54, 72]]
 
-input_ids = torch.full((1, total_len), 1, dtype=torch.int64)
-input_ids[0, :n_img_tokens] = image_token_id
-attention_mask = torch.ones((1, total_len), dtype=torch.int64)
-pixel_values = torch.zeros((3888, 3, 14, 14), dtype=torch.float32)
-# position_ids shape: (3, batch_size, seq_len) — bypass get_rope_index
-position_ids = torch.zeros((3, 1, total_len), dtype=torch.int64)
-
-static_image_grid_thw = [[1, 54, 72]]
-
-print("[PaddleOCR-Import] Dummy inputs:")
+print("[PaddleOCR-Import] Trace inputs:")
 print(f"   input_ids:     {input_ids.shape}")
 print(f"   attention_mask:{attention_mask.shape}")
 print(f"   pixel_values:  {pixel_values.shape}")
@@ -393,13 +461,30 @@ with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
 print("[PaddleOCR-Import] Writing weight data...")
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
-).astype(numpy.float32, copy=False)
-all_param.tofile(os.path.join(output_dir, "arg0.data"))
+# GraphDriver packs parameters by dtype, sorted by the dtype name. Preserve
+# that grouping: FP16 weights also contain a small FP32 RoPE parameter pack.
+dtypes = sorted({param.dtype for param in params}, key=str)
+if len(dtypes) > 2:
+    raise RuntimeError(f"Unsupported parameter dtypes: {dtypes}")
+for index, dtype in enumerate(dtypes):
+    if dtype not in (torch.float16, torch.float32):
+        raise RuntimeError(f"Unsupported parameter dtype: {dtype}")
+    packed = numpy.concatenate(
+        [
+            param.detach().numpy().reshape([-1])
+            for param in params
+            if param.dtype == dtype
+        ]
+    )
+    expected = spec["params_size" if index == 0 else "params_f32_size"]
+    if packed.size != expected:
+        raise RuntimeError(
+            f"arg{index} has {packed.size} elements; spec expects {expected}"
+        )
+    packed.tofile(os.path.join(output_dir, f"arg{index}.data"))
+    print(
+        f"   arg{index}.data: {packed.size:,} {dtype} elements "
+        f"({packed.nbytes / 1e9:.3f} GB)"
+    )
 
-print(
-    f"[PaddleOCR-Import] Done! "
-    f"arg0.data has {n_param_elems:,} f32 elements "
-    f"({all_param.nbytes / 1e9:.2f} GB)."
-)
+print(f"[PaddleOCR-Import] Done! {n_param_elems:,} total elements.")

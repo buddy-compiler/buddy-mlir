@@ -382,7 +382,7 @@ function(buddy_add_model)
     MDL                                      # prefix
     ""                                       # flags
     "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
-    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
+    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;EXTRA_WEIGHT_FILES" # multi-value
     ${ARGN}
   )
 
@@ -1121,6 +1121,9 @@ function(buddy_add_model)
         "${BIN}/subgraph0.mlir"
         "${BIN}/arg0.data")
     endif()
+    foreach(_extra_weight ${MDL_EXTRA_WEIGHT_FILES})
+      list(APPEND _SINGLE_FORWARD_BYPRODUCTS "${BIN}/${_extra_weight}")
+    endforeach()
 
     add_custom_command(
       OUTPUT "${IMPORT_STAMP}"
@@ -1615,6 +1618,9 @@ function(buddy_add_model)
     ${MDL_ASSET_DSTS})
   if(MDL_MODEL_KIND STREQUAL "single_forward")
     list(APPEND MDL_STAGE4_DEPS "${BIN}/arg0.data")
+    foreach(_extra_weight ${MDL_EXTRA_WEIGHT_FILES})
+      list(APPEND MDL_STAGE4_DEPS "${BIN}/${_extra_weight}")
+    endforeach()
   endif()
   list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
 
