@@ -164,6 +164,312 @@ static Value checkGemvStrides(PatternRewriter &rewriter, Location loc,
   return memref::CastOp::create(rewriter, loc, checked, value);
 }
 
+static bool isUnitTrailingStride(MemRefType ty) {
+  if (ty.getLayout().isIdentity())
+    return true;
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  return succeeded(ty.getStridesAndOffset(strides, offset)) &&
+         !strides.empty() && strides.back() == 1;
+}
+
+static bool isRowMajor2D(MemRefType ty, int64_t N) {
+  if (!ty.hasStaticShape() || ty.getRank() != 2)
+    return false;
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  return succeeded(ty.getStridesAndOffset(strides, offset)) &&
+         strides == SmallVector<int64_t>{N, 1};
+}
+
+static bool isTransposeBBatchMatmul(linalg::BatchMatmulOp op) {
+  auto maps = op.getIndexingMapsArray();
+  if (maps.size() != 3)
+    return false;
+  auto ctx = op.getContext();
+  auto b = getAffineDimExpr(0, ctx);
+  auto m = getAffineDimExpr(1, ctx);
+  auto n = getAffineDimExpr(2, ctx);
+  auto k = getAffineDimExpr(3, ctx);
+  return maps == SmallVector<AffineMap>{AffineMap::get(4, 0, {b, m, k}, ctx),
+                                        AffineMap::get(4, 0, {b, n, k}, ctx),
+                                        AffineMap::get(4, 0, {b, m, n}, ctx)};
+}
+
+// Emit register-resident 8x32 A100 FP16 IME GEMM for 2D memrefs:
+//   C[M, N] += A[M, K] * (transposeB ? B[N, K]^T : B[K, N])
+// Supports arbitrary M >= 8, K % 8 == 0, N >= 32 with vectorized FP32-acc
+// tails.
+static void emitA100FastGemmF16(PatternRewriter &rewriter, Location loc,
+                                Value A, Value B, Value C, int64_t M, int64_t K,
+                                int64_t N, bool transposeB, bool useParallel) {
+  auto AType = cast<MemRefType>(A.getType());
+  auto BType = cast<MemRefType>(B.getType());
+  auto CType = cast<MemRefType>(C.getType());
+  Type elemTy = AType.getElementType();
+  bool aUnit = isUnitTrailingStride(AType);
+  bool bUnit = isUnitTrailingStride(BType);
+
+  auto index = [&](int64_t value) -> Value {
+    return arith::ConstantIndexOp::create(rewriter, loc, value);
+  };
+  Value zero = index(0), one = index(1), eight = index(8),
+        thirtyTwo = index(32);
+  const int64_t tiledM = (M / 8) * 8;
+  const int64_t tiledN = (N / 32) * 32;
+  Value boundM = index(tiledM), boundK = index(K), boundN = index(tiledN);
+
+  Value packedA =
+      memref::AllocOp::create(rewriter, loc, MemRefType::get({M * K}, elemTy));
+  Operation *packRowsOp = nullptr;
+  Value rowVar;
+  if (useParallel) {
+    auto par = scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
+                                       ValueRange{boundM}, ValueRange{eight});
+    rewriter.setInsertionPointToStart(par.getBody());
+    rowVar = par.getInductionVars()[0];
+    packRowsOp = par;
+  } else {
+    auto loop = scf::ForOp::create(rewriter, loc, zero, boundM, eight);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    rowVar = loop.getInductionVar();
+    packRowsOp = loop;
+  }
+  Value rowBase = arith::MulIOp::create(rewriter, loc, rowVar, boundK);
+  auto packK = scf::ForOp::create(rewriter, loc, zero, boundK, eight);
+  rewriter.setInsertionPointToStart(packK.getBody());
+  Value kb = packK.getInductionVar();
+  Value block = arith::AddIOp::create(
+      rewriter, loc, arith::MulIOp::create(rewriter, loc, kb, eight), rowBase);
+  auto packRow = scf::ForOp::create(rewriter, loc, zero, eight, one);
+  rewriter.setInsertionPointToStart(packRow.getBody());
+  Value r = packRow.getInductionVar();
+  Value sourceRow = arith::AddIOp::create(rewriter, loc, rowVar, r);
+  Value offset = arith::AddIOp::create(
+      rewriter, loc, arith::MulIOp::create(rewriter, loc, r, eight), block);
+  if (aUnit) {
+    Value vec =
+        vector::LoadOp::create(rewriter, loc, VectorType::get({8}, elemTy), A,
+                               ValueRange{sourceRow, kb});
+    vector::StoreOp::create(rewriter, loc, vec, packedA, ValueRange{offset});
+  } else {
+    auto packKK = scf::ForOp::create(rewriter, loc, zero, eight, one);
+    rewriter.setInsertionPointToStart(packKK.getBody());
+    Value kk = packKK.getInductionVar();
+    Value val = memref::LoadOp::create(
+        rewriter, loc, A,
+        ValueRange{sourceRow, arith::AddIOp::create(rewriter, loc, kb, kk)});
+    memref::StoreOp::create(
+        rewriter, loc, val, packedA,
+        ValueRange{arith::AddIOp::create(rewriter, loc, offset, kk)});
+  }
+  rewriter.setInsertionPointAfter(packRowsOp);
+
+  Operation *columnsOp = nullptr;
+  Value colVar;
+  if (useParallel) {
+    auto par =
+        scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
+                                ValueRange{boundN}, ValueRange{thirtyTwo});
+    rewriter.setInsertionPointToStart(par.getBody());
+    colVar = par.getInductionVars()[0];
+    columnsOp = par;
+  } else {
+    auto loop = scf::ForOp::create(rewriter, loc, zero, boundN, thirtyTwo);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    colVar = loop.getInductionVar();
+    columnsOp = loop;
+  }
+  Value packedB =
+      memref::AllocOp::create(rewriter, loc, MemRefType::get({K * 32}, elemTy));
+  if (!transposeB) {
+    PackBF16Op::create(rewriter, loc, packedB, B, colVar,
+                       rewriter.getI64IntegerAttr(K));
+  } else {
+    auto packBK = scf::ForOp::create(rewriter, loc, zero, boundK, eight);
+    rewriter.setInsertionPointToStart(packBK.getBody());
+    Value kbB = packBK.getInductionVar();
+    Value kBlockOff = arith::MulIOp::create(rewriter, loc, kbB, thirtyTwo);
+    auto packBN = scf::ForOp::create(rewriter, loc, zero, thirtyTwo, one);
+    rewriter.setInsertionPointToStart(packBN.getBody());
+    Value localN = packBN.getInductionVar();
+    Value srcRow = arith::AddIOp::create(rewriter, loc, colVar, localN);
+    Value dstOff = arith::AddIOp::create(
+        rewriter, loc, kBlockOff,
+        arith::MulIOp::create(rewriter, loc, localN, eight));
+    if (bUnit) {
+      Value vec =
+          vector::LoadOp::create(rewriter, loc, VectorType::get({8}, elemTy), B,
+                                 ValueRange{srcRow, kbB});
+      vector::StoreOp::create(rewriter, loc, vec, packedB, ValueRange{dstOff});
+    } else {
+      auto packBKK = scf::ForOp::create(rewriter, loc, zero, eight, one);
+      rewriter.setInsertionPointToStart(packBKK.getBody());
+      Value kk = packBKK.getInductionVar();
+      Value val = memref::LoadOp::create(
+          rewriter, loc, B,
+          ValueRange{srcRow, arith::AddIOp::create(rewriter, loc, kbB, kk)});
+      memref::StoreOp::create(
+          rewriter, loc, val, packedB,
+          ValueRange{arith::AddIOp::create(rewriter, loc, dstOff, kk)});
+    }
+    rewriter.setInsertionPointAfter(packBK);
+  }
+  auto rows = scf::ForOp::create(rewriter, loc, zero, boundM, eight);
+  rewriter.setInsertionPointToStart(rows.getBody());
+  GemmF16Op::create(rewriter, loc, C, packedA, packedB, rows.getInductionVar(),
+                    colVar, rewriter.getI64IntegerAttr(K),
+                    rewriter.getI64IntegerAttr(N));
+  rewriter.setInsertionPointAfter(rows);
+  memref::DeallocOp::create(rewriter, loc, packedB);
+  rewriter.setInsertionPointAfter(columnsOp);
+  memref::DeallocOp::create(rewriter, loc, packedA);
+
+  // Vectorized FP32-accumulating tail for any remaining M or N rows/columns.
+  auto emitTail = [&](int64_t mStart, int64_t mEnd, int64_t nStart,
+                      int64_t nEnd) {
+    if (mStart >= mEnd || nStart >= nEnd)
+      return;
+    Type f32Ty = rewriter.getF32Type();
+    if (transposeB && aUnit && bUnit) {
+      int64_t vf = (K % 32 == 0) ? 32 : ((K % 16 == 0) ? 16 : 8);
+      auto loadTy = VectorType::get({vf}, elemTy);
+      auto accTy = VectorType::get({vf}, f32Ty);
+      Value f0 = arith::ConstantFloatOp::create(
+          rewriter, loc, rewriter.getF32Type(), APFloat(0.0f));
+      Value vzero = vector::BroadcastOp::create(rewriter, loc, accTy, f0);
+      auto emitDot = [&](OpBuilder &b, Location l, Value i, Value j) {
+        auto kFor = scf::ForOp::create(
+            b, l, zero, boundK, index(vf), ValueRange{vzero},
+            [&](OpBuilder &fb, Location fl, Value kIdx, ValueRange it) {
+              Value aRaw = vector::LoadOp::create(fb, fl, loadTy, A,
+                                                  ValueRange{i, kIdx});
+              Value bRaw = vector::LoadOp::create(fb, fl, loadTy, B,
+                                                  ValueRange{j, kIdx});
+              Value aV = arith::ExtFOp::create(fb, fl, accTy, aRaw);
+              Value bV = arith::ExtFOp::create(fb, fl, accTy, bRaw);
+              Value acc = vector::FMAOp::create(fb, fl, aV, bV, it[0]);
+              scf::YieldOp::create(fb, fl, acc);
+            });
+        Value cur = memref::LoadOp::create(b, l, C, ValueRange{i, j});
+        Value curF32 = arith::ExtFOp::create(b, l, f32Ty, cur);
+        Value sumF32 = vector::ReductionOp::create(
+            b, l, vector::CombiningKind::ADD, kFor.getResult(0), curF32,
+            arith::FastMathFlags::reassoc);
+        Value out = arith::TruncFOp::create(b, l, elemTy, sumF32);
+        memref::StoreOp::create(b, l, out, C, ValueRange{i, j});
+      };
+      if (useParallel) {
+        scf::ParallelOp::create(
+            rewriter, loc, ValueRange{index(mStart), index(nStart)},
+            ValueRange{index(mEnd), index(nEnd)}, ValueRange{one, one},
+            [&](OpBuilder &pb, Location pl, ValueRange ivs) {
+              emitDot(pb, pl, ivs[0], ivs[1]);
+            });
+      } else {
+        auto mLoop =
+            scf::ForOp::create(rewriter, loc, index(mStart), index(mEnd), one);
+        rewriter.setInsertionPointToStart(mLoop.getBody());
+        auto nLoop =
+            scf::ForOp::create(rewriter, loc, index(nStart), index(nEnd), one);
+        rewriter.setInsertionPointToStart(nLoop.getBody());
+        emitDot(rewriter, loc, mLoop.getInductionVar(),
+                nLoop.getInductionVar());
+        rewriter.setInsertionPointAfter(mLoop);
+      }
+      return;
+    }
+
+    if (!transposeB && bUnit && isRowMajor2D(CType, N) &&
+        (nEnd - nStart) >= 32 && (nEnd - nStart) % 32 == 0) {
+      auto loadTy = VectorType::get({32}, elemTy);
+      auto accTy = VectorType::get({32}, f32Ty);
+      auto emitVecRow = [&](OpBuilder &b, Location l, Value i, Value j) {
+        Value cRaw = vector::LoadOp::create(b, l, loadTy, C, ValueRange{i, j});
+        Value cInit = arith::ExtFOp::create(b, l, accTy, cRaw);
+        auto kFor = scf::ForOp::create(
+            b, l, zero, boundK, one, ValueRange{cInit},
+            [&](OpBuilder &fb, Location fl, Value kIdx, ValueRange it) {
+              Value aRaw =
+                  memref::LoadOp::create(fb, fl, A, ValueRange{i, kIdx});
+              Value aS = arith::ExtFOp::create(fb, fl, f32Ty, aRaw);
+              Value aV = vector::BroadcastOp::create(fb, fl, accTy, aS);
+              Value bRaw = vector::LoadOp::create(fb, fl, loadTy, B,
+                                                  ValueRange{kIdx, j});
+              Value bV = arith::ExtFOp::create(fb, fl, accTy, bRaw);
+              Value acc = vector::FMAOp::create(fb, fl, aV, bV, it[0]);
+              scf::YieldOp::create(fb, fl, acc);
+            });
+        Value out = arith::TruncFOp::create(b, l, loadTy, kFor.getResult(0));
+        vector::StoreOp::create(b, l, out, C, ValueRange{i, j});
+      };
+      if (useParallel) {
+        scf::ParallelOp::create(
+            rewriter, loc, ValueRange{index(mStart), index(nStart)},
+            ValueRange{index(mEnd), index(nEnd)}, ValueRange{one, thirtyTwo},
+            [&](OpBuilder &pb, Location pl, ValueRange ivs) {
+              emitVecRow(pb, pl, ivs[0], ivs[1]);
+            });
+      } else {
+        auto mLoop =
+            scf::ForOp::create(rewriter, loc, index(mStart), index(mEnd), one);
+        rewriter.setInsertionPointToStart(mLoop.getBody());
+        auto nLoop = scf::ForOp::create(rewriter, loc, index(nStart),
+                                        index(nEnd), thirtyTwo);
+        rewriter.setInsertionPointToStart(nLoop.getBody());
+        emitVecRow(rewriter, loc, mLoop.getInductionVar(),
+                   nLoop.getInductionVar());
+        rewriter.setInsertionPointAfter(mLoop);
+      }
+      return;
+    }
+
+    auto emitScalar = [&](OpBuilder &b, Location l, Value i, Value j) {
+      Value cur = memref::LoadOp::create(b, l, C, ValueRange{i, j});
+      Value init = arith::ExtFOp::create(b, l, f32Ty, cur);
+      auto red = scf::ForOp::create(
+          b, l, zero, boundK, one, ValueRange{init},
+          [&](OpBuilder &fb, Location fl, Value kIdx, ValueRange it) {
+            Value lhs = memref::LoadOp::create(fb, fl, A, ValueRange{i, kIdx});
+            Value rhs =
+                transposeB
+                    ? memref::LoadOp::create(fb, fl, B, ValueRange{j, kIdx})
+                    : memref::LoadOp::create(fb, fl, B, ValueRange{kIdx, j});
+            Value lhsF32 = arith::ExtFOp::create(fb, fl, f32Ty, lhs);
+            Value rhsF32 = arith::ExtFOp::create(fb, fl, f32Ty, rhs);
+            Value prod = arith::MulFOp::create(fb, fl, lhsF32, rhsF32);
+            Value sum = arith::AddFOp::create(fb, fl, it[0], prod);
+            scf::YieldOp::create(fb, fl, sum);
+          });
+      Value out = arith::TruncFOp::create(b, l, elemTy, red.getResult(0));
+      memref::StoreOp::create(b, l, out, C, ValueRange{i, j});
+    };
+    if (useParallel) {
+      scf::ParallelOp::create(
+          rewriter, loc, ValueRange{index(mStart), index(nStart)},
+          ValueRange{index(mEnd), index(nEnd)}, ValueRange{one, one},
+          [&](OpBuilder &pb, Location pl, ValueRange ivs) {
+            emitScalar(pb, pl, ivs[0], ivs[1]);
+          });
+    } else {
+      auto mLoop =
+          scf::ForOp::create(rewriter, loc, index(mStart), index(mEnd), one);
+      rewriter.setInsertionPointToStart(mLoop.getBody());
+      auto nLoop =
+          scf::ForOp::create(rewriter, loc, index(nStart), index(nEnd), one);
+      rewriter.setInsertionPointToStart(nLoop.getBody());
+      emitScalar(rewriter, loc, mLoop.getInductionVar(),
+                 nLoop.getInductionVar());
+      rewriter.setInsertionPointAfter(mLoop);
+    }
+  };
+
+  if (tiledN != N)
+    emitTail(0, tiledM, tiledN, N);
+  if (tiledM != M)
+    emitTail(tiledM, M, 0, N);
+}
+
 class MatmulToIMELowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
   MatmulToIMELowering(MLIRContext *context, bool k3, StringRef shapes = "",
@@ -284,90 +590,8 @@ public:
                          a100, matmulOp->getParentOfType<func::FuncOp>());
 
     if (fastGemm) {
-      auto index = [&](int64_t value) -> Value {
-        return arith::ConstantIndexOp::create(rewriter, loc, value);
-      };
-      Value zero = index(0), eight = index(8), one = index(1);
-      const int64_t tiledM = M / 8 * 8;
-      Value boundM = index(tiledM), boundK = index(K), boundN = index(N);
-      Value packedA = memref::AllocOp::create(
-          rewriter, loc, MemRefType::get({M * K}, AElemType));
-      auto packRows =
-          scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
-                                  ValueRange{boundM}, ValueRange{eight});
-      rewriter.setInsertionPointToStart(packRows.getBody());
-      Value row = packRows.getInductionVars()[0];
-      Value rowBase = arith::MulIOp::create(rewriter, loc, row, boundK);
-      auto packK = scf::ForOp::create(rewriter, loc, zero, boundK, eight);
-      rewriter.setInsertionPointToStart(packK.getBody());
-      Value kb = packK.getInductionVar();
-      Value block = arith::MulIOp::create(rewriter, loc, kb, eight);
-      block = arith::AddIOp::create(rewriter, loc, block, rowBase);
-      auto packRow = scf::ForOp::create(rewriter, loc, zero, eight, one);
-      rewriter.setInsertionPointToStart(packRow.getBody());
-      Value r = packRow.getInductionVar();
-      Value sourceRow = arith::AddIOp::create(rewriter, loc, row, r);
-      Value offset = arith::MulIOp::create(rewriter, loc, r, eight);
-      offset = arith::AddIOp::create(rewriter, loc, offset, block);
-      Value vector =
-          vector::LoadOp::create(rewriter, loc, VectorType::get({8}, AElemType),
-                                 A, ValueRange{sourceRow, kb});
-      vector::StoreOp::create(rewriter, loc, vector, packedA,
-                              ValueRange{offset});
-      rewriter.setInsertionPointAfter(packRows);
-
-      auto columns = scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
-                                             ValueRange{boundN},
-                                             ValueRange{index(gemmPanelWidth)});
-      rewriter.setInsertionPointToStart(columns.getBody());
-      Value column = columns.getInductionVars()[0];
-      Value packedB = memref::AllocOp::create(
-          rewriter, loc, MemRefType::get({K * gemmPanelWidth}, BElemType));
-      PackBF16Op::create(rewriter, loc, packedB, B, column,
-                         rewriter.getI64IntegerAttr(K));
-      auto rows = scf::ForOp::create(rewriter, loc, zero, boundM, eight);
-      rewriter.setInsertionPointToStart(rows.getBody());
-      GemmF16Op::create(
-          rewriter, loc, C, packedA, packedB, rows.getInductionVar(), column,
-          rewriter.getI64IntegerAttr(K), rewriter.getI64IntegerAttr(N));
-      rewriter.setInsertionPointAfter(rows);
-      memref::DeallocOp::create(rewriter, loc, packedB);
-      rewriter.setInsertionPointAfter(columns);
-      memref::DeallocOp::create(rewriter, loc, packedA);
-
-      // The IME kernel handles full eight-row tiles. Compute the remaining
-      // rows with the same FP32 accumulation used by GemmF16Op.
-      if (tiledM != M) {
-        auto tail = scf::ParallelOp::create(
-            rewriter, loc, ValueRange{index(tiledM), zero},
-            ValueRange{index(M), boundN}, ValueRange{one, one});
-        rewriter.setInsertionPointToStart(tail.getBody());
-        Value i = tail.getInductionVars()[0];
-        Value j = tail.getInductionVars()[1];
-        Value current =
-            memref::LoadOp::create(rewriter, loc, C, ValueRange{i, j});
-        Value initial = arith::ExtFOp::create(rewriter, loc,
-                                              rewriter.getF32Type(), current);
-        auto reduction = scf::ForOp::create(rewriter, loc, zero, boundK, one,
-                                            ValueRange{initial});
-        rewriter.setInsertionPointToStart(reduction.getBody());
-        Value k = reduction.getInductionVar();
-        Value lhs = memref::LoadOp::create(rewriter, loc, A, ValueRange{i, k});
-        Value rhs = memref::LoadOp::create(rewriter, loc, B, ValueRange{k, j});
-        Value lhsF32 =
-            arith::ExtFOp::create(rewriter, loc, rewriter.getF32Type(), lhs);
-        Value rhsF32 =
-            arith::ExtFOp::create(rewriter, loc, rewriter.getF32Type(), rhs);
-        Value product = arith::MulFOp::create(rewriter, loc, lhsF32, rhsF32);
-        Value sum = arith::AddFOp::create(
-            rewriter, loc, reduction.getRegionIterArgs()[0], product);
-        scf::YieldOp::create(rewriter, loc, sum);
-        rewriter.setInsertionPointAfter(reduction);
-        Value result = arith::TruncFOp::create(
-            rewriter, loc, rewriter.getF16Type(), reduction.getResult(0));
-        memref::StoreOp::create(rewriter, loc, result, C, ValueRange{i, j});
-        rewriter.setInsertionPointAfter(tail);
-      }
+      emitA100FastGemmF16(rewriter, loc, A, B, C, M, K, N,
+                          /*transposeB=*/false, /*useParallel=*/true);
       rewriter.eraseOp(matmulOp);
       return success();
     }
@@ -1629,6 +1853,416 @@ public:
 };
 } // namespace
 
+class MatmulTransposeBFastGemmLowering
+    : public OpRewritePattern<linalg::MatmulTransposeBOp> {
+public:
+  MatmulTransposeBFastGemmLowering(MLIRContext *context, StringRef shapes,
+                                   bool verifyFP16)
+      : OpRewritePattern(context), shapes(shapes.str()),
+        verifyFP16(verifyFP16) {}
+
+  LogicalResult matchAndRewrite(linalg::MatmulTransposeBOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.hasPureBufferSemantics())
+      return failure();
+    Value A = op.getInputs()[0];
+    Value B = op.getInputs()[1];
+    Value C = op.getOutputs()[0];
+    auto AType = dyn_cast<MemRefType>(A.getType());
+    auto BType = dyn_cast<MemRefType>(B.getType());
+    auto CType = dyn_cast<MemRefType>(C.getType());
+    if (!AType || !BType || !CType || !AType.hasStaticShape() ||
+        !BType.hasStaticShape() || !CType.hasStaticShape())
+      return failure();
+    if (AType.getRank() != 2 || BType.getRank() != 2 || CType.getRank() != 2)
+      return failure();
+    if (!AType.getElementType().isF16() || !BType.getElementType().isF16() ||
+        !CType.getElementType().isF16())
+      return failure();
+    int64_t M = AType.getDimSize(0);
+    int64_t K = AType.getDimSize(1);
+    int64_t N = BType.getDimSize(0);
+    if (BType.getDimSize(1) != K || CType.getDimSize(0) != M ||
+        CType.getDimSize(1) != N)
+      return failure();
+    if (M < 8 || K % 8 != 0 || N < 32 || !isRowMajor2D(CType, N))
+      return failure();
+    if (!shapes.empty()) {
+      SmallVector<StringRef> selected;
+      StringRef(shapes).split(selected, ',', -1, false);
+      std::string shape = std::to_string(K) + "x" + std::to_string(N);
+      if (!llvm::is_contained(selected, StringRef(shape)))
+        return failure();
+    }
+    if (verifyFP16)
+      insertFP16IMECheck(rewriter, op.getLoc(), op->getParentOfType<ModuleOp>(),
+                         /*a100=*/true, op->getParentOfType<func::FuncOp>());
+    emitA100FastGemmF16(rewriter, op.getLoc(), A, B, C, M, K, N,
+                        /*transposeB=*/true, /*useParallel=*/true);
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  std::string shapes;
+  bool verifyFP16;
+};
+
+class BatchMatmulTransposeBFastGemmLowering
+    : public OpRewritePattern<linalg::BatchMatmulOp> {
+public:
+  BatchMatmulTransposeBFastGemmLowering(MLIRContext *context, bool verifyFP16)
+      : OpRewritePattern(context), verifyFP16(verifyFP16) {}
+
+  LogicalResult matchAndRewrite(linalg::BatchMatmulOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.hasPureBufferSemantics() || !isTransposeBBatchMatmul(op))
+      return failure();
+    Location loc = op.getLoc();
+    Value A = op.getInputs()[0];
+    Value B = op.getInputs()[1];
+    Value C = op.getOutputs()[0];
+    auto AType = dyn_cast<MemRefType>(A.getType());
+    auto BType = dyn_cast<MemRefType>(B.getType());
+    auto CType = dyn_cast<MemRefType>(C.getType());
+    if (!AType || !BType || !CType || !AType.hasStaticShape() ||
+        !BType.hasStaticShape() || !CType.hasStaticShape())
+      return failure();
+    if (AType.getRank() != 3 || BType.getRank() != 3 || CType.getRank() != 3)
+      return failure();
+    if (!AType.getElementType().isF16() || !BType.getElementType().isF16() ||
+        !CType.getElementType().isF16())
+      return failure();
+    int64_t Batch = AType.getDimSize(0);
+    int64_t M = AType.getDimSize(1);
+    int64_t K = AType.getDimSize(2);
+    int64_t N = BType.getDimSize(1);
+    if (BType.getDimSize(0) != Batch || BType.getDimSize(2) != K ||
+        CType.getDimSize(0) != Batch || CType.getDimSize(1) != M ||
+        CType.getDimSize(2) != N)
+      return failure();
+    if (Batch < 1 || M < 8 || K % 8 != 0 || N < 32)
+      return failure();
+    SmallVector<int64_t> aStrides, bStrides, cStrides;
+    int64_t aOff, bOff, cOff;
+    if (failed(AType.getStridesAndOffset(aStrides, aOff)) ||
+        failed(BType.getStridesAndOffset(bStrides, bOff)) ||
+        failed(CType.getStridesAndOffset(cStrides, cOff)))
+      return failure();
+    if (cStrides[1] != N || cStrides[2] != 1)
+      return failure();
+
+    if (verifyFP16)
+      insertFP16IMECheck(rewriter, loc, op->getParentOfType<ModuleOp>(),
+                         /*a100=*/true, op->getParentOfType<func::FuncOp>());
+
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value batchBound = arith::ConstantIndexOp::create(rewriter, loc, Batch);
+    bool parBatch = Batch >= 8;
+
+    auto buildSlice = [&](Value mem, MemRefType ty, ArrayRef<int64_t> strides,
+                          Value bIdx) -> Value {
+      auto subLayout =
+          StridedLayoutAttr::get(rewriter.getContext(), ShapedType::kDynamic,
+                                 ArrayRef<int64_t>{strides[1], strides[2]});
+      auto subType =
+          MemRefType::get({ty.getDimSize(1), ty.getDimSize(2)},
+                          ty.getElementType(), subLayout, ty.getMemorySpace());
+      return memref::SubViewOp::create(
+          rewriter, loc, subType, mem,
+          ArrayRef<OpFoldResult>{bIdx, rewriter.getIndexAttr(0),
+                                 rewriter.getIndexAttr(0)},
+          ArrayRef<OpFoldResult>{rewriter.getIndexAttr(1),
+                                 rewriter.getIndexAttr(ty.getDimSize(1)),
+                                 rewriter.getIndexAttr(ty.getDimSize(2))},
+          ArrayRef<OpFoldResult>{rewriter.getIndexAttr(1),
+                                 rewriter.getIndexAttr(1),
+                                 rewriter.getIndexAttr(1)});
+    };
+
+    Operation *batchOp = nullptr;
+    Value bIdx;
+    if (parBatch) {
+      auto par =
+          scf::ParallelOp::create(rewriter, loc, ValueRange{c0},
+                                  ValueRange{batchBound}, ValueRange{c1});
+      rewriter.setInsertionPointToStart(par.getBody());
+      bIdx = par.getInductionVars()[0];
+      batchOp = par;
+    } else {
+      auto loop = scf::ForOp::create(rewriter, loc, c0, batchBound, c1);
+      rewriter.setInsertionPointToStart(loop.getBody());
+      bIdx = loop.getInductionVar();
+      batchOp = loop;
+    }
+
+    Value subA = buildSlice(A, AType, aStrides, bIdx);
+    Value subB = buildSlice(B, BType, bStrides, bIdx);
+    Value subC = buildSlice(C, CType, cStrides, bIdx);
+    emitA100FastGemmF16(rewriter, loc, subA, subB, subC, M, K, N,
+                        /*transposeB=*/true, /*useParallel=*/!parBatch);
+    rewriter.setInsertionPointAfter(batchOp);
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  bool verifyFP16;
+};
+
+class BatchMatmulStandardFastVecLowering
+    : public OpRewritePattern<linalg::BatchMatmulOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::BatchMatmulOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.hasPureBufferSemantics())
+      return failure();
+    auto maps = op.getIndexingMapsArray();
+    auto ctx = op.getContext();
+    auto bE = getAffineDimExpr(0, ctx), mE = getAffineDimExpr(1, ctx),
+         nE = getAffineDimExpr(2, ctx), kE = getAffineDimExpr(3, ctx);
+    if (maps != SmallVector<AffineMap>{AffineMap::get(4, 0, {bE, mE, kE}, ctx),
+                                       AffineMap::get(4, 0, {bE, kE, nE}, ctx),
+                                       AffineMap::get(4, 0, {bE, mE, nE}, ctx)})
+      return failure();
+    Value A = op.getInputs()[0], B = op.getInputs()[1], C = op.getOutputs()[0];
+    auto aTy = dyn_cast<MemRefType>(A.getType());
+    auto bTy = dyn_cast<MemRefType>(B.getType());
+    auto cTy = dyn_cast<MemRefType>(C.getType());
+    if (!aTy || !bTy || !cTy || !aTy.hasStaticShape() ||
+        !bTy.hasStaticShape() || !cTy.hasStaticShape() || aTy.getRank() != 3 ||
+        bTy.getRank() != 3 || cTy.getRank() != 3)
+      return failure();
+    if (!aTy.getElementType().isF16() || !bTy.getElementType().isF16() ||
+        !cTy.getElementType().isF16())
+      return failure();
+    int64_t Batch = aTy.getDimSize(0), M = aTy.getDimSize(1),
+            K = aTy.getDimSize(2), N = bTy.getDimSize(2);
+    if (bTy.getDimSize(0) != Batch || bTy.getDimSize(1) != K ||
+        cTy.getDimSize(0) != Batch || cTy.getDimSize(1) != M ||
+        cTy.getDimSize(2) != N)
+      return failure();
+    if (M < 4 || M % 4 != 0 || N != 64 || K < 8)
+      return failure();
+    for (MemRefType t : {aTy, bTy, cTy}) {
+      SmallVector<int64_t> st;
+      int64_t off;
+      if (failed(t.getStridesAndOffset(st, off)) || st[2] != 1)
+        return failure();
+    }
+
+    Location loc = op.getLoc();
+    Type f16Ty = rewriter.getF16Type(), f32Ty = rewriter.getF32Type();
+    auto vecF16 = VectorType::get({32}, f16Ty);
+    auto vecF32 = VectorType::get({32}, f32Ty);
+    auto idx = [&](int64_t v) -> Value {
+      return arith::ConstantIndexOp::create(rewriter, loc, v);
+    };
+    Value c0 = idx(0), c1 = idx(1), c4 = idx(4), c32 = idx(32);
+    auto par = scf::ParallelOp::create(rewriter, loc, ValueRange{c0, c0},
+                                       ValueRange{idx(Batch), idx(M)},
+                                       ValueRange{c1, c4});
+    rewriter.setInsertionPointToStart(par.getBody());
+    Value b = par.getInductionVars()[0];
+    Value mBase = par.getInductionVars()[1];
+    SmallVector<Value> rows(4), init;
+    for (int r = 0; r < 4; ++r)
+      rows[r] = arith::AddIOp::create(rewriter, loc, mBase, idx(r));
+    for (int r = 0; r < 4; ++r)
+      for (Value col : {c0, c32}) {
+        Value raw = vector::LoadOp::create(rewriter, loc, vecF16, C,
+                                           ValueRange{b, rows[r], col});
+        init.push_back(arith::ExtFOp::create(rewriter, loc, vecF32, raw));
+      }
+    auto kFor = scf::ForOp::create(
+        rewriter, loc, c0, idx(K), c1, ValueRange(init),
+        [&](OpBuilder &fb, Location fl, Value k, ValueRange it) {
+          Value b0 =
+              vector::LoadOp::create(fb, fl, vecF16, B, ValueRange{b, k, c0});
+          Value b1 =
+              vector::LoadOp::create(fb, fl, vecF16, B, ValueRange{b, k, c32});
+          Value v0 = arith::ExtFOp::create(fb, fl, vecF32, b0);
+          Value v1 = arith::ExtFOp::create(fb, fl, vecF32, b1);
+          SmallVector<Value> next;
+          for (int r = 0; r < 4; ++r) {
+            Value p =
+                memref::LoadOp::create(fb, fl, A, ValueRange{b, rows[r], k});
+            Value pf = arith::ExtFOp::create(fb, fl, f32Ty, p);
+            Value pv = vector::BroadcastOp::create(fb, fl, vecF32, pf);
+            next.push_back(vector::FMAOp::create(fb, fl, pv, v0, it[r * 2]));
+            next.push_back(
+                vector::FMAOp::create(fb, fl, pv, v1, it[r * 2 + 1]));
+          }
+          scf::YieldOp::create(fb, fl, next);
+        });
+    for (int r = 0; r < 4; ++r) {
+      Value o0 =
+          arith::TruncFOp::create(rewriter, loc, vecF16, kFor.getResult(r * 2));
+      Value o1 = arith::TruncFOp::create(rewriter, loc, vecF16,
+                                         kFor.getResult(r * 2 + 1));
+      vector::StoreOp::create(rewriter, loc, o0, C, ValueRange{b, rows[r], c0});
+      vector::StoreOp::create(rewriter, loc, o1, C,
+                              ValueRange{b, rows[r], c32});
+    }
+    rewriter.setInsertionPointAfter(par);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+class Conv1dNcwFcwToIMELowering
+    : public OpRewritePattern<linalg::Conv1DNcwFcwOp> {
+public:
+  Conv1dNcwFcwToIMELowering(MLIRContext *context, bool verifyFP16)
+      : OpRewritePattern(context), verifyFP16(verifyFP16) {}
+
+  LogicalResult matchAndRewrite(linalg::Conv1DNcwFcwOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.hasPureBufferSemantics())
+      return failure();
+    auto stridesAttr = op.getStrides();
+    auto dilationsAttr = op.getDilations();
+    int64_t stride = stridesAttr.getValues<APInt>()[0].getSExtValue();
+    int64_t dilation = dilationsAttr.getValues<APInt>()[0].getSExtValue();
+    if (dilation != 1 || stride < 1)
+      return failure();
+
+    Value input = op.getInputs()[0];
+    Value filter = op.getInputs()[1];
+    Value output = op.getOutputs()[0];
+    auto inTy = dyn_cast<MemRefType>(input.getType());
+    auto fltTy = dyn_cast<MemRefType>(filter.getType());
+    auto outTy = dyn_cast<MemRefType>(output.getType());
+    if (!inTy || !fltTy || !outTy || !inTy.hasStaticShape() ||
+        !fltTy.hasStaticShape() || !outTy.hasStaticShape())
+      return failure();
+    if (!inTy.getElementType().isF16() || !fltTy.getElementType().isF16() ||
+        !outTy.getElementType().isF16())
+      return failure();
+    int64_t N = inTy.getDimSize(0);
+    int64_t IC = inTy.getDimSize(1);
+    int64_t OC = fltTy.getDimSize(0);
+    int64_t KW = fltTy.getDimSize(2);
+    int64_t OW = outTy.getDimSize(2);
+    int64_t K = IC * KW;
+    if (N != 1 || fltTy.getDimSize(1) != IC || outTy.getDimSize(0) != 1 ||
+        outTy.getDimSize(1) != OC || OW < 8 || K % 8 != 0 || OC < 32)
+      return failure();
+
+    Location loc = op.getLoc();
+    if (verifyFP16)
+      insertFP16IMECheck(rewriter, loc, op->getParentOfType<ModuleOp>(),
+                         /*a100=*/true, op->getParentOfType<func::FuncOp>());
+
+    Type f16Ty = rewriter.getF16Type();
+    auto index = [&](int64_t v) -> Value {
+      return arith::ConstantIndexOp::create(rewriter, loc, v);
+    };
+    Value c0 = index(0), c1 = index(1), cKW = index(KW),
+          cStride = index(stride);
+    Value cIC = index(IC), cOC = index(OC), cOW = index(OW);
+
+    // 1. Build im2col[OW, IC * KW] in parallel over OW.
+    Value im2col =
+        memref::AllocOp::create(rewriter, loc, MemRefType::get({OW, K}, f16Ty));
+    auto im2colPar = scf::ParallelOp::create(rewriter, loc, ValueRange{c0},
+                                             ValueRange{cOW}, ValueRange{c1});
+    rewriter.setInsertionPointToStart(im2colPar.getBody());
+    Value ow = im2colPar.getInductionVars()[0];
+    Value inBase = arith::MulIOp::create(rewriter, loc, ow, cStride);
+    auto icLoop = scf::ForOp::create(rewriter, loc, c0, cIC, c1);
+    rewriter.setInsertionPointToStart(icLoop.getBody());
+    Value ic = icLoop.getInductionVar();
+    Value kBase = arith::MulIOp::create(rewriter, loc, ic, cKW);
+    for (int64_t kw = 0; kw < KW; ++kw) {
+      Value kwVal = index(kw);
+      Value iw = arith::AddIOp::create(rewriter, loc, inBase, kwVal);
+      Value kIdx = arith::AddIOp::create(rewriter, loc, kBase, kwVal);
+      Value v =
+          memref::LoadOp::create(rewriter, loc, input, ValueRange{c0, ic, iw});
+      memref::StoreOp::create(rewriter, loc, v, im2col, ValueRange{ow, kIdx});
+    }
+    rewriter.setInsertionPointAfter(im2colPar);
+
+    // 2. Pack filter[OC, IC, KW] into contiguous W2d[OC, IC * KW] in parallel.
+    Value W2d =
+        memref::AllocOp::create(rewriter, loc, MemRefType::get({OC, K}, f16Ty));
+    auto wPar = scf::ParallelOp::create(rewriter, loc, ValueRange{c0},
+                                        ValueRange{cOC}, ValueRange{c1});
+    rewriter.setInsertionPointToStart(wPar.getBody());
+    Value ocW = wPar.getInductionVars()[0];
+    auto wIcLoop = scf::ForOp::create(rewriter, loc, c0, cIC, c1);
+    rewriter.setInsertionPointToStart(wIcLoop.getBody());
+    Value icW = wIcLoop.getInductionVar();
+    Value kBaseW = arith::MulIOp::create(rewriter, loc, icW, cKW);
+    for (int64_t kw = 0; kw < KW; ++kw) {
+      Value kwVal = index(kw);
+      Value kIdx = arith::AddIOp::create(rewriter, loc, kBaseW, kwVal);
+      Value v = memref::LoadOp::create(rewriter, loc, filter,
+                                       ValueRange{ocW, icW, kwVal});
+      memref::StoreOp::create(rewriter, loc, v, W2d, ValueRange{ocW, kIdx});
+    }
+    rewriter.setInsertionPointAfter(wPar);
+
+    // 3. Allocate and zero-fill Y2d[OW, OC].
+    Value Y2d = memref::AllocOp::create(rewriter, loc,
+                                        MemRefType::get({OW, OC}, f16Ty));
+    Value zeroF16 = arith::ConstantOp::create(rewriter, loc, f16Ty,
+                                              rewriter.getZeroAttr(f16Ty));
+    auto zPar = scf::ParallelOp::create(rewriter, loc, ValueRange{c0},
+                                        ValueRange{cOW}, ValueRange{c1});
+    rewriter.setInsertionPointToStart(zPar.getBody());
+    Value owZ = zPar.getInductionVars()[0];
+    if (OC % 32 == 0) {
+      auto zVecTy = VectorType::get({32}, f16Ty);
+      Value zVec = vector::BroadcastOp::create(rewriter, loc, zVecTy, zeroF16);
+      auto zCol = scf::ForOp::create(rewriter, loc, c0, cOC, index(32));
+      rewriter.setInsertionPointToStart(zCol.getBody());
+      vector::StoreOp::create(rewriter, loc, zVec, Y2d,
+                              ValueRange{owZ, zCol.getInductionVar()});
+    } else {
+      auto zCol = scf::ForOp::create(rewriter, loc, c0, cOC, c1);
+      rewriter.setInsertionPointToStart(zCol.getBody());
+      memref::StoreOp::create(rewriter, loc, zeroF16, Y2d,
+                              ValueRange{owZ, zCol.getInductionVar()});
+    }
+    rewriter.setInsertionPointAfter(zPar);
+
+    // 4. Compute Y2d[OW, OC] = im2col[OW, K] * W2d[OC, K]^T using A100 IME.
+    emitA100FastGemmF16(rewriter, loc, im2col, W2d, Y2d, OW, K, OC,
+                        /*transposeB=*/true, /*useParallel=*/true);
+
+    // 5. Accumulate Y2d[ow, oc] into output[0, oc, ow] in parallel over OC.
+    auto outPar = scf::ParallelOp::create(rewriter, loc, ValueRange{c0},
+                                          ValueRange{cOC}, ValueRange{c1});
+    rewriter.setInsertionPointToStart(outPar.getBody());
+    Value ocO = outPar.getInductionVars()[0];
+    auto owLoop = scf::ForOp::create(rewriter, loc, c0, cOW, c1);
+    rewriter.setInsertionPointToStart(owLoop.getBody());
+    Value owO = owLoop.getInductionVar();
+    Value yVal =
+        memref::LoadOp::create(rewriter, loc, Y2d, ValueRange{owO, ocO});
+    Value curVal =
+        memref::LoadOp::create(rewriter, loc, output, ValueRange{c0, ocO, owO});
+    Value sumVal = arith::AddFOp::create(rewriter, loc, curVal, yVal);
+    memref::StoreOp::create(rewriter, loc, sumVal, output,
+                            ValueRange{c0, ocO, owO});
+    rewriter.setInsertionPointAfter(outPar);
+
+    memref::DeallocOp::create(rewriter, loc, Y2d);
+    memref::DeallocOp::create(rewriter, loc, W2d);
+    memref::DeallocOp::create(rewriter, loc, im2col);
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  bool verifyFP16;
+};
+
 void LowerLinalgToIMEPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
@@ -1657,6 +2291,15 @@ void LowerLinalgToIMEPass::runOnOperation() {
   patterns.add<MatmulToIMELowering>(context, k3, matmulShapes, packedVectorSize,
                                     parallelTiles, verifyFP16, a100FP16,
                                     a100Gemv, a100Gemm, gemmPanelWidth);
+  if (a100Gemm) {
+    patterns.add<MatmulTransposeBFastGemmLowering>(context, matmulShapes,
+                                                   verifyFP16);
+    if (matmulShapes.empty()) {
+      patterns.add<BatchMatmulTransposeBFastGemmLowering,
+                   Conv1dNcwFcwToIMELowering>(context, verifyFP16);
+      patterns.add<BatchMatmulStandardFastVecLowering>(context);
+    }
+  }
   // Selected packed matmuls must not redirect attention or generic operations.
   if (matmulShapes.empty() && packedVectorSize == 0 && !a100FP16) {
     patterns
