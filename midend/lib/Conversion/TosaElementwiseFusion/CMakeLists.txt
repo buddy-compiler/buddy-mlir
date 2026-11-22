@@ -1,5 +1,6 @@
 add_mlir_library(TosaElementwiseFusion
   SiLUFusion.cpp
+  VectorExpApproximation.cpp
 
   LINK_LIBS PUBLIC
   BuddyUtils
@@ -8,4 +9,7 @@ add_mlir_library(TosaElementwiseFusion
   MLIRArithDialect
   MLIRTensorDialect
   MLIRTransforms
+  MLIRMathTransforms
+  MLIRLinalgTransforms
+  MLIRVectorDialect
 )

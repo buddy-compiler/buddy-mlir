@@ -5,6 +5,8 @@ add_mlir_dialect_library(BuddyIMETransforms
   LINK_LIBS PUBLIC
   BuddyIME
   MLIRIR
+  MLIRArithDialect
+  MLIRMemRefDialect
   MLIRLLVMCommonConversion
   MLIRLLVMDialect
 )
