@@ -227,6 +227,7 @@ def build_stages(
     chunked_prefill: bool = False,
     ime: dict | None = None,
     prefill: dict | None = None,
+    decode: dict | None = None,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -385,6 +386,9 @@ def build_stages(
         )
         return stages
 
+    if pipeline_type == "subgraph_decode":
+        optimize_silu = bool((decode or {}).get("optimize_silu", False))
+
     # ── Stage 1: buddy-opt (initial simplification) ──────────────────────────
     init_opts = ["-simplify-tosa-reshape"]
     if optimize_silu:
@@ -419,12 +423,23 @@ def build_stages(
     )
 
     if prefill_shapes:
+        panel_widths = prefill.get(
+            "ime_widths", dict.fromkeys(prefill_shapes, 32)
+        )
+        if set(panel_widths) != set(prefill_shapes) or any(
+            type(width) is not int or width != 32
+            for width in panel_widths.values()
+        ):
+            raise ValueError(
+                "A100 Prefill packing requires matching 32-column panels"
+            )
+        panel_width = next(iter(panel_widths.values()))
         opts.extend(
             [
                 "-staticize-memref-layout",
                 "-lower-linalg-to-ime="
                 f"target=k3 matmul-shapes={','.join(prefill_shapes)} "
-                "a100-fp16=true a100-gemm=true",
+                f"a100-fp16=true a100-gemm=true gemm-panel-width={panel_width}",
                 "-lower-ime=target=k3",
                 "-expand-strided-metadata",
             ]
@@ -731,6 +746,7 @@ def _compile_one(task: dict) -> str:
         task.get("chunked_prefill", False),
         ime=task.get("ime"),
         prefill=task.get("prefill"),
+        decode=task.get("decode"),
     )
     run_pipeline(
         stages,
@@ -774,6 +790,7 @@ def compile_all(
         tasks.append(
             {
                 "name": key,
+                "decode": config["compilation"].get("decode"),
                 "pipeline_type": pipeline_type,
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
@@ -973,6 +990,7 @@ def compile_partitioned(
         tasks.append(
             {
                 "name": key,
+                "decode": config["compilation"].get("decode"),
                 "pipeline_type": pipeline_type,
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
@@ -1307,6 +1325,7 @@ def main():
             bool(config.get("prefill_chunk")),
             ime=config["compilation"].get("ime"),
             prefill=config["compilation"].get("prefill"),
+            decode=config["compilation"].get("decode"),
         )
 
         print(

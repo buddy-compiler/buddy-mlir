@@ -1,3 +1,7 @@
+if(BUDDY_BUILD_QWEN3_MODEL)
+  add_subdirectory(qwen3)
+endif()
+
 if(BUDDY_BUILD_DEEPSEEK_R1_MODEL)
   add_subdirectory(deepseek_r1)
 endif()

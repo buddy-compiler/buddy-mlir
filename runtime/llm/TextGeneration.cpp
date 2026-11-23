@@ -251,7 +251,6 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   GenerationResult result;
 
   const int keepTokenNum = codec.maxTokenLen / 4;
-  static constexpr float kRopeTheta = 10000.0f;
 
   auto isStopToken = [&](int tokenId) -> bool {
     return std::find(stopTokenIds.begin(), stopTokenIds.end(), tokenId) !=
@@ -337,7 +336,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
       printLog("KV cache overflow at position " +
                    std::to_string(session.position()) + ", discarding...",
                suppress);
-      session.handleKVCacheOverflow(keepTokenNum, kRopeTheta);
+      session.handleKVCacheOverflow(keepTokenNum, codec.ropeTheta);
       printLog("New position: " + std::to_string(session.position()), suppress);
     }
 
@@ -399,7 +398,6 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   GenerationResult result;
 
   const int keepTokenNum = codec.maxTokenLen / 4;
-  static constexpr float kRopeTheta = 10000.0f;
 
   auto isStopToken = [&](int tokenId) -> bool {
     return std::find(stopTokenIds.begin(), stopTokenIds.end(), tokenId) !=
@@ -483,7 +481,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
       printLog("KV cache overflow at position " +
                    std::to_string(session.position()) + ", discarding...",
                suppress);
-      session.handleKVCacheOverflow(keepTokenNum, kRopeTheta);
+      session.handleKVCacheOverflow(keepTokenNum, codec.ropeTheta);
       printLog("New position: " + std::to_string(session.position()), suppress);
     }
 

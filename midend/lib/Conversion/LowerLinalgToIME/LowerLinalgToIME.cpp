@@ -287,11 +287,12 @@ public:
   MatmulToIMELowering(MLIRContext *context, bool k3, StringRef shapes = "",
                       int64_t packedWidth = 0, bool parallelTiles = false,
                       bool verifyFP16 = false, bool a100 = false,
-                      bool fastGemv = false, bool fastGemm = false)
+                      bool fastGemv = false, bool fastGemm = false,
+                      int64_t gemmPanelWidth = 32)
       : OpRewritePattern(context), k3(k3), shapes(shapes.str()),
         packedWidth(packedWidth), parallelTiles(parallelTiles),
         verifyFP16(verifyFP16), a100(a100), fastGemv(fastGemv),
-        fastGemm(fastGemm) {}
+        fastGemm(fastGemm), gemmPanelWidth(gemmPanelWidth) {}
 
   LogicalResult matchAndRewrite(linalg::MatmulOp matmulOp,
                                 PatternRewriter &rewriter) const override {
@@ -508,7 +509,7 @@ public:
         return arith::ConstantIndexOp::create(rewriter, loc, value);
       };
       const int64_t tiledM = (M / 8) * 8;
-      const int64_t tiledN = (N / 32) * 32;
+      const int64_t tiledN = (N / gemmPanelWidth) * gemmPanelWidth;
       Value zero = index(0), eight = index(8), one = index(1);
       Value boundM = index(tiledM), boundK = index(K), boundN = index(tiledN);
       Value packedA = memref::AllocOp::create(
@@ -537,13 +538,13 @@ public:
                               ValueRange{offset});
       rewriter.setInsertionPointAfter(packRows);
 
-      auto columns =
-          scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
-                                  ValueRange{boundN}, ValueRange{index(32)});
+      auto columns = scf::ParallelOp::create(rewriter, loc, ValueRange{zero},
+                                             ValueRange{boundN},
+                                             ValueRange{index(gemmPanelWidth)});
       rewriter.setInsertionPointToStart(columns.getBody());
       Value column = columns.getInductionVars()[0];
       Value packedB = memref::AllocOp::create(
-          rewriter, loc, MemRefType::get({K * 32}, BElemType));
+          rewriter, loc, MemRefType::get({K * gemmPanelWidth}, BElemType));
       PackBF16Op::create(rewriter, loc, packedB, bSource, column,
                          rewriter.getI64IntegerAttr(K));
       auto rows = scf::ForOp::create(rewriter, loc, zero, boundM, eight);
@@ -894,6 +895,7 @@ private:
   bool a100;
   bool fastGemv;
   bool fastGemm;
+  int64_t gemmPanelWidth;
 };
 
 class GenericMatmulToIMELowering : public OpRewritePattern<linalg::GenericOp> {
@@ -1834,6 +1836,11 @@ public:
       *this, "a100-gemv",
       llvm::cl::desc("Use register-resident GEMV with offline K8 panels"),
       llvm::cl::init(false)};
+
+  Option<int64_t> gemmPanelWidth{
+      *this, "gemm-panel-width",
+      llvm::cl::desc("Runtime Prefill packing panel width (only 32 supported)"),
+      llvm::cl::init(32)};
 
   Option<bool> a100Gemm{
       *this, "a100-gemm",
@@ -3038,6 +3045,10 @@ void LowerLinalgToIMEPass::runOnOperation() {
     module.emitError("packed-vector-size must be nonnegative");
     return signalPassFailure();
   }
+  if (gemmPanelWidth != 32) {
+    module.emitError("A100 Prefill packing only supports gemm-panel-width=32");
+    return signalPassFailure();
+  }
   if ((a100FP16 && !k3) || (a100Gemv && a100Gemm) ||
       ((a100Gemm || a100Gemv) && !a100FP16) || (a100Gemm && packedVectorSize)) {
     module.emitError(
@@ -3050,7 +3061,7 @@ void LowerLinalgToIMEPass::runOnOperation() {
   }
   patterns.add<MatmulToIMELowering>(context, k3, matmulShapes, packedVectorSize,
                                     parallelTiles, verifyFP16, a100FP16,
-                                    a100Gemv, a100Gemm);
+                                    a100Gemv, a100Gemm, gemmPanelWidth);
   // Selected packed matmuls must not redirect attention or generic operations.
   if (matmulShapes.empty() && packedVectorSize == 0 && !a100FP16) {
     patterns

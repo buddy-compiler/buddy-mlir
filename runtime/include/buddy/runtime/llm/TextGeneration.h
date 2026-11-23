@@ -90,6 +90,9 @@ struct TextCodec {
 
   /// Maximum context length in tokens.  Used for KV cache overflow detection.
   int maxTokenLen;
+
+  /// RoPE base used when rotating keys after KV cache overflow.
+  float ropeTheta = 10000.0f;
 };
 
 //===----------------------------------------------------------------------===//
