@@ -144,8 +144,5 @@ OCR text (both human-readable summary on stderr and JSON on stdout).
   `[1, 982]`, `[3, 1, 982]` and `[1, 982, 103424]` respectively for the
   original F32 spec. The FP16 sample variant adds a second FP32 weight memref
   of 82 elements and emits `[1, 1, 103424]` FP16 logits.
-- For a quick sanity check, compare the last-token logits against
-  `AutoModel.from_pretrained(...)` fed the same dummy inputs (972 image tokens
-  + 10 pad tokens, zero `pixel_values`, zero 3-D `position_ids`). For the
-  sample variants, `benchmarks/validate_rax_logits.py` compares the full
-  last-position logits against the matching PyTorch precision and input.
+- For a quick sanity check, compare the generated OCR text (or last-token
+  logits for the F32 spec) against PyTorch `AutoModelForCausalLM.from_pretrained(...)`.
