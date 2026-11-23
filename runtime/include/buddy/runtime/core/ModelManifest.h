@@ -72,6 +72,39 @@ inline std::filesystem::path buddyRaxPayloadBaseDir() {
   }
   return fs::temp_directory_path() / "buddy_rax_payload";
 }
+
+/// Map a RAX tensor element type to its canonical lowercase spelling
+/// (e.g. DType_F32 -> "f32"). Returns "" for Invalid / unknown.
+inline const char *dtypeToString(rhal::rax::DType d) {
+  switch (d) {
+  case rhal::rax::DType_F16:
+    return "f16";
+  case rhal::rax::DType_BF16:
+    return "bf16";
+  case rhal::rax::DType_F32:
+    return "f32";
+  case rhal::rax::DType_F64:
+    return "f64";
+  case rhal::rax::DType_I8:
+    return "i8";
+  case rhal::rax::DType_I16:
+    return "i16";
+  case rhal::rax::DType_I32:
+    return "i32";
+  case rhal::rax::DType_I64:
+    return "i64";
+  case rhal::rax::DType_U8:
+    return "u8";
+  case rhal::rax::DType_U16:
+    return "u16";
+  case rhal::rax::DType_U32:
+    return "u32";
+  case rhal::rax::DType_U64:
+    return "u64";
+  default:
+    return "";
+  }
+}
 } // namespace detail
 
 struct ModelManifest {
@@ -92,6 +125,7 @@ struct ModelManifest {
     rhal::rax::ConstantStorage storage = rhal::rax::ConstantStorage_Inline;
     std::string uri;
     std::string path;
+    std::string dtype; // canonical element type ("f32", "f16", ...), "" if none
     std::unordered_map<std::string, std::string> attrs;
   };
 
@@ -105,6 +139,9 @@ struct ModelManifest {
   // absolute paths to weight files, in manifest order (supports multi-weight
   // variants like w8a16 which have separate f16 + i8 files).
   std::vector<std::string> weightPaths;
+  // Element type of the first external weight tensor (e.g. "f32", "f16"),
+  // parsed from the manifest's tensor type; empty if unknown.
+  std::string weightDtype;
   // absolute path to the vocab file   (tokenizer, may be empty)
   std::string vocabPath;
   // absolute path to the model runner plugin shared library.
@@ -529,10 +566,15 @@ struct ModelManifest {
           rec.path = resolveUri(c->uri(), "constant.uri");
         }
         rec.attrs = attrsToMap(c->attrs());
+        if (c->type() && c->type()->dtype() != rhal::rax::DType_Invalid)
+          rec.dtype = detail::dtypeToString(c->type()->dtype());
         out.constants.push_back(rec);
 
-        if (c->storage() == rhal::rax::ConstantStorage_External)
+        if (c->storage() == rhal::rax::ConstantStorage_External) {
           out.weightPaths.push_back(rec.path);
+          if (out.weightDtype.empty() && !rec.dtype.empty())
+            out.weightDtype = rec.dtype;
+        }
       }
     }
 

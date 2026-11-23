@@ -19,8 +19,14 @@
 
 #include "buddy/runtime/core/InferenceRunner.h"
 
+#include <memory>
+#include <string>
+#include <vector>
+
 namespace buddy {
 namespace runtime {
+
+class ModelSession;
 
 /// Full inference runner for DeepSeekR1.
 ///
@@ -28,7 +34,19 @@ namespace runtime {
 /// Handles both Mode A (.rax manifest) and Mode B (explicit paths).
 class DeepSeekR1Runner : public InferenceRunner {
 public:
+  DeepSeekR1Runner();
+  ~DeepSeekR1Runner() override;
   void run(const RunConfig &cfg) override;
+  bool runBench(const RunConfig &cfg, int warmupReps, int reps,
+                std::vector<BenchmarkResult> &out) override;
+
+private:
+  // Session used by runBench(), kept across calls so a multi-configuration
+  // benchmark loads the weights once. Recreated when the model files change.
+  std::unique_ptr<ModelSession> benchSession_;
+  std::string benchSessionKey_;
+  std::vector<std::string> benchWeightPaths_;
+  std::string benchVocabPath_;
 };
 
 } // namespace runtime

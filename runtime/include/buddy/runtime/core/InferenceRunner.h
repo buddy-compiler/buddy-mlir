@@ -26,8 +26,10 @@
 #ifndef BUDDY_RUNTIME_CORE_INFERENCERUNNER_H
 #define BUDDY_RUNTIME_CORE_INFERENCERUNNER_H
 
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "buddy/runtime/llm/Sampler.h"
@@ -56,7 +58,9 @@ struct RunConfig {
 
   /// Optional fixed prompt/prefill length. 0 means use the encoded prompt
   /// length for single-prompt runs, or the longest encoded prompt for batched
-  /// prompt-file runs.
+  /// prompt-file runs. -1 is a benchmark-only hint for decode-only (tg) mode:
+  /// prefill a single seed token and measure the decode loop only. Values > 0
+  /// fix the prompt length to exactly that many tokens.
   int promptLength = 0;
 
   /// Upper bound on generated tokens. The first generated token comes from
@@ -91,6 +95,10 @@ struct RunConfig {
   /// Emit machine-readable token events as JSON Lines on stdout.
   bool streamJsonl = false;
 
+  /// Benchmark-only: keep decoding for the full `maxNewTokens` budget even if
+  /// the model emits an end-of-sequence token. llama-bench's --ignore-eos.
+  bool ignoreEos = false;
+
   // ── Interactive mode ──
   /// Enable REPL interactive mode for multi-turn conversation.
   bool interactive = false;
@@ -106,6 +114,24 @@ struct RunConfig {
   int perplexityChunks = 0;
 };
 
+/// Raw timings for a single benchmark pass (one sample).
+struct BenchmarkResult {
+  int nPrompt = 0; ///< prefill token count for this pass
+  int nGen = 0;    ///< generated (decode) token count for this pass
+  /// Token positions the prefill actually computed. Runners whose prefill
+  /// pads/rounds the prompt (e.g. tiered KV caches) set this so throughput is
+  /// divided by the work done, not by the requested prompt length. 0 = use
+  /// nPrompt.
+  int prefillWorkLen = 0;
+  double prefillSecs = 0.0;
+  double decodeSecs = 0.0;
+  /// Model-specific extra metrics (name -> per-pass value). Individual runners
+  /// append their own metrics here; buddy-bench aggregates them by name across
+  /// repetitions. This is the "on top of the common result structure"
+  /// extension point for non-LLM runners (vision / audio / scientific / ...).
+  std::vector<std::pair<std::string, double>> extraMetrics;
+};
+
 /// Abstract base class for model inference runners.
 ///
 /// Each supported model implements run() which owns the full inference loop:
@@ -118,10 +144,41 @@ class InferenceRunner {
 public:
   virtual ~InferenceRunner() = default;
   virtual void run(const RunConfig &cfg) = 0;
+
+  /// Run @p warmupReps untimed passes and then @p reps measured passes with
+  /// @p cfg, appending one BenchmarkResult per measured pass to @p out.
+  ///
+  /// The warmup passes must run on the same session as the measured ones
+  /// (same loaded weights, same allocated buffers); otherwise they do not warm
+  /// anything the measurement uses. Implementations should also make repeated
+  /// runBench() calls reuse their session when @p cfg still points at the same
+  /// model files, so a multi-configuration benchmark loads the weights once.
+  ///
+  /// The default implementation reports that the model does not support
+  /// benchmarking (returns false).
+  virtual bool runBench(const RunConfig &cfg, int warmupReps, int reps,
+                        std::vector<BenchmarkResult> &out) {
+    (void)cfg;
+    (void)warmupReps;
+    (void)reps;
+    (void)out;
+    return false;
+  }
 };
 
 using CreateInferenceRunnerFn = InferenceRunner *(*)();
 using DestroyInferenceRunnerFn = void (*)(InferenceRunner *);
+
+/// Capability bits returned by a runner plugin's
+/// buddy_inference_runner_capabilities_v1() export.
+///
+/// The export doubles as an ABI marker: every plugin built against this header
+/// must provide it. A host that calls virtual methods added after an older
+/// plugin was built can therefore reject that plugin up front, instead of
+/// jumping through a vtable slot the old object does not have.
+constexpr uint64_t kRunnerCapBench = 1ULL << 0;
+
+using InferenceRunnerCapabilitiesFn = uint64_t (*)();
 
 } // namespace runtime
 } // namespace buddy

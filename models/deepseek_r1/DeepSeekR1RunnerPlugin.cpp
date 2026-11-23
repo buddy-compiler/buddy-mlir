@@ -24,3 +24,7 @@ extern "C" void
 buddy_destroy_inference_runner_v1(buddy::runtime::InferenceRunner *runner) {
   delete runner;
 }
+
+extern "C" uint64_t buddy_inference_runner_capabilities_v1() {
+  return buddy::runtime::kRunnerCapBench;
+}
