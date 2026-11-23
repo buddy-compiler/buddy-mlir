@@ -56,10 +56,17 @@ else()
   file(REMOVE "${_paddleocr_ime_marker}")
 endif()
 
+string(JSON _paddleocr_num_threads ERROR_VARIABLE _paddleocr_threads_err
+  GET "${_paddleocr_spec_json}" num_threads)
+if(_paddleocr_threads_err OR NOT _paddleocr_num_threads)
+  set(_paddleocr_num_threads 1)
+endif()
+
 buddy_add_model(
   NAME paddleocr
   MODEL_KIND single_forward
   SPEC "${BUDDY_PADDLEOCR_SPEC}"
+  NUM_THREADS "${_paddleocr_num_threads}"
   RUNNER_SRC PaddleocrRunner.cpp
   RUNNER_PLUGIN_SRC PaddleocrRunnerPlugin.cpp
   RUNNER_HDR include/buddy/runtime/models/PaddleocrRunner.h
