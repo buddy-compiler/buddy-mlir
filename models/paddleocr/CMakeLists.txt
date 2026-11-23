@@ -65,7 +65,7 @@ buddy_add_model(
   RUNNER_HDR include/buddy/runtime/models/PaddleocrRunner.h
   LOCAL_MODEL "${BUDDY_PADDLEOCR_MODEL_PATH}"
   LOCAL_MODEL_ENV PADDLEOCR_MODEL_PATH
-  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-paddleocr.py"
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import_paddleocr.py"
   LOWER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/lower_to_obj.sh"
   MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_paddleocr_manifest.py"
   MODEL_SO_NAME paddleocr_model.so

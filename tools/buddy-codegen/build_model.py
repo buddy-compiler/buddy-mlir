@@ -198,12 +198,13 @@ def main() -> int:
         "qwen3_vl_moe",
         "bge_m3",
         "proteinglm",
+        "paddleocr",
         "yolov8",
     }:
         print(
             "error: unsupported model_family in spec: "
             f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
-            "qwen3_vl_moe, bge_m3, proteinglm, yolov8)",
+            "qwen3_vl_moe, bge_m3, proteinglm, paddleocr, yolov8)",
             file=sys.stderr,
         )
         return 1
@@ -405,6 +406,26 @@ def main() -> int:
         if args.hf_config is not None:
             print(
                 "warning: --hf-config is ignored for model_family=proteinglm",
+                file=sys.stderr,
+            )
+    elif model_family == "paddleocr":
+        if local_model is None:
+            print(
+                "error: model_family=paddleocr requires --local-model "
+                "(local HuggingFace PaddleOCR-VL-0.9B snapshot)",
+                file=sys.stderr,
+            )
+            return 1
+        cmake_args.extend(
+            [
+                f"-DBUDDY_PADDLEOCR_SPEC={spec}",
+                "-DBUDDY_BUILD_PADDLEOCR_MODEL=ON",
+                f"-DBUDDY_PADDLEOCR_MODEL_PATH={local_model}",
+            ]
+        )
+        if args.hf_config is not None:
+            print(
+                "warning: --hf-config is ignored for model_family=paddleocr",
                 file=sys.stderr,
             )
     elif model_family == "yolov8":

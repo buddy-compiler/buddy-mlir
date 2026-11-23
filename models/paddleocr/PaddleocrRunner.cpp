@@ -22,7 +22,7 @@
 // graph, and emits the last-token logits.
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// FORWARD ABI (from codegen/import-paddleocr.py, verified against forward.mlir)
+// FORWARD ABI (from codegen/import_paddleocr.py, verified against forward.mlir)
 // ─────────────────────────────────────────────────────────────────────────────
 //   forward(weights:      memref<905601730 x f32>,
 //           input_ids:     memref<1 x 982 x i64>,

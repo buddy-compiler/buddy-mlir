@@ -31,26 +31,17 @@ fi
 TOSA_PIPELINE="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))"
 
 if [[ "$USE_IME" == ON ]]; then
-  has_flag() {
-    local needle="$1"
-    for arg in "${LLC_ATTRS[@]}"; do
-      if [[ "$arg" == *"$needle"* ]]; then
-        return 0
-      fi
-    done
-    return 1
-  }
-
-  A100_LLC_ATTRS=(-mcpu=spacemit-a100 -target-abi=lp64d)
-  if ! has_flag "+xsmtvdotii"; then
-    A100_LLC_ATTRS+=(-mattr=+v,+zfh,+zvfh,+zvl1024b,+xsmtvdotii)
-  fi
-  if ! has_flag "-riscv-v-vector-bits-min="; then
-    A100_LLC_ATTRS+=(-riscv-v-vector-bits-min=1024)
-  fi
-  if ! has_flag "-riscv-v-vector-bits-max="; then
-    A100_LLC_ATTRS+=(-riscv-v-vector-bits-max=1024)
-  fi
+  CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
+  A100="$("${PYTHON:-python3}" -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from compile_pipeline import a100_llc_args
+try:
+    print("\n".join(a100_llc_args(sys.argv[2:])))
+except ValueError as e:
+    sys.exit(f"lower_to_obj.sh: {e}")
+' "$CODEGEN" "${LLC_ATTRS[@]}")"
+  mapfile -t A100_LLC_ATTRS <<< "$A100"
 
   # Decode graphs keep small M=1 softmax reductions where affine-parallelize
   # can race on reduction accumulators, and pass per-layer KV-cache subviews

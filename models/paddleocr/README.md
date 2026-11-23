@@ -8,16 +8,17 @@ HuggingFace remote code, compiles the fixed-shape OCR forward graph to MLIR,
 links `paddleocr_model.so`, and packs a `paddleocr.rax` manifest plus an
 `InferenceRunner` plugin that `buddy-cli` loads at run time.
 
-The FP16 K3 variant (`specs/f16_ocr_sample_last_token.json`) runs full
-end-to-end OCR text generation (Prefill + static KV-cache Decode + C++
-`tokenizer.json` decoding) directly from a local PNG/JPEG image. The original
-F32 spec remains available for single-shot last-token logits.
+The FP16 K3 variant (`specs/f16_k3.json`) runs full end-to-end OCR text
+generation (Prefill + static KV-cache Decode + C++ `tokenizer.json` decoding)
+directly from a local PNG/JPEG image. The original F32 spec remains available
+for single-shot last-token logits.
 
-`specs/f16_ocr_sample_last_token.json` is the K3 development variant. It
-traces a real OCR sample and the official `OCR:` prompt with FP16 weights and
-activations (plus 82 FP32 auxiliary parameters), exports Prefill and Decode
-graphs that share the same weight buffers (`arg0.data` / `arg1.data`) with zero
-duplication, and decodes the generated token sequence into text in C++.
+`specs/f16_k3.json` is the SpacemiT K3 A100 variant (`"ime": true`,
+`"kv_cache": true`). It traces a real OCR sample and the official `OCR:` prompt
+with FP16 weights and activations (plus 82 FP32 auxiliary parameters), exports
+Prefill and Decode graphs that share the same weight buffers (`arg0.data` /
+`arg1.data`) with zero duplication, and decodes the generated token sequence
+into text in C++.
 
 ## Prerequisites
 
@@ -36,39 +37,51 @@ duplication, and decodes the generated token sequence into text in C++.
 ## Build
 
 `paddleocr` is wired through `buddy_add_model(MODEL_KIND single_forward)` with
-its own importer/manifest generator (`codegen/import-paddleocr.py` /
+its own importer/manifest generator (`codegen/import_paddleocr.py` /
 `codegen/gen_paddleocr_manifest.py`, the same pluggable
-`IMPORT_SCRIPT`/`MANIFEST_SCRIPT` mechanism ColBERTv2 and Whisper use). It is
-gated behind the `BUDDY_BUILD_PADDLEOCR_MODEL` CMake option, so build it
-directly with CMake rather than `tools/buddy-codegen/build_model.py` (whose
-`model_family` whitelist does not include `paddleocr`):
+`IMPORT_SCRIPT`/`MANIFEST_SCRIPT` mechanism Whisper and YOLOv8 use), and is
+registered in `tools/buddy-codegen/build_model.py`:
 
 ```bash
 cd buddy-mlir
 conda activate buddy
 
-cmake -G Ninja -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-  -DBUDDY_BUILD_PADDLEOCR_MODEL=ON \
-  -DBUDDY_PADDLEOCR_MODEL_PATH=/path/to/PaddleOCR-VL-0.9B
-cmake --build build --target paddleocr_rax
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/paddleocr/specs/f16_k3.json \
+  --build-dir build \
+  --local-model /path/to/PaddleOCR-VL-0.9B
 ```
 
-Select the FP16 variant with
-`-DBUDDY_PADDLEOCR_SPEC=$PWD/models/paddleocr/specs/f16_ocr_sample_last_token.json`.
-It produces `arg0.data` (FP16) and `arg1.data` (FP32); both are needed by the
-compiled forward ABI. K3 cross builds also require the RISC-V sysroot, target
-OpenMP/MLIR runtime libraries, and `BUDDY_RISCV_VLEN=1024` for A100. Pass `-DBUDDY_PADDLEOCR_K3_IME=ON` (with `BUDDY_RISCV_VLEN=1024` and
-`precision=f16`) to enable SpacemiT K3 A100 FP16 IME lowering
-(`codegen/lower_to_obj.sh`): fused Flash-Attention with A100 FP16 IME,
-zero-copy transposed-weight folding and unit-stride packing, transposed-weight
-`M=1` FP32 vector GEMV, Vision patch-embedding conv-to-IME lowering, and
-PR #997's elementwise/SiLU/VIR vector optimizations. On `K3-002` (A100 CPUs
-8–15, 8 threads, after `echo 0 > /proc/set_ai_thread`) with direct PNG input
-(`test_text.png`, `--prompt "OCR:"`), this reduces `paddleocr_model.so` from
-`64M` to `38M` (including both Prefill and Decode), lowers Prefill latency from
-`525.7s` (FP16 RVV) to `25.04s` (`~21x` speedup), and runs KV-cache Decode at
+For SpacemiT K3 A100 RVV cross-compilation (`VLEN=1024`, FP16 IME enabled via
+`"ime": true` in `specs/f16_k3.json`):
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/paddleocr/specs/f16_k3.json \
+  --build-dir build-rv \
+  --local-model /path/to/PaddleOCR-VL-0.9B \
+  --is-rvv-crosscompile \
+  --riscv-gnu-toolchain /path/to/riscv-toolchain \
+  --riscv-omp-shared /path/to/libomp.so \
+  --riscv-mlir-c-runner-utils /path/to/libmlir_c_runner_utils.so \
+  --riscv-llvm-build-dir /path/to/llvm-build-rv \
+  --cmake-args=-DBUDDY_RISCV_VLEN=1024 \
+  --cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON
+```
+
+The FP16 spec produces `arg0.data` (FP16) and `arg1.data` (FP32); both are
+needed by the compiled forward ABI. Setting `"ime": true` in the spec (or
+passing `-DBUDDY_PADDLEOCR_K3_IME=ON`, with `BUDDY_RISCV_VLEN=1024` and
+`precision=f16`) enables SpacemiT K3 A100 FP16 IME lowering
+(`codegen/lower_to_obj.sh`, using `compile_pipeline.a100_llc_args`): fused
+Flash-Attention with A100 FP16 IME, zero-copy transposed-weight folding and
+unit-stride packing, transposed-weight `M=1` FP32 vector GEMV, Vision
+patch-embedding conv-to-IME lowering, and PR #997's elementwise/SiLU/VIR vector
+optimizations. On `K3-002` (A100 CPUs 8–15, 8 threads, after
+`echo 0 > /proc/set_ai_thread`) with direct PNG input (`test_text.png`,
+`--prompt "OCR:"`), this reduces `paddleocr_model.so` from `64M` to `38M`
+(including both Prefill and Decode), lowers Prefill latency from `525.7s`
+(FP16 RVV) to `25.04s` (`~21x` speedup), and runs KV-cache Decode at
 `3.11 tok/s` (`5.78s` for 18 decode steps, `30.82s` total), outputting the
 exact OCR text matching PyTorch FP16 `model.generate`
 (`Buddy MLIR\nQwen3-VL OCR\n2026`).

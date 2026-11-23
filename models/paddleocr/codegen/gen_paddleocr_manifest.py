@@ -20,7 +20,7 @@
 #       --runner-library paddleocr_runner.so
 #
 # The buffer/function layout mirrors the AOT forward ABI produced by
-# codegen/import-paddleocr.py (fixed-shape OCR sequence of max_seq_len tokens,
+# codegen/import_paddleocr.py (fixed-shape OCR sequence of max_seq_len tokens,
 # of which the first 972 are image tokens):
 #
 #   forward(weights: memref<params_size x f32>,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ===- import-paddleocr.py - PaddleOCR-VL-0.9B AOT importer --------------===//
+# ===- import_paddleocr.py - PaddleOCR-VL-0.9B AOT importer --------------===//
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
