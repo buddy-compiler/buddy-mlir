@@ -19,11 +19,81 @@
 #include <buddy/runtime/llm/TextGeneration.h>
 
 #include <cstdio>
+#include <stdexcept>
 #include <string>
 
 using buddy::runtime::Utf8StreamDecoder;
 
+namespace {
+class OverflowSession : public buddy::runtime::LLMSession {
+public:
+  void loadWeights(const std::vector<std::string> &) override {}
+  void prefill(buddy::Text<size_t, 2> &tokens) override {
+    pos = tokens.getTokenCnt();
+  }
+  void decode(int) override {
+    ++pos;
+    stopped = true;
+  }
+  void resetPosition() override {
+    pos = 0;
+    stopped = false;
+    theta = 0;
+  }
+  int position() const override { return pos; }
+  const float *logitsData(int = 0) const override {
+    static const float first[] = {10, -10}, last[] = {-10, 10};
+    return stopped ? last : first;
+  }
+  int vocabSize() const override { return 2; }
+  bool handleKVCacheOverflow(int keep, float base) override {
+    theta = base;
+    pos = keep;
+    return true;
+  }
+  float theta = 0;
+
+private:
+  int pos = 0;
+  bool stopped = false;
+};
+
+void checkOverflowTheta() {
+  using namespace buddy::runtime;
+  TextCodec codec;
+  codec.maxTokenLen = 8;
+  codec.tokenize = [](buddy::Text<size_t, 2> &tokens, const std::string &path) {
+    tokens.tokenizeQwen3(path, 8);
+  };
+  codec.detokenize = [](buddy::Text<size_t, 2> &) { return std::string("x"); };
+  OverflowSession session;
+  buddy::Sampler sampler(buddy::SamplerConfig{});
+  for (float theta : {10000.0f, 1000000.0f}) {
+    if (theta != 10000.0f)
+      codec.ropeTheta = theta;
+    for (bool callback : {false, true}) {
+      if (callback) {
+        GenerationStreamCallback sink = [](const GenerationChunk &) {
+          return true;
+        };
+        runGeneration("test", session, "/dev/null", 16, {1}, sampler, codec,
+                      true, sink);
+      } else {
+        runGeneration("test", session, "/dev/null", 16, {1}, sampler, codec,
+                      true, false);
+      }
+      if (session.theta != theta)
+        throw std::runtime_error(
+            "generation used the wrong RoPE base at overflow");
+    }
+  }
+}
+} // namespace
+
 int main() {
+  checkOverflowTheta();
+  // CHECK: generation overflow RoPE bases: passed
+  std::fprintf(stderr, "generation overflow RoPE bases: passed\n");
   Utf8StreamDecoder chineseDecoder;
   std::string chinese = chineseDecoder.append("prefix ");
   const std::string chineseByte1 =
