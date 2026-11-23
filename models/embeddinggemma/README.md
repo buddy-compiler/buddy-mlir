@@ -34,7 +34,14 @@ Inference needs no Python.
 
 ## SpacemiT K3
 
-Use a configured RISC-V build as described in the
+From the repository root, build the K3 IME variant with the standard model target.
+
+```bash
+make riscv-model-embeddinggemma-k3_fp16_comp3 \
+  RISCV_MODEL_LOCAL="$EMBEDDINGGEMMA_MODEL_PATH"
+```
+
+For a direct CMake build, follow the
 [cross-compilation guide](../../docs/CrossCompilingRaxFile.md). For IME, set
 `BUDDY_RISCV_ENABLE_ZFH_ZVFH=ON` and `BUDDY_RISCV_VLEN=1024`, and select
 [`specs/k3_fp16_comp3.json`](specs/k3_fp16_comp3.json) or its shape-specific
