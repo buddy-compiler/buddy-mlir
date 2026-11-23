@@ -28,6 +28,7 @@
 #include "buddy/runtime/models/DeepSeekR1Runner.h"
 #include "buddy/LLM/ChatTemplate.h"
 #include "buddy/LLM/ConversationManager.h"
+#include "buddy/LLM/DefaultChatTemplates.h"
 #include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/core/ModelManifest.h"
 #include "buddy/runtime/llm/InteractiveSession.h"
@@ -152,8 +153,11 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
 
   // ── Model-specific text codec ───────────────────────────────────────────
   TextCodec codec;
-  codec.tokenize = [](Text<size_t, 2> &t, const std::string &vocab) {
+  codec.tokenize = [useDefaultTemplate = !chatTmpl](Text<size_t, 2> &t,
+                                                    const std::string &vocab) {
     t.tokenizeDeepSeekR1(vocab, BUDDY_DSR1_MAX_TOKEN_LEN);
+    if (useDefaultTemplate)
+      applyDefaultDeepSeekR1Template(t);
   };
   codec.detokenize = [](Text<size_t, 2> &t) { return t.revertDeepSeekR1(); };
   codec.maxTokenLen = BUDDY_DSR1_MAX_TOKEN_LEN;
