@@ -388,7 +388,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_IME_SHAPES;SINGLE_FORWARD_KV;SINGLE_FORWARD_SKIP_AFFINE_FUSION"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_KV;SINGLE_FORWARD_SKIP_AFFINE_FUSION"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;RISCV_RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -1173,7 +1173,6 @@ function(buddy_add_model)
         "${MDL_IMPORT_SCRIPT}" DIRECTORY)
       foreach(_stage ${_split_stages})
         set(_stage_ime OFF)
-        set(_stage_ime_shapes "")
         set(_stage_skip_batch OFF)
         set(_stage_skip_affine_fusion OFF)
         set(_stage_fuse_tb OFF)
@@ -1182,7 +1181,6 @@ function(buddy_add_model)
         set(_stage_decode_tb OFF)
         if(_stage STREQUAL "encoder")
           set(_stage_ime "${MDL_SINGLE_FORWARD_IME}")
-          set(_stage_ime_shapes "${MDL_SINGLE_FORWARD_IME_SHAPES}")
           set(_stage_skip_affine_fusion
               "${MDL_SINGLE_FORWARD_SKIP_AFFINE_FUSION}")
           if(MDL_SINGLE_FORWARD_KV AND MDL_SINGLE_FORWARD_IME)
@@ -1212,17 +1210,21 @@ function(buddy_add_model)
         endif()
         add_custom_command(
           OUTPUT "${BIN}/${_stage}_forward.o"
-          COMMAND bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+          COMMAND ${CMAKE_COMMAND} -E env "PYTHON=${Python3_EXECUTABLE}"
+                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
                   "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/${_stage}_forward.mlir"
                   "${BIN}/${_stage}_forward.o" OFF ${MDL_LLC_ATTRS_LIST}
-          DEPENDS "${IMPORT_STAMP}" buddy-opt
+          DEPENDS "${IMPORT_STAMP}"
+                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+                  "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+                  buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
           COMMENT "[${MDL_NAME}] Compiling ${_stage} forward wrapper"
           VERBATIM)
         add_custom_command(
           OUTPUT "${BIN}/${_stage}_subgraph.o"
           COMMAND ${CMAKE_COMMAND} -E env
-                  "BUDDY_SINGLE_FORWARD_IME_SHAPES=${_stage_ime_shapes}"
+                  "PYTHON=${Python3_EXECUTABLE}"
                   "BUDDY_SINGLE_FORWARD_SKIP_BATCH=${_stage_skip_batch}"
                   "BUDDY_SINGLE_FORWARD_SKIP_AFFINE_FUSION=${_stage_skip_affine_fusion}"
                   "BUDDY_SINGLE_FORWARD_FUSE_TB=${_stage_fuse_tb}"
@@ -1234,7 +1236,10 @@ function(buddy_add_model)
                   "${BIN}/${_stage}_subgraph.mlir"
                   "${BIN}/${_stage}_subgraph.o"
                   "${_stage_ime}" ${MDL_LLC_ATTRS_LIST}
-          DEPENDS "${IMPORT_STAMP}" "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh" buddy-opt
+          DEPENDS "${IMPORT_STAMP}"
+                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+                  "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+                  buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
           COMMENT "[${MDL_NAME}] Compiling ${_stage} compute graph"
           VERBATIM)
       endforeach()
@@ -1294,7 +1299,8 @@ function(buddy_add_model)
           "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh")
         add_custom_command(
           OUTPUT "${BIN}/subgraph0.o"
-          COMMAND bash "${_SINGLE_FORWARD_LOWER_SCRIPT}"
+          COMMAND ${CMAKE_COMMAND} -E env "PYTHON=${Python3_EXECUTABLE}"
+                  bash "${_SINGLE_FORWARD_LOWER_SCRIPT}"
                   "${BUDDY_BINARY_DIR}/buddy-opt"
                   "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/subgraph0.mlir"
@@ -1302,6 +1308,7 @@ function(buddy_add_model)
                   "${MDL_SINGLE_FORWARD_IME}"
                   ${MDL_LLC_ATTRS_LIST}
           DEPENDS "${IMPORT_STAMP}" "${_SINGLE_FORWARD_LOWER_SCRIPT}"
+                  "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
                   buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
           COMMENT "[${MDL_NAME}] Stage 2: checked single-forward lowering"
           VERBATIM)

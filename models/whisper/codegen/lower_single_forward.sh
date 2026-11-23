@@ -44,9 +44,6 @@ fi
 ime_opts=()
 if [[ "$use_ime" == ON ]]; then
   ime_pass='-lower-linalg-to-ime=target=k3 a100-fp16=true a100-gemm=true verify-fp16=true'
-  if [[ -n "${BUDDY_SINGLE_FORWARD_IME_SHAPES:-}" ]]; then
-    ime_pass+=" matmul-shapes=${BUDDY_SINGLE_FORWARD_IME_SHAPES}"
-  fi
   ime_opts=(
     -expand-strided-metadata
     -assume-tight-memref-layout
