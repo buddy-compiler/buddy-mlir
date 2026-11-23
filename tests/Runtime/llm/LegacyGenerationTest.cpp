@@ -50,6 +50,64 @@ void require(bool condition, const std::string &message) {
     throw std::runtime_error(message);
 }
 
+void checkTokenCapacity(const std::string &vocabPath) {
+  const std::vector<size_t> expected = {151646, 151646, 151644, kA,
+                                        151645, 151648, 198};
+  for (size_t capacity : {1, 6, 7, 8}) {
+    Text<size_t, 2> tokens("A");
+    tokens.tokenizeDeepSeekR1(vocabPath, capacity);
+    require(tokens.getTokenCnt() == 1 && tokens.getData()[0] == kA,
+            "pure tokenization changed");
+    const std::vector<size_t> before(tokens.getData(),
+                                     tokens.getData() + capacity);
+    bool rejected = false;
+    try {
+      applyDefaultDeepSeekR1Template(tokens);
+    } catch (const std::length_error &) {
+      rejected = true;
+    }
+    require(rejected == (capacity < expected.size()),
+            "template capacity check failed");
+    if (rejected) {
+      require(tokens.getTokenCnt() == 1 &&
+                  std::equal(before.begin(), before.end(), tokens.getData()),
+              "rejected template changed tokens");
+    } else {
+      require(
+          tokens.getTokenCnt() == expected.size() &&
+              std::equal(expected.begin(), expected.end(), tokens.getData()),
+          "default template token sequence changed");
+      if (capacity > expected.size())
+        require(tokens.getData()[expected.size()] == kEos,
+                "template changed padding");
+    }
+  }
+
+  // The tokenizer must reject a sequence that cannot fit even without a
+  // template. No output token may be written before this check.
+  Text<size_t, 2> tooLong("<|User|>A");
+  bool rejected = false;
+  try {
+    tooLong.tokenizeDeepSeekR1(vocabPath, 1);
+  } catch (const std::length_error &) {
+    rejected = true;
+  }
+  require(rejected && tooLong.getTokenCnt() == 0,
+          "oversized text was not rejected before writing tokens");
+
+  // An empty sequence still needs room for all six template tokens.
+  Text<size_t, 2> empty("");
+  empty.tokenizeDeepSeekR1(vocabPath, 0);
+  rejected = false;
+  try {
+    applyDefaultDeepSeekR1Template(empty);
+  } catch (const std::length_error &) {
+    rejected = true;
+  }
+  require(rejected && empty.getTokenCnt() == 0,
+          "zero-capacity template was not rejected");
+}
+
 Frame logits(size_t vocabSize,
              std::initializer_list<std::pair<int, float>> values) {
   Frame frame(vocabSize, -1000.0f);
@@ -354,6 +412,9 @@ int main(int argc, char **argv) {
     }
     // CHECK: rendered prompts receive no additional template
     std::cout << "rendered prompts receive no additional template\n";
+    checkTokenCapacity(vocabPath);
+    // CHECK: tokenizer and default template capacity checks: passed
+    std::cout << "tokenizer and default template capacity checks: passed\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

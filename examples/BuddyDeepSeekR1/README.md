@@ -141,6 +141,16 @@ $ ./bin/buddy-deepseek-r1-cli --interactive --no-stats
 For C++ callers, `Text::tokenizeDeepSeekR1()` only tokenizes text. Include
 `buddy/LLM/DefaultChatTemplates.h` and call `applyDefaultDeepSeekR1Template()`
 after tokenization when the historical default template is required.
+Both functions throw `std::length_error` before writing past the token capacity;
+the default template requires space for six additional tokens.
+
+For DeepSeek R1 serving, `/tokenize` with `add_special=true` (the default) uses
+the same encoding policy as generation and its prompt token usage. Without a
+custom chat template, it adds the historical default template. With a custom
+chat template, it tokenizes the supplied prompt without wrapping it again;
+the caller must supply the rendered prompt to compare its count with chat
+generation. Setting `add_special=false` always performs pure tokenization.
+`count_only=true` uses the same policy but omits the token IDs from the result.
 
 6. Enjoy it!
 

@@ -27,6 +27,7 @@
 #include <cctype>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace buddy {
@@ -79,6 +80,7 @@ public:
   void tokenizeStableDiffusion(const std::string &vocab, size_t length);
   // DeepSeekR1 Tokenizer
   // Encode text without adding a conversation template.
+  // Throws std::length_error if the token sequence exceeds length.
   void tokenizeDeepSeekR1(const std::string &vocab, size_t length);
   // Qwen3 Tokenizer
   // This function is designed for tokenizing input text for Qwen3 models.
@@ -500,6 +502,9 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
     res.push_back(token_id);
     i -= idToTokenVec[token_id].length();
   }
+
+  if (res.size() > length)
+    throw std::length_error("DeepSeek R1 text exceeds token capacity");
 
   // Directly fill this->aligned in reverse order.
   for (auto it = res.rbegin(); it != res.rend(); ++it) {

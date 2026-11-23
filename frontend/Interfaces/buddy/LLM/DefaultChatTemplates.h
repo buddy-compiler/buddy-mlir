@@ -19,6 +19,7 @@
 
 #include "buddy/LLM/TextContainer.h"
 #include <algorithm>
+#include <stdexcept>
 
 namespace buddy {
 
@@ -26,9 +27,15 @@ namespace buddy {
 /// Call once after tokenizeDeepSeekR1(), with capacity for six extra tokens.
 /// The two BOS tokens and Assistant/think/newline suffix preserve the original
 /// default format. Padding beyond the resulting token count is unchanged.
+/// Throws std::length_error without changing tokens if capacity is
+/// insufficient.
 template <typename T, size_t N>
 void applyDefaultDeepSeekR1Template(Text<T, N> &tokens) {
   const size_t count = tokens.getTokenCnt();
+  const size_t capacity = tokens.getSize();
+  if (capacity < 6 || count > capacity - 6)
+    throw std::length_error(
+        "DeepSeek R1 default template exceeds token capacity");
   T *data = tokens.getData();
   std::move_backward(data, data + count, data + count + 3);
   data[0] = 151646;         // BOS

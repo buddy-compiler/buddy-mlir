@@ -128,7 +128,7 @@ public:
   TokenizeResult tokenize(const TokenizeRequest &request) {
     std::lock_guard<std::mutex> lock(mutex);
     ensureLoadedUnlocked();
-    return tokenizeUnlocked(request.content, request.countOnly);
+    return tokenizeUnlocked(request);
   }
 
   CompletionResult complete(const CompletionRequest &request) {
@@ -249,15 +249,16 @@ private:
     return chatTemplate->apply(messages);
   }
 
-  TokenizeResult tokenizeUnlocked(const std::string &content,
-                                  bool countOnly) const {
-    Text<size_t, 2> tokens(content);
-    tokens.tokenizeDeepSeekR1(vocabPath, BUDDY_DSR1_MAX_TOKEN_LEN);
-    applyDefaultDeepSeekR1Template(tokens);
+  TokenizeResult tokenizeUnlocked(const TokenizeRequest &request) const {
+    Text<size_t, 2> tokens(request.content);
+    if (request.addSpecial)
+      codec.tokenize(tokens, vocabPath);
+    else
+      tokens.tokenizeDeepSeekR1(vocabPath, BUDDY_DSR1_MAX_TOKEN_LEN);
 
     TokenizeResult result;
     result.count = tokens.getTokenCnt();
-    if (!countOnly) {
+    if (!request.countOnly) {
       result.tokens.reserve(result.count);
       for (std::size_t i = 0; i < result.count; ++i)
         result.tokens.push_back(static_cast<int>(tokens.getData()[i]));
