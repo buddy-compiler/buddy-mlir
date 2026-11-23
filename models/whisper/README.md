@@ -35,7 +35,7 @@ Use a local Hugging Face model snapshot through `--local-model` or
 the importer may fetch the model configured by the spec (by default,
 `openai/whisper-base`).
 
-For SpacemiT K3 A100, select `models/whisper/specs/base_f16_k3_a100_cached32_kv.json`
+For SpacemiT K3 A100, select `models/whisper/specs/base_f16_k3.json`
 and pass `--is-rvv-crosscompile`, `--cmake-args=-DBUDDY_RISCV_VLEN=1024`,
 `--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`,
 `--cmake-args=-DBUDDY_WHISPER_K3_IME=ON`, and

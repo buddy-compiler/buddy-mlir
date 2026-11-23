@@ -25,33 +25,27 @@ string(JSON _whisper_kv_cache ERROR_VARIABLE _whisper_kv_error
 if(_whisper_kv_error)
   set(_whisper_kv_cache OFF)
 endif()
-set(WHISPER_ENCODER_IME_SHAPES "")
 set(WHISPER_SKIP_AFFINE_FUSION OFF)
 if(_whisper_kv_cache AND BUDDY_WHISPER_K3_IME)
   # Fusing affine loops after all encoder GEMMs enter IME changes values in
   # the first Whisper encoder block on K3. The KV graph uses all IME GEMMs
   # and skips only that pass for its encoder.
   set(WHISPER_SKIP_AFFINE_FUSION ON)
-elseif(_whisper_encoder_cache AND BUDDY_WHISPER_K3_IME)
-  # Preserve the validated FFN-only IME selection for the older cached graph.
-  set(WHISPER_ENCODER_IME_SHAPES "512x2048,2048x512")
 endif()
 
-set(WHISPER_LLC_ATTRS "")
 if(BUDDY_WHISPER_K3_IME)
   if(NOT IS_RVV_CROSSCOMPILE OR NOT BUDDY_RISCV_VLEN STREQUAL "1024")
     message(FATAL_ERROR
       "BUDDY_WHISPER_K3_IME requires RISC-V cross compilation and VLEN=1024")
   endif()
-  file(READ "${BUDDY_WHISPER_SPEC}" _whisper_spec_json)
+  if(NOT BUDDY_RISCV_ENABLE_ZFH_ZVFH)
+    message(FATAL_ERROR
+      "BUDDY_WHISPER_K3_IME requires BUDDY_RISCV_ENABLE_ZFH_ZVFH=ON")
+  endif()
   string(JSON _whisper_precision GET "${_whisper_spec_json}" precision)
   if(NOT _whisper_precision STREQUAL "f16")
     message(FATAL_ERROR "BUDDY_WHISPER_K3_IME requires precision=f16")
   endif()
-  # VLEN options (+zvl1024b, -riscv-v-vector-bits-max=1024) are appended by
-  # buddy_rvv_vlen_llc_attrs() in buddy_model.cmake from BUDDY_RISCV_VLEN.
-  set(WHISPER_LLC_ATTRS
-    "-march=riscv64 -mcpu=spacemit-a100 -mattr=+m,+d,+v,+zfh,+zvfh,+xsmtvdotii -mtriple=riscv64-unknown-linux-gnu")
 endif()
 
 set(WHISPER_EXAMPLE "${CMAKE_SOURCE_DIR}/examples/BuddyWhisper")
@@ -70,12 +64,10 @@ buddy_add_model(
   TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
   SINGLE_FORWARD_IME "${BUDDY_WHISPER_K3_IME}"
-  SINGLE_FORWARD_IME_SHAPES "${WHISPER_ENCODER_IME_SHAPES}"
   SINGLE_FORWARD_SKIP_AFFINE_FUSION "${WHISPER_SKIP_AFFINE_FUSION}"
   SINGLE_FORWARD_SPLIT "${_whisper_encoder_cache}"
   SINGLE_FORWARD_KV "${_whisper_kv_cache}"
   SPEC "${BUDDY_WHISPER_SPEC}"
-  LLC_ATTRS "${WHISPER_LLC_ATTRS}"
   RUNNER_SRC WhisperRunner.cpp
   RUNNER_PLUGIN_SRC WhisperRunnerPlugin.cpp
   MODEL_PLUGIN_SRC WhisperAudioTranscriptionModelPlugin.cpp

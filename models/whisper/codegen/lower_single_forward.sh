@@ -10,6 +10,21 @@ use_ime="$5"
 shift 5
 llc_attrs=("$@")
 
+a100_llc_attrs=()
+if [[ "$use_ime" == ON || "${BUDDY_SINGLE_FORWARD_DECODE_TB:-OFF}" == ON ]]; then
+  codegen_dir="$(dirname "$0")/../../../tools/buddy-codegen"
+  a100_out="$("${PYTHON:-python3}" -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from compile_pipeline import a100_llc_args
+try:
+    print("\n".join(a100_llc_args(sys.argv[2:])))
+except ValueError as e:
+    sys.exit(f"lower_single_forward.sh: {e}")
+' "$codegen_dir" "${llc_attrs[@]}")"
+  mapfile -t a100_llc_attrs <<< "$a100_out"
+fi
+
 pre_buf_opts=()
 if [[ "${BUDDY_SINGLE_FORWARD_FUSE_TB:-OFF}" == ON ]]; then
   pre_buf_opts+=(-fuse-attention-softmax)
@@ -112,4 +127,4 @@ fi
   | "$llvm_bin/mlir-translate" -mlir-to-llvmir \
   | "$llvm_bin/llvm-as" \
   | "$llvm_bin/llc" -filetype=obj -relocation-model=pic \
-      "${llc_attrs[@]}" -O3 -o "$output"
+      "${llc_attrs[@]}" "${a100_llc_attrs[@]}" -O3 -o "$output"

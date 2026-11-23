@@ -1,8 +1,8 @@
 {
   "hf_model_path": "openai/whisper-base",
   "model_family": "whisper",
-  "variant": "base_f16_k3_a100_cached32_kv",
-  "model_id": "whisper_base_f16_k3_a100_cached32_kv",
+  "variant": "base_f16_k3",
+  "model_id": "whisper_base_f16_k3",
   "precision": "f16",
   "params_size": 121448448,
   "encoder_params_size": 20590592,
