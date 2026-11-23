@@ -1210,13 +1210,17 @@ function(buddy_add_model)
         endif()
         add_custom_command(
           OUTPUT "${BIN}/${_stage}_forward.o"
-          COMMAND ${CMAKE_COMMAND} -E env "PYTHON=${Python3_EXECUTABLE}"
-                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+          COMMAND ${CMAKE_COMMAND} -E env
+                  "PYTHON=${Python3_EXECUTABLE}"
+                  "BUDDY_WHISPER_PIPELINE=single_forward"
+                  "BUDDY_SINGLE_FORWARD_IME=OFF"
+                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
                   "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/${_stage}_forward.mlir"
-                  "${BIN}/${_stage}_forward.o" OFF ${MDL_LLC_ATTRS_LIST}
+                  "${BIN}/${_stage}_forward.o"
+                  "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
           DEPENDS "${IMPORT_STAMP}"
-                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
                   "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
                   buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
           COMMENT "[${MDL_NAME}] Compiling ${_stage} forward wrapper"
@@ -1225,19 +1229,21 @@ function(buddy_add_model)
           OUTPUT "${BIN}/${_stage}_subgraph.o"
           COMMAND ${CMAKE_COMMAND} -E env
                   "PYTHON=${Python3_EXECUTABLE}"
+                  "BUDDY_WHISPER_PIPELINE=single_forward"
+                  "BUDDY_SINGLE_FORWARD_IME=${_stage_ime}"
                   "BUDDY_SINGLE_FORWARD_SKIP_BATCH=${_stage_skip_batch}"
                   "BUDDY_SINGLE_FORWARD_SKIP_AFFINE_FUSION=${_stage_skip_affine_fusion}"
                   "BUDDY_SINGLE_FORWARD_FUSE_TB=${_stage_fuse_tb}"
                   "BUDDY_SINGLE_FORWARD_ELIM_ZERO=${_stage_elim_zero}"
                   "BUDDY_SINGLE_FORWARD_ELIM_COPY=${_stage_elim_copy}"
                   "BUDDY_SINGLE_FORWARD_DECODE_TB=${_stage_decode_tb}"
-                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
                   "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/${_stage}_subgraph.mlir"
                   "${BIN}/${_stage}_subgraph.o"
-                  "${_stage_ime}" ${MDL_LLC_ATTRS_LIST}
+                  "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
           DEPENDS "${IMPORT_STAMP}"
-                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh"
+                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
                   "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
                   buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
           COMMENT "[${MDL_NAME}] Compiling ${_stage} compute graph"
@@ -1296,16 +1302,19 @@ function(buddy_add_model)
         get_filename_component(
           _SINGLE_FORWARD_CODEGEN_DIR "${MDL_IMPORT_SCRIPT}" DIRECTORY)
         set(_SINGLE_FORWARD_LOWER_SCRIPT
-          "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_single_forward.sh")
+          "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh")
         add_custom_command(
           OUTPUT "${BIN}/subgraph0.o"
-          COMMAND ${CMAKE_COMMAND} -E env "PYTHON=${Python3_EXECUTABLE}"
+          COMMAND ${CMAKE_COMMAND} -E env
+                  "PYTHON=${Python3_EXECUTABLE}"
+                  "BUDDY_WHISPER_PIPELINE=single_forward"
+                  "BUDDY_SINGLE_FORWARD_IME=${MDL_SINGLE_FORWARD_IME}"
                   bash "${_SINGLE_FORWARD_LOWER_SCRIPT}"
                   "${BUDDY_BINARY_DIR}/buddy-opt"
                   "${LLVM_TOOLS_BINARY_DIR}"
                   "${BIN}/subgraph0.mlir"
                   "${BIN}/subgraph0.o"
-                  "${MDL_SINGLE_FORWARD_IME}"
+                  "${MDL_NUM_THREADS}"
                   ${MDL_LLC_ATTRS_LIST}
           DEPENDS "${IMPORT_STAMP}" "${_SINGLE_FORWARD_LOWER_SCRIPT}"
                   "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
