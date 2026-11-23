@@ -35,42 +35,17 @@ Use a local Hugging Face model snapshot through `--local-model` or
 the importer may fetch the model configured by the spec (by default,
 `openai/whisper-base`).
 
-For K3 A100, select `models/whisper/specs/base_f16_k3_a100.json` and pass
-`--is-rvv-crosscompile`, `--cmake-args=-DBUDDY_RISCV_VLEN=1024`,
-`--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`, and
-`--cmake-args=-DBUDDY_WHISPER_K3_IME=ON` to `build_model.py`. Set
-`--cmake-args=-DBUDDY_OPT_ATTR=+m,+d,+v,+zfh,+zvfh` and provide the
-RISC-V toolchain and runtime library arguments. Use a separate build directory
-from the F32 variant: this spec imports FP16 weights and uses FP16 for the main
-matrix path while keeping audio inputs and logits in F32. Run the ASR correctness
-check before comparing its performance with another precision.
-
-For short utterances, `models/whisper/specs/base_f16_k3_a100_32.json`
-compiles a 32-position decoder and logits tensor with the same FP16 model
-weights. It supports `--max-tokens` up to 31; use the 448-position spec when a
-transcription may need more tokens. The importer reads `max_token_len` from the
-selected spec, so the graph and runtime manifest use the same decoder length.
-
-To reuse the encoder output across tokens, select
-`models/whisper/specs/base_f16_k3_a100_cached32.json` and set
-`-DBUDDY_WHISPER_K3_IME=ON`. This package runs the 1500-position encoder once
-per transcription, then calls the 32-position decoder for each token. It also
-supports at most 31 generated tokens. For this split graph, IME is selected
-only for the 512x2048 and 2048x512 encoder GEMMs; the 512x512 group retains its
-prior lowering because enabling all three groups changes the K3 transcription.
-`-DBUDDY_WHISPER_K3_IME=OFF` remains a validated fallback.
-The CLI reports separate encoder and decoder timings for cached packages.
-
-For iterative decoding, use
-`models/whisper/specs/base_f16_k3_a100_cached32_kv.json`: it keeps both
-self-attention and cross-attention KV state across tokens and emits one logits
-row per call. The KV spec also supports at most 31 generated tokens. Its
-single-token cache update graph skips the batch-matmul vectorization pass
-because that pass currently requires a unit inner stride for the cache view.
-With `BUDDY_WHISPER_K3_IME=ON`, the KV package uses all three encoder GEMM
-shape groups. Only its encoder skips `affine-loop-fusion`: that pass fused a
-padding clear into the first convolution and changed the audio data it read.
-The older cached32 spec retains its validated FFN-only IME selection.
+For SpacemiT K3 A100, select `models/whisper/specs/base_f16_k3_a100_cached32_kv.json`
+and pass `--is-rvv-crosscompile`, `--cmake-args=-DBUDDY_RISCV_VLEN=1024`,
+`--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`,
+`--cmake-args=-DBUDDY_WHISPER_K3_IME=ON`, and
+`--cmake-args=-DBUDDY_OPT_ATTR=+m,+d,+v,+zfh,+zvfh` along with the RISC-V
+toolchain and runtime library arguments. Use a separate build directory from
+the F32 variant. This spec exports separate one-time encoder, first-token
+(`kv_init`), and one-token step (`kv_step`) graphs with persistent static self-
+and cross-attention KV caches, FP16 weights/matrix ops, F32 audio inputs and
+logits ABI, and supports up to 31 generated tokens (`--max-tokens 1..31`).
+The CLI reports separate preprocess, encoder, and decoder timings.
 
 The package contains `whisper.rax`, `whisper_model.so`,
 `whisper_runner.so`, `whisper_server.so`, `vocab.txt`, and the sample
