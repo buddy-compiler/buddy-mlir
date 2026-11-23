@@ -37,10 +37,10 @@ the importer may fetch the model configured by the spec (by default,
 
 For SpacemiT K3 A100, select `models/whisper/specs/base_f16_k3.json`
 and pass `--is-rvv-crosscompile`, `--cmake-args=-DBUDDY_RISCV_VLEN=1024`,
-`--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`,
-`--cmake-args=-DBUDDY_WHISPER_K3_IME=ON`, and
+`--cmake-args=-DBUDDY_RISCV_ENABLE_ZFH_ZVFH=ON`, and
 `--cmake-args=-DBUDDY_OPT_ATTR=+m,+d,+v,+zfh,+zvfh` along with the RISC-V
-toolchain and runtime library arguments. Use a separate build directory from
+toolchain and runtime library arguments (the spec automatically enables K3 A100
+IME lowering and 8 OpenMP threads). Use a separate build directory from
 the F32 variant. This spec exports separate one-time encoder, first-token
 (`kv_init`), and one-token step (`kv_step`) graphs with persistent static self-
 and cross-attention KV caches, FP16 weights/matrix ops, F32 audio inputs and
