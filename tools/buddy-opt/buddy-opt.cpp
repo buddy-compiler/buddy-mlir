@@ -134,6 +134,7 @@ void registerMatMulTransposeBVecDecodePass();
 void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
+void registerPolynomialApproximateMathPass();
 void registerMatMulVectorizationBLISPass();
 void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
@@ -225,6 +226,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulTransposeBVecDecodePass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
+  mlir::buddy::registerPolynomialApproximateMathPass();
   // Register minimal TOSA reshape simplification pass.
   mlir::buddy::registerSimplifyTosaReshapePass();
   // Register tosa.matmul(K=1,J=1) -> tosa.mul rewrite.

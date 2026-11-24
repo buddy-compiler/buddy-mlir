@@ -56,6 +56,7 @@ void registerLowerIMEPass();
 void registerLowerRVVPass();
 void registerLowerVectorExpPass();
 void registerLinalgToVIRPass();
+void registerPolynomialApproximateMathPass();
 void registerVIRToVectorPass();
 void registerLowerLinalgToTilePass();
 #ifdef BUDDY_EXTERNAL_DIALECTS
@@ -134,6 +135,7 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLinalgToVIRPass();
+  mlir::buddy::registerPolynomialApproximateMathPass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerMatMulOptimizePass();

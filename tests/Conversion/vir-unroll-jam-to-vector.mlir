@@ -15,7 +15,7 @@
 // IR: %[[JAM:.*]] = arith.subi %[[N]], %[[REM]] : index
 // IR: %[[MAIN:.*]] = arith.addi %c0, %[[JAM]] : index
 // IR: scf.for %{{.*}} = %c0 to %[[MAIN]] step %[[C8]] {
-// IR: scf.for {{.*}} iter_args({{.*}}) -> (vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>) {
+// IR: scf.for {{.*}} iter_args({{.*}}) -> (vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>) {
 // IR-NEXT: vector.load %arg1
 // IR-NOT: vector.load %arg1
 // IR-COUNT-8: vector.fma
@@ -41,7 +41,7 @@
 // IR: %[[S2:.*]] = arith.muli %[[J2]], %c2
 // IR: %[[MAIN2:.*]] = arith.addi %c0, %[[S2]]
 // IR: scf.for %{{.*}} = %c0 to %[[MAIN2]] step %c8 {
-// IR: iter_args({{.*}}) -> (vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>, vector<[1]xf32>)
+// IR: iter_args({{.*}}) -> (vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>)
 // IR: scf.for %{{.*}} = %[[MAIN2]] to %c7 step %c2 {
 // IR-LABEL: func.func @call_alias
 
