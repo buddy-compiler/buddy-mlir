@@ -72,9 +72,23 @@ scheduling.
 
 ## Benchmark and validate
 
+The benchmark and validation scripts are kept in the reproducibility snapshot
+[`720b6ecf`](https://github.com/buddy-compiler/buddy-mlir/tree/720b6ecf8c526208a623c502105bea8d5015af64/models/embeddinggemma).
+The snapshot contains the scripts, workload corpus, specs, and the benchmark
+instructions used for the results below. Check it out separately before
+running the commands in this section.
+
+```bash
+git fetch https://github.com/buddy-compiler/buddy-mlir.git \
+  pull/1070/head
+git worktree add ../embeddinggemma-897-repro \
+  720b6ecf8c526208a623c502105bea8d5015af64
+cd ../embeddinggemma-897-repro
+```
+
 ### Prepare inputs on the build host
 
-[The workload generator](prepare_workloads.py) creates separate specs and
+[The workload generator](https://github.com/buddy-compiler/buddy-mlir/blob/720b6ecf8c526208a623c502105bea8d5015af64/models/embeddinggemma/prepare_workloads.py) creates separate specs and
 full-length inputs for batches 1, 2, and 4 at 128, 256, and 512 tokens.
 `matrix.json` lists the cases. This example selects B2/S128.
 
@@ -112,7 +126,7 @@ the build directory as `$case_name-baseline.rax` or `$case_name-optimized.rax`.
 ### Run on the K3
 
 Copy the RAX files, matching specs, HF golden directory, native `buddy-cli`,
-and `benchmark.py` and `validate_accuracy.py` to the board. The benchmark
+and the archived benchmark scripts to the board. The benchmark
 requires Python 3.10+, NumPy, and GNU `time`. Use a filesystem with room for the
 extracted RAX payloads.
 
