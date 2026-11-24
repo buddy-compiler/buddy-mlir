@@ -1,7 +1,8 @@
 // RUN: buddy-opt %s -lower-linalg-to-vir \
 // RUN:     -lower-vir-to-vector='rvv-vlen=256 verbose=true' \
 // RUN: | FileCheck %s --check-prefix=NOSCHED
-// RUN: buddy-opt %s -lower-linalg-to-vir -vir-schedule='verbose=true' \
+// RUN: buddy-opt %s -lower-linalg-to-vir \
+// RUN:     -vir-schedule='rvv=true verbose=true' \
 // RUN:     -lower-vir-to-vector='rvv-vlen=256 verbose=true' \
 // RUN: | FileCheck %s --check-prefix=SCHED
 
@@ -11,12 +12,12 @@
 // -lower-linalg-to-vir loads the 8 inputs of the generic before its body:
 // all 8 are live at the first product, 9 dynamic vectors with it, and the
 // vectors are sized for 9: LMUL 2, 16 f32 lanes at VLEN 256. (A gate is a
-// broadcast scalar, the scalar operand of vfmul.vf on RVV: -lower-vir-to-
-// vector does not count it; -vir-schedule, for any target, does: 10.)
-// -vir-schedule loads each expert's output where it is used: 3 live at most
-// (the sum, the output and its product; 4 with the gate), LMUL 8, 64 lanes,
-// 4 times the lanes per instruction. The ops are the same, in another
-// order: the results are bit for bit the same.
+// broadcast scalar, the scalar operand of vfmul.vf on RVV, in a scalar
+// register: neither -lower-vir-to-vector nor -vir-schedule with rvv counts
+// it.) -vir-schedule loads each expert's output where it is used: 3 live at
+// most (the sum, the output and its product), LMUL 8, 64 lanes, 4 times the
+// lanes per instruction. The ops are the same, in another order: the
+// results are bit for bit the same (no reduction here).
 func.func @moe_combine_top8(
     %e0: memref<7168xf32>, %e1: memref<7168xf32>, %e2: memref<7168xf32>,
     %e3: memref<7168xf32>, %e4: memref<7168xf32>, %e5: memref<7168xf32>,
@@ -64,7 +65,7 @@ func.func @moe_combine_top8(
 // NOSCHED-COUNT-8: vector.load {{.*}}, vector<16xf32>
 // NOSCHED: arith.mulf {{.*}} : vector<16xf32>
 
-// SCHED: vir-schedule: MaxLive 10 -> 4 in the block of vir.set_vl
+// SCHED: vir-schedule: MaxLive 9 -> 3 in the block of vir.set_vl
 // SCHED: Final Max Active Vectors (Req_Group): 3
 // SCHED: Calculated LMUL = 8, Size_vec = (8 * 256) / 32 = 64
 // SCHED-LABEL: func.func @moe_combine_top8

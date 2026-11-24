@@ -69,6 +69,8 @@
 #include "VIR/VIROps.h"
 #include "VIR/VIRTypes.h"
 
+#include "RegisterPressure.h"
+
 using namespace mlir;
 using namespace buddy;
 
@@ -633,33 +635,11 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   //
   // On RVV, a broadcast scalar that only feeds the scalar operand of
   // arithmetic (vfmul.vf, vfmacc.vf, ...) stays in a scalar register and is
-  // not counted. Such an instruction has one scalar operand: if the other
-  // operand (the other multiplicand of an fma) is a broadcast too, both are
-  // counted.
+  // not counted (isRVVScalarOperand).
   Operation *setVL = srcRegion.getParentOp();
   Liveness liveness(setVL);
-  auto isScalarOperand = [](Value v) {
-    if (!v.getDefiningOp<vir::BroadcastOp>())
-      return false;
-    return llvm::all_of(v.getUses(), [](OpOperand &use) {
-      Operation *user = use.getOwner();
-      unsigned n = use.getOperandNumber();
-      // a multiplicand of an fma, not the addend, or an operand of a binary
-      // op
-      bool binary =
-          isa<arith::AddFOp, arith::SubFOp, arith::MulFOp, arith::DivFOp,
-              arith::MaximumFOp, arith::MinimumFOp, arith::MaxNumFOp,
-              arith::MinNumFOp, arith::AddIOp, arith::SubIOp, arith::MulIOp>(
-              user);
-      if (!(isa<vir::FMAOp>(user) && n < 2) && !binary)
-        return false;
-      Value other = user->getOperand(1 - n);
-      return !other.getDefiningOp<vir::BroadcastOp>();
-    });
-  };
   auto isDynamic = [&](Value v) {
-    return isa<vir::DynamicVectorType>(v.getType()) &&
-           !(rvvVlen > 0 && isScalarOperand(v));
+    return vir::takesVectorRegisters(v, /*rvv=*/rvvVlen > 0);
   };
   // the live range in each block of its dynamic vectors, as
   // LivenessBlockInfo::currentlyLiveValues has them, found once per block
