@@ -179,6 +179,20 @@ def kernels_lower_vir(llc_args: list[str]) -> str:
     return "-lower-vir-to-vector=use-scalable=true"
 
 
+def kernels_vir_passes(llc_args: list[str]) -> list[str]:
+    """The VIR passes of the generated kernels for the target of the llc
+    options `llc_args`: -vir-schedule, which orders the ops of each
+    vir.set_vl region for fewer dynamic vectors live at once (the same
+    results), then -lower-vir-to-vector (kernels_lower_vir), which sizes the
+    vectors for them. On RVV (+v) the scheduling counts the vector registers
+    as -lower-vir-to-vector does there (rvv=true: a broadcast that is only
+    the scalar operand of a .vf instruction stays in a scalar register)."""
+    schedule = (
+        "-vir-schedule=rvv=true" if rvv_enabled(llc_args) else "-vir-schedule"
+    )
+    return [schedule, kernels_lower_vir(llc_args)]
+
+
 def a100_llc_args(llc_base_args: list[str]) -> list[str]:
     """llc options of the A100 code, on top of the build's: the IME
     extension and the A100 scheduling model, top down (it issues the weight
@@ -333,7 +347,7 @@ def build_stages(
                 "buddy-opt",
                 (["-lower-ime=target=k3"] if ime else [])
                 + [
-                    kernels_lower_vir(llc_args),
+                    *kernels_vir_passes(llc_args),
                     f"-convert-scf-to-openmp=num-threads={num_threads}",
                     "-expand-strided-metadata",
                     "-convert-vector-to-scf",

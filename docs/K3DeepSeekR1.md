@@ -285,10 +285,13 @@ region of d / 2 = 64 lanes in which a head is its two RoPE halves, a
 - with q / k norms (Qwen3), a region of its own sums the squares of the
   halves of each head first, as the vector kernel does.
 
-`-lower-vir-to-vector` sizes the vectors of a `set_vl` with results for the
-target, whose options `compile_pipeline.kernels_lower_vir` derives from the
-llc options of the kernels pipeline, so that they agree (VLEN options that
-disagree are an error):
+`-vir-schedule` first orders the ops of each `set_vl` region for fewer
+vectors live at once. The checked decode-attention kernels keep their
+existing order. Then `-lower-vir-to-vector` sizes the vectors of a `set_vl` with
+results for the target, whose options `compile_pipeline.kernels_lower_vir`
+derives from the llc options of the kernels pipeline, so that they agree
+(VLEN options that disagree are an error; `compile_pipeline.kernels_vir_passes`
+gives both passes):
 
 | Target (llc options) | VIR lowering |
 | --- | --- |

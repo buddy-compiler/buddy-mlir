@@ -83,8 +83,9 @@ packed IME weights), `codegen/lower_to_obj.sh` lowers the f32 TOSA graph and
 runs the parallel loops on the thread pool of the spec (any RVV target). The
 linalg ops go through VIR (`-lower-linalg-to-vir`; the convolutions
 vectorized along the output channels, the output rows in parallel), the
-vectors sized by `-lower-vir-to-vector` for the target of the llc options (on
-the K3, `rvv-vlen=1024`).
+ops of each VIR region ordered for fewer vectors live at once by
+`-vir-schedule`, and the vectors sized by `-lower-vir-to-vector` for the
+target of the llc options (on the K3, `rvv-vlen=1024`).
 
 ## Run
 

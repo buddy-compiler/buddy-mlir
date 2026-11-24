@@ -7,9 +7,10 @@
 #   of each elementwise op and transpose is not the batch loop of 1 trip;
 # - the linalg ops go through VIR (-lower-linalg-to-vir; the convolutions
 #   vectorized along the output channels, their output rows in parallel);
-#   -lower-vir-to-vector sizes the vectors for the target of the llc options,
-#   as for the generated kernels of the other models
-#   (compile_pipeline.kernels_lower_vir; the K3: rvv-vlen=1024);
+#   -vir-schedule orders the ops of each region for fewer vectors live at
+#   once and -lower-vir-to-vector sizes the vectors for the target of the
+#   llc options, as for the generated kernels of the other models
+#   (compile_pipeline.kernels_vir_passes; the K3: rvv-vlen=1024);
 # - no -affine-loop-fusion, which miscompiles this graph (the outputs of all
 #   anchors come out the same).
 #
@@ -31,7 +32,11 @@ if [[ $# -gt 0 ]]; then
 fi
 LLC_ATTRS=("$@")
 CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
-LOWER_VIR="$("${PYTHON:-python3}" -c 'import sys; sys.path.insert(0, sys.argv[1]); from compile_pipeline import kernels_lower_vir; print(kernels_lower_vir(sys.argv[2:]))' "$CODEGEN" "${LLC_ATTRS[@]}")"
+VIR="$("${PYTHON:-python3}" -c 'import sys; sys.path.insert(0, sys.argv[1]); from compile_pipeline import kernels_vir_passes; print("\n".join(kernels_vir_passes(sys.argv[2:])))' "$CODEGEN" "${LLC_ATTRS[@]}")"
+VIR_PASSES=()
+while IFS= read -r pass; do
+  VIR_PASSES+=("$pass")
+done <<< "$VIR"
 BUDDY_TRANSLATE="$(dirname "$BUDDY_OPT")/buddy-translate"
 KERNELS="$(dirname "$IN")/yolov8_kernels.mlir"
 A100_LLC_ATTRS=()
@@ -45,7 +50,9 @@ try:
 except ValueError as e:
     sys.exit(f"lower_to_obj.sh: {e}")
 ' "$CODEGEN" "${LLC_ATTRS[@]}")"
-  mapfile -t A100_LLC_ATTRS <<< "$A100"
+  while IFS= read -r attr; do
+    A100_LLC_ATTRS+=("$attr")
+  done <<< "$A100"
 fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -61,7 +68,7 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification \
       -bufferization-lower-deallocations \
-      -lower-linalg-to-vir "$LOWER_VIR" \
+      -lower-linalg-to-vir "${VIR_PASSES[@]}" \
       -scf-forall-to-parallel \
       -convert-linalg-to-affine-loops -affine-parallelize -lower-affine \
       -convert-scf-to-openmp -convert-linalg-to-loops -convert-vector-to-scf \
