@@ -85,6 +85,8 @@ void registerStaticizeMemRefLayoutPass();
 void registerSimplifyTosaReshapePass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerElideMaskedTileCopiesPass();
+void registerForwardMaskedLoadsPass();
+void registerOptimizeMaskedTileMemoryPasses();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
 void registerConvertTraceToLLVMPass();
@@ -156,6 +158,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerSimplifyTosaReshapePass();
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
   mlir::buddy::registerElideMaskedTileCopiesPass();
+  mlir::buddy::registerForwardMaskedLoadsPass();
+  mlir::buddy::registerOptimizeMaskedTileMemoryPasses();
   mlir::buddy::registerEliminateMemRefCopyPass();
   mlir::buddy::registerEliminateLargeZeroConstantsPass();
   mlir::buddy::registerConvertTraceToLLVMPass();

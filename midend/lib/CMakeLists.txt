@@ -47,6 +47,7 @@ set(LinkedLibs
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
   ElideMaskedTileCopiesPass
+  OptimizeMaskedTileMemoryPasses
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
   TraceInsert
