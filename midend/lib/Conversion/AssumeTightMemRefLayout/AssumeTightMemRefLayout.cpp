@@ -97,6 +97,8 @@ public:
           continue;
         if (isa<RegionBranchOpInterface>(owner))
           continue;
+        if (isa<memref::ExpandShapeOp, memref::CollapseShapeOp>(owner))
+          continue;
         toUpdate.push_back(&use);
       }
 

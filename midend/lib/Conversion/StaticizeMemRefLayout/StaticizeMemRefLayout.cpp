@@ -82,7 +82,7 @@ public:
 
       // Check if source comes from a reinterpret_cast
       Operation *defOp = source.getDefiningOp();
-      auto reinterpretOp = dyn_cast<memref::ReinterpretCastOp>(defOp);
+      auto reinterpretOp = dyn_cast_or_null<memref::ReinterpretCastOp>(defOp);
       if (!reinterpretOp)
         return;
 

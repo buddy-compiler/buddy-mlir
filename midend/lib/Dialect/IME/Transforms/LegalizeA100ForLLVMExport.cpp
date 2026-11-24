@@ -324,13 +324,15 @@ struct IMEGemmF16Lowering : public ConvertOpToLLVMPattern<GemmF16Op> {
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     int64_t k = op.getKAttr().getInt(), n = op.getNAttr().getInt();
-    if (k <= 0 || k % 8 || n <= 0 || n % 32)
-      return op.emitError("A100 GEMM requires K%8=0 and N%32=0");
+    if (k <= 0 || k % 8 || n < 32)
+      return op.emitError("A100 GEMM requires K%8=0 and N>=32");
     auto outputType = cast<MemRefType>(op.getVd().getType());
+    // GemmF16Op is emitted only for complete eight-row tiles. The containing
+    // matmul may have a short scalar row tail in the same output buffer.
     SmallVector<int64_t> strides;
     int64_t offset;
-    if (!outputType.hasStaticShape() || outputType.getDimSize(0) <= 0 ||
-        outputType.getDimSize(0) % 8 || outputType.getDimSize(1) != n ||
+    if (!outputType.hasStaticShape() || outputType.getDimSize(0) < 8 ||
+        outputType.getDimSize(1) != n ||
         failed(outputType.getStridesAndOffset(strides, offset)) ||
         strides != SmallVector<int64_t>{n, 1} ||
         !contiguousBuffer(op.getVs1(), outputType.getDimSize(0) * k) ||

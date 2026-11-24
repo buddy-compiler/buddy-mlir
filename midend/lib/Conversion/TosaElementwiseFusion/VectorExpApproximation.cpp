@@ -68,7 +68,8 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(VectorExpApproximationPass)
   StringRef getArgument() const final { return "approximate-vector-exp"; }
   StringRef getDescription() const final {
-    return "Use MLIR's FP32 polynomial exp approximation for vector operands";
+    return "Use MLIR's FP32 polynomial exp/erf approximation for vector "
+           "operands";
   }
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<arith::ArithDialect, math::MathDialect,
@@ -76,8 +77,10 @@ public:
   }
   void runOnOperation() override {
     SmallVector<Operation *> selected;
-    getOperation().walk([&](math::ExpOp op) {
-      auto type = dyn_cast<VectorType>(op.getType());
+    getOperation().walk([&](Operation *op) {
+      if (!isa<math::ExpOp, math::ErfOp>(op))
+        return;
+      auto type = dyn_cast<VectorType>(op->getResult(0).getType());
       if (type && type.getElementType().isF32())
         selected.push_back(op);
     });
@@ -85,7 +88,8 @@ public:
       return;
     RewritePatternSet patterns(&getContext());
     populateMathPolynomialApproximationPatterns(patterns, [](StringRef name) {
-      return name == math::ExpOp::getOperationName();
+      return name == math::ExpOp::getOperationName() ||
+             name == math::ErfOp::getOperationName();
     });
     GreedyRewriteConfig config;
     config.setStrictness(GreedyRewriteStrictness::ExistingAndNewOps);

@@ -19,7 +19,7 @@
 # Produces three artifacts in --output-dir:
 #   forward.mlir    main graph (calls into subgraph0)
 #   subgraph0.mlir  lowered top-level IR for the compute subgraph
-#   arg0.data       concatenated model parameters (f32)
+#   arg0.data       concatenated model parameters (f32 or f16 from the spec)
 #
 # The model is resolved in this order:
 #   1. $WHISPER_MODEL_PATH        (local HF snapshot, set by CMake)
@@ -31,6 +31,7 @@
 import argparse
 import json
 import os
+import shutil
 
 import numpy
 import torch
@@ -64,16 +65,26 @@ parser.add_argument(
     action="store_true",
     help="Export template-partitioned MLIR for internal build integration.",
 )
+parser.add_argument("--split-encoder-decoder", action="store_true")
 args = parser.parse_args()
 
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
-# Resolve the Whisper model path.
-model_path = os.environ.get("WHISPER_MODEL_PATH")
-if not model_path and args.spec:
+# Resolve the Whisper model path and selected precision.
+spec = {}
+if args.spec:
     with open(args.spec) as f:
-        model_path = json.load(f).get("hf_model_path")
+        spec = json.load(f)
+precision = spec.get("precision", "f32")
+if precision not in ("f32", "f16"):
+    raise ValueError(f"Unsupported Whisper precision: {precision}")
+max_token_len = spec.get("max_token_len", 448)
+if not isinstance(max_token_len, int) or not 2 <= max_token_len <= 448:
+    raise ValueError(
+        "Whisper max_token_len must be an integer between 2 and 448"
+    )
+model_path = os.environ.get("WHISPER_MODEL_PATH") or spec.get("hf_model_path")
 if not model_path:
     model_path = "openai/whisper-base"
 
@@ -83,9 +94,199 @@ print(f"[import_whisper] Loading model from: {model_path}")
 model = WhisperForConditionalGeneration.from_pretrained(model_path)
 model.config.use_cache = False
 
+# Dynamo tracing otherwise inserts a packed-sequence mask for this
+# single-sequence decoder and changes the exported attention graph.
+try:
+    import transformers.masking_utils as _mu
+
+    _mu.find_packed_sequence_indices = lambda *a, **k: None
+except (
+    Exception
+) as _e:  # pragma: no cover - older transformers without this util
+    print(f"[import_whisper] packed-sequence patch skipped: {_e}")
+
+if args.split_encoder_decoder:
+    if precision != "f16":
+        raise ValueError("Split Whisper encoder/decoder requires FP16")
+    from transformers.cache_utils import EncoderDecoderCache, StaticCache
+    from transformers.modeling_outputs import BaseModelOutput
+
+    kv_cache = bool(spec.get("kv_cache", False))
+    if kv_cache and not spec.get("last_logits_only", False):
+        raise ValueError("Whisper KV cache requires last_logits_only")
+
+    if precision == "f16":
+        model = model.half()
+
+    class EncoderCore(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner
+
+        def forward(self, input_features):
+            if precision == "f16":
+                input_features = input_features.half()
+            hidden = self.inner.model.encoder(input_features).last_hidden_state
+            return hidden.float()
+
+    class DecoderCore(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner
+
+        def forward(self, encoder_hidden_state, decoder_input_ids):
+            if precision == "f16":
+                encoder_hidden_state = encoder_hidden_state.half()
+            result = self.inner(
+                encoder_outputs=BaseModelOutput(
+                    last_hidden_state=encoder_hidden_state
+                ),
+                decoder_input_ids=decoder_input_ids,
+            )
+            return result.logits.float()
+
+    class KvDecoderCore(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner
+
+        def forward(
+            self, encoder_hidden_state, decoder_input_ids, past_key_values
+        ):
+            result = self.inner(
+                encoder_outputs=BaseModelOutput(
+                    last_hidden_state=encoder_hidden_state.half()
+                ),
+                decoder_input_ids=decoder_input_ids,
+                past_key_values=past_key_values,
+                use_cache=True,
+            )
+            return result.logits.float()
+
+    def make_kv_cache():
+        self_cache = StaticCache(model.config, max_token_len)
+        cross_cache = StaticCache(model.config, 1500)
+        for cache in (self_cache, cross_cache):
+            cache.early_initialization(
+                1, 8, 64, torch.float16, torch.device("cpu")
+            )
+        return EncoderDecoderCache(self_cache, cross_cache)
+
+    def export_stage(stage, module, inputs):
+        compiler = DynamoCompiler(
+            primary_registry=tosa.ops_registry,
+            aot_autograd_decomposition=inductor_decomp,
+        )
+        with torch.no_grad():
+            graphs = compiler.importer(module, **inputs)
+        assert len(graphs) == 1
+        graph = graphs[0]
+        params = compiler.imported_params[graph]
+        graph.fuse_ops([simply_fuse])
+        driver = GraphDriver(graph)
+        driver.subgraphs[0].lower_to_top_level_ir()
+        compute = str(driver.subgraphs[0]._imported_module).replace(
+            "@subgraph0", f"@subgraph_{stage}"
+        )
+        forward = (
+            str(driver.construct_main_graph(True))
+            .replace("@subgraph0", f"@subgraph_{stage}")
+            .replace("@forward(", f"@forward_{stage}(")
+        )
+        with open(os.path.join(output_dir, f"{stage}_subgraph.mlir"), "w") as f:
+            f.write(compute)
+        with open(os.path.join(output_dir, f"{stage}_forward.mlir"), "w") as f:
+            f.write(forward)
+        numpy.concatenate(
+            [param.detach().numpy().reshape([-1]) for param in params]
+        ).tofile(os.path.join(output_dir, f"arg_{stage}.data"))
+
+    export_stage(
+        "encoder",
+        EncoderCore(model),
+        {"input_features": torch.zeros((1, 80, 3000), dtype=torch.float32)},
+    )
+    if kv_cache:
+        kv_core = KvDecoderCore(model)
+        kv_inputs = {
+            "encoder_hidden_state": torch.zeros(
+                (1, 1500, 512), dtype=torch.float32
+            ),
+            "decoder_input_ids": torch.full((1, 1), 50258, dtype=torch.long),
+        }
+        init_cache = make_kv_cache()
+        export_stage(
+            "kv_init", kv_core, {**kv_inputs, "past_key_values": init_cache}
+        )
+        step_cache = make_kv_cache()
+        with torch.no_grad():
+            kv_core(
+                kv_inputs["encoder_hidden_state"],
+                kv_inputs["decoder_input_ids"],
+                step_cache,
+            )
+        export_stage(
+            "kv_step", kv_core, {**kv_inputs, "past_key_values": step_cache}
+        )
+        stages = ("encoder", "kv_init", "kv_step")
+    else:
+        decoder_inputs = {
+            "encoder_hidden_state": torch.zeros(
+                (1, 1500, 512), dtype=torch.float32
+            ),
+            "decoder_input_ids": torch.zeros(
+                (1, max_token_len), dtype=torch.long
+            ),
+        }
+        export_stage("decoder", DecoderCore(model), decoder_inputs)
+        stages = ("encoder", "decoder")
+    with open(os.path.join(output_dir, "arg0.data"), "wb") as combined:
+        for stage in stages:
+            with open(
+                os.path.join(output_dir, f"arg_{stage}.data"), "rb"
+            ) as part:
+                shutil.copyfileobj(part, combined)
+    encoder_bytes = os.path.getsize(
+        os.path.join(output_dir, "arg_encoder.data")
+    )
+    if encoder_bytes != spec["encoder_params_size"] * 2:
+        raise ValueError("Split Whisper encoder parameters do not match spec")
+    if kv_cache:
+        init_bytes = os.path.getsize(
+            os.path.join(output_dir, "arg_kv_init.data")
+        )
+        if init_bytes != spec["decoder_init_params_size"] * 2:
+            raise ValueError("Whisper KV init parameters do not match spec")
+    expected_bytes = spec["params_size"] * (2 if precision == "f16" else 4)
+    if os.path.getsize(os.path.join(output_dir, "arg0.data")) != expected_bytes:
+        raise ValueError("Split Whisper parameters do not match params_size")
+    print("[import_whisper] Wrote split encoder and decoder graphs")
+    raise SystemExit(0)
+
+if precision == "f16":
+    # Keep the runtime's audio and logits descriptors in f32. Only the model
+    # weights and internal activations use f16, so the existing ASR API works
+    # for both precisions.
+    class WhisperF16Core(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner.half()
+
+        def forward(self, input_features, decoder_input_ids):
+            result = self.inner(
+                input_features=input_features.half(),
+                decoder_input_ids=decoder_input_ids,
+            )
+            return (
+                result.encoder_last_hidden_state.float(),
+                result.logits.float(),
+            )
+
+    model = WhisperF16Core(model)
+
 # Generate placeholder for inputs.
 input_features = torch.zeros(size=(1, 80, 3000), dtype=torch.float32)
-decoder_input_ids = torch.zeros(size=(1, 448), dtype=torch.long)
+decoder_input_ids = torch.zeros(size=(1, max_token_len), dtype=torch.long)
 inputs = {
     "input_features": input_features,
     "decoder_input_ids": decoder_input_ids,
@@ -107,7 +308,6 @@ except (
     Exception
 ) as _e:  # pragma: no cover - older transformers without this util
     print(f"[import_whisper] packed-sequence patch skipped: {_e}")
-
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,

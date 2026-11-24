@@ -3720,9 +3720,14 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             pad_constant = _create_shape_operand(
                 [0, 0, 0, 0, input_padding[0], input_padding[0]]
             )
-            ty = ir.Type.parse("tensor<1xf32>")
+            input_element_type = ir.RankedTensorType(
+                input_val.type
+            ).element_type
+            ty = ir.RankedTensorType.get([1], input_element_type)
             pad_zp = tosa.ConstOp(
-                ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
+                ir.DenseElementsAttr.get_splat(
+                    ty, ir.FloatAttr.get(input_element_type, 0.0)
+                )
             ).result
             input_val = tosa.PadOp(padded_type, input_val, pad_constant, pad_zp)
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)

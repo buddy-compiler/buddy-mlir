@@ -150,6 +150,10 @@ function(_buddy_rvv_cross_plugins)
   endforeach()
 
   set(_files)
+  set(_cross_link_libs)
+  foreach(_lib ${MDL_RISCV_RUNTIME_LINK_LIBS})
+    list(APPEND _cross_link_libs "$<TARGET_FILE:${_lib}>")
+  endforeach()
   foreach(_plugin ${ARGN})
     get_target_property(_out ${_plugin} OUTPUT_NAME)
     get_target_property(_plugin_srcs ${_plugin} SOURCES)
@@ -171,10 +175,11 @@ function(_buddy_rvv_cross_plugins)
       OUTPUT "${_so}"
       COMMAND "${_cxx}" ${_target_opts} -shared -fPIC -o "${_so}"
               "${_obj}" ${_objs}
+              ${_cross_link_libs}
               "${RISCV_LLVM_BUILD_DIR}/lib/libLLVMSupport.a"
               "${RISCV_LLVM_BUILD_DIR}/lib/libLLVMDemangle.a"
-              -ldl -lpthread
-      DEPENDS "${_obj}" ${_objs}
+              -ldl -lpthread -lm
+      DEPENDS "${_obj}" ${_objs} ${MDL_RISCV_RUNTIME_LINK_LIBS}
       COMMENT "[${MDL_NAME}] riscv64: linking ${_out}${CMAKE_SHARED_LIBRARY_SUFFIX}"
       VERBATIM)
     list(APPEND _files "${_so}")
@@ -216,7 +221,9 @@ endfunction()
 #   [TIERED_CACHE_SIZES <list>]             e.g. "32;64;128;256;512;1024"
 #   [ASSET_FILES <list>]                    files copied next to the .rax
 #   [RUNTIME_LINK_LIBS <list>]              extra libraries for runner static lib
+#   [RISCV_RUNTIME_LINK_LIBS <list>]        cross-plugin-only static library targets
 #   [TEMPLATE_PARTITION_CAPABLE ON|OFF]     supports template partitioning
+#   [SINGLE_FORWARD_IME ON|OFF]            select K3 FP16 IME GEMM lowering
 # )
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -381,8 +388,8 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
-    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;SINGLE_FORWARD_IME;SINGLE_FORWARD_SPLIT;SINGLE_FORWARD_KV;SINGLE_FORWARD_SKIP_AFFINE_FUSION"
+    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;RISCV_RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
 
@@ -406,7 +413,9 @@ function(buddy_add_model)
     string(APPEND _MDL_RISCV_MATTR ",+zfh,+zvfh")
   endif()
   if(IS_RVV_CROSSCOMPILE)
-    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
+    if(NOT MDL_LLC_ATTRS)
+      set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
+    endif()
   elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
       set(MDL_LLC_ATTRS "-march=riscv64 -mcpu=native -mattr=${_MDL_RISCV_MATTR}")
@@ -1049,7 +1058,18 @@ function(buddy_add_model)
   set(OBJ_FILES)
   set(MLIR_COMPILE_DEPS)
   if(MDL_MODEL_KIND STREQUAL "single_forward")
-    if(MDL_LAYER_PARTITION)
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      if(MDL_SINGLE_FORWARD_KV)
+        set(_split_stages encoder kv_init kv_step)
+      else()
+        set(_split_stages encoder decoder)
+      endif()
+      foreach(_stage ${_split_stages})
+        list(APPEND OBJ_FILES
+          "${BIN}/${_stage}_forward.o"
+          "${BIN}/${_stage}_subgraph.o")
+      endforeach()
+    elseif(MDL_LAYER_PARTITION)
       list(APPEND OBJ_FILES
         "${BIN}/layer_partitioned/forward.o"
         "${BIN}/layer_partitioned/subgraphs.o")
@@ -1110,7 +1130,16 @@ function(buddy_add_model)
     endif()
 
     set(_SINGLE_FORWARD_IMPORT_ARGS)
-    if(MDL_LAYER_PARTITION)
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      list(APPEND _SINGLE_FORWARD_IMPORT_ARGS --split-encoder-decoder)
+      set(_SINGLE_FORWARD_MLIR_DIR "${BIN}")
+      set(_SINGLE_FORWARD_BYPRODUCTS "${BIN}/arg0.data")
+      foreach(_stage ${_split_stages})
+        list(APPEND _SINGLE_FORWARD_BYPRODUCTS
+          "${BIN}/${_stage}_forward.mlir"
+          "${BIN}/${_stage}_subgraph.mlir")
+      endforeach()
+    elseif(MDL_LAYER_PARTITION)
       list(APPEND _SINGLE_FORWARD_IMPORT_ARGS
         --experimental-template-partitioned)
       set(_SINGLE_FORWARD_MLIR_DIR "${BIN}/layer_partitioned")
@@ -1139,6 +1168,88 @@ function(buddy_add_model)
       VERBATIM
     )
 
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      get_filename_component(_SINGLE_FORWARD_CODEGEN_DIR
+        "${MDL_IMPORT_SCRIPT}" DIRECTORY)
+      foreach(_stage ${_split_stages})
+        set(_stage_ime OFF)
+        set(_stage_skip_batch OFF)
+        set(_stage_skip_affine_fusion OFF)
+        set(_stage_fuse_tb OFF)
+        set(_stage_elim_zero OFF)
+        set(_stage_elim_copy OFF)
+        set(_stage_decode_tb OFF)
+        if(_stage STREQUAL "encoder")
+          set(_stage_ime "${MDL_SINGLE_FORWARD_IME}")
+          set(_stage_skip_affine_fusion
+              "${MDL_SINGLE_FORWARD_SKIP_AFFINE_FUSION}")
+          if(MDL_SINGLE_FORWARD_KV AND MDL_SINGLE_FORWARD_IME)
+            set(_stage_fuse_tb ON)
+            set(_stage_elim_zero ON)
+          endif()
+        elseif(_stage STREQUAL "kv_init")
+          if(MDL_SINGLE_FORWARD_IME)
+            set(_stage_ime ON)
+            set(_stage_skip_affine_fusion ON)
+            set(_stage_fuse_tb ON)
+            set(_stage_elim_zero ON)
+            set(_stage_elim_copy ON)
+            set(_stage_decode_tb ON)
+          endif()
+        elseif(_stage STREQUAL "kv_step")
+          # Static cache views can have non-unit inner stride; the current
+          # batch-matmul vectorizer emits an invalid vector.load for them.
+          set(_stage_skip_batch ON)
+          if(MDL_SINGLE_FORWARD_IME)
+            set(_stage_skip_affine_fusion ON)
+            set(_stage_fuse_tb ON)
+            set(_stage_elim_zero ON)
+            set(_stage_elim_copy ON)
+            set(_stage_decode_tb ON)
+          endif()
+        endif()
+        add_custom_command(
+          OUTPUT "${BIN}/${_stage}_forward.o"
+          COMMAND ${CMAKE_COMMAND} -E env
+                  "PYTHON=${Python3_EXECUTABLE}"
+                  "BUDDY_WHISPER_PIPELINE=single_forward"
+                  "BUDDY_SINGLE_FORWARD_IME=OFF"
+                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
+                  "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
+                  "${BIN}/${_stage}_forward.mlir"
+                  "${BIN}/${_stage}_forward.o"
+                  "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
+          DEPENDS "${IMPORT_STAMP}"
+                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
+                  "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+                  buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
+          COMMENT "[${MDL_NAME}] Compiling ${_stage} forward wrapper"
+          VERBATIM)
+        add_custom_command(
+          OUTPUT "${BIN}/${_stage}_subgraph.o"
+          COMMAND ${CMAKE_COMMAND} -E env
+                  "PYTHON=${Python3_EXECUTABLE}"
+                  "BUDDY_WHISPER_PIPELINE=single_forward"
+                  "BUDDY_SINGLE_FORWARD_IME=${_stage_ime}"
+                  "BUDDY_SINGLE_FORWARD_SKIP_BATCH=${_stage_skip_batch}"
+                  "BUDDY_SINGLE_FORWARD_SKIP_AFFINE_FUSION=${_stage_skip_affine_fusion}"
+                  "BUDDY_SINGLE_FORWARD_FUSE_TB=${_stage_fuse_tb}"
+                  "BUDDY_SINGLE_FORWARD_ELIM_ZERO=${_stage_elim_zero}"
+                  "BUDDY_SINGLE_FORWARD_ELIM_COPY=${_stage_elim_copy}"
+                  "BUDDY_SINGLE_FORWARD_DECODE_TB=${_stage_decode_tb}"
+                  bash "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
+                  "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
+                  "${BIN}/${_stage}_subgraph.mlir"
+                  "${BIN}/${_stage}_subgraph.o"
+                  "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
+          DEPENDS "${IMPORT_STAMP}"
+                  "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh"
+                  "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+                  buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
+          COMMENT "[${MDL_NAME}] Compiling ${_stage} compute graph"
+          VERBATIM)
+      endforeach()
+    else()
     add_custom_command(
       OUTPUT "${_SINGLE_FORWARD_MLIR_DIR}/forward.o"
       COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
@@ -1155,8 +1266,11 @@ function(buddy_add_model)
         ${LLVM_TOOLS_BINARY_DIR}/llc
       COMMENT "[${MDL_NAME}] Stage 2: forward.mlir -> forward.o"
       VERBATIM)
+    endif()
 
-    if(MDL_LAYER_PARTITION)
+    if(MDL_SINGLE_FORWARD_SPLIT)
+      # Both stage objects were added above.
+    elseif(MDL_LAYER_PARTITION)
       get_filename_component(
         _SINGLE_FORWARD_CODEGEN_DIR
         "${MDL_IMPORT_SCRIPT}"
@@ -1184,6 +1298,30 @@ function(buddy_add_model)
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o (${MDL_LOWER_SCRIPT})"
         VERBATIM)
     else()
+      if(MDL_SINGLE_FORWARD_IME)
+        get_filename_component(
+          _SINGLE_FORWARD_CODEGEN_DIR "${MDL_IMPORT_SCRIPT}" DIRECTORY)
+        set(_SINGLE_FORWARD_LOWER_SCRIPT
+          "${_SINGLE_FORWARD_CODEGEN_DIR}/lower_to_obj.sh")
+        add_custom_command(
+          OUTPUT "${BIN}/subgraph0.o"
+          COMMAND ${CMAKE_COMMAND} -E env
+                  "PYTHON=${Python3_EXECUTABLE}"
+                  "BUDDY_WHISPER_PIPELINE=single_forward"
+                  "BUDDY_SINGLE_FORWARD_IME=${MDL_SINGLE_FORWARD_IME}"
+                  bash "${_SINGLE_FORWARD_LOWER_SCRIPT}"
+                  "${BUDDY_BINARY_DIR}/buddy-opt"
+                  "${LLVM_TOOLS_BINARY_DIR}"
+                  "${BIN}/subgraph0.mlir"
+                  "${BIN}/subgraph0.o"
+                  "${MDL_NUM_THREADS}"
+                  ${MDL_LLC_ATTRS_LIST}
+          DEPENDS "${IMPORT_STAMP}" "${_SINGLE_FORWARD_LOWER_SCRIPT}"
+                  "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+                  buddy-opt ${LLVM_TOOLS_BINARY_DIR}/llc
+          COMMENT "[${MDL_NAME}] Stage 2: checked single-forward lowering"
+          VERBATIM)
+      else()
       add_custom_command(
         OUTPUT "${BIN}/subgraph0.o"
         COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt "${BIN}/subgraph0.mlir"
@@ -1232,6 +1370,7 @@ function(buddy_add_model)
           ${LLVM_TOOLS_BINARY_DIR}/llc
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o"
         VERBATIM)
+      endif()
     endif()
 
   elseif(MDL_BUILD_DIR)
@@ -1614,11 +1753,14 @@ function(buddy_add_model)
     rax-pack
     "${GEN_RHAL}"
     "${MODEL_SO}"
-    ${RUNNER_PLUGIN_TARGET}
-    ${MODEL_PLUGIN_TARGET}
     ${MDL_ASSET_DSTS})
+  if(NOT IS_RVV_CROSSCOMPILE OR NOT MDL_RISCV_RUNTIME_LINK_LIBS)
+    list(APPEND MDL_STAGE4_DEPS ${RUNNER_PLUGIN_TARGET} ${MODEL_PLUGIN_TARGET})
+  endif()
   if(MDL_MODEL_KIND STREQUAL "single_forward")
-    list(APPEND MDL_STAGE4_DEPS "${BIN}/arg0.data")
+    # The import stamp produces arg0.data as a byproduct. Make does not
+    # create a standalone rule for that byproduct in a fresh build.
+    list(APPEND MDL_STAGE4_DEPS "${IMPORT_STAMP}")
   endif()
   list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
 

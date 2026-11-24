@@ -53,6 +53,9 @@ def gen_manifest(
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = spec["params_size"]
+    precision = spec.get("precision", "f32")
+    if precision not in ("f32", "f16"):
+        raise ValueError(f"Unsupported Whisper precision: {precision}")
     vocab_size = spec["vocab_size"]
     max_token_len = spec["max_token_len"]
     mel_bins = spec["mel_bins"]
@@ -69,6 +72,20 @@ def gen_manifest(
     emit(f'    vocab_uri = "file:{vocab_file}",')
     emit(f'    runner_library = "{runner_library}",')
     emit(f'    model_library = "{model_library}",')
+    if precision == "f16":
+        emit('    precision = "f16",')
+    if spec.get("encoder_cache", False):
+        emit('    encoder_cache = "true",')
+        emit(f'    encoder_params_size = "{spec["encoder_params_size"]}",')
+    last_logits_only = bool(spec.get("last_logits_only", False))
+    kv_cache = bool(spec.get("kv_cache", False))
+    if last_logits_only:
+        emit('    last_logits_only = "true",')
+    if kv_cache:
+        emit('    kv_cache = "true",')
+        emit(
+            f'    decoder_init_params_size = "{spec["decoder_init_params_size"]}",'
+        )
     emit(f'    params_size = "{params_size}",')
     emit(f'    vocab_size = "{vocab_size}",')
     emit(f'    max_token_len = "{max_token_len}",')
@@ -82,7 +99,7 @@ def gen_manifest(
     emit("")
 
     emit('  rhal.constant @params {id = 1 : i32, storage = "external",')
-    emit(f"                         type = tensor<{params_size}xf32>,")
+    emit(f"                         type = tensor<{params_size}x{precision}>,")
     emit(f'                         uri = "file:{weight_file}"}}')
     emit("")
 
@@ -107,9 +124,10 @@ def gen_manifest(
         f'  rhal.buffer @decoder_tokens {{space = "host", '
         f"type = tensor<1x{max_token_len}xi64>}}"
     )
+    logits_length = 1 if last_logits_only else max_token_len
     emit(
         f'  rhal.buffer @logits {{space = "host", '
-        f"type = tensor<1x{max_token_len}x{vocab_size}xf32>}}"
+        f"type = tensor<1x{logits_length}x{vocab_size}xf32>}}"
     )
     emit("")
 

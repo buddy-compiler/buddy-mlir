@@ -11,14 +11,87 @@ set(BUDDY_WHISPER_SPEC
   CACHE FILEPATH "Whisper variant spec JSON, e.g. specs/base.json")
 set(BUDDY_WHISPER_MODEL_PATH "" CACHE PATH
   "Local HuggingFace whisper snapshot dir")
+option(BUDDY_WHISPER_K3_IME
+  "Use shared A100 FP16 IME GEMM and batch-matmul passes for Whisper"
+  OFF)
+file(READ "${BUDDY_WHISPER_SPEC}" _whisper_spec_json)
+string(JSON _whisper_encoder_cache ERROR_VARIABLE _whisper_cache_error
+       GET "${_whisper_spec_json}" encoder_cache)
+if(_whisper_cache_error)
+  set(_whisper_encoder_cache OFF)
+endif()
+string(JSON _whisper_kv_cache ERROR_VARIABLE _whisper_kv_error
+       GET "${_whisper_spec_json}" kv_cache)
+if(_whisper_kv_error)
+  set(_whisper_kv_cache OFF)
+endif()
+set(_whisper_ime OFF)
+if(BUDDY_WHISPER_K3_IME)
+  set(_whisper_ime ON)
+else()
+  string(JSON _whisper_spec_ime ERROR_VARIABLE _whisper_ime_err
+    GET "${_whisper_spec_json}" ime)
+  if(NOT _whisper_ime_err AND (_whisper_spec_ime STREQUAL "ON" OR
+     _whisper_spec_ime STREQUAL "true"))
+    set(_whisper_ime ON)
+  endif()
+endif()
+
+string(JSON _whisper_num_threads ERROR_VARIABLE _whisper_threads_err
+  GET "${_whisper_spec_json}" num_threads)
+if(_whisper_threads_err OR NOT _whisper_num_threads)
+  set(_whisper_num_threads 1)
+endif()
+
+set(WHISPER_SKIP_AFFINE_FUSION OFF)
+if(_whisper_kv_cache AND _whisper_ime)
+  # Fusing affine loops after all encoder GEMMs enter IME changes values in
+  # the first Whisper encoder block on K3. The KV graph uses all IME GEMMs
+  # and skips only that pass for its encoder.
+  set(WHISPER_SKIP_AFFINE_FUSION ON)
+endif()
+
+if(_whisper_ime)
+  if(NOT IS_RVV_CROSSCOMPILE AND NOT HAVE_LOCAL_RVV)
+    message(FATAL_ERROR
+      "Whisper K3 IME requires RISC-V cross-compilation or local RVV")
+  endif()
+  if(NOT BUDDY_RISCV_VLEN STREQUAL "1024")
+    message(FATAL_ERROR
+      "Whisper K3 IME requires BUDDY_RISCV_VLEN=1024; got '${BUDDY_RISCV_VLEN}'")
+  endif()
+  if(NOT BUDDY_RISCV_ENABLE_ZFH_ZVFH)
+    message(FATAL_ERROR
+      "Whisper K3 IME requires BUDDY_RISCV_ENABLE_ZFH_ZVFH=ON")
+  endif()
+  string(JSON _whisper_precision ERROR_VARIABLE _whisper_prec_err
+    GET "${_whisper_spec_json}" precision)
+  if(_whisper_prec_err OR NOT _whisper_precision STREQUAL "f16")
+    message(FATAL_ERROR "Whisper K3 IME requires precision=f16")
+  endif()
+endif()
 
 set(WHISPER_EXAMPLE "${CMAKE_SOURCE_DIR}/examples/BuddyWhisper")
+if(IS_RVV_CROSSCOMPILE)
+  # BuddyLibDAP's MLIR objects are compiled for BUDDY_TARGET_TRIPLE. Link
+  # them only into the RISC-V plugins; the host plugin targets are not used.
+  set(WHISPER_RUNTIME_LINK_LIBS)
+  set(WHISPER_RISCV_RUNTIME_LINK_LIBS BuddyLibDAP)
+else()
+  set(WHISPER_RUNTIME_LINK_LIBS BuddyLibDAP mlir_c_runner_utils)
+  set(WHISPER_RISCV_RUNTIME_LINK_LIBS)
+endif()
 
 buddy_add_model(
   NAME whisper
   TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
+  SINGLE_FORWARD_IME "${_whisper_ime}"
+  SINGLE_FORWARD_SKIP_AFFINE_FUSION "${WHISPER_SKIP_AFFINE_FUSION}"
+  SINGLE_FORWARD_SPLIT "${_whisper_encoder_cache}"
+  SINGLE_FORWARD_KV "${_whisper_kv_cache}"
   SPEC "${BUDDY_WHISPER_SPEC}"
+  NUM_THREADS "${_whisper_num_threads}"
   RUNNER_SRC WhisperRunner.cpp
   RUNNER_PLUGIN_SRC WhisperRunnerPlugin.cpp
   MODEL_PLUGIN_SRC WhisperAudioTranscriptionModelPlugin.cpp
@@ -33,9 +106,8 @@ buddy_add_model(
   ASSET_FILES
     "${WHISPER_EXAMPLE}/vocab.txt"
     "${WHISPER_EXAMPLE}/audio.wav"
-  RUNTIME_LINK_LIBS
-    BuddyLibDAP
-    mlir_c_runner_utils
+  RUNTIME_LINK_LIBS ${WHISPER_RUNTIME_LINK_LIBS}
+  RISCV_RUNTIME_LINK_LIBS ${WHISPER_RISCV_RUNTIME_LINK_LIBS}
 )
 
 if(BUDDY_ENABLE_TESTS)
