@@ -33,7 +33,10 @@ fi
 LLC_ATTRS=("$@")
 CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
 VIR="$("${PYTHON:-python3}" -c 'import sys; sys.path.insert(0, sys.argv[1]); from compile_pipeline import kernels_vir_passes; print("\n".join(kernels_vir_passes(sys.argv[2:])))' "$CODEGEN" "${LLC_ATTRS[@]}")"
-mapfile -t VIR_PASSES <<< "$VIR"
+VIR_PASSES=()
+while IFS= read -r pass; do
+  VIR_PASSES+=("$pass")
+done <<< "$VIR"
 BUDDY_TRANSLATE="$(dirname "$BUDDY_OPT")/buddy-translate"
 KERNELS="$(dirname "$IN")/yolov8_kernels.mlir"
 A100_LLC_ATTRS=()
@@ -47,7 +50,9 @@ try:
 except ValueError as e:
     sys.exit(f"lower_to_obj.sh: {e}")
 ' "$CODEGEN" "${LLC_ATTRS[@]}")"
-  mapfile -t A100_LLC_ATTRS <<< "$A100"
+  while IFS= read -r attr; do
+    A100_LLC_ATTRS+=("$attr")
+  done <<< "$A100"
 fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

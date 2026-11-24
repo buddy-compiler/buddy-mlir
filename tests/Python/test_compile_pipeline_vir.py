@@ -107,6 +107,7 @@ def vir_schedule(pipeline_type, llc_attrs):
     for _, args in stages:
         for i, a in enumerate(args):
             if a.startswith("-lower-vir-to-vector"):
+                assert i > 0, "-lower-vir-to-vector must follow -vir-schedule"
                 return args[i - 1]
     raise AssertionError(f"no -lower-vir-to-vector in {pipeline_type}")
 
@@ -163,7 +164,10 @@ for norm in (False, True):
         ("RVV", "kernels", RVV),
     ):
         out = subprocess.run(
-            [BUDDY_OPT, lower_vir(pipeline_type, llc_attrs)],
+            [
+                BUDDY_OPT,
+                *compile_pipeline.kernels_vir_passes(llc_attrs.split()),
+            ],
             input=text,
             capture_output=True,
             text=True,
