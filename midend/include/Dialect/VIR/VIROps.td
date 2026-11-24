@@ -146,7 +146,7 @@ def VIR_StoreOp : VIR_Op<"store"> {
 // Basic Operations
 //===----------------------------------------------------------------------===//
 
-def VIR_ConstantOp : VIR_Op<"constant"> {
+def VIR_ConstantOp : VIR_Op<"constant", [Pure]> {
   let summary = "Constant operation for dynamic vector IR.";
   let description = [{
     The `constant` operation creates a constant value or vector.
@@ -158,7 +158,7 @@ def VIR_ConstantOp : VIR_Op<"constant"> {
   let assemblyFormat = "attr-dict `:` qualified(type($result))";
 }
 
-def VIR_BroadcastOp : VIR_Op<"broadcast"> {
+def VIR_BroadcastOp : VIR_Op<"broadcast", [Pure]> {
   let summary = "Broadcast operation for dynamic vector IR.";
   let description = [{
     The `broadcast` operation broadcasts a scalar value to a vector.
@@ -171,7 +171,7 @@ def VIR_BroadcastOp : VIR_Op<"broadcast"> {
 }
 
 def VIR_FromVectorOp : VIR_Op<"from_vector",
-    [AllElementTypesMatch<["source", "result"]>]> {
+    [Pure, AllElementTypesMatch<["source", "result"]>]> {
   let summary = "A fixed-size vector as a dynamic vector.";
   let description = [{
     The `from_vector` operation gives the lanes of a 1-D vector, computed
@@ -217,7 +217,8 @@ def VIR_ShuffleOp : VIR_Op<"shuffle",
 // Arithmetic Operations
 //===----------------------------------------------------------------------===//
 
-def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> {
+def VIR_FMAOp : VIR_Op<"fma",
+    [Pure, AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> {
   let summary = "Fused Multiply-Add operation for dynamic vector IR.";
   let description = [{
     The `fma` operation performs fused multiply-add: result = lhs * rhs + acc.
@@ -233,7 +234,7 @@ def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> 
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` qualified(type($lhs))";
 }
 
-def VIR_ReduceOp : VIR_Op<"reduce"> {
+def VIR_ReduceOp : VIR_Op<"reduce", [Pure]> {
   let summary = "Horizontal reduction for dynamic vector IR.";
   let description = [{
     The `reduce` operation reduces a dynamic vector into a scalar, its lanes
@@ -263,7 +264,7 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
 }
 
 def VIR_SelectOp : VIR_Op<"select",
-    [AllTypesMatch<["trueValue", "falseValue", "result"]>]> {
+    [Pure, AllTypesMatch<["trueValue", "falseValue", "result"]>]> {
   let summary = "Select operation for dynamic vector IR.";
   let description = [{
     The `select` operation selects elements from `trueValue` or `falseValue`
@@ -280,7 +281,7 @@ def VIR_SelectOp : VIR_Op<"select",
                        "`:` qualified(type($condition)) `,` qualified(type($trueValue))";
 }
 
-def VIR_ExtFOp : VIR_Op<"extf"> {
+def VIR_ExtFOp : VIR_Op<"extf", [Pure]> {
   let summary = "Floating-point extend for dynamic vector IR.";
   let description = [{
     The `extf` operation extends floating-point element type width
@@ -292,7 +293,7 @@ def VIR_ExtFOp : VIR_Op<"extf"> {
   let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
 }
 
-def VIR_ExtSIOp : VIR_Op<"extsi"> {
+def VIR_ExtSIOp : VIR_Op<"extsi", [Pure]> {
   let summary = "Signed integer extend for dynamic vector IR.";
   let description = [{
     The `extsi` operation sign-extends the integer elements of a dynamic
@@ -304,7 +305,7 @@ def VIR_ExtSIOp : VIR_Op<"extsi"> {
   let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
 }
 
-def VIR_ExtUIOp : VIR_Op<"extui"> {
+def VIR_ExtUIOp : VIR_Op<"extui", [Pure]> {
   let summary = "Unsigned integer extend for dynamic vector IR.";
   let description = [{
     The `extui` operation zero-extends the integer elements of a dynamic
@@ -316,7 +317,7 @@ def VIR_ExtUIOp : VIR_Op<"extui"> {
   let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
 }
 
-def VIR_TruncFOp : VIR_Op<"truncf"> {
+def VIR_TruncFOp : VIR_Op<"truncf", [Pure]> {
   let summary = "Floating-point truncate for dynamic vector IR.";
   let description = [{
     The `truncf` operation truncates floating-point element type width
