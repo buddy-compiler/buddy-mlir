@@ -130,3 +130,77 @@ func.func @no_gain(%a: memref<256xf32>, %o: memref<256xf32>, %f: f32) {
 // CHECK: vir.set_vl
 // CHECK-NEXT: vir.broadcast
 // CHECK-NEXT: vir.load
+
+// -----
+
+// An op that is not speculatable (a division of a divisor not known
+// nonzero) stays after the last op before it that may not return, the call
+// that checks the divisor: with a divisor 0, the assertion stops the
+// program before the division. The rest is ordered: 4 -> 3.
+func.func private @check_divisor(%d: i32) -> i32
+
+func.func @guarded_division(%x: i32, %d: i32, %s1: i32, %s2: i32,
+                            %out: memref<4xi32>) -> i32 {
+  %c0 = arith.constant 0 : index
+  %vl = arith.constant 4 : index
+  %result = vir.set_vl %vl : index {
+    %g = func.call @check_divisor(%d) : (i32) -> i32
+    %q = arith.divsi %x, %d : i32
+    %a = vir.broadcast %q : i32 -> !vir.vec<?xi32>
+    %b = vir.broadcast %s1 : i32 -> !vir.vec<?xi32>
+    %c = vir.broadcast %s2 : i32 -> !vir.vec<?xi32>
+    %ab = arith.addi %a, %b : !vir.vec<?xi32>
+    %sum = arith.addi %ab, %c : !vir.vec<?xi32>
+    vir.store %sum, %out[%c0] : !vir.vec<?xi32> -> memref<4xi32>
+    vector.yield %g : i32
+  } -> i32
+  return %result : i32
+}
+
+// CHECK: vir-schedule: MaxLive 4 -> 3 in the block of
+// CHECK-LABEL: func.func @guarded_division
+// CHECK: vir.set_vl
+// CHECK-NEXT: func.call @check_divisor
+// CHECK-NEXT: arith.divsi
+// CHECK-NEXT: vir.broadcast
+// CHECK-NEXT: vir.broadcast
+// CHECK-NEXT: arith.addi
+// CHECK-NEXT: vir.broadcast
+// CHECK-NEXT: arith.addi
+// CHECK-NEXT: vir.store
+
+// -----
+
+// The same after a loop that may not end (an scf.while, which loops while
+// %d is 0): the division by %d stays after it.
+func.func @division_after_while(%x: i32, %d: i32, %s1: i32, %s2: i32,
+                                %out: memref<4xi32>) -> i32 {
+  %c0 = arith.constant 0 : index
+  %vl = arith.constant 4 : index
+  %result = vir.set_vl %vl : index {
+    %w = scf.while (%i = %d) : (i32) -> i32 {
+      %zero = arith.constant 0 : i32
+      %more = arith.cmpi eq, %i, %zero : i32
+      scf.condition(%more) %i : i32
+    } do {
+    ^bb0(%i: i32):
+      scf.yield %i : i32
+    }
+    %q = arith.divsi %x, %d : i32
+    %a = vir.broadcast %q : i32 -> !vir.vec<?xi32>
+    %b = vir.broadcast %s1 : i32 -> !vir.vec<?xi32>
+    %c = vir.broadcast %s2 : i32 -> !vir.vec<?xi32>
+    %ab = arith.addi %a, %b : !vir.vec<?xi32>
+    %sum = arith.addi %ab, %c : !vir.vec<?xi32>
+    vir.store %sum, %out[%c0] : !vir.vec<?xi32> -> memref<4xi32>
+    vector.yield %w : i32
+  } -> i32
+  return %result : i32
+}
+
+// CHECK: vir-schedule: MaxLive 4 -> 3 in the block of
+// CHECK-LABEL: func.func @division_after_while
+// CHECK: vir.set_vl
+// CHECK-NEXT: scf.while
+// CHECK: arith.divsi
+// CHECK-NEXT: vir.broadcast

@@ -30,8 +30,11 @@
 //
 // Memory accesses keep their order where it matters: a read stays after the
 // write before it, a write after the reads and the write before it. Reads
-// move freely among themselves and pure ops anywhere. An op of unknown
-// effects is a write.
+// move freely among themselves. An op of unknown effects is a write. An op
+// that is not speculatable (a division of a divisor not known nonzero, a
+// load) stays after the last op before it that may not return (a write, a
+// call or an assertion among them, or a loop that may not end): no op runs
+// where it did not. Speculatable pure ops move anywhere.
 //
 // A block is reordered only when its MaxLive, counted as -lower-vir-to-vector
 // counts it (IN U OUT at every op, a loop counted at its body's peak), goes
@@ -88,6 +91,25 @@ MemoryKind memoryKind(Operation *op) {
     kind = MemoryKind::Read;
   }
   return kind;
+}
+
+/// Whether `op` may not return, which an op after it relies on: it writes
+/// (a call, an assertion, an op of unknown effects among them), or it is or
+/// holds an op with regions that may not terminate (not speculatable by
+/// itself, e.g. an scf.while, an scf.for of a step other than 1).
+bool mayNotReturn(Operation *op, MemoryKind kind) {
+  if (kind == MemoryKind::Write)
+    return true;
+  return op
+      ->walk([](Operation *nested) {
+        if (nested->getNumRegions() == 0)
+          return WalkResult::advance();
+        auto spec = dyn_cast<ConditionallySpeculatable>(nested);
+        if (!spec || spec.getSpeculatability() == Speculation::NotSpeculatable)
+          return WalkResult::interrupt();
+        return WalkResult::advance();
+      })
+      .wasInterrupted();
 }
 
 /// Schedules the blocks of a vir.set_vl region (see above).
@@ -194,10 +216,14 @@ unsigned RegionScheduler::schedule(Block &block) {
     return peakOf[&block] = maxLive(block);
 
   // Dependences: the ops of the block whose results an op uses (in its
-  // regions too), and the memory accesses it is ordered after.
+  // regions too), and the ops it is ordered after: memory accesses, and the
+  // last op before it that may not return when it is not speculatable (a
+  // division by zero, a load out of bounds must not run before the call
+  // that checks it, or a loop that may not end). A barrier (an op that may
+  // not return) stays after the writes and the barrier before it.
   DenseMap<Operation *, SmallVector<Operation *, 4>> dataPreds, orderPreds;
   DenseSet<Operation *> hasDataUser;
-  Operation *lastWrite = nullptr;
+  Operation *lastWrite = nullptr, *lastBarrier = nullptr;
   SmallVector<Operation *> readsSinceWrite;
   for (Operation *op : original) {
     // an entry for every op: the post-order below only reads them
@@ -212,7 +238,15 @@ unsigned RegionScheduler::schedule(Block &block) {
     for (Operation *pred : preds)
       hasDataUser.insert(pred);
     dataPreds[op].assign(preds.begin(), preds.end());
-    switch (memoryKind(op)) {
+    MemoryKind kind = memoryKind(op);
+    bool barrier = mayNotReturn(op, kind);
+    if (lastBarrier && (barrier || !isSpeculatable(op)))
+      orderPreds[op].push_back(lastBarrier);
+    if (barrier && kind != MemoryKind::Write && lastWrite)
+      orderPreds[op].push_back(lastWrite);
+    if (barrier)
+      lastBarrier = op;
+    switch (kind) {
     case MemoryKind::None:
       break;
     case MemoryKind::Read:
