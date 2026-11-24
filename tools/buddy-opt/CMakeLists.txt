@@ -80,6 +80,7 @@ target_link_libraries(buddy-opt
   StaticizeMemRefLayoutPass
   ElideMaskedTileCopiesPass
   OptimizeMaskedTileMemoryPasses
+  OptimizeLinalgReductionPasses
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
   TraceInsert

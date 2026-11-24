@@ -144,6 +144,7 @@ void registerSimplifyTosaMatmulScalarPass();
 void registerElideMaskedTileCopiesPass();
 void registerForwardMaskedLoadsPass();
 void registerOptimizeMaskedTileMemoryPasses();
+void registerOptimizeLinalgReductionPasses();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
 void registerConvertTraceToLLVMPass();
@@ -237,6 +238,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerElideMaskedTileCopiesPass();
   mlir::buddy::registerForwardMaskedLoadsPass();
   mlir::buddy::registerOptimizeMaskedTileMemoryPasses();
+  mlir::buddy::registerOptimizeLinalgReductionPasses();
   // Register eliminate redundant memref.copy pass.
   mlir::buddy::registerEliminateMemRefCopyPass();
   // Register eliminate large zero constants pass.
