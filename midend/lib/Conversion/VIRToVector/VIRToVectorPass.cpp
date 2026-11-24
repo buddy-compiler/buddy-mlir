@@ -852,6 +852,26 @@ private:
     return Type{};
   }
 
+  /// Whether a value of `region`, or of a region nested in it, is a dynamic
+  /// vector (of any scaling factor)
+  static bool hasDynamicVector(Region &region) {
+    auto isDynamic = [](Type type) {
+      return isa<vir::DynamicVectorType>(type);
+    };
+    return region
+        .walk([&](Operation *op) {
+          if (llvm::any_of(op->getOperandTypes(), isDynamic) ||
+              llvm::any_of(op->getResultTypes(), isDynamic))
+            return WalkResult::interrupt();
+          for (Region &inner : op->getRegions())
+            for (Block &block : inner)
+              if (llvm::any_of(block.getArgumentTypes(), isDynamic))
+                return WalkResult::interrupt();
+          return WalkResult::advance();
+        })
+        .wasInterrupted();
+  }
+
   /// Recursively lower operations within a given block
   void lowerBlock(OpBuilder &builder, Location loc, Block *block,
                   DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
@@ -2411,12 +2431,25 @@ private:
   matchAndRewrite(vir::SetVLOp op, vir::SetVLOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
+    Region &region = op.getRegion();
+
+    // A region of no dynamic vector (e.g. its unused vector ops erased by
+    // DCE): the vector length applies to none of its ops, which are those of
+    // the parent block, its results those of its yield
+    if (!hasDynamicVector(region)) {
+      Block &block = region.front();
+      Operation *yield = block.getTerminator();
+      SmallVector<Value> results(yield->getOperands());
+      rewriter.inlineBlockBefore(&block, op);
+      rewriter.eraseOp(yield);
+      rewriter.replaceOp(op, results);
+      return success();
+    }
 
     //===------------------------------------------------------------------===//
     // Step 1: Recursive search for anchor type.
     //===------------------------------------------------------------------===//
     unsupportedOp = false;
-    Region &region = op.getRegion();
     Type anchorType = findAnchorTypeRecursive(region);
     if (anchorType)
       anchorType =
