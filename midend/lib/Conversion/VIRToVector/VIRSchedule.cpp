@@ -38,11 +38,11 @@
 //
 // A block is reordered only when its MaxLive, counted as -lower-vir-to-vector
 // counts it (IN U OUT at every op, a loop counted at its body's peak), goes
-// down. (Every dynamic vector is counted, for any target: on RVV,
-// -lower-vir-to-vector does not count a broadcast used only as the scalar
-// operand of a .vf instruction.) Each block is scheduled after its nested
-// blocks. Linear in the ops of a block, but for the sort of the operands of
-// each op.
+// down. With `rvv`, a broadcast that is only the scalar operand of
+// arithmetic (.vf / .vx) is not counted, as -lower-vir-to-vector does not
+// count it with an RVV VLEN (it stays in a scalar register). Each block is
+// scheduled after its nested blocks. Linear in the ops of a block, but for the
+// sort of the operands of each op.
 //
 //===----------------------------------------------------------------------===//
 
@@ -60,19 +60,12 @@
 #include "VIR/VIROps.h"
 #include "VIR/VIRTypes.h"
 
+#include "RegisterPressure.h"
+
 using namespace mlir;
 using namespace buddy;
 
 namespace {
-
-bool isDynamicVector(Value v) {
-  return isa<vir::DynamicVectorType>(v.getType());
-}
-
-/// The dynamic vectors among `values`.
-unsigned countDynamicVectors(ValueRange values) {
-  return llvm::count_if(values, isDynamicVector);
-}
 
 /// How an op orders with the memory accesses of its block.
 enum class MemoryKind { None, Read, Write };
@@ -115,7 +108,7 @@ bool mayNotReturn(Operation *op, MemoryKind kind) {
 /// Schedules the blocks of a vir.set_vl region (see above).
 class RegionScheduler {
 public:
-  explicit RegionScheduler(bool verbose) : verbose(verbose) {}
+  RegionScheduler(bool rvv, bool verbose) : rvv(rvv), verbose(verbose) {}
 
   /// Schedules `block` and the blocks nested in it; returns its MaxLive.
   unsigned schedule(Block &block);
@@ -131,6 +124,15 @@ private:
   /// The peak of the blocks of `op` (0 without regions).
   unsigned innerPeak(Operation *op);
 
+  /// Whether `v` is counted: a dynamic vector, but on RVV not a broadcast
+  /// that is only the scalar operand of arithmetic, as -lower-vir-to-vector
+  /// counts it (takesVectorRegisters).
+  bool counted(Value v) const { return vir::takesVectorRegisters(v, rvv); }
+  unsigned countIn(ValueRange values) const {
+    return llvm::count_if(values, [&](Value v) { return counted(v); });
+  }
+
+  bool rvv;
   bool verbose;
   DenseMap<Block *, unsigned> peakOf;
 };
@@ -166,11 +168,11 @@ unsigned RegionScheduler::maxLive(Block &block) {
     --delta[lastUse(v, start) + 1];
   };
   for (BlockArgument arg : block.getArguments())
-    if (isDynamicVector(arg))
+    if (counted(arg))
       addRange(arg, 0);
   for (Operation &op : block)
     for (Value result : op.getResults())
-      if (isDynamicVector(result))
+      if (counted(result))
         addRange(result, position[&op]);
   unsigned peak = 0;
   int live = 0;
@@ -180,10 +182,10 @@ unsigned RegionScheduler::maxLive(Block &block) {
     unsigned atOp = live;
     if (op.getNumRegions() != 0) {
       // the body's peak, not the results nor the operands dying here
-      atOp -= countDynamicVectors(op.getResults());
+      atOp -= countIn(op.getResults());
       SmallPtrSet<Value, 4> seen;
       for (Value operand : op.getOperands()) {
-        if (!isDynamicVector(operand) || !seen.insert(operand).second)
+        if (!counted(operand) || !seen.insert(operand).second)
           continue;
         Operation *def = operand.getDefiningOp();
         bool local = isa<BlockArgument>(operand)
@@ -279,9 +281,7 @@ unsigned RegionScheduler::schedule(Block &block) {
   // their results; at the op itself, its operands and its results (a loop:
   // its body's peak).
   DenseMap<Operation *, unsigned> need;
-  auto results = [](Operation *op) {
-    return countDynamicVectors(op->getResults());
-  };
+  auto results = [&](Operation *op) { return countIn(op->getResults()); };
   auto sortByNeed = [&](SmallVectorImpl<Operation *> &ops) {
     llvm::stable_sort(ops, [&](Operation *a, Operation *b) {
       return int(need[a]) - int(results(a)) > int(need[b]) - int(results(b));
@@ -389,13 +389,20 @@ public:
 
   void runOnOperation() override {
     getOperation().walk<WalkOrder::PreOrder>([&](vir::SetVLOp setVL) {
-      RegionScheduler scheduler(verbose);
+      RegionScheduler scheduler(rvv, verbose);
       for (Block &block : setVL.getRegion())
         scheduler.schedule(block);
       return WalkResult::skip();
     });
   }
 
+  Option<bool> rvv{
+      *this, "rvv",
+      llvm::cl::desc("Count the vector registers as on RVV, as "
+                     "-lower-vir-to-vector does with an RVV VLEN: not a "
+                     "broadcast that is only the scalar operand of "
+                     "arithmetic (.vf / .vx)"),
+      llvm::cl::init(false)};
   Option<bool> verbose{*this, "verbose",
                        llvm::cl::desc("Print MaxLive before and after"),
                        llvm::cl::init(false)};
