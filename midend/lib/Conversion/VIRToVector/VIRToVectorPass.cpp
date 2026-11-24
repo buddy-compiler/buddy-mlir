@@ -890,6 +890,46 @@ private:
     return Type{};
   }
 
+  /// Whether a value of `region`, or of a region nested in it, is a dynamic
+  /// vector (of any scaling factor)
+  static bool hasDynamicVector(Region &region) {
+    auto isDynamic = [](Type type) {
+      return isa<vir::DynamicVectorType>(type);
+    };
+    return region
+        .walk([&](Operation *op) {
+          if (llvm::any_of(op->getOperandTypes(), isDynamic) ||
+              llvm::any_of(op->getResultTypes(), isDynamic))
+            return WalkResult::interrupt();
+          for (Region &inner : op->getRegions())
+            for (Block &block : inner)
+              if (llvm::any_of(block.getArgumentTypes(), isDynamic))
+                return WalkResult::interrupt();
+          return WalkResult::advance();
+        })
+        .wasInterrupted();
+  }
+
+  /// Whether the ops of `region`, and of the regions nested in it, have no
+  /// memory effect but reads
+  static bool onlyReads(Region &region) {
+    return !region
+                .walk([](Operation *op) {
+                  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+                    return WalkResult::advance();
+                  auto iface = dyn_cast<MemoryEffectOpInterface>(op);
+                  if (!iface)
+                    return WalkResult::interrupt();
+                  SmallVector<MemoryEffects::EffectInstance> effects;
+                  iface.getEffects(effects);
+                  for (auto &effect : effects)
+                    if (!isa<MemoryEffects::Read>(effect.getEffect()))
+                      return WalkResult::interrupt();
+                  return WalkResult::advance();
+                })
+                .wasInterrupted();
+  }
+
   /// Recursively lower operations within a given block
   void lowerBlock(OpBuilder &builder, Location loc, Block *block,
                   DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
@@ -2522,12 +2562,38 @@ private:
   matchAndRewrite(vir::SetVLOp op, vir::SetVLOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
+    Region &region = op.getRegion();
+
+    // A region of no dynamic vector (e.g. its unused vector ops erased by
+    // DCE): the vector length applies to none of its ops.
+    // - Without results, it runs once per chunk of lanes (none for vl 0),
+    //   and its only writes are stores of vir.reduce results (the verifier):
+    //   with none left, it reads and computes nothing it gives. It is
+    //   erased; its ops are not moved where they may not have run.
+    // - With results (a constant vl), its scalar ops run once: they are
+    //   those of the parent block, its results those of its yield.
+    bool noVector = !hasDynamicVector(region);
+    if (noVector && op.getNumResults() == 0) {
+      if (!onlyReads(region))
+        return op.emitError("a vir.set_vl without results and with no "
+                            "dynamic vector writes memory");
+      rewriter.eraseOp(op);
+      return success();
+    }
+    if (noVector) {
+      Block &block = region.front();
+      Operation *yield = block.getTerminator();
+      SmallVector<Value> results(yield->getOperands());
+      rewriter.inlineBlockBefore(&block, op);
+      rewriter.eraseOp(yield);
+      rewriter.replaceOp(op, results);
+      return success();
+    }
 
     //===------------------------------------------------------------------===//
     // Step 1: Recursive search for anchor type.
     //===------------------------------------------------------------------===//
     unsupportedOp = false;
-    Region &region = op.getRegion();
     Type anchorType = findAnchorTypeRecursive(region);
     if (anchorType)
       anchorType =
