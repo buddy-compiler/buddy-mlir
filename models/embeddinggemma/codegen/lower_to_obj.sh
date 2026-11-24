@@ -8,6 +8,7 @@
 # Usage: lower_to_obj.sh <buddy-opt> <llvm-bin-dir> <in.mlir> <out.o> [threads] [llc-attrs...]
 set -euo pipefail
 BUDDY_OPT="$1"; LLVM_BIN="$2"; IN="$3"; OUT="$4"
+THREADS="${5:-1}"
 shift 4
 if [[ $# -gt 0 ]]; then
   shift
@@ -19,7 +20,7 @@ GRAPH_OUT="$OUT"
 SOFTMAX_TRANSFORM=()
 if [[ -f "$KERNELS" ]]; then
   SOFTMAX_TRANSFORM=(-transform-interpreter=entry-point=__vectorize_softmax_exp)
-  : "${EMBEDDINGGEMMA_OBJECT_LINKER:?CMake must supply the target object linker}"
+  : "${BUDDY_MODEL_OBJECT_LINKER:?buddy_add_model must supply LOWER_LINKER}"
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
   GRAPH_OUT="$TMP/graph.o"
@@ -44,7 +45,7 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -convert-linalg-to-affine-loops \
       -affine-parallelize -lower-affine -canonicalize \
       -optimize-allocation-liveness \
-      -convert-scf-to-openmp -convert-linalg-to-loops -convert-vector-to-scf \
+      "-convert-scf-to-openmp=num-threads=${THREADS}" -convert-linalg-to-loops -convert-vector-to-scf \
       -expand-strided-metadata -lower-affine -cse -convert-vector-to-llvm \
       -memref-expand -convert-arith-to-llvm -finalize-memref-to-llvm \
       -convert-scf-to-cf -convert-cf-to-llvm -llvm-request-c-wrappers \
@@ -64,8 +65,8 @@ if [[ -f "$KERNELS" ]]; then
 import shlex, sys
 sys.path.insert(0, sys.argv[1])
 from compile_pipeline import build_stages, run_pipeline
-stages = build_stages("kernels_ime", 0, shlex.join(sys.argv[6:]))
+stages = build_stages("kernels_ime", int(sys.argv[6]), shlex.join(sys.argv[7:]))
 run_pipeline(stages, sys.argv[4], sys.argv[5], sys.argv[2], sys.argv[3])
-' "$CODEGEN" "$BUDDY_OPT" "$LLVM_BIN" "$KERNELS" "$TMP/kernels.o" "${LLC_ATTRS[@]}"
-  "$EMBEDDINGGEMMA_OBJECT_LINKER" -r "$GRAPH_OUT" "$TMP/kernels.o" -o "$OUT"
+' "$CODEGEN" "$BUDDY_OPT" "$LLVM_BIN" "$KERNELS" "$TMP/kernels.o" "$THREADS" "${LLC_ATTRS[@]}"
+  "$BUDDY_MODEL_OBJECT_LINKER" -r "$GRAPH_OUT" "$TMP/kernels.o" -o "$OUT"
 fi

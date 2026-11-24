@@ -6,6 +6,7 @@
   "params_size": 307581953,
   "max_seq_len": 128,
   "max_position_embeddings": 2048,
+  "num_threads": 4,
   "hidden_size": 768,
   "so_name": "embeddinggemma_model.so",
   "weight_file": "arg0.data",
