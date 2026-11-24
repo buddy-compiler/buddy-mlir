@@ -96,6 +96,31 @@ for name, pipeline_type, llc_attrs in (
 # CHECK-NEXT: min 256, zvl512b: error: llc options of a -riscv-v-vector-bits-min=256 below the VLEN of +zvl512b
 # CHECK-NEXT: max 256, zvl1024b: error: llc options of a -riscv-v-vector-bits-max=256 below the VLEN of +zvl1024b
 
+
+# -vir-schedule runs right before -lower-vir-to-vector, counting the vector
+# registers as on RVV for an RVV target.
+def vir_schedule(pipeline_type, llc_attrs):
+    """The pass right before -lower-vir-to-vector in the pipeline."""
+    stages = compile_pipeline.build_stages(
+        pipeline_type, num_threads=4, llc_attrs=llc_attrs, variant="w4g32"
+    )
+    for _, args in stages:
+        for i, a in enumerate(args):
+            if a.startswith("-lower-vir-to-vector"):
+                return args[i - 1]
+    raise AssertionError(f"no -lower-vir-to-vector in {pipeline_type}")
+
+
+for name, pipeline_type, llc_attrs in (
+    ("A100", "kernels_a100", K3),
+    ("RVV", "kernels", RVV),
+    ("x86", "kernels", "-mcpu=native"),
+):
+    print(f"schedule {name}: {vir_schedule(pipeline_type, llc_attrs)}")
+# CHECK-NEXT: schedule A100: -vir-schedule=rvv=true
+# CHECK-NEXT: schedule RVV: -vir-schedule=rvv=true
+# CHECK-NEXT: schedule x86: -vir-schedule{{$}}
+
 # The decode attention of the K3 kernels (DeepSeek-R1: 12 heads, 2 KV heads,
 # head 128, 2 heads per work item; with q / k norms, as Qwen3), a vir.set_vl
 # with results whose rotate_half is a vir.shuffle of the two rows of a head.
