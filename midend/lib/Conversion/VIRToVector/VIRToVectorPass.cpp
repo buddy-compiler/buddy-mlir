@@ -872,6 +872,26 @@ private:
         .wasInterrupted();
   }
 
+  /// Whether the ops of `region`, and of the regions nested in it, have no
+  /// memory effect but reads
+  static bool onlyReads(Region &region) {
+    return !region
+                .walk([](Operation *op) {
+                  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+                    return WalkResult::advance();
+                  auto iface = dyn_cast<MemoryEffectOpInterface>(op);
+                  if (!iface)
+                    return WalkResult::interrupt();
+                  SmallVector<MemoryEffects::EffectInstance> effects;
+                  iface.getEffects(effects);
+                  for (auto &effect : effects)
+                    if (!isa<MemoryEffects::Read>(effect.getEffect()))
+                      return WalkResult::interrupt();
+                  return WalkResult::advance();
+                })
+                .wasInterrupted();
+  }
+
   /// Recursively lower operations within a given block
   void lowerBlock(OpBuilder &builder, Location loc, Block *block,
                   DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
@@ -2434,9 +2454,22 @@ private:
     Region &region = op.getRegion();
 
     // A region of no dynamic vector (e.g. its unused vector ops erased by
-    // DCE): the vector length applies to none of its ops, which are those of
-    // the parent block, its results those of its yield
-    if (!hasDynamicVector(region)) {
+    // DCE): the vector length applies to none of its ops.
+    // - Without results, it runs once per chunk of lanes (none for vl 0),
+    //   and its only writes are stores of vir.reduce results (the verifier):
+    //   with none left, it reads and computes nothing it gives. It is
+    //   erased; its ops are not moved where they may not have run.
+    // - With results (a constant vl), its scalar ops run once: they are
+    //   those of the parent block, its results those of its yield.
+    bool noVector = !hasDynamicVector(region);
+    if (noVector && op.getNumResults() == 0) {
+      if (!onlyReads(region))
+        return op.emitError("a vir.set_vl without results and with no "
+                            "dynamic vector writes memory");
+      rewriter.eraseOp(op);
+      return success();
+    }
+    if (noVector) {
       Block &block = region.front();
       Operation *yield = block.getTerminator();
       SmallVector<Value> results(yield->getOperands());

@@ -119,15 +119,16 @@ func.func @cse_from_vector(%v: vector<4xf32>) -> f32 {
 // CHECK-NEXT: vir.store %[[K]]
 // CHECK-NEXT: vector.yield
 func.func @dce(%a: memref<256xf32>, %b: memref<256xi8>, %o: memref<256xf32>,
-               %v: vector<4xf32>, %f: f32) {
+               %f: f32) {
   %c0 = arith.constant 0 : index
   %z = arith.constant 0.0 : f32
   %vl = arith.constant 256 : index
   vir.set_vl %vl : index {
     %s = vir.broadcast %f : f32 -> !vir.vec<?xf32>
     %k = vir.constant {value = 1.0 : f32} : !vir.vec<?xf32>
+    %k2 = vir.constant {value = 2.0 : f32} : !vir.vec<?xf32>
     %x = vir.load %a[%c0] : memref<256xf32> -> !vir.vec<?xf32>
-    %y = vir.fma %x, %s, %k : !vir.vec<?xf32>
+    %y = vir.fma %x, %s, %k2 : !vir.vec<?xf32>
     %h = vir.truncf %y : !vir.vec<?xf32> -> !vir.vec<?xf16>
     %e = vir.extf %h : !vir.vec<?xf16> -> !vir.vec<?xf32>
     %m = arith.cmpf olt, %x, %k : !vir.vec<?xf32>
@@ -140,4 +141,24 @@ func.func @dce(%a: memref<256xf32>, %b: memref<256xi8>, %o: memref<256xf32>,
     vector.yield
   }
   return
+}
+
+// -----
+
+// An unused vir.from_vector, in a vir.set_vl with results.
+// CHECK-LABEL: func.func @dce_from_vector
+// CHECK: vir.set_vl
+// CHECK-NEXT: %[[V:.*]] = vir.from_vector %arg0
+// CHECK-NEXT: %[[R:.*]] = vir.reduce %[[V]]
+// CHECK-NEXT: vector.yield %[[R]]
+func.func @dce_from_vector(%v: vector<4xf32>, %w: vector<4xf32>) -> f32 {
+  %z = arith.constant 0.0 : f32
+  %vl = arith.constant 4 : index
+  %r = vir.set_vl %vl : index {
+    %a = vir.from_vector %v : vector<4xf32> -> !vir.vec<?xf32>
+    %dead = vir.from_vector %w : vector<4xf32> -> !vir.vec<?xf32>
+    %ra = vir.reduce %a, %z {kind = "add"} : !vir.vec<?xf32>, f32 -> f32
+    vector.yield %ra : f32
+  } -> f32
+  return %r : f32
 }
