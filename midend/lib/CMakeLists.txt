@@ -46,6 +46,7 @@ set(LinkedLibs
   TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
+  ElideMaskedTileCopiesPass
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
   TraceInsert

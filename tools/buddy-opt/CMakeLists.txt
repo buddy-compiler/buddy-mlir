@@ -78,6 +78,7 @@ target_link_libraries(buddy-opt
   TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
+  ElideMaskedTileCopiesPass
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
   TraceInsert
