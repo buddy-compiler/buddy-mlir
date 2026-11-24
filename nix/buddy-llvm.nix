@@ -12,17 +12,17 @@ let
     ps.nanobind
     ps.pyyaml
     ps.ml-dtypes
-    ps.nanobind
   ]);
 in
 stdenv.mkDerivation rec {
-  name = "llvm-for-buddy-mlir";
-  version = "01f36b39bd2475a271bbeb95fb9db8ed65e2d065";
+  pname = "llvm-for-buddy-mlir";
+  # Keep the fork, revision, and source hash in sync with the llvm submodule.
+  version = "163d6a753b583aa6b216cd54da198e2769d249c6";
   src = fetchFromGitHub {
-    owner = "llvm";
+    owner = "RuyiAI-Stack";
     repo = "llvm-project";
     rev = version;
-    hash = "sha256-JzMItIr8ZGrQ8LcLRrjucIEdTZInR6BTpiwB1SIQFhk=";
+    hash = "sha256-PbRI/8J36jvMf+GEW8JPDWRuZs/U3yoUzsuDO7pYO3w=";
   };
 
   requiredSystemFeatures = [ "big-parallel" ];
@@ -41,13 +41,15 @@ stdenv.mkDerivation rec {
     "-DLLVM_ENABLE_PROJECTS=mlir;clang"
     "-DLLVM_TARGETS_TO_BUILD=host;RISCV"
     "-DLLVM_ENABLE_ASSERTIONS=ON"
+    "-DLLVM_INCLUDE_BENCHMARKS=OFF"
     "-DCMAKE_BUILD_TYPE=Release"
     # required for MLIR python binding
     "-DMLIR_ENABLE_BINDINGS_PYTHON=ON"
     "-DPython3_EXECUTABLE=${pythonEnv}/bin/python3"
+    "-DPython_EXECUTABLE=${pythonEnv}/bin/python3"
     # required for not, FileCheck...
     "-DLLVM_INSTALL_UTILS=ON"
-    # Fix Clang 22 C2y extension warnings in benchmark library
+    # Avoid C2y extension warnings from LLVM's third-party code with Clang 22.
     "-DCMAKE_CXX_FLAGS=-Wno-c2y-extensions"
   ];
 
@@ -61,12 +63,6 @@ stdenv.mkDerivation rec {
     # We have to do some hack
     cp -v "include/llvm/Config/config.h" "$dev/include/llvm/Config/config.h"
 
-    # copy MLIR Python extension source files from $out to $dev
-    # this is needed because MLIRTargets.cmake references these sources via _IMPORT_PREFIX
-    # which resolves to $dev, but the sources are installed to $out
-    mkdir -p "$dev/src"
-    cp -rv "$out/src/python" "$dev/src/"
-
     # move llvm-config to $dev to resolve a circular dependency
     moveToOutput "bin/llvm-config*" "$dev"
 
@@ -79,7 +75,9 @@ stdenv.mkDerivation rec {
 
     # patch configuration files so each path points to the new $lib or $dev paths
     substituteInPlace "$dev/lib/cmake/llvm/LLVMConfig.cmake" \
-      --replace 'set(LLVM_BINARY_DIR "''${LLVM_INSTALL_PREFIX}")' 'set(LLVM_BINARY_DIR "'"$lib"'")'
+      --replace 'set(LLVM_BINARY_DIR "''${LLVM_INSTALL_PREFIX}")' 'set(LLVM_BINARY_DIR "'"$lib"'")' \
+      --replace 'set(LLVM_LIBRARY_DIRS "''${LLVM_INSTALL_PREFIX}/lib''${LLVM_LIBDIR_SUFFIX}")' 'set(LLVM_LIBRARY_DIRS "'"$lib"'/lib")' \
+      --replace 'set(LLVM_LIBRARY_DIR "''${LLVM_INSTALL_PREFIX}/lib''${LLVM_LIBDIR_SUFFIX}")' 'set(LLVM_LIBRARY_DIR "'"$lib"'/lib")'
     substituteInPlace \
       "$dev/lib/cmake/llvm/LLVMExports-release.cmake" \
       "$dev/lib/cmake/mlir/MLIRTargets-release.cmake" \

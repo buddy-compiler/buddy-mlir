@@ -57,24 +57,85 @@ This repository provides Nix flake support for reproducible builds. Follow the [
 
 ### Development Environment
 
-If you want to contribute to this project, enter the development shell:
+If you want to contribute to this project, enter the development shell from the
+repository root:
 
 ```bash
-$ nix develop .
+nix develop .
 ```
 
-This command sets up a bash shell with `clang`, `ccls`, `cmake`, `ninja`, and other necessary dependencies to build `buddy-mlir` from source.
+This command sets up a bash shell with `clang`, `ccls`, `cmake`, `ninja`, Git,
+`pre-commit`, the required Python modules, image libraries, and an OpenMP
+runtime. The LLVM package uses the same RuyiAI-Stack revision as the `llvm`
+submodule. It intentionally does not build LLVM's runtimes sub-build; the shell
+provides nixpkgs' OpenMP runtime for examples and model builds instead.
+
+To enter the shell automatically with [direnv](https://direnv.net/), put the
+following in `.envrc` in the repository root and allow it once:
+
+```bash
+watch_file nix/*.nix
+use flake .
+```
+
+```bash
+direnv allow
+```
+
+The `nix/` directory contains the package expressions, but `flake.nix` is at the
+repository root. Therefore, use `use flake .`, not `use flake ./nix`. The
+`watch_file` line also invalidates the cached shell when those expressions
+change. If the `.envrc` file is outside this checkout, pass the checkout path
+instead:
+
+```bash
+watch_file /path/to/buddy-mlir/nix/*.nix
+use flake /path/to/buddy-mlir
+```
+
+For an incremental Buddy-only build against the cached Nix LLVM, reuse the
+`cmakeFlags` carried by the development shell:
+
+```bash
+cmake -G Ninja -S . -B build-nix $cmakeFlags
+ninja -C build-nix
+```
+
+This avoids rebuilding LLVM. Set `PYTHONPATH` to include
+`$PWD/build-nix/python_packages` when using the resulting Buddy Python package;
+the shell already supplies the matching upstream MLIR Python package. For the
+full test and model workflows, prepare the Python dependencies and use the
+corresponding commands in [README.md](../README.md). If you build the local
+LLVM submodule yourself on NixOS, omit `LLVM_ENABLE_RUNTIMES` and
+`check-openmp`, and use the OpenMP runtime supplied by the shell.
 
 ### Binary Tools
 
-If you only want to use the `buddy-mlir` binary tools:
+If you only want to use the `buddy-mlir` binary tools, build the complete
+package:
 
 ```bash
-$ nix build .#buddy-mlir
-$ ./result/bin/buddy-opt --version
+nix build .#buddy-mlir
+./result/bin/buddy-opt --version
 ```
 
-This approach provides a fully isolated and reproducible build environment without affecting your system configuration.
+The flake also provides an app for each installed tool. `buddy-opt` is the
+default app:
+
+```bash
+nix run . -- --version
+nix run .#buddy-cli -- --help
+nix run .#buddy-server -- --help
+```
+
+The available apps are `buddy-cli`, `buddy-frontendgen`, `buddy-llc`,
+`buddy-lsp-server`, `buddy-opt`, `buddy-server`, `buddy-translate`,
+`rax-inspect`, and `rax-pack`. Model generation is not enabled in the default
+Nix package; use the model build workflow in README.md when model artifacts are
+required.
+
+This approach provides a fully isolated and reproducible build environment
+without affecting your system configuration.
 
 ## Tools
 
