@@ -292,7 +292,7 @@ else
   fi
 
   # Prepare serval necessary package for buddy-mlir
-  dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel perl
+  dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel perl zstd
 
   # soundfile ships no riscv64 wheel, so pip installs its pure-Python wheel,
   # which loads the system libsndfile.so. Only libsndfile-devel provides the
@@ -416,13 +416,35 @@ EOF
     cp -a "${prefix}/bin/lit" "${prefix}/bin/llvm-lit"
   }
 
+  # The install is packaged and downloaded by every downstream, and most of it
+  # is developer tooling nobody links against. Drop those and strip the rest so
+  # the tarball fits in one release asset: unstripped, the riscv64 one is over
+  # GitHub's 2 GiB limit. Keep every tool the build or the tests reach for.
+  # Downstream links against the libraries and headers, so the archive only
+  # needs the gathered binaries stripped and the MLIR Python bindings left out.
+  # Work on a copy: the install directory is cached across runs, and stripping it
+  # in place makes the next run's RPATH install step fail on the stripped files.
+  slim_llvm_copy() {
+    local staging="$1"
+    rm -rf "${staging}"
+    cp -a "${LLVM_INSTALL_DIR}" "${staging}"
+    find "${staging}/bin" -type f -perm -u+x \
+      -exec strip --strip-all {} + 2>/dev/null || true
+    find "${staging}/lib" -maxdepth 1 -name "*.so*" -type f \
+      -exec strip --strip-unneeded {} + 2>/dev/null || true
+    rm -rf "${staging}/python_packages"
+  }
+
   package_llvm_install() {
     LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
     LLVM_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${LLVM_VERSION_FILE}" | head -n 1)"
     LLVM_PACKAGE_VERSION="${LLVM_PACKAGE_VERSION:-unknown}"
-    LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+    LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.zst"
     LLVM_TAR_TMP="${BUDDY_BUILD_DIR}/${LLVM_TAR_NAME}"
-    tar -C "${LLVM_INSTALL_DIR}" -czf "${LLVM_TAR_TMP}" .
+    slim_llvm_copy "${LLVM_BUILD_DIR}/dist-slim"
+    tar -C "${LLVM_BUILD_DIR}/dist-slim" -cf - . \
+      | zstd -q -19 --long=27 -T0 -o "${LLVM_TAR_TMP}"
+    rm -rf "${LLVM_BUILD_DIR}/dist-slim"
     mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
   }
 
@@ -539,9 +561,9 @@ EOF
   "$PYBIN" -m build --wheel --outdir "${ARTIFACT_DIR}" $PWD
   auditwheel repair "${ARTIFACT_DIR}"/buddy-${BUDDY_PACKAGE_VERSION}-${PYTHON_WHEEL_TAG}-linux_*.whl -w "${ARTIFACT_DIR}"
 
-  BUDDY_TAR_NAME="buddy-${BUDDY_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+  BUDDY_TAR_NAME="buddy-${BUDDY_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.zst"
   BUDDY_TAR_TMP="${BUDDY_BUILD_DIR}/${BUDDY_TAR_NAME}"
-  tar -C "${BUDDY_INSTALL_DIR}" -czf "${BUDDY_TAR_TMP}" .
+  tar -C "${BUDDY_INSTALL_DIR}" -cf - . | zstd -q -19 --long=27 -T0 -o "${BUDDY_TAR_TMP}"
   mv -f "${BUDDY_TAR_TMP}" "${ARTIFACT_DIR}/${BUDDY_TAR_NAME}"
 
   # ---------------------------------------------------------------------------
