@@ -86,6 +86,12 @@ def VIR_SetVLOp : VIR_Op<"set_vl"> {
     has vl elements, the dims between match the layout), so that an access
     is one access of rows * vl lanes.
 
+    Register-blocked matmul regions without results can carry the
+    `vir.matmul_width` integer attribute to choose the lane count for
+    strip mining. The `vir.matmul_scalable` unit attribute indicates that
+    the lane count is in units of vscale. These attributes must agree with
+    the layout chosen by the vector lowering.
+
     The region has one block, without arguments.
   }];
   let arguments = (ins Index:$vl);
