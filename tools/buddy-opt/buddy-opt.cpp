@@ -132,6 +132,7 @@ void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerMatMulTransposeBVecDecodePass();
 void registerLegalizeShmemOutliningPass();
+void registerVIRSchedulePass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
 void registerMatMulVectorizationBLISPass();
@@ -223,6 +224,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerStaticizeMemRefLayoutPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
   mlir::buddy::registerMatMulTransposeBVecDecodePass();
+  mlir::buddy::registerVIRSchedulePass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
   // Register minimal TOSA reshape simplification pass.
