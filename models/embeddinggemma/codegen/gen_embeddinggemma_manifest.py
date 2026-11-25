@@ -19,7 +19,7 @@
 #   python gen_embeddinggemma_manifest.py --spec specs/f32.json -o embeddinggemma.mlir
 #
 # The buffer/function layout mirrors the AOT forward ABI produced by
-# codegen/import-embeddinggemma.py:
+# codegen/import_embeddinggemma.py:
 #   forward(weights: memref<params_size x f32>,
 #           input_ids: memref<batch_size x max_seq_len x i64>,
 #           attention_mask: memref<batch_size x max_seq_len x i64>)

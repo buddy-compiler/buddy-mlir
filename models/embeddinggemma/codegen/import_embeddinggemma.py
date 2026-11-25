@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ===- import-embeddinggemma.py - embeddinggemma AOT importer ------------===//
+# ===- import_embeddinggemma.py - embeddinggemma AOT importer ------------===//
 # EmbeddingGemma AOT importer for Buddy-MLIR.
 # Implements the SentenceTransformer pipeline using the buddy-codegen
 # single_forward interface.: `--spec` + `--output-dir`, with

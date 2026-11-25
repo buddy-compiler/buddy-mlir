@@ -50,7 +50,7 @@ buddy_add_model(
   RUNNER_HDR include/buddy/runtime/models/EmbeddinggemmaRunner.h
   LOCAL_MODEL "${BUDDY_EMBEDDINGGEMMA_MODEL_PATH}"
   LOCAL_MODEL_ENV EMBEDDINGGEMMA_MODEL_PATH
-  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-embeddinggemma.py"
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import_embeddinggemma.py"
   IMPORT_EXTRA_DEPS ${_embeddinggemma_import_extra_deps}
   LOWER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/lower_to_obj.sh"
   LOWER_EXTRA_DEPS ${_embeddinggemma_lower_extra_deps}
