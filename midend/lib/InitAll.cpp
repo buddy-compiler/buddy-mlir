@@ -37,8 +37,8 @@
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VIR/VIRDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
+#include "Dialect/XSAIAME/XSAIAMEDialect.h"
 #include "Dialect/XTAME/XTAMEDialect.h"
-#include "Dialect/ZAMES/ZAMESDialect.h"
 
 namespace mlir {
 namespace buddy {
@@ -92,7 +92,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::boscame::BOSCAMEDialect>();
   registry.insert<::buddy::xtame::XTAMEDialect>();
   registry.insert<::buddy::ame::AMEDialect>();
-  registry.insert<::buddy::zames::ZAMESDialect>();
+  registry.insert<::buddy::xsaiame::XSAIAMEDialect>();
   registry.insert<::buddy::bud::BudDialect>();
   registry.insert<::buddy::dap::DAPDialect>();
   registry.insert<::buddy::dip::DIPDialect>();

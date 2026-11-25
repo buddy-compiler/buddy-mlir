@@ -1,4 +1,4 @@
-//===- ZAMESDialect.cpp - ZAMES Dialect Implementation -------*- C++ -*-===//
+//===- XSAIAMEDialect.cpp - XSAIAME Dialect Implementation ------*- C++ -*-===//
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,17 +13,17 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 
-#include "ZAMES/ZAMESDialect.h"
-#include "ZAMES/ZAMESOps.h"
-#include "ZAMES/ZAMESTypes.h"
+#include "XSAIAME/XSAIAMEDialect.h"
+#include "XSAIAME/XSAIAMEOps.h"
+#include "XSAIAME/XSAIAMETypes.h"
 
 using namespace mlir;
-using namespace buddy::zames;
+using namespace buddy::xsaiame;
 
-#include "ZAMES/ZAMESDialect.cpp.inc"
+#include "XSAIAME/XSAIAMEDialect.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "ZAMES/ZAMES.cpp.inc"
+#include "XSAIAME/XSAIAME.cpp.inc"
 
 namespace {
 
@@ -54,7 +54,7 @@ static LogicalResult verifyMemrefCompat(Location loc, StringRef token,
   // Historical packed tokens have no one-to-one builtin storage type.
   if (expected && expected != memrefElemType)
     return emitError(loc) << "expected memref element type " << expected
-                          << " for ZAMES element token " << token
+                          << " for XSAIAME element token " << token
                           << ", but got " << memrefElemType;
   return success();
 }
@@ -107,10 +107,10 @@ static LogicalResult verifyMemoryView(Operation *op, TileType tile,
 
 } // namespace
 
-void ZAMESDialect::initialize() {
+void XSAIAMEDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "ZAMES/ZAMES.cpp.inc"
+#include "XSAIAME/XSAIAME.cpp.inc"
       >();
   registerTypes();
 }

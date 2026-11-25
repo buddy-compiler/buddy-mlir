@@ -1,4 +1,4 @@
-# ===------------------------ zames.py -----------------------------------------
+# ===------------------------ xsai_ame.py --------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# The ZAMES matrix tile dialect: its ops (generated from ZAMES.td) and the
-# TileType and SyncType classes (the _buddyDialectsZAMES extension).
+# The XSAIAME matrix tile dialect: its ops (generated from XSAIAME.td) and the
+# TileType and SyncType classes (the _buddyDialectsXSAIAME extension).
 #
 # ===---------------------------------------------------------------------------
 
-from .._mlir_libs._buddyDialectsZAMES import *
-from ._zames_ops_gen import *
+from .._mlir_libs._buddyDialectsXSAIAME import *
+from ._xsai_ame_ops_gen import *

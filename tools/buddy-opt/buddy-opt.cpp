@@ -67,11 +67,11 @@
 #include "VIR/VIRTypes.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
+#include "XSAIAME/XSAIAMEDialect.h"
+#include "XSAIAME/XSAIAMEOps.h"
 #include "XTAME/Transform.h"
 #include "XTAME/XTAMEDialect.h"
 #include "XTAME/XTAMEOps.h"
-#include "ZAMES/ZAMESDialect.h"
-#include "ZAMES/ZAMESOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -261,7 +261,7 @@ int main(int argc, char **argv) {
                   buddy::tile::TileDialect,
                   buddy::trace::BuddyTraceDialect,
                   buddy::ime::IMEDialect,
-                  buddy::zames::ZAMESDialect>();
+                  buddy::xsaiame::XSAIAMEDialect>();
   // clang-format on
 #ifdef BUDDY_EXTERNAL_DIALECTS
   registry.insert<buddy::buckyball::BuckyballDialect>();

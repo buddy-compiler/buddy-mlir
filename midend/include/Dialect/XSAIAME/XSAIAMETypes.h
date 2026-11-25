@@ -1,4 +1,4 @@
-//===- ZAMESTypes.h - ZAMES Type Declarations ----------------*- C++ -*-===//
+//===- XSAIAMETypes.h - XSAIAME Type Declarations ---------------*- C++ -*-===//
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef ZAMES_ZAMESTYPES_H
-#define ZAMES_ZAMESTYPES_H
+#ifndef XSAIAME_XSAIAMETYPES_H
+#define XSAIAME_XSAIAMETYPES_H
 
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 
 #define GET_TYPEDEF_CLASSES
-#include "ZAMES/ZAMESTypes.h.inc"
+#include "XSAIAME/XSAIAMETypes.h.inc"
 
-#endif // ZAMES_ZAMESTYPES_H
+#endif // XSAIAME_XSAIAMETYPES_H

@@ -59,7 +59,7 @@ target_link_libraries(buddy-opt
   LowerIMEPass
   BuddyAME
   BuddyAMETransforms
-  BuddyZAMES
+  BuddyXSAIAME
   BuddyXTAME
   BuddyXTAMETransforms
   BuddyBOSCAME

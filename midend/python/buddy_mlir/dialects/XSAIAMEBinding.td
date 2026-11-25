@@ -1,4 +1,4 @@
-//===---- ZAMESBinding.td - Python bindings for ZAMES --*- tablegen -*-----===//
+//===- XSAIAMEBinding.td - Python bindings for XSAIAME -----*- tablegen -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef PYTHON_BINDINGS_ZAMES_OPS
-#define PYTHON_BINDINGS_ZAMES_OPS
+#ifndef PYTHON_BINDINGS_XSAIAME_OPS
+#define PYTHON_BINDINGS_XSAIAME_OPS
 
-include "ZAMES/ZAMES.td"
+include "XSAIAME/XSAIAME.td"
 
 #endif

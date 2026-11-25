@@ -1,4 +1,4 @@
-//===- ZAMESOps.h - ZAMES Operation Declarations -------------*- C++ -*-===//
+//===- XSAIAMEOps.h - XSAIAME Operation Declarations ------------*- C++ -*-===//
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef ZAMES_ZAMESOPS_H
-#define ZAMES_ZAMESOPS_H
+#ifndef XSAIAME_XSAIAMEOPS_H
+#define XSAIAME_XSAIAMEOPS_H
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -16,9 +16,9 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
-#include "ZAMES/ZAMESTypes.h"
+#include "XSAIAME/XSAIAMETypes.h"
 
 #define GET_OP_CLASSES
-#include "ZAMES/ZAMES.h.inc"
+#include "XSAIAME/XSAIAME.h.inc"
 
-#endif // ZAMES_ZAMESOPS_H
+#endif // XSAIAME_XSAIAMEOPS_H

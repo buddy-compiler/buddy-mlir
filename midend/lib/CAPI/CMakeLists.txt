@@ -9,7 +9,7 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   Dialects.cpp
   RegisterEverything.cpp
   VIR.cpp
-  ZAMES.cpp
+  XSAIAME.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/midend/include/buddy-mlir-c
@@ -35,7 +35,7 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   BuddyRVVTransforms
   VectorExp
   VIR
-  BuddyZAMES
+  BuddyXSAIAME
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration
 )

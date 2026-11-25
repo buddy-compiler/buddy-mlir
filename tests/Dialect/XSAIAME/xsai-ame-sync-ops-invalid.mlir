@@ -2,7 +2,7 @@
 
 func.func @reset_result_must_be_sync() {
   // expected-error@+1 {{result #0 must be}}
-  %sync = "zames.msyncregreset"() : () -> i32
+  %sync = "xsai_ame.msyncregreset"() : () -> i32
   return
 }
 
@@ -10,15 +10,15 @@ func.func @reset_result_must_be_sync() {
 
 func.func @release_operand_must_be_sync(%not_sync: i32) {
   // expected-error@+1 {{operand #0 must be}}
-  %next = "zames.mrelease"(%not_sync) : (i32) -> !zames.sync
+  %next = "xsai_ame.mrelease"(%not_sync) : (i32) -> !xsai_ame.sync
   return
 }
 
 // -----
 
-func.func @release_result_must_be_sync(%sync: !zames.sync) {
+func.func @release_result_must_be_sync(%sync: !xsai_ame.sync) {
   // expected-error@+1 {{result #0 must be}}
-  %next = "zames.mrelease"(%sync) : (!zames.sync) -> i32
+  %next = "xsai_ame.mrelease"(%sync) : (!xsai_ame.sync) -> i32
   return
 }
 
@@ -26,14 +26,14 @@ func.func @release_result_must_be_sync(%sync: !zames.sync) {
 
 func.func @acquire_operand_must_be_sync(%not_sync: i32, %target: index) {
   // expected-error@+1 {{operand #0 must be}}
-  "zames.macquire"(%not_sync, %target) : (i32, index) -> ()
+  "xsai_ame.macquire"(%not_sync, %target) : (i32, index) -> ()
   return
 }
 
 // -----
 
-func.func @acquire_target_must_be_index(%sync: !zames.sync, %target: i64) {
+func.func @acquire_target_must_be_index(%sync: !xsai_ame.sync, %target: i64) {
   // expected-error@+1 {{operand #1 must be index}}
-  "zames.macquire"(%sync, %target) : (!zames.sync, i64) -> ()
+  "xsai_ame.macquire"(%sync, %target) : (!xsai_ame.sync, i64) -> ()
   return
 }

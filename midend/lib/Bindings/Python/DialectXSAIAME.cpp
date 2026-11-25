@@ -1,4 +1,4 @@
-//===- DialectZAMES.cpp - Python bindings of the ZAMES types --------------===//
+//===- DialectXSAIAME.cpp - Python bindings of the XSAIAME types ----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The `_buddyDialectsZAMES` extension of `buddy_mlir.dialects.zames`: the
+// The `_buddyDialectsXSAIAME` extension of `buddy_mlir.dialects.xsai_ame`: the
 // TileType and SyncType classes. TileType.get reports the C++ type verifier's
 // diagnostics as ir.MLIRError, as the builtin checked types do.
 //
@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "buddy-mlir-c/Dialect/ZAMES.h"
+#include "buddy-mlir-c/Dialect/XSAIAME.h"
 #include "mlir-c/IR.h"
 #include "mlir/Bindings/Python/IRCore.h"
 #include "mlir/Bindings/Python/Nanobind.h"
@@ -36,16 +36,16 @@ using namespace nanobind::literals;
 namespace mlir {
 namespace python {
 namespace MLIR_BINDINGS_PYTHON_DOMAIN {
-namespace zames {
+namespace xsaiame {
 
 static nb::str toPyString(MlirStringRef ref) {
   return nb::str(ref.data, ref.length);
 }
 
 struct TileType : PyConcreteType<TileType> {
-  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAZAMESTileType;
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAXSAIAMETileType;
   static constexpr GetTypeIDFunctionTy getTypeIdFunction =
-      mlirZAMESTileTypeGetTypeID;
+      mlirXSAIAMETileTypeGetTypeID;
   static constexpr const char *pyClassName = "TileType";
   using Base::Base;
 
@@ -55,7 +55,7 @@ struct TileType : PyConcreteType<TileType> {
         [](const std::string &kind, std::vector<int64_t> shape,
            const std::string &element, DefaultingPyLocation loc) {
           PyMlirContext::ErrorCapture errors(loc->getContext());
-          MlirType type = mlirZAMESTileTypeGetChecked(
+          MlirType type = mlirXSAIAMETileTypeGetChecked(
               loc, mlirStringRefCreate(kind.data(), kind.size()), shape.size(),
               shape.data(),
               mlirStringRefCreate(element.data(), element.size()));
@@ -64,28 +64,28 @@ struct TileType : PyConcreteType<TileType> {
           return TileType(loc->getContext(), type);
         },
         "kind"_a, "shape"_a, "element"_a, nb::kw_only(), "loc"_a = nb::none(),
-        "A tile type, e.g. !zames.tile<a, 128x32, fp16> for "
+        "A tile type, e.g. !xsai_ame.tile<a, 128x32, fp16> for "
         "TileType.get(\"a\", [128, 32], \"fp16\"); dynamic dims are "
         "ShapedType.get_dynamic_size().");
     c.def_prop_ro("kind", [](const TileType &self) {
-      return toPyString(mlirZAMESTileTypeGetKind(self));
+      return toPyString(mlirXSAIAMETileTypeGetKind(self));
     });
     c.def_prop_ro("shape", [](const TileType &self) {
-      std::vector<int64_t> shape(mlirZAMESTileTypeGetRank(self));
+      std::vector<int64_t> shape(mlirXSAIAMETileTypeGetRank(self));
       for (size_t dim = 0; dim < shape.size(); ++dim)
-        shape[dim] = mlirZAMESTileTypeGetDimSize(self, dim);
+        shape[dim] = mlirXSAIAMETileTypeGetDimSize(self, dim);
       return shape;
     });
     c.def_prop_ro("element", [](const TileType &self) {
-      return toPyString(mlirZAMESTileTypeGetElement(self));
+      return toPyString(mlirXSAIAMETileTypeGetElement(self));
     });
   }
 };
 
 struct SyncType : PyConcreteType<SyncType> {
-  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAZAMESSyncType;
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAXSAIAMESyncType;
   static constexpr GetTypeIDFunctionTy getTypeIdFunction =
-      mlirZAMESSyncTypeGetTypeID;
+      mlirXSAIAMESyncTypeGetTypeID;
   static constexpr const char *pyClassName = "SyncType";
   using Base::Base;
 
@@ -94,25 +94,25 @@ struct SyncType : PyConcreteType<SyncType> {
         "get",
         [](DefaultingPyMlirContext context) {
           return SyncType(context->getRef(),
-                          mlirZAMESSyncTypeGet(context.get()->get()));
+                          mlirXSAIAMESyncTypeGet(context.get()->get()));
         },
-        nb::kw_only(), "context"_a = nb::none(), "The !zames.sync type.");
+        nb::kw_only(), "context"_a = nb::none(), "The !xsai_ame.sync type.");
   }
 };
 
-static void populateDialectZAMESSubmodule(nb::module_ &m) {
+static void populateDialectXSAIAMESubmodule(nb::module_ &m) {
   TileType::bind(m);
   SyncType::bind(m);
 }
 
-} // namespace zames
+} // namespace xsaiame
 } // namespace MLIR_BINDINGS_PYTHON_DOMAIN
 } // namespace python
 } // namespace mlir
 
-NB_MODULE(_buddyDialectsZAMES, m) {
-  m.doc() = "Buddy MLIR ZAMES matrix tile dialect";
+NB_MODULE(_buddyDialectsXSAIAME, m) {
+  m.doc() = "Buddy MLIR XSAIAME matrix tile dialect";
 
-  mlir::python::MLIR_BINDINGS_PYTHON_DOMAIN::zames::
-      populateDialectZAMESSubmodule(m);
+  mlir::python::MLIR_BINDINGS_PYTHON_DOMAIN::xsaiame::
+      populateDialectXSAIAMESubmodule(m);
 }

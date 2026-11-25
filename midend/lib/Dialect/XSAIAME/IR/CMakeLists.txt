@@ -1,9 +1,9 @@
-add_mlir_dialect_library(BuddyZAMES
-  ZAMESDialect.cpp
-  ZAMESTypes.cpp
+add_mlir_dialect_library(BuddyXSAIAME
+  XSAIAMEDialect.cpp
+  XSAIAMETypes.cpp
 
   DEPENDS
-  MLIRZAMESIncGen
+  MLIRXSAIAMEIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR

@@ -1,4 +1,4 @@
-//===- ZAMESDialect.h - ZAMES Dialect Declaration ------------*- C++ -*-===//
+//===- XSAIAMEDialect.h - XSAIAME Dialect Declaration -----------*- C++ -*-===//
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef ZAMES_ZAMESDIALECT_H
-#define ZAMES_ZAMESDIALECT_H
+#ifndef XSAIAME_XSAIAMEDIALECT_H
+#define XSAIAME_XSAIAMEDIALECT_H
 
 #include "mlir/IR/Dialect.h"
 
-#include "ZAMES/ZAMESDialect.h.inc"
+#include "XSAIAME/XSAIAMEDialect.h.inc"
 
-#endif // ZAMES_ZAMESDIALECT_H
+#endif // XSAIAME_XSAIAMEDIALECT_H

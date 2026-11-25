@@ -1,4 +1,4 @@
-//===----------- ZAMES.cpp - C Interface for the ZAMES dialect ------------===//
+//===----------- XSAIAME.cpp - C Interface for the XSAIAME dialect --------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,54 +14,55 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy-mlir-c/Dialect/ZAMES.h"
+#include "buddy-mlir-c/Dialect/XSAIAME.h"
 
-#include "Dialect/ZAMES/ZAMESDialect.h"
-#include "Dialect/ZAMES/ZAMESTypes.h"
+#include "Dialect/XSAIAME/XSAIAMEDialect.h"
+#include "Dialect/XSAIAME/XSAIAMETypes.h"
 
 #include "mlir/CAPI/IR.h"
 #include "mlir/CAPI/Registration.h"
 #include "mlir/CAPI/Support.h"
 
 using namespace mlir;
-using namespace buddy::zames;
+using namespace buddy::xsaiame;
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(ZAMES, zames, buddy::zames::ZAMESDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(XSAIAME, xsai_ame,
+                                      buddy::xsaiame::XSAIAMEDialect)
 
 //===----------------------------------------------------------------------===//
 // TileType
 //===----------------------------------------------------------------------===//
 
-bool mlirTypeIsAZAMESTileType(MlirType type) {
+bool mlirTypeIsAXSAIAMETileType(MlirType type) {
   return isa<TileType>(unwrap(type));
 }
 
-MlirTypeID mlirZAMESTileTypeGetTypeID(void) {
+MlirTypeID mlirXSAIAMETileTypeGetTypeID(void) {
   return wrap(TileType::getTypeID());
 }
 
-MlirType mlirZAMESTileTypeGetChecked(MlirLocation loc, MlirStringRef kind,
-                                     intptr_t rank, const int64_t *shape,
-                                     MlirStringRef element) {
+MlirType mlirXSAIAMETileTypeGetChecked(MlirLocation loc, MlirStringRef kind,
+                                       intptr_t rank, const int64_t *shape,
+                                       MlirStringRef element) {
   Location location = unwrap(loc);
   return wrap(TileType::getChecked(
       location, location.getContext(), unwrap(kind),
       llvm::ArrayRef(shape, static_cast<size_t>(rank)), unwrap(element)));
 }
 
-MlirStringRef mlirZAMESTileTypeGetKind(MlirType type) {
+MlirStringRef mlirXSAIAMETileTypeGetKind(MlirType type) {
   return wrap(cast<TileType>(unwrap(type)).getKind());
 }
 
-intptr_t mlirZAMESTileTypeGetRank(MlirType type) {
+intptr_t mlirXSAIAMETileTypeGetRank(MlirType type) {
   return cast<TileType>(unwrap(type)).getShape().size();
 }
 
-int64_t mlirZAMESTileTypeGetDimSize(MlirType type, intptr_t dim) {
+int64_t mlirXSAIAMETileTypeGetDimSize(MlirType type, intptr_t dim) {
   return cast<TileType>(unwrap(type)).getShape()[dim];
 }
 
-MlirStringRef mlirZAMESTileTypeGetElement(MlirType type) {
+MlirStringRef mlirXSAIAMETileTypeGetElement(MlirType type) {
   return wrap(cast<TileType>(unwrap(type)).getElement());
 }
 
@@ -69,14 +70,14 @@ MlirStringRef mlirZAMESTileTypeGetElement(MlirType type) {
 // SyncType
 //===----------------------------------------------------------------------===//
 
-bool mlirTypeIsAZAMESSyncType(MlirType type) {
+bool mlirTypeIsAXSAIAMESyncType(MlirType type) {
   return isa<SyncType>(unwrap(type));
 }
 
-MlirTypeID mlirZAMESSyncTypeGetTypeID(void) {
+MlirTypeID mlirXSAIAMESyncTypeGetTypeID(void) {
   return wrap(SyncType::getTypeID());
 }
 
-MlirType mlirZAMESSyncTypeGet(MlirContext ctx) {
+MlirType mlirXSAIAMESyncTypeGet(MlirContext ctx) {
   return wrap(SyncType::get(unwrap(ctx)));
 }

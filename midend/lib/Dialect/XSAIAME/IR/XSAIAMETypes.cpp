@@ -1,4 +1,4 @@
-//===- ZAMESTypes.cpp - ZAMES Type Implementation ------------*- C++ -*-===//
+//===- XSAIAMETypes.cpp - XSAIAME Type Implementation -----------*- C++ -*-===//
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,19 +13,19 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-#include "ZAMES/ZAMESDialect.h"
-#include "ZAMES/ZAMESTypes.h"
+#include "XSAIAME/XSAIAMEDialect.h"
+#include "XSAIAME/XSAIAMETypes.h"
 
 using namespace mlir;
-using namespace buddy::zames;
+using namespace buddy::xsaiame;
 
 #define GET_TYPEDEF_CLASSES
-#include "ZAMES/ZAMESTypes.cpp.inc"
+#include "XSAIAME/XSAIAMETypes.cpp.inc"
 
-void ZAMESDialect::registerTypes() {
+void XSAIAMEDialect::registerTypes() {
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "ZAMES/ZAMESTypes.cpp.inc"
+#include "XSAIAME/XSAIAMETypes.cpp.inc"
       >();
 }
 
@@ -47,7 +47,7 @@ TileType::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
                        .Cases({"fp2pack4", "fp2pack5"}, true)
                        .Default(false);
   if (!supported)
-    return emitError() << "unsupported ZAMES element token: " << element;
+    return emitError() << "unsupported XSAIAME element token: " << element;
   return success();
 }
 

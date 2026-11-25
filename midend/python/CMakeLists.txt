@@ -79,10 +79,10 @@ declare_mlir_dialect_python_bindings(
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
-  TD_FILE dialects/ZAMESBinding.td
+  TD_FILE dialects/XSAIAMEBinding.td
   SOURCES
-    dialects/zames.py
-  DIALECT_NAME zames)
+    dialects/xsai_ame.py
+  DIALECT_NAME xsai_ame)
 
 ################################################################################
 # Python extensions.
@@ -120,13 +120,13 @@ declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.vir.Extension
     MLIRCAPIIR
 )
 
-# The TileType and SyncType classes of the zames dialect.
-declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.zames.Extension
-  MODULE_NAME _buddyDialectsZAMES
+# The TileType and SyncType classes of the xsai_ame dialect.
+declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.xsai_ame.Extension
+  MODULE_NAME _buddyDialectsXSAIAME
   ROOT_DIR "${PYTHON_SOURCE_DIR}"
   ADD_TO_PARENT BuddyMLIRPythonSources
   SOURCES
-    DialectZAMES.cpp
+    DialectXSAIAME.cpp
   EMBED_CAPI_LINK_LIBS
     BuddyMLIRCAPI
     MLIRCAPIIR
