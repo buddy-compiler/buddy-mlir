@@ -17,6 +17,9 @@ on your machine.
 sudo apt install flatbuffers-compiler libflatbuffers-dev libnuma-dev
 ```
 
+For a reproducible Nix package, runnable tool apps, and a Nix/direnv development
+shell, see [Build with Nix](docs/BuildMethods.md#build-with-nix).
+
 ### Clone and Initialize
 
 ```
