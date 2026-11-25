@@ -32,6 +32,12 @@ spec, and rebuild for each shape. For a compiled batch of size B, pass
 The RAX package includes the runner, compiled model, weights, and tokenizer.
 Inference needs no Python.
 
+Both checked-in specs set `num_threads` to 4; CMake defaults to 1 when the
+field is absent. This count is compiled into the model's OpenMP regions.
+Changing `OMP_NUM_THREADS` or benchmark `--threads` does not override it.
+To change the count, update the spec and rebuild, then use the same
+`--threads` for the RAX and native HF measurements.
+
 ## SpacemiT K3
 
 From the repository root, build the K3 IME variant with the standard model target.
@@ -86,11 +92,13 @@ dependency on internal `k3_w4` helpers remains.
 
 The benchmark and validation scripts are kept in the reproducibility snapshot
 [`720b6ecf`](https://github.com/buddy-compiler/buddy-mlir/tree/720b6ecf8c526208a623c502105bea8d5015af64/models/embeddinggemma).
-The snapshot contains the scripts, workload corpus, specs, and the benchmark
-instructions used for the results below. Check it out separately before
-running the commands in this section.
+The commands below use those tools with the source and specs of the checkout
+where you start. For the historical results below, use the measured revisions
+and the snapshot's original instructions. Its default specs predate the
+current compile-time thread selection and must not be reused implicitly.
 
 ```bash
+model_source="$PWD"
 git fetch https://github.com/buddy-compiler/buddy-mlir.git \
   pull/1070/head
 git worktree add ../embeddinggemma-897-repro \
@@ -108,10 +116,11 @@ full-length inputs for batches 1, 2, and 4 at 128, 256, and 512 tokens.
 workloads="$PWD/build/embeddinggemma-workloads"
 case_name=f32-b2-s128
 python models/embeddinggemma/prepare_workloads.py \
-  --model-path "$EMBEDDINGGEMMA_MODEL_PATH" --output-dir "$workloads"
+  --model-path "$EMBEDDINGGEMMA_MODEL_PATH" --output-dir "$workloads" \
+  --spec "$model_source/models/embeddinggemma/specs/f32.json"
 python models/embeddinggemma/prepare_workloads.py \
   --model-path "$EMBEDDINGGEMMA_MODEL_PATH" --output-dir "$workloads/ime" \
-  --spec models/embeddinggemma/specs/k3_fp16_comp3.json
+  --spec "$model_source/models/embeddinggemma/specs/k3_fp16_comp3.json"
 python models/embeddinggemma/validate_accuracy.py --mode reference \
   --spec "$workloads/$case_name.json" \
   --texts-file "$workloads/$case_name-texts.json" \
@@ -125,7 +134,7 @@ to identify precision. For the IME build, use the spec in `$workloads/ime`.
 ```bash
 riscv_build_dir=/path/to/configured-riscv-build
 case_spec="$workloads/$case_name.json"
-cmake -S . -B "$riscv_build_dir" \
+cmake -S "$model_source" -B "$riscv_build_dir" \
   -DBUDDY_BUILD_EMBEDDINGGEMMA_MODEL=ON \
   -DBUDDY_EMBEDDINGGEMMA_MODEL_PATH="$EMBEDDINGGEMMA_MODEL_PATH" \
   -DBUDDY_EMBEDDINGGEMMA_SPEC="$case_spec"
@@ -141,6 +150,11 @@ Copy the RAX files, matching specs, HF golden directory, native `buddy-cli`,
 and the archived benchmark scripts to the board. The benchmark
 requires Python 3.10+, NumPy, and GNU `time`. Use a filesystem with room for the
 extracted RAX payloads.
+
+Set `--threads` to the `num_threads` used to build both RAX packages. The
+examples use 4. For another count, regenerate the specs and rebuild both
+packages before measuring; the archived script only sets runtime variables
+and records the requested thread count.
 
 ```bash
 workloads=/path/to/embeddinggemma-workloads

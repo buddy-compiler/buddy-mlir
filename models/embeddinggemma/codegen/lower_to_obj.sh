@@ -2,7 +2,7 @@
 # single_forward lowering with BLIS-style matmul and pre-OpenMP canonicalization.
 # Remove one-trip parallel loops and combine directly nested parallel loops
 # so a unit batch dimension does not hide the useful work from OpenMP.
-# Keep thread selection at runtime, as in the default single_forward pipeline.
+# CMake passes the spec's num_threads to both graph and IME lowering.
 # As in the other BLIS model pipelines, omit affine-loop-fusion: combining it
 # with the BLIS rewrite produces non-finite embeddings for this graph.
 # Usage: lower_to_obj.sh <buddy-opt> <llvm-bin-dir> <in.mlir> <out.o> [threads] [llc-attrs...]
@@ -60,8 +60,8 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -filetype=obj -relocation-model=pic -O3 -o "$GRAPH_OUT"
 
 if [[ -f "$KERNELS" ]]; then
-  # Reuse the existing IME pipeline and A100/VLEN validation. Zero leaves
-  # OpenMP thread selection to OMP_NUM_THREADS, as in the F32 graph.
+  # Reuse the existing IME pipeline and A100/VLEN validation, with the same
+  # compile-time thread count as the F32 graph.
   CODEGEN="$(dirname "$0")/../../../tools/buddy-codegen"
   "${PYTHON:-python3}" -c '
 import shlex, sys

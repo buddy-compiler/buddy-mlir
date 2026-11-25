@@ -38,7 +38,8 @@ if(_embeddinggemma_variant STREQUAL "fp16_comp3")
     HINTS "${RISCV_GNU_TOOLCHAIN}/bin" "${LLVM_TOOLS_BINARY_DIR}"
     REQUIRED)
   list(APPEND _embeddinggemma_import_extra_deps
-    "${CMAKE_CURRENT_SOURCE_DIR}/codegen/embeddinggemma_ime.py")
+    "${CMAKE_CURRENT_SOURCE_DIR}/codegen/embeddinggemma_ime.py"
+    "${CMAKE_SOURCE_DIR}/frontend/Python/graph/transform/k3_w4.py")
   list(APPEND _embeddinggemma_import_extra_byproducts
     "${CMAKE_CURRENT_BINARY_DIR}/embeddinggemma_ime.mlir")
 endif()
