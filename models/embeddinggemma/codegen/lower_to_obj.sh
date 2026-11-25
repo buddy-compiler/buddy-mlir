@@ -41,7 +41,9 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-ten
       -ownership-based-buffer-deallocation \
       -buffer-deallocation-simplification -bufferization-lower-deallocations \
       -matmul-vectorization-blis -batchmatmul-optimize \
-      -transform-interpreter "${SOFTMAX_TRANSFORM[@]}" -cse \
+      -transform-interpreter "${SOFTMAX_TRANSFORM[@]}" \
+      -polynomial-approximate-math=ops=tanh \
+      -approximate-vector-exp -cse \
       -convert-linalg-to-affine-loops \
       -affine-parallelize -lower-affine -canonicalize \
       -optimize-allocation-liveness \

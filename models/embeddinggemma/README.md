@@ -70,6 +70,18 @@ scheduling.
   Keep the weight file intact during inference and publish replacements
   atomically, since truncating the mapped file in place can cause `SIGBUS`.
 
+### Shared lowering and compensated IME
+
+Math approximation reuses `polynomial-approximate-math=ops=tanh` and
+`approximate-vector-exp`. `tanh-approx.mlir` only specifies shape-specific
+tiling, vectorization, and loop flattening.
+
+`embeddinggemma_ime.py` retains the high/low split, scaling, three-product
+correction, and packed layout that `lower-linalg-to-ime` does not implement.
+It reuses the existing `k3_w4` matrix/RMSNorm bodies and shared `kernels_ime`
+lowering pipeline, including `lower-ime` and A100/VLEN validation. Its
+dependency on internal `k3_w4` helpers remains.
+
 ## Benchmark and validate
 
 The benchmark and validation scripts are kept in the reproducibility snapshot

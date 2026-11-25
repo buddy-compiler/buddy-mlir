@@ -15,6 +15,9 @@
 //===----------------------------------------------------------------------===//
 
 module attributes {transform.with_named_sequence} {
+  // Shape-specific tiling and vectorization live here. The shared
+  // polynomial-approximate-math and approximate-vector-exp passes run after
+  // these sequences and own the math rewrites.
   transform.named_sequence @__transform_main(%root: !transform.any_op {transform.readonly}) {
     %tanh = transform.structured.match ops{["math.tanh"]} in %root
       : (!transform.any_op) -> !transform.any_op
@@ -27,9 +30,6 @@ module attributes {transform.with_named_sequence} {
       transform.structured.vectorize %tiled vector_sizes [1, 1, 32] : !transform.any_op
       %parallel = transform.loop.forall_to_parallel %forall
         : (!transform.any_op) -> !transform.any_op
-      transform.apply_patterns to %parallel {
-        transform.apply_patterns.math.polynomial_approximation
-      } : !transform.any_op
       transform.yield
     }
     // Flatten contiguous binary elementwise loops before OpenMP collapsing:
@@ -58,7 +58,6 @@ module attributes {transform.with_named_sequence} {
       %parallel = transform.loop.forall_to_parallel %forall
         : (!transform.any_op) -> !transform.any_op
       transform.apply_patterns to %parallel {
-        transform.apply_patterns.math.polynomial_approximation
         transform.apply_patterns.vector.lower_masked_transfers
       } : !transform.any_op
       transform.yield
