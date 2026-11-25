@@ -20,12 +20,28 @@
 
 // RUN: buddy-text-container-test 2>&1 | FileCheck %s
 
+#include <algorithm>
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
 #include <cstdlib>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 using namespace buddy;
+
+// Check the full chat frame, including the number of emitted tokens.
+static void checkDeepSeek(const std::string &vocab, const std::string &prompt,
+                          std::vector<size_t> body) {
+  Text<size_t, 2> text(prompt);
+  std::vector<size_t> expected = {151646, 151646, 151644};
+  expected.insert(expected.end(), body.begin(), body.end());
+  expected.insert(expected.end(), {151645, 151648, 198});
+  text.tokenizeDeepSeekR1(vocab, 2 * prompt.size() + 8);
+  if (text.getTokenCnt() != expected.size() ||
+      !std::equal(expected.begin(), expected.end(), text.getData()))
+    throw std::runtime_error("unexpected DeepSeek token IDs");
+}
 
 int main() {
   const char *sourceDir = std::getenv("BUDDY_SRC_ROOT");
@@ -297,4 +313,21 @@ int main() {
   fprintf(stderr, "%ld\n", puncStrLlamaContainer.getData()[11]);
   // CHECK: buddy compiler: a domain specific compiler!
   fprintf(stderr, "%s\n", puncStrLlamaResult.c_str());
+
+  const std::string deepSeekVocab = testDir + "vocab_deepseek_test.txt";
+  // "ab" occurs at IDs 2 and 6. The last occurrence wins.
+  checkDeepSeek(deepSeekVocab, "ab", {6});
+  checkDeepSeek(deepSeekVocab, std::string(24, ' ') + "ab!!  b  ",
+                {4, 5, 5, 3, 1, 3});
+  checkDeepSeek(deepSeekVocab, "aba", {7});
+  // No token spans '!'. Concatenating this segment has a known exact result.
+  std::string longPrompt;
+  std::vector<size_t> longBody;
+  for (int i = 0; i < 256; ++i) {
+    longPrompt += "ab  ab!";
+    longBody.insert(longBody.end(), {6, 4, 5});
+  }
+  checkDeepSeek(deepSeekVocab, longPrompt, longBody);
+  // CHECK: PASS DeepSeek token IDs
+  std::fprintf(stderr, "PASS DeepSeek token IDs\n");
 }
