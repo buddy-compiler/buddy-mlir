@@ -545,6 +545,23 @@ static LogicalResult lowerReduceKeepingLastDim(linalg::ReduceOp reduceOp,
   return success();
 }
 
+/// `reassoc` for the vir.reduce of `reduceOp` when its combiner (the one op
+/// of its body, getSupportedReduceCombinerKind) has the reassoc fast-math
+/// flag: the source allows its lanes to be combined in any order (an
+/// unordered horizontal reduction, vfredusum on RVV, instead of an ordered
+/// one, vfredosum). None otherwise: the reduction stays ordered.
+static UnitAttr reassocOf(linalg::ReduceOp reduceOp,
+                          PatternRewriter &rewriter) {
+  Block *body = reduceOp.getBody();
+  if (!body || body->without_terminator().empty())
+    return nullptr;
+  auto fm = dyn_cast<arith::ArithFastMathInterface>(&body->front());
+  if (!fm || !arith::bitEnumContainsAll(fm.getFastMathFlagsAttr().getValue(),
+                                        arith::FastMathFlags::reassoc))
+    return nullptr;
+  return rewriter.getUnitAttr();
+}
+
 static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
                                              PatternRewriter &rewriter) {
   if (!reduceOp.hasPureBufferSemantics())
@@ -602,7 +619,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
     Value reduced =
         buddy::vir::ReduceOp::create(rewriter, loc, elemTy, loaded, acc,
-                                     rewriter.getStringAttr(*combinerKind))
+                                     rewriter.getStringAttr(*combinerKind),
+                                     reassocOf(reduceOp, rewriter))
             .getResult();
     memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
     vector::YieldOp::create(rewriter, loc);
@@ -664,7 +682,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
         Value reduced =
             buddy::vir::ReduceOp::create(rewriter, loc, elemTy, row, acc,
-                                         rewriter.getStringAttr(*combinerKind))
+                                         rewriter.getStringAttr(*combinerKind),
+                                         reassocOf(reduceOp, rewriter))
                 .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
@@ -735,7 +754,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
         Value reduced =
             buddy::vir::ReduceOp::create(rewriter, loc, elemTy, col, acc,
-                                         rewriter.getStringAttr(*combinerKind))
+                                         rewriter.getStringAttr(*combinerKind),
+                                         reassocOf(reduceOp, rewriter))
                 .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
@@ -829,7 +849,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
         Value reduced =
             buddy::vir::ReduceOp::create(rewriter, loc, elemTy, slice, acc,
-                                         rewriter.getStringAttr(*combinerKind))
+                                         rewriter.getStringAttr(*combinerKind),
+                                         reassocOf(reduceOp, rewriter))
                 .getResult();
         memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
         vector::YieldOp::create(rewriter, loc);
