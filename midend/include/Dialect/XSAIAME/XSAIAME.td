@@ -98,6 +98,13 @@ def MmaOp : XSAIAME_Op<"mma", [AllTypesMatch<["c", "result"]>]> {
   let description = [{
     Dynamic size operands are ordered M, N, K and are present only for dynamic
     dimensions of A.M, B.N, and A.K. The result type is the type of C.
+
+    The verifier checks tile kinds and shapes, but not whether the element
+    tokens of A, B, and C form a supported multiply-accumulate. Which
+    combinations are supported depends on the hardware implementation, so the
+    dialect does not encode them. The LLVM RISC-V backend lowers
+    `llvm.riscv.xsai.zames.mmacc` for the combinations its target hardware
+    supports; any other combination fails instruction selection.
   }];
   let arguments = (ins
     XSAIAME_TileType:$a, XSAIAME_TileType:$b, XSAIAME_TileType:$c,

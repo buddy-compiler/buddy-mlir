@@ -135,6 +135,8 @@ LogicalResult StoreOp::verify() {
                                 getDynamicSizes().size());
 }
 
+// Element-type combinations depend on the hardware implementation and are left
+// to the LLVM RISC-V backend; see the `mma` description in XSAIAME.td.
 LogicalResult MmaOp::verify() {
   TileType a = getA().getType();
   TileType b = getB().getType();
