@@ -74,8 +74,8 @@ func.func @clamped(%a: memref<100xf32>) {
 // V1024: vector.load {{.*}} vector<[4]xf32>
 // ANY: vector.load {{.*}} vector<[16]xf32>
 
-// The smallest scalable vector, [1]: at VLEN 1024, 16 f32 lanes
-// (LMUL 1/2), more than the constant vl of 8.
+// The constant eight lanes fit in one group at each explicit target VLEN.
+// Generic code without an explicit target VLEN keeps scalable vectors.
 func.func @smallest(%a: memref<8xf32>) {
   %vl = arith.constant 8 : index
   vir.set_vl %vl : index {
@@ -88,6 +88,6 @@ func.func @smallest(%a: memref<8xf32>) {
 }
 
 // CHECK-LABEL: func.func @smallest
-// V256: vector.load {{.*}} vector<[2]xf32>
-// V1024: vector.load {{.*}} vector<[1]xf32>
+// V256: vector.load {{.*}} vector<8xf32>
+// V1024: vector.load {{.*}} vector<8xf32>
 // ANY: vector.load {{.*}} vector<[4]xf32>

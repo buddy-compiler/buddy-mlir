@@ -125,6 +125,21 @@ LogicalResult verifyA100(Operation *op) {
 }
 } // namespace
 
+LogicalResult GemvF16Op::verify() {
+  for (Value value : getOperands().take_front(3)) {
+    auto type = cast<MemRefType>(value.getType());
+    SmallVector<int64_t> strides;
+    int64_t offset;
+    if (!type.hasStaticShape() ||
+        failed(type.getStridesAndOffset(strides, offset)) ||
+        (type.getDimSize(1) != 1 && strides[1] != 1) ||
+        (type.getDimSize(0) != 1 && strides[0] != type.getDimSize(1)))
+      return emitOpError(
+          "requires contiguous activation, packed weight and output views");
+  }
+  return success();
+}
+
 LogicalResult Vmadot_IntrOp::verify() { return verifyDot(getOperation()); }
 
 LogicalResult Vmadotu_IntrOp::verify() { return verifyDot(getOperation()); }

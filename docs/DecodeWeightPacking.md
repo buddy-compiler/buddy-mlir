@@ -61,6 +61,34 @@ reuses each resident tile of `B` across many rows of `A` -- and it reads
 row-major `B`. Handing it packed bytes does not fail loudly: it reads them as
 row-major and produces fluent but wrong output.
 
+## K3 A100 FP16 Decode
+
+The K3 spec selects IME GEMV projections by their logical `[K, N]` weight
+shape. Each rule also specifies the physical order of its FP16 elements:
+
+```json
+{
+  "decode_pack_vector_size": 32,
+  "ime_decode_packing": [
+    {"weight_shape": [1536, 8960], "packed_shape": [560, 192, 2, 8, 8]}
+  ]
+}
+```
+
+The axes are `[N / tile_n, K / 8, tile_n / 8, output lane, K lane]`.
+The last two axes each have eight lanes. One to four native tiles fit in
+the kernel's register allocation, giving 8, 16, 24, or 32 outputs per block.
+The example generates 16 outputs per block. The compiler parallelizes over
+output blocks and keeps their FP32 sums in registers across the K loop.
+Unlisted projections use the RVV panel width. Regenerate both the Decode
+weight file and compiled model after changing a rule.
+
+GEMV accepts contiguous views with arbitrary base offsets. For dynamic
+strides the compiler checks the descriptor before entering the tile loop.
+The normal pipeline omits the hardware dot-product self-test. To diagnose
+a board, pass `verify-fp16=true` to `lower-linalg-to-ime` to run the check
+once per invocation of a function containing a selected matmul.
+
 ## Default Build Integration
 
 Packing is off by default. It is enabled per spec, by setting
@@ -190,3 +218,26 @@ These numbers are machine-dependent. Note also that end-to-end decode tokens/s
 is a poor measure here: on the test machine it varied by about 65% run to run
 for the same binary, so the per-operator figures above were taken from
 instrumented per-region timings averaged over a full generation.
+
+## Qwen3 A100 Prefill packing declaration
+
+The Qwen3 K3 spec uses `ime_prefill_packing` rules with `weight_shape: [K, N]`
+and `packed_shape: [N/32, K/8, 4, 8, 8]`. The final two axes are N8 and K8.
+Each rule selects a GEMM weight shape and declares its logical panel layout.
+Only 32-column panels are supported by the current Prefill kernel. Invalid
+dimensions, duplicate shapes, alternative panel widths, and simultaneous
+`ime_prefill_shapes` and `ime_prefill_packing` declarations are rejected.
+
+The generated Prefill configuration carries the selected shapes and panel
+widths to `lower-linalg-to-ime` through `gemm-panel-width=32`. GEMM lowering
+uses this width for the output-column loop and its K-by-32 scratch allocation;
+the pass rejects other widths because the packing and GEMM microkernels
+support 32 columns only. Existing `ime_prefill_shapes` specs continue to
+select the same default 32-column kernel.
+
+This declaration does not produce an offline-packed Prefill weight file.
+Prefill still reads the plain weights and packs one 32-column B panel at
+runtime, reusing that panel across its 8-row output tiles. Decode separately
+reads its offline-packed weight blob. The logical full-matrix packed shape
+therefore describes Prefill's runtime panel organization, not its input ABI
+or a second persistent Prefill buffer.

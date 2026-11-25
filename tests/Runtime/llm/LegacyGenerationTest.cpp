@@ -18,6 +18,7 @@
 // RUN:   %S/../../../examples/BuddyDeepSeekR1/vocab.txt \
 // RUN:   %S/Inputs/legacy-generation 2>&1 | FileCheck %s
 
+#include <buddy/LLM/DefaultChatTemplates.h>
 #include <buddy/runtime/llm/TextGeneration.h>
 
 #include <cmath>
@@ -47,6 +48,64 @@ using Script = std::vector<Frame>;
 void require(bool condition, const std::string &message) {
   if (!condition)
     throw std::runtime_error(message);
+}
+
+void checkTokenCapacity(const std::string &vocabPath) {
+  const std::vector<size_t> expected = {151646, 151646, 151644, kA,
+                                        151645, 151648, 198};
+  for (size_t capacity : {1, 6, 7, 8}) {
+    Text<size_t, 2> tokens("A");
+    tokens.tokenizeDeepSeekR1(vocabPath, capacity);
+    require(tokens.getTokenCnt() == 1 && tokens.getData()[0] == kA,
+            "pure tokenization changed");
+    const std::vector<size_t> before(tokens.getData(),
+                                     tokens.getData() + capacity);
+    bool rejected = false;
+    try {
+      applyDefaultDeepSeekR1Template(tokens);
+    } catch (const std::length_error &) {
+      rejected = true;
+    }
+    require(rejected == (capacity < expected.size()),
+            "template capacity check failed");
+    if (rejected) {
+      require(tokens.getTokenCnt() == 1 &&
+                  std::equal(before.begin(), before.end(), tokens.getData()),
+              "rejected template changed tokens");
+    } else {
+      require(
+          tokens.getTokenCnt() == expected.size() &&
+              std::equal(expected.begin(), expected.end(), tokens.getData()),
+          "default template token sequence changed");
+      if (capacity > expected.size())
+        require(tokens.getData()[expected.size()] == kEos,
+                "template changed padding");
+    }
+  }
+
+  // The tokenizer must reject a sequence that cannot fit even without a
+  // template. No output token may be written before this check.
+  Text<size_t, 2> tooLong("<|User|>A");
+  bool rejected = false;
+  try {
+    tooLong.tokenizeDeepSeekR1(vocabPath, 1);
+  } catch (const std::length_error &) {
+    rejected = true;
+  }
+  require(rejected && tooLong.getTokenCnt() == 0,
+          "oversized text was not rejected before writing tokens");
+
+  // An empty sequence still needs room for all six template tokens.
+  Text<size_t, 2> empty("");
+  empty.tokenizeDeepSeekR1(vocabPath, 0);
+  rejected = false;
+  try {
+    applyDefaultDeepSeekR1Template(empty);
+  } catch (const std::length_error &) {
+    rejected = true;
+  }
+  require(rejected && empty.getTokenCnt() == 0,
+          "zero-capacity template was not rejected");
 }
 
 Frame logits(size_t vocabSize,
@@ -253,6 +312,7 @@ int main(int argc, char **argv) {
     codec.maxTokenLen = kContextLength;
     codec.tokenize = [](Text<size_t, 2> &tokens, const std::string &path) {
       tokens.tokenizeDeepSeekR1(path, kContextLength);
+      applyDefaultDeepSeekR1Template(tokens);
     };
     codec.detokenize = [](Text<size_t, 2> &tokens) {
       return tokens.revertDeepSeekR1();
@@ -328,6 +388,33 @@ int main(int argc, char **argv) {
     // CHECK: seed 42 and repeated session reset: platform reference matched
     std::cout
         << "seed 42 and repeated session reset: platform reference matched\n";
+
+    // A caller that has already applied a chat template uses pure tokenization.
+    // Exercise the actual generation loop and inspect the tokens sent to
+    // prefill.
+    const std::string renderedPrompt =
+        "<|begin▁of▁sentence|><|User|>A<|end▁of▁sentence|><|Assistant|>";
+    TextCodec renderedCodec = codec;
+    renderedCodec.tokenize = [](Text<size_t, 2> &tokens,
+                                const std::string &path) {
+      tokens.tokenizeDeepSeekR1(path, kContextLength);
+    };
+    for (bool jsonl : {false, true}) {
+      FakeSession renderedSession(greedyScript);
+      CaptureStdout capture;
+      const auto result =
+          runGeneration(renderedPrompt, renderedSession, vocabPath, 32, {kEos},
+                        sampler, renderedCodec, true, jsonl);
+      require(renderedSession.promptTokens ==
+                  std::vector<size_t>({151646, 151644, kA, 151643, 151645}),
+              "rendered prompt received an extra default template");
+      require(result.text == "AB", "rendered prompt generation changed");
+    }
+    // CHECK: rendered prompts receive no additional template
+    std::cout << "rendered prompts receive no additional template\n";
+    checkTokenCapacity(vocabPath);
+    // CHECK: tokenizer and default template capacity checks: passed
+    std::cout << "tokenizer and default template capacity checks: passed\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

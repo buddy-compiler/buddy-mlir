@@ -225,6 +225,9 @@ def build_stages(
     decode_pack: dict | None = None,
     arena: bool = False,
     chunked_prefill: bool = False,
+    ime: dict | None = None,
+    prefill: dict | None = None,
+    decode: dict | None = None,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -237,6 +240,73 @@ def build_stages(
     """
     stages = []
     llc_base_args = llc_attrs.split()
+    prefill = prefill or {}
+    is_prefill = pipeline_type in ("standard", "subgraph")
+    native_vlen = prefill.get("vlen_bits", 0) if is_prefill else 0
+    prefill_width = prefill.get("vector_size", 0) if is_prefill else 0
+    optimize_silu = bool(prefill.get("optimize_silu", False)) and is_prefill
+    prefill_shapes = prefill.get("ime_shapes", []) if is_prefill else []
+    ime_shapes = (ime or {}).get("decode_shapes", [])
+    use_ime = bool(ime_shapes) and pipeline_type == "subgraph_decode"
+    fast_ime = use_ime and ime.get("kernel") == "gemv"
+    if (use_ime or prefill_shapes) and variant != "f16":
+        raise ValueError("A100 FP16 kernels require variant=f16")
+    if native_vlen:
+        if (
+            type(native_vlen) is not int
+            or native_vlen < 128
+            or native_vlen > 65536
+            or native_vlen & (native_vlen - 1)
+        ):
+            raise ValueError("Invalid Prefill VLEN")
+        if not any("riscv" in arg for arg in llc_base_args):
+            raise ValueError("Native Prefill VLEN requires a RISC-V target")
+        build_vlen = exact_rvv_vlen(llc_base_args)
+        if build_vlen is not None and build_vlen != native_vlen:
+            raise ValueError(
+                f"Prefill VLEN {native_vlen} conflicts with build VLEN {build_vlen}"
+            )
+        if build_vlen is None:
+            # Tighten an unspecified (or compatible partial) build range.
+            for bound in ("min", "max"):
+                prefix = f"-riscv-v-vector-bits-{bound}="
+                for arg in llc_base_args:
+                    if arg.startswith(prefix):
+                        value = int(arg[len(prefix) :])
+                        if value > 0 and (
+                            (bound == "min" and value > native_vlen)
+                            or (bound == "max" and value < native_vlen)
+                        ):
+                            raise ValueError(
+                                f"Prefill VLEN {native_vlen} conflicts with {arg}"
+                            )
+                llc_base_args = [
+                    arg for arg in llc_base_args if not arg.startswith(prefix)
+                ]
+                llc_base_args.append(f"{prefix}{native_vlen}")
+            exact_rvv_vlen(llc_base_args)  # Also validate the +zvl minimum.
+    if prefill_shapes and native_vlen != 1024:
+        raise ValueError("A100 IME Prefill requires VLEN=1024")
+    blis_option = "-matmul-vectorization-blis"
+    if native_vlen or prefill_width:
+        width = prefill_width or 32
+        if type(width) is not int or width not in (8, 16, 32, 64, 128):
+            raise ValueError("Invalid Prefill vector width")
+        blis_option += f"=vector-size={width} target-vlen-bits={native_vlen}"
+    if use_ime or prefill_shapes:
+        if not any("riscv" in arg for arg in llc_base_args):
+            raise ValueError("A100 IME kernels require a RISC-V target")
+        if fast_ime and (
+            not decode_pack
+            or not decode_pack.get("enabled")
+            or decode_pack.get("ime_layout") not in ("n32k8", "tiled_k8")
+            or set(decode_pack.get("ime_shapes", [])) != set(ime_shapes)
+        ):
+            raise ValueError(
+                "A100 GEMV requires matching offline IME weight packing"
+            )
+        features = ["+xsmtvdotii"] + (["+zicbop"] if fast_ime else [])
+        llc_base_args.append("-mattr=" + ",".join(features))
     if variant.startswith("w") and not any(
         arg.startswith(("-code-model", "--code-model")) for arg in llc_base_args
     ):
@@ -316,8 +386,13 @@ def build_stages(
         )
         return stages
 
+    if pipeline_type == "subgraph_decode":
+        optimize_silu = bool((decode or {}).get("optimize_silu", False))
+
     # ── Stage 1: buddy-opt (initial simplification) ──────────────────────────
     init_opts = ["-simplify-tosa-reshape"]
+    if optimize_silu:
+        init_opts.append("-silu-fusion")
     if pipeline_type == "subgraph_decode":
         init_opts.append("-simplify-tosa-matmul-scalar")
     stages.append(("buddy-opt", init_opts))
@@ -327,6 +402,7 @@ def build_stages(
 
     # ── Stage 3: buddy-opt (bufferize → vectorize → lower) ──────────────────
     opts = [
+        *(["-fuse-prefill-elementwise"] if optimize_silu else []),
         "-eliminate-empty-tensors",
         "-empty-tensor-to-alloc-tensor",
     ]
@@ -346,6 +422,29 @@ def build_stages(
         ]
     )
 
+    if prefill_shapes:
+        panel_widths = prefill.get(
+            "ime_widths", dict.fromkeys(prefill_shapes, 32)
+        )
+        if set(panel_widths) != set(prefill_shapes) or any(
+            type(width) is not int or width != 32
+            for width in panel_widths.values()
+        ):
+            raise ValueError(
+                "A100 Prefill packing requires matching 32-column panels"
+            )
+        panel_width = next(iter(panel_widths.values()))
+        opts.extend(
+            [
+                "-staticize-memref-layout",
+                "-lower-linalg-to-ime="
+                f"target=k3 matmul-shapes={','.join(prefill_shapes)} "
+                f"a100-fp16=true a100-gemm=true gemm-panel-width={panel_width}",
+                "-lower-ime=target=k3",
+                "-expand-strided-metadata",
+            ]
+        )
+
     # The KV caches are function arguments that the graph updates: write them
     # in place instead of copying each into a new buffer first. Decode, and
     # prefill in chunks (gen_config.derive_prefill_chunk), which has the
@@ -355,12 +454,36 @@ def build_stages(
     ):
         opts.append("-eliminate-memref-copy")
     if pipeline_type == "subgraph_decode":
-        opts.extend(
-            [
-                "-assume-tight-memref-layout",
-                "-staticize-memref-layout",
-            ]
-        )
+        if not fast_ime:
+            opts.append("-assume-tight-memref-layout")
+        opts.append("-staticize-memref-layout")
+        if use_ime:
+            packed_width = (
+                decode_pack["vector_size"]
+                if decode_pack and decode_pack.get("enabled")
+                else 0
+            )
+            groups = {packed_width: ime_shapes}
+            if fast_ime and decode_pack["ime_layout"] == "tiled_k8":
+                widths = decode_pack["ime_widths"]
+                if set(widths) != set(ime_shapes):
+                    raise ValueError(
+                        "Decode packing and GEMV shape lists differ"
+                    )
+                groups = {}
+                for shape, width in widths.items():
+                    groups.setdefault(width, []).append(shape)
+            for width, shapes in groups.items():
+                opts.append(
+                    "-lower-linalg-to-ime="
+                    f"target=k3 matmul-shapes={','.join(shapes)} "
+                    f"packed-vector-size={width} parallel-tiles=true "
+                    f"a100-fp16=true a100-gemv={'true' if fast_ime else 'false'}"
+                )
+            opts.extend(["-lower-ime=target=k3", "-expand-strided-metadata"])
+        if fast_ime:
+            # Check GEMV's original descriptors before tightening other uses.
+            opts.append("-assume-tight-memref-layout")
         if variant in ("w8a32", "w8a16"):
             opts.append("-dequant-matmul-vectorization-decode=vector-size=32")
             opts.append("-matmul-vectorization-decode=vector-size=32")
@@ -404,7 +527,7 @@ def build_stages(
     elif pipeline_type == "subgraph":
         opts.extend(
             [
-                "-matmul-vectorization-blis",
+                blis_option,
                 "-batchmatmul-optimize",
                 "-batchmatmul-transpose-b-vectorization",
                 "-convert-linalg-to-affine-loops",
@@ -424,7 +547,7 @@ def build_stages(
     else:  # standard
         opts.extend(
             [
-                "-matmul-vectorization-blis",
+                blis_option,
                 "-batchmatmul-optimize",
                 "-convert-linalg-to-affine-loops",
                 "-affine-parallelize",
@@ -436,6 +559,14 @@ def build_stages(
         )
         if tiered:
             opts.append("-cse")
+
+    if optimize_silu:
+        insertion = opts.index("-convert-linalg-to-affine-loops")
+        opts[insertion:insertion] = [
+            "-lower-linalg-to-vir=exp-only=true",
+            "-lower-vir-to-vector=vector-width=32",
+            "-approximate-vector-exp",
+        ]
 
     opts.extend(lower_to_llvm(arena))
     stages.append(("buddy-opt", opts))
@@ -613,6 +744,9 @@ def _compile_one(task: dict) -> str:
         task.get("decode_pack"),
         task.get("arena", False),
         task.get("chunked_prefill", False),
+        ime=task.get("ime"),
+        prefill=task.get("prefill"),
+        decode=task.get("decode"),
     )
     run_pipeline(
         stages,
@@ -656,12 +790,15 @@ def compile_all(
         tasks.append(
             {
                 "name": key,
+                "decode": config["compilation"].get("decode"),
                 "pipeline_type": pipeline_type,
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
                 "variant": variant,
                 "tiered": is_tiered_kv_cache(config),
                 "decode_pack": decode_pack,
+                "ime": config["compilation"].get("ime"),
+                "prefill": config["compilation"].get("prefill"),
                 "arena": bool(config.get("arena", False)),
                 "chunked_prefill": bool(config.get("prefill_chunk")),
                 "input": input_path,
@@ -853,11 +990,14 @@ def compile_partitioned(
         tasks.append(
             {
                 "name": key,
+                "decode": config["compilation"].get("decode"),
                 "pipeline_type": pipeline_type,
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
                 "variant": variant,
                 "decode_pack": decode_pack,
+                "ime": config["compilation"].get("ime"),
+                "prefill": config["compilation"].get("prefill"),
                 "tiered": is_tiered_kv_cache(config),
                 "arena": bool(config.get("arena", False)),
                 "chunked_prefill": bool(config.get("prefill_chunk")),
@@ -1183,6 +1323,9 @@ def main():
             config.get("decode_pack"),
             bool(config.get("arena", False)),
             bool(config.get("prefill_chunk")),
+            ime=config["compilation"].get("ime"),
+            prefill=config["compilation"].get("prefill"),
+            decode=config["compilation"].get("decode"),
         )
 
         print(

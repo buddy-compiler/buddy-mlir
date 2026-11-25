@@ -134,9 +134,12 @@ void registerMatMulTransposeBVecDecodePass();
 void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
+void registerPolynomialApproximateMathPass();
 void registerMatMulVectorizationBLISPass();
 void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
+void registerVectorExpApproximationPass();
+void registerPrefillElementwiseFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
@@ -223,6 +226,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulTransposeBVecDecodePass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
+  mlir::buddy::registerPolynomialApproximateMathPass();
   // Register minimal TOSA reshape simplification pass.
   mlir::buddy::registerSimplifyTosaReshapePass();
   // Register tosa.matmul(K=1,J=1) -> tosa.mul rewrite.
@@ -234,6 +238,8 @@ int main(int argc, char **argv) {
   // Register trace conversion pipeline.
   mlir::buddy::registerConvertTraceToLLVMPass();
   mlir::buddy::registerSiLUFusionPass();
+  mlir::buddy::registerVectorExpApproximationPass();
+  mlir::buddy::registerPrefillElementwiseFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerConvertStridedMemrefCopyToLinalgPass();

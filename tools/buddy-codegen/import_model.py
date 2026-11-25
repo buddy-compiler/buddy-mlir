@@ -40,6 +40,17 @@ import time
 import types
 from contextlib import contextmanager
 
+# Resolve the sibling by filename: this module is also loaded through importlib
+# without buddy-codegen on sys.path. Avoid unrelated global gen_config modules.
+_gen_config_spec = importlib.util.spec_from_file_location(
+    "_buddy_codegen_gen_config",
+    os.path.join(os.path.dirname(__file__), "gen_config.py"),
+)
+assert _gen_config_spec is not None and _gen_config_spec.loader is not None
+_gen_config = importlib.util.module_from_spec(_gen_config_spec)
+_gen_config_spec.loader.exec_module(_gen_config)
+resolve_model_path = _gen_config.resolve_model_path
+
 # buddy.compiler.* is synced to build/python_packages by target python-package-buddy
 # (needs -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON). CMake also sets PYTHONPATH; this
 # helps when running import_model.py manually.
@@ -120,9 +131,7 @@ def timed_import_step(name: str):
 
 def load_model(config: dict):
     """Load model with appropriate precision."""
-    model_path = (
-        os.environ.get("DEEPSEEKR1_MODEL_PATH") or config["hf_model_path"]
-    )
+    model_path = resolve_model_path(config)
     activation = config["precision"]["activation_type"]
 
     if config.get("architecture") == "Qwen3MoeForCausalLM":
@@ -137,6 +146,17 @@ def load_model(config: dict):
         model = AutoModelForCausalLM.from_pretrained(
             model_path, dtype=torch.float32
         ).eval()
+
+    # Give the output projection its own layout without changing embedding
+    # lookups when the checkpoint shares the two parameter objects.
+    if config.get("separate_output_embedding", False):
+        output = model.get_output_embeddings()
+        embedding = model.get_input_embeddings()
+        if output.weight is embedding.weight:
+            output.weight = torch.nn.Parameter(
+                output.weight.detach().clone(), requires_grad=False
+            )
+            model.config.tie_word_embeddings = False
 
     model.config.use_cache = False
     print(
@@ -359,6 +379,37 @@ def tiered_cache_sizes(config: dict) -> list[int]:
     return [int(x) for x in sizes]
 
 
+def apply_attention_options(
+    graph, config: dict, phase: str, cache_size: int | None = None
+):
+    """Apply tuning after fusion on every ordinary or tiered graph."""
+    if phase == "prefill":
+        attention_width = (
+            config.get("compilation", {})
+            .get("prefill", {})
+            .get("attention_vector_size", 0)
+        )
+        if attention_width:
+            for node in graph.body:
+                if isinstance(node, FlashAttentionForCpuPrefillOp):
+                    node.kwargs["vector_width"] = attention_width
+        return
+    decode_options = config.get("compilation", {}).get("decode", {})
+    splits = decode_options.get("kv_splits", 0)
+    if splits and cache_size is not None and cache_size % (splits * 16):
+        raise ValueError(
+            f"Decode cache length {cache_size} is incompatible with {splits} KV splits"
+        )
+    for node in graph.body:
+        if isinstance(node, GQAAttentionFusedOp):
+            if decode_options.get("attention_vector_size"):
+                node.kwargs["vector_width"] = decode_options[
+                    "attention_vector_size"
+                ]
+            if decode_options.get("kv_splits"):
+                node.kwargs["kv_splits"] = decode_options["kv_splits"]
+
+
 def compile_and_export_tiered_graphs(
     model,
     config: dict,
@@ -437,6 +488,7 @@ def compile_and_export_tiered_graphs(
             graph.fuse_ops(pattern_prefill_with_flash)
         else:
             graph.fuse_ops(pattern_prefill_no_flash)
+        apply_attention_options(graph, config, "prefill")
 
         name = (
             f"subgraph0_prefill_{prefill_size}_"
@@ -546,6 +598,7 @@ def compile_and_export_tiered_graphs(
         graph = graphs[0]
         graph.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
         graph.fuse_ops(pattern_decode)
+        apply_attention_options(graph, config, "decode", cache_size)
 
         name = (
             f"subgraph0_decode_{cache_size}_"
@@ -650,7 +703,10 @@ def pack_decode_weights(graph_decode, decode_pack: dict) -> None:
     the tensors -- which are still shared objects -- in place.
     """
     packed = pack_decode_matmul_weights(
-        graph_decode, vecsize=decode_pack["vector_size"]
+        graph_decode,
+        vecsize=decode_pack["vector_size"],
+        ime_shapes=decode_pack.get("ime_shapes"),
+        ime_widths=decode_pack.get("ime_widths"),
     )
     print(
         f"[import] packed {len(packed)} decode matmul weights into panel "
@@ -1383,9 +1439,7 @@ def w4g32_layout(config: dict) -> str:
 
 
 def weights_manifest_payload(config: dict, output_dir: str) -> dict:
-    model_path = (
-        os.environ.get("DEEPSEEKR1_MODEL_PATH") or config["hf_model_path"]
-    )
+    model_path = resolve_model_path(config)
     payload = {
         "model_path": model_path,
         "model_id": config.get("model_id"),
@@ -1618,6 +1672,11 @@ def import_model(
         apply_fusion(
             graphs_prefill[0], graphs_decode[0], chunked_prefill=chunked_prefill
         )
+
+    apply_attention_options(graphs_prefill[0], config, "prefill")
+    apply_attention_options(
+        graphs_decode[0], config, "decode", config["shape"]["max_token_len"]
+    )
 
     if export_layer_partitioned:
         with timed_import_step("export_layer_partitioned_mlir"):

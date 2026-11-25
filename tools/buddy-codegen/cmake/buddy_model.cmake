@@ -413,7 +413,7 @@ function(buddy_add_model)
     set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
   elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
-      set(MDL_LLC_ATTRS "-mcpu=native -mattr=${_MDL_RISCV_MATTR}")
+      set(MDL_LLC_ATTRS "-march=riscv64 -mcpu=native -mattr=${_MDL_RISCV_MATTR}")
     else()
       set(MDL_LLC_ATTRS "-mcpu=native")
     endif()
@@ -711,6 +711,10 @@ function(buddy_add_model)
     )
     if(MDL_HF_CONFIG)
       list(APPEND GEN_CONFIG_CMD --hf-config "${MDL_HF_CONFIG}")
+    endif()
+    if(MDL_LOCAL_MODEL)
+      list(PREPEND GEN_CONFIG_CMD ${CMAKE_COMMAND} -E env
+        "${MDL_LOCAL_MODEL_ENV}=${MDL_LOCAL_MODEL}")
     endif()
 
     add_custom_command(
@@ -1298,7 +1302,7 @@ function(buddy_add_model)
       if(MDL_LOCAL_MODEL)
         set(_IMPORT_ENV ${CMAKE_COMMAND} -E env
           "PYTHONPATH=${BUDDY_PY_PKG_ROOT}"
-          "DEEPSEEKR1_MODEL_PATH=${MDL_LOCAL_MODEL}")
+          "${MDL_LOCAL_MODEL_ENV}=${MDL_LOCAL_MODEL}")
       else()
         set(_IMPORT_ENV ${CMAKE_COMMAND} -E env "PYTHONPATH=${BUDDY_PY_PKG_ROOT}")
       endif()

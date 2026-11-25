@@ -88,7 +88,8 @@ public:
       SmallVector<OpOperand *> toUpdate;
       for (OpOperand &use : value.getUses()) {
         Operation *owner = use.getOwner();
-        if (isa<func::ReturnOp>(owner))
+        // Metadata queries must observe the actual descriptor strides.
+        if (isa<func::ReturnOp, memref::ExtractStridedMetadataOp>(owner))
           continue;
         if (isa<CallOpInterface>(owner))
           continue;

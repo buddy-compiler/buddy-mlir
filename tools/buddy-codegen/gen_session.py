@@ -160,6 +160,9 @@ def gen_header(config: dict) -> str:
         "HIDDEN_SIZE": shape["hidden_size"],
         "VOCAB_SIZE": shape["vocab_size"],
         "KV_LAYERS": kv_layers,
+        "ROPE_THETA": repr(
+            float(config.get("tokens", {}).get("rope_theta", 10000.0))
+        ),
     }
     for w in weights:
         tag_upper = w["tag"].upper()

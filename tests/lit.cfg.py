@@ -114,6 +114,7 @@ tools = [
     "buddy-perplexity-test",
     "buddy-text-generation-test",
     "buddy-legacy-generation-test",
+    "buddy-deepseek-resident-model-test",
     "buddy-serving-generation-test",
     "mlir-runner",
 ]
