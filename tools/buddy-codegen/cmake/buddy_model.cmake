@@ -205,6 +205,8 @@ endfunction()
 #                                           qwen3_vl_multimodal
 #   [IMPORT_SCRIPT <path>]                  custom importer for single_forward
 #   [IMPORT_EXTRA_DEPS <file>...]           extra files read by the importer
+#   [IMPORT_EXTRA_BYPRODUCTS <file>...]     single_forward: extra files written
+#                                           by the importer
 #   [LOWER_SCRIPT <path>]                   single_forward: lowers subgraph0.mlir
 #                                           to subgraph0.o (lower_to_obj.sh
 #                                           arguments, PYTHON in the
@@ -386,7 +388,7 @@ function(buddy_add_model)
     MDL                                      # prefix
     ""                                       # flags
     "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;LOWER_LINKER"
-    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;IMPORT_EXTRA_DEPS;LOWER_EXTRA_DEPS" # multi-value
+    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;IMPORT_EXTRA_DEPS;IMPORT_EXTRA_BYPRODUCTS;LOWER_EXTRA_DEPS" # multi-value
     ${ARGN}
   )
 
@@ -1132,7 +1134,7 @@ function(buddy_add_model)
 
     add_custom_command(
       OUTPUT "${IMPORT_STAMP}"
-      BYPRODUCTS ${_SINGLE_FORWARD_BYPRODUCTS}
+      BYPRODUCTS ${_SINGLE_FORWARD_BYPRODUCTS} ${MDL_IMPORT_EXTRA_BYPRODUCTS}
       COMMAND ${_IMPORT_ENV}
               "${Python3_EXECUTABLE}" "${MDL_IMPORT_SCRIPT}"
               --spec "${GEN_CONFIG}" --output-dir "${BIN}"

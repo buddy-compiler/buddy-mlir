@@ -21,6 +21,7 @@ if(_embeddinggemma_threads_error OR NOT _embeddinggemma_num_threads)
 endif()
 
 set(_embeddinggemma_import_extra_deps)
+set(_embeddinggemma_import_extra_byproducts)
 set(_embeddinggemma_lower_extra_deps
   "${CMAKE_CURRENT_SOURCE_DIR}/codegen/tanh-approx.mlir")
 set(_embeddinggemma_linker)
@@ -38,6 +39,8 @@ if(_embeddinggemma_variant STREQUAL "fp16_comp3")
     REQUIRED)
   list(APPEND _embeddinggemma_import_extra_deps
     "${CMAKE_CURRENT_SOURCE_DIR}/codegen/embeddinggemma_ime.py")
+  list(APPEND _embeddinggemma_import_extra_byproducts
+    "${CMAKE_CURRENT_BINARY_DIR}/embeddinggemma_ime.mlir")
 endif()
 
 buddy_add_model(
@@ -52,6 +55,7 @@ buddy_add_model(
   LOCAL_MODEL_ENV EMBEDDINGGEMMA_MODEL_PATH
   IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import_embeddinggemma.py"
   IMPORT_EXTRA_DEPS ${_embeddinggemma_import_extra_deps}
+  IMPORT_EXTRA_BYPRODUCTS ${_embeddinggemma_import_extra_byproducts}
   LOWER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/lower_to_obj.sh"
   LOWER_EXTRA_DEPS ${_embeddinggemma_lower_extra_deps}
   LOWER_LINKER "${_embeddinggemma_linker}"
