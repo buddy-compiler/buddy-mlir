@@ -156,6 +156,23 @@ static std::optional<vector::CombiningKind> combiningKindOf(StringRef kind) {
 /// The reductions the active-length (VP) lowering handles: floating-point add
 /// (ordered, or reassociable) and maxnum. A region with any other reduction
 /// keeps the fixed-VL lowering with its halving tail.
+// The matmul loop computes VL from its vector width and, for RVV, vscale.
+static bool isFullMatmulTile(Value vl, int64_t width, bool scalable) {
+  if (!scalable)
+    return getConstantIntValue(vl) == width;
+  if (width == 1 && vl.getDefiningOp<vector::VectorScaleOp>())
+    return true;
+  auto product = vl.getDefiningOp<arith::MulIOp>();
+  if (!product)
+    return false;
+  auto matches = [&](Value multiplier, Value scale) {
+    return getConstantIntValue(multiplier) == width &&
+           scale.getDefiningOp<vector::VectorScaleOp>();
+  };
+  return matches(product.getLhs(), product.getRhs()) ||
+         matches(product.getRhs(), product.getLhs());
+}
+
 static bool isAVLReduction(vir::ReduceOp op) {
   auto kind = op->getAttrOfType<StringAttr>("kind");
   if (!kind || (kind.getValue() != "add" && kind.getValue() != "maxnum"))
@@ -563,7 +580,8 @@ static int hostRvvVlen() {
 /// live at once fit in the registers.
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose, int rvvVlen,
-                            unsigned indexBitWidth, int64_t rows = 1,
+                            unsigned indexBitWidth, int targetVectorBits = 0,
+                            int targetVectorRegs = 0, int64_t rows = 1,
                             bool *fits = nullptr) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
   if (verbose) {                                                               \
@@ -575,7 +593,14 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   // a reasonable generic SIMD nominal.
   int vectorRegBitWidth = 128;
   int totalVectorRegs = 16;
-  if (rvvVlen > 0) {
+  if (targetVectorBits > 0) {
+    // Use the explicit target register file for the pressure analysis.
+    vectorRegBitWidth = targetVectorBits;
+    totalVectorRegs = targetVectorRegs;
+    VERBOSE_ANALYSIS_INFO("--- Fixed vector target: "
+                          << targetVectorBits << " bits x " << targetVectorRegs
+                          << " registers ---\n");
+  } else if (rvvVlen > 0) {
     // A RISC-V Vector target (e.g. a cross compilation): the host is not
     // looked at.
     vectorRegBitWidth = rvvVlen;
@@ -814,11 +839,12 @@ public:
   VIRSetVLLowering(LLVMTypeConverter &converter, bool useScalable,
                    int vectorWidth, bool verbose, bool useCustomVecWid,
                    int rvvVlen, bool rvvVlenExact, bool zvfbfmin,
-                   bool useAVLLoop)
+                   bool useAVLLoop, int targetVectorBits, int targetVectorRegs)
       : ConvertOpToLLVMPattern<vir::SetVLOp>(converter),
         useScalable(useScalable), vectorWidth(vectorWidth), verbose(verbose),
         useCustomVecWid(useCustomVecWid), rvvVlen(rvvVlen),
-        rvvVlenExact(rvvVlenExact), zvfbfmin(zvfbfmin), useAVLLoop(useAVLLoop) {
+        rvvVlenExact(rvvVlenExact), zvfbfmin(zvfbfmin), useAVLLoop(useAVLLoop),
+        targetVectorBits(targetVectorBits), targetVectorRegs(targetVectorRegs) {
   }
 
 private:
@@ -834,6 +860,8 @@ private:
   // the target has Zvfbfmin (rvv-mattr): RVV holds bf16 vectors
   bool zvfbfmin;
   bool useAVLLoop;
+  int targetVectorBits;
+  int targetVectorRegs;
   // set when lowerBlock meets an op it does not lower
   mutable bool unsupportedOp = false;
 
@@ -2455,10 +2483,10 @@ private:
     int64_t width =
         useCustomVecWid
             ? vectorWidth
-            : vectorTypeHelper(op.getRegion(), anchorType, scalable, verbose,
-                               rvvVlen,
-                               getTypeConverter()->getIndexTypeBitwidth(),
-                               llvm::product_of(layout))
+            : vectorTypeHelper(
+                  op.getRegion(), anchorType, scalable, verbose, rvvVlen,
+                  getTypeConverter()->getIndexTypeBitwidth(), targetVectorBits,
+                  targetVectorRegs, llvm::product_of(layout))
                   .getShape()[0];
     // Scalable vectors have width * vscale lanes at the vscale of the
     // target, rvv-vlen / 64: the code is for that VLEN only. Without it, a
@@ -2667,7 +2695,16 @@ private:
     // scalable vectors but for the floats RVV does not hold
     bool scalable = useScalable && !needsFixedVectors(region, zvfbfmin);
     VectorType targetVectorType;
-    if (useCustomVecWid) {
+    auto matmulWidth = op->getAttrOfType<IntegerAttr>("vir.matmul_width");
+    if (matmulWidth) {
+      if (!matmulWidth.getValue().isSignedIntN(32) ||
+          matmulWidth.getInt() <= 0 ||
+          scalable != op->hasAttr("vir.matmul_scalable") ||
+          !leadingStaticDims.empty())
+        return op.emitError("incompatible VIR matmul tile width or layout");
+      vectorWid = matmulWidth.getInt();
+      targetVectorType = VectorType::get({vectorWid}, anchorType, {scalable});
+    } else if (useCustomVecWid) {
       if (verbose) {
         llvm::outs() << "Use user custom vector width = " << vectorWidth
                      << "\n";
@@ -2684,7 +2721,8 @@ private:
     } else {
       targetVectorType =
           vectorTypeHelper(region, anchorType, scalable, verbose, rvvVlen,
-                           getTypeConverter()->getIndexTypeBitwidth());
+                           getTypeConverter()->getIndexTypeBitwidth(),
+                           targetVectorBits, targetVectorRegs);
       vectorWid = int(targetVectorType.getShape()[0]);
     }
 
@@ -2717,14 +2755,24 @@ private:
       auto vecTy = cast<VectorType>(targetVectorType);
       std::optional<int64_t> constVl = getConstantIntValue(vlValue);
 
+      // A full tile already covers exactly one vector. Check its VL before
+      // bypassing strip mining so a width hint cannot change its extent.
+      if (matmulWidth && isFullMatmulTile(vlValue, vectorWid, scalable)) {
+        DenseMap<Value, Value> virSymbolTable;
+        lowerBlock(b, loc, &region.front(), virSymbolTable, zero, leadingIVs,
+                   targetVectorType, /*isTailLoop=*/false);
+        return;
+      }
+
       // A constant region that fits in one register group at the target's
       // minimum VLEN needs neither strip mining nor a scalar tail. Fixed
       // vectors carry the exact AVL through vector-to-LLVM lowering and stay
       // correct when executed with a larger hardware VLEN as well.
       // Fixed i1 memory vectors are scalarized lane by lane; preserve their
       // scalable byte-vector lowering instead of unrolling those accesses.
-      if (vecTy.isScalable() && rvvVlenExact && !hasI1Memory && constVl &&
-          *constVl > 0 && *constVl <= int64_t(vectorWid) * (rvvVlen / 64)) {
+      if (!matmulWidth && vecTy.isScalable() && rvvVlenExact && !hasI1Memory &&
+          constVl && *constVl > 0 &&
+          *constVl <= int64_t(vectorWid) * (rvvVlen / 64)) {
         DenseMap<Value, Value> virSymbolTable;
         lowerBlock(b, loc, &region.front(), virSymbolTable, zero, leadingIVs,
                    VectorType::get({*constVl}, vecTy.getElementType()),
@@ -2765,8 +2813,10 @@ private:
       // target VLEN. The accepted one-group constant path above stays first.
       // Longer/unknown regions retain the unpredicated, fixed-VL main loop:
       // VP arithmetic can prevent strength reduction and dead-copy removal.
-      bool useShortAVL = canUseAVL && rvvVlenExact && constVl && *constVl > 0 &&
-                         *constVl <= 2 * int64_t(vectorWid) * (rvvVlen / 64);
+      bool useShortAVL =
+          canUseAVL && (matmulWidth ||
+                        (rvvVlenExact && constVl && *constVl > 0 &&
+                         *constVl <= 2 * int64_t(vectorWid) * (rvvVlen / 64)));
       if (useShortAVL) {
         Value step = arith::MulIOp::create(
             b, loc, vlStep, vector::VectorScaleOp::create(b, loc));
@@ -2786,11 +2836,14 @@ private:
         return;
       }
       Value tailStart;
-      if (cast<VectorType>(targetVectorType).isScalable()) {
+      if (vecTy.isScalable() || targetVectorBits > 0 || matmulWidth) {
+        // Explicit fixed targets also use SCF for runtime loop bounds.
         // A scalable vector has vectorWid * vscale lanes: the step, and with
         // it the end of the main loop, are runtime values.
-        Value step = arith::MulIOp::create(
-            b, loc, vlStep, vector::VectorScaleOp::create(b, loc));
+        Value step = vlStep;
+        if (vecTy.isScalable())
+          step = arith::MulIOp::create(b, loc, vlStep,
+                                       vector::VectorScaleOp::create(b, loc));
         Value vlRem = arith::RemSIOp::create(b, loc, vlValue, step);
         tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
         scf::ForOp::create(
@@ -2865,7 +2918,8 @@ private:
       // 512 bits are 64 i8, 32 f16, 8 f64 lanes: other element types,
       // instructions and cores may have another best size, for a target
       // cost model to give.
-      {
+      // An explicit fixed target uses the full width and a scalar tail.
+      if (targetVectorBits == 0 && (!matmulWidth || scalable)) {
         bool scalable = vecTy.isScalable();
         Type elem = vecTy.getElementType();
         int64_t elemBits = elem.isIndex()
@@ -2922,7 +2976,7 @@ private:
                    /*targetVectorType=*/Type{},
                    /*isTailLoop=*/true);
       };
-      if (cast<VectorType>(targetVectorType).isScalable()) {
+      if (vecTy.isScalable() || targetVectorBits > 0 || matmulWidth) {
         // Inside the loops over leading static dims, the scalable tailStart
         // is not a valid affine symbol (its remsi divisor is not provably
         // nonzero), so the tail loop is an scf.for as well.
@@ -3000,14 +3054,13 @@ private:
 
 } // end anonymous namespace
 
-void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
-                                           RewritePatternSet &patterns,
-                                           bool useScalable, int vectorWidth,
-                                           bool verbose, bool useCustomVecWid,
-                                           int rvvVlen, bool rvvVlenExact,
-                                           bool zvfbfmin, bool useAVLLoop) {
+void populateVIRToVectorConversionPatterns(
+    LLVMTypeConverter &converter, RewritePatternSet &patterns, bool useScalable,
+    int vectorWidth, bool verbose, bool useCustomVecWid, int rvvVlen,
+    bool rvvVlenExact, bool zvfbfmin, bool useAVLLoop, int targetVectorBits,
+    int targetVectorRegs) {
   // clang-format off
-  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact, zvfbfmin, useAVLLoop);
+  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid, rvvVlen, rvvVlenExact, zvfbfmin, useAVLLoop, targetVectorBits, targetVectorRegs);
   // clang-format on
 }
 
@@ -3352,7 +3405,7 @@ static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
   AliasAnalysis aa(module);
   SmallVector<std::pair<vir::SetVLOp, scf::ForOp>> loops;
   module.walk([&](vir::SetVLOp setVL) {
-    if (setVL->getNumResults() != 0)
+    if (setVL->getNumResults() != 0 || setVL->hasAttr("vir.matmul_width"))
       return;
     setVL.getRegion().walk<WalkOrder::PreOrder>([&](scf::ForOp loop) {
       if (!isJammable(loop, aa))
@@ -3388,6 +3441,7 @@ static void jamStripMinedLoops(ModuleOp module, bool useScalable, int rvvVlen,
             trial->getRegion(0), anchor,
             useScalable && !needsFixedVectors(setVL.getRegion(), zvfbfmin),
             /*verbose=*/false, rvvVlen, indexBitWidth,
+            /*targetVectorBits=*/0, /*targetVectorRegs=*/0,
             /*rows=*/1, &fits);
       }
       trial->erase();
@@ -3717,6 +3771,18 @@ public:
       llvm::cl::desc("Vector width for fixed/scalable vectors (default: 4)"),
       llvm::cl::init(DEFAULT_VECTOR_WIDTH)};
 
+  Option<int> targetVectorBits{
+      *this, "target-vector-bits",
+      llvm::cl::desc("Fixed target vector register width in bits, paired with "
+                     "target-vector-regs"),
+      llvm::cl::init(0)};
+
+  Option<int> targetVectorRegs{
+      *this, "target-vector-regs",
+      llvm::cl::desc("Fixed target vector register count, paired with "
+                     "target-vector-bits"),
+      llvm::cl::init(0)};
+
   Option<int> rvvVlen{
       *this, "rvv-vlen",
       llvm::cl::desc("VLEN in bits of a RISC-V Vector target: without "
@@ -3789,6 +3855,24 @@ void VIRToVectorPass::runOnOperation() {
   target.addLegalOp<UnrealizedConversionCastOp>();
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
+  bool explicitFixedTarget = targetVectorBits.getNumOccurrences() > 0 ||
+                             targetVectorRegs.getNumOccurrences() > 0;
+  if (explicitFixedTarget) {
+    if (targetVectorBits.getNumOccurrences() == 0 ||
+        targetVectorRegs.getNumOccurrences() == 0 || targetVectorBits < 8 ||
+        !llvm::has_single_bit(unsigned(targetVectorBits)) ||
+        targetVectorRegs <= 0) {
+      module.emitError("target-vector-bits must be a power of two >= 8 and "
+                       "target-vector-regs must be positive; specify both");
+      return signalPassFailure();
+    }
+    if (rvvVlen.getNumOccurrences() > 0 ||
+        useScalable.getNumOccurrences() > 0) {
+      module.emitError("target-vector-bits/regs cannot be combined with "
+                       "rvv-vlen or use-scalable");
+      return signalPassFailure();
+    }
+  }
   // RVV: VLEN is a power of two of at least 32 bits
   if (rvvVlen != 0 &&
       (rvvVlen < 32 || !llvm::has_single_bit(unsigned(rvvVlen)))) {
@@ -3812,7 +3896,7 @@ void VIRToVectorPass::runOnOperation() {
     vlen = 128;
   // Fixed vectors for the host: on a RISC-V host with V, those of its VLEN,
   // as for rvv-vlen
-  if (!useScalable && !useCustomVecWid && !exactVlen) {
+  if (!explicitFixedTarget && !useScalable && !useCustomVecWid && !exactVlen) {
     vlen = hostRvvVlen();
     if (verbose && vlen)
       llvm::outs() << "--- RISC-V Vector host: VLEN " << vlen << " ---\n";
@@ -3827,12 +3911,13 @@ void VIRToVectorPass::runOnOperation() {
     });
   // the loops of strip-mined regions jammed for the vectors sized for the
   // register pressure (not for a given vector-width)
-  if (!useCustomVecWid)
+  if (!useCustomVecWid && !explicitFixedTarget)
     jamStripMinedLoops(module, useScalable, vlen,
                        converter.getIndexTypeBitwidth(), zvfbfmin);
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
                                         vectorWidth, verbose, useCustomVecWid,
-                                        vlen, exactVlen, zvfbfmin, useAVLLoop);
+                                        vlen, exactVlen, zvfbfmin, useAVLLoop,
+                                        targetVectorBits, targetVectorRegs);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     return signalPassFailure();
   // a vir.set_vl left (its lowering reported why) fails the pass

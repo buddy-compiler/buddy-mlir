@@ -26,6 +26,12 @@
 // body. This is the contract of the pass, as of the other vectorizing passes
 // of buddy-mlir (-conv-nhwc-fhwc-optimize, the matmul optimizations).
 //
+// Specify target-vector-bits and target-vector-regs to enable matmul
+// register blocking. For scalable vectors, set use-scalable and provide
+// the minimum RVV VLEN as target-vector-bits. The loop step uses vscale
+// at runtime. The vector budget sets the number of accumulator rows and
+// column vectors held across the ordered reduction.
+//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"
@@ -48,6 +54,9 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/MathExtras.h"
+
+#include <array>
 
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
@@ -2661,6 +2670,389 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
   }
 };
 
+static bool isNamedMatmul(Operation *op) {
+  return isa<linalg::MatmulOp, linalg::MatmulTransposeAOp,
+             linalg::MatmulTransposeBOp, linalg::BatchMatmulOp,
+             linalg::BatchMatmulTransposeAOp, linalg::BatchMatmulTransposeBOp,
+             linalg::BatchReduceMatmulOp>(op);
+}
+
+enum class MatmulExtension { None, Float, Signed, Unsigned };
+
+static FailureOr<std::array<MatmulExtension, 2>>
+matchMatmulBody(linalg::LinalgOp op, Type accTy) {
+  Block &body = op->getRegion(0).front();
+  auto yield = dyn_cast<linalg::YieldOp>(body.getTerminator());
+  if (body.getNumArguments() != 3 || !yield || yield.getNumOperands() != 1)
+    return failure();
+  Operation *add = yield.getOperand(0).getDefiningOp();
+  bool isFloat = isa<FloatType>(accTy);
+  if (!add || (isFloat ? !isa<arith::AddFOp>(add) : !isa<arith::AddIOp>(add)))
+    return failure();
+  auto acc = body.getArgument(2);
+  if (add->getOperand(0) != acc && add->getOperand(1) != acc)
+    return failure();
+  Value product = add->getOperand(add->getOperand(0) == acc ? 1 : 0);
+  Operation *mul = product.getDefiningOp();
+  if (!mul || (isFloat ? !isa<arith::MulFOp>(mul) : !isa<arith::MulIOp>(mul)))
+    return failure();
+  if (!isFloat && (cast<arith::AddIOp>(add).getOverflowFlags() !=
+                       arith::IntegerOverflowFlags::none ||
+                   cast<arith::MulIOp>(mul).getOverflowFlags() !=
+                       arith::IntegerOverflowFlags::none))
+    return failure();
+
+  std::array<MatmulExtension, 2> extensions{};
+  unsigned seen = 0;
+  unsigned expectedOps = 3;
+  for (Value operand : mul->getOperands()) {
+    if (operand.getType() != accTy)
+      return failure();
+    MatmulExtension extension = MatmulExtension::None;
+    if (Operation *convert = operand.getDefiningOp()) {
+      if (isFloat && isa<arith::ExtFOp>(convert))
+        extension = MatmulExtension::Float;
+      else if (!isFloat && isa<arith::ExtSIOp>(convert))
+        extension = MatmulExtension::Signed;
+      else if (!isFloat && isa<arith::ExtUIOp>(convert))
+        extension = MatmulExtension::Unsigned;
+      else
+        return failure();
+      operand = convert->getOperand(0);
+      ++expectedOps;
+    }
+    auto arg = dyn_cast<BlockArgument>(operand);
+    if (!arg || arg.getOwner() != &body || arg.getArgNumber() >= 2 ||
+        (seen & (1u << arg.getArgNumber())))
+      return failure();
+    seen |= 1u << arg.getArgNumber();
+    extensions[arg.getArgNumber()] = extension;
+  }
+  if (body.getOperations().size() != expectedOps)
+    return failure();
+  return extensions;
+}
+
+struct LinalgTiledMatmulToVIRPattern : public RewritePattern {
+  LinalgTiledMatmulToVIRPattern(MLIRContext *ctx, int bits, int regs,
+                                bool scalable)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/4, ctx), bits(bits),
+        regs(regs), scalable(scalable) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (!isNamedMatmul(op) && !isa<linalg::GenericOp>(op))
+      return failure();
+    auto matmul = cast<linalg::LinalgOp>(op);
+    const unsigned rank = matmul.getNumLoops();
+    if (rank < 3 || rank > 4 || !matmul.hasPureBufferSemantics() ||
+        matmul.getNumDpsInputs() != 2 || matmul.getNumDpsInits() != 1)
+      return failure();
+    auto maps = matmul.getIndexingMapsArray();
+    auto iterators = matmul.getIteratorTypesArray();
+    std::array<Value, 3> operands{matmul.getDpsInputOperand(0)->get(),
+                                  matmul.getDpsInputOperand(1)->get(),
+                                  matmul.getDpsInitOperand(0)->get()};
+    std::array<SmallVector<unsigned>, 3> dims;
+    SmallVector<unsigned> uses(rank, 0);
+    for (unsigned operand : llvm::seq(3u)) {
+      auto memref = dyn_cast<MemRefType>(operands[operand].getType());
+      auto map = maps[operand];
+      if (!memref || !map.isProjectedPermutation() ||
+          map.getNumResults() != memref.getRank())
+        return failure();
+      for (AffineExpr expr : map.getResults()) {
+        unsigned dim = cast<AffineDimExpr>(expr).getPosition();
+        uses[dim] |= 1u << operand;
+        dims[operand].push_back(dim);
+      }
+    }
+    // Classify loop axes by the operands they index. The bit positions
+    // correspond to the left input, right input and accumulator.
+    constexpr unsigned left = 1u << 0;
+    constexpr unsigned right = 1u << 1;
+    constexpr unsigned output = 1u << 2;
+    std::optional<unsigned> mDim, nDim, bDim;
+    SmallVector<unsigned> reductions;
+    for (unsigned dim : llvm::seq(rank)) {
+      bool reduction = linalg::isReductionIterator(iterators[dim]);
+      if (uses[dim] == (left | output) && !reduction && !mDim)
+        mDim = dim;
+      else if (uses[dim] == (right | output) && !reduction && !nDim)
+        nDim = dim;
+      else if (uses[dim] == (left | right | output) && !reduction && !bDim)
+        bDim = dim;
+      else if (uses[dim] == (left | right) && reduction)
+        reductions.push_back(dim);
+      else
+        return failure();
+    }
+    if (!mDim || !nDim || reductions.empty() ||
+        (reductions.size() > 1 && !isa<linalg::BatchReduceMatmulOp>(op)))
+      return failure();
+
+    Type accTy = cast<MemRefType>(operands[2].getType()).getElementType();
+    if (!accTy.isF16() && !accTy.isF32() && !accTy.isF64() &&
+        !accTy.isSignlessInteger(8) && !accTy.isSignlessInteger(16) &&
+        !accTy.isSignlessInteger(32) && !accTy.isSignlessInteger(64))
+      return rewriter.notifyMatchFailure(op, "unsupported matmul accumulator");
+    auto extensions = matchMatmulBody(matmul, accTy);
+    if (failed(extensions))
+      return rewriter.notifyMatchFailure(op,
+                                         "not an ordered multiply-add body");
+    for (Value source : ArrayRef(operands).take_front(2)) {
+      Type elem = cast<MemRefType>(source.getType()).getElementType();
+      if (!elem.isF16() && !elem.isF32() && !elem.isF64() &&
+          !(elem.isBF16() && accTy.isF32()) && !elem.isSignlessInteger(8) &&
+          !elem.isSignlessInteger(16) && !elem.isSignlessInteger(32) &&
+          !elem.isSignlessInteger(64))
+        return rewriter.notifyMatchFailure(op, "unsupported matmul input");
+    }
+    auto bTy = cast<MemRefType>(operands[1].getType());
+    // Scalable bf16 memory lowering needs a unit stride along N.
+    if (scalable && bTy.getElementType().isBF16()) {
+      SmallVector<int64_t> strides;
+      int64_t offset;
+      if (failed(bTy.getStridesAndOffset(strides, offset)) ||
+          strides[llvm::find(dims[1], *nDim) - dims[1].begin()] != 1)
+        return rewriter.notifyMatchFailure(op, "strided scalable bf16 input");
+    }
+
+    Location loc = op->getLoc();
+    auto index = [&](OpBuilder &builder, int64_t value) -> Value {
+      return arith::ConstantIndexOp::create(builder, loc, value);
+    };
+    auto staticShape = matmul.getStaticLoopRanges();
+    SmallVector<Value> bounds(rank);
+    for (unsigned dim : llvm::seq(rank)) {
+      if (!ShapedType::isDynamic(staticShape[dim])) {
+        bounds[dim] = index(rewriter, staticShape[dim]);
+        continue;
+      }
+      for (unsigned operand : {2u, 0u, 1u}) {
+        auto found = llvm::find(dims[operand], dim);
+        if (found == dims[operand].end())
+          continue;
+        bounds[dim] = dimOrConstant(rewriter, loc, operands[operand],
+                                    found - dims[operand].begin());
+        break;
+      }
+    }
+    for (unsigned operand : {1u, 2u}) {
+      auto &order = dims[operand];
+      auto column = llvm::find(order, *nDim);
+      if (column == order.end() - 1)
+        continue;
+      SmallVector<int64_t> permutation;
+      for (unsigned axis : llvm::seq(unsigned(order.size())))
+        if (order[axis] != *nDim)
+          permutation.push_back(axis);
+      permutation.push_back(column - order.begin());
+      auto map = AffineMap::getPermutationMap(permutation, getContext());
+      operands[operand] = memref::TransposeOp::create(
+          rewriter, loc, operands[operand], AffineMapAttr::get(map));
+      order.erase(column);
+      order.push_back(*nDim);
+    }
+
+    // Budget registers for the accumulators, operands and temporaries.
+    int sew = accTy.getIntOrFloatBitWidth();
+    int lmul = scalable && regs >= 16 ? 2 : 1;
+    int width = std::max(1, (scalable ? 64 * lmul : bits) / sew);
+    int64_t knownN = staticShape[*nDim];
+    if (knownN > 0) {
+      int64_t cap = scalable ? knownN / (bits / 64) : knownN;
+      width = std::min<int64_t>(
+          width, llvm::bit_floor(uint64_t(std::max<int64_t>(1, cap))));
+    }
+    int groups = regs / (scalable ? std::max(1, width * sew / 64) : 1);
+    int nr = groups >= 12 ? 2 : 1;
+    if (knownN >= 0 && knownN < nr * width * (scalable ? bits / 64 : 1))
+      nr = 1;
+    int mr = std::clamp((groups - nr - 3) / nr, 1, 8);
+    mr = int(llvm::bit_floor(unsigned(mr)));
+    int64_t knownM = staticShape[*mDim];
+    if (knownM > 0)
+      mr = std::min<int64_t>(mr, knownM);
+
+    Value zero = index(rewriter, 0);
+    Value one = index(rewriter, 1);
+    Value widthVal = index(rewriter, width);
+    if (scalable)
+      widthVal =
+          arith::MulIOp::create(rewriter, loc, widthVal,
+                                vector::VectorScaleOp::create(rewriter, loc));
+    auto add = [&](OpBuilder &builder, Value origin, Value delta) -> Value {
+      return arith::AddIOp::create(builder, loc, origin, delta);
+    };
+    auto fullEnd = [&](OpBuilder &builder, Value extent, Value step) -> Value {
+      Value remain = arith::RemUIOp::create(builder, loc, extent, step);
+      return arith::SubIOp::create(builder, loc, extent, remain);
+    };
+    Value mStep = index(rewriter, mr);
+    Value mEnd = fullEnd(rewriter, bounds[*mDim], mStep);
+    Value nStep = nr == 1 ? widthVal
+                          : arith::MulIOp::create(rewriter, loc, widthVal,
+                                                  index(rewriter, nr))
+                                .getResult();
+    Value nEnd = fullEnd(rewriter, bounds[*nDim], nStep);
+    auto vectorOf = [](Type elem) {
+      return buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elem);
+    };
+    auto accVecTy = vectorOf(accTy);
+    SmallVector<Value> ivs(rank);
+    auto indices = [&](unsigned operand) {
+      return llvm::map_to_vector(dims[operand],
+                                 [&](unsigned dim) { return ivs[dim]; });
+    };
+    auto scalarExtend = [&](OpBuilder &builder, Value scalar) -> Value {
+      switch ((*extensions)[0]) {
+      case MatmulExtension::None:
+        return scalar;
+      case MatmulExtension::Float:
+        return arith::ExtFOp::create(builder, loc, accTy, scalar,
+                                     arith::ExtFOp::Properties{});
+      case MatmulExtension::Signed:
+        return arith::ExtSIOp::create(builder, loc, accTy, scalar);
+      case MatmulExtension::Unsigned:
+        return arith::ExtUIOp::create(builder, loc, accTy, scalar);
+      }
+      llvm_unreachable("invalid matmul extension");
+    };
+
+    auto tile = [&](OpBuilder &builder, Value row, Value column, Value vl,
+                    int rows, int cols) {
+      OpBuilder::InsertionGuard guard(builder);
+      auto setVl = buddy::vir::SetVLOp::create(builder, loc, TypeRange{},
+                                               ValueRange{vl});
+      setVl->setAttr("vir.matmul_width", builder.getI64IntegerAttr(width));
+      if (scalable)
+        setVl->setAttr("vir.matmul_scalable", builder.getUnitAttr());
+      builder.setInsertionPointToStart(&setVl.getRegion().emplaceBlock());
+      SmallVector<Value> rowIndices{row}, columnIndices{column};
+      for (int offset = 1; offset < rows; ++offset)
+        rowIndices.push_back(add(builder, row, index(builder, offset)));
+      for (int offset = 1; offset < cols; ++offset)
+        columnIndices.push_back(
+            add(builder, column,
+                arith::MulIOp::create(builder, loc, widthVal,
+                                      index(builder, offset))));
+      SmallVector<Value> acc;
+      for (Value rowIndex : rowIndices) {
+        ivs[*mDim] = rowIndex;
+        for (Value columnIndex : columnIndices) {
+          ivs[*nDim] = columnIndex;
+          acc.push_back(buddy::vir::LoadOp::create(builder, loc, accVecTy,
+                                                   operands[2], indices(2)));
+        }
+      }
+      auto reduce = [&](auto &self, OpBuilder &at, unsigned depth,
+                        ValueRange carry) -> SmallVector<Value> {
+        if (depth < reductions.size()) {
+          unsigned dim = reductions[depth];
+          auto loop = scf::ForOp::create(
+              at, loc, zero, bounds[dim], one, carry,
+              [&](OpBuilder &body, Location, Value iv, ValueRange args) {
+                ivs[dim] = iv;
+                auto next = self(self, body, depth + 1, args);
+                scf::YieldOp::create(body, loc, next);
+              });
+          return llvm::map_to_vector(loop.getResults(),
+                                     [](Value value) { return value; });
+        }
+        SmallVector<Value> right, next;
+        for (Value columnIndex : columnIndices) {
+          ivs[*nDim] = columnIndex;
+          Value val = buddy::vir::LoadOp::create(
+              at, loc, vectorOf(bTy.getElementType()), operands[1], indices(1));
+          if ((*extensions)[1] == MatmulExtension::Float)
+            val = buddy::vir::ExtFOp::create(at, loc, accVecTy, val);
+          else if ((*extensions)[1] != MatmulExtension::None)
+            val =
+                (*extensions)[1] == MatmulExtension::Unsigned
+                    ? Value(buddy::vir::ExtUIOp::create(at, loc, accVecTy, val))
+                    : Value(
+                          buddy::vir::ExtSIOp::create(at, loc, accVecTy, val));
+          right.push_back(val);
+        }
+        for (Value rowIndex : rowIndices) {
+          ivs[*mDim] = rowIndex;
+          Value scalar =
+              memref::LoadOp::create(at, loc, operands[0], indices(0));
+          Value left = buddy::vir::BroadcastOp::create(
+              at, loc, accVecTy, scalarExtend(at, scalar));
+          for (Value rhs : right) {
+            Value old = carry[next.size()];
+            if (isa<FloatType>(accTy)) {
+              next.push_back(
+                  buddy::vir::FMAOp::create(at, loc, accVecTy, left, rhs, old));
+            } else {
+              Value product = arith::MulIOp::create(at, loc, left, rhs);
+              next.push_back(arith::AddIOp::create(at, loc, old, product));
+            }
+          }
+        }
+        return next;
+      };
+      auto finalAcc = reduce(reduce, builder, 0, acc);
+      unsigned position = 0;
+      for (Value rowIndex : rowIndices) {
+        ivs[*mDim] = rowIndex;
+        for (Value columnIndex : columnIndices) {
+          ivs[*nDim] = columnIndex;
+          buddy::vir::StoreOp::create(builder, loc, finalAcc[position++],
+                                      operands[2], indices(2));
+        }
+      }
+      vector::YieldOp::create(builder, loc);
+    };
+    auto columns = [&](OpBuilder &builder, Value row, int rows) {
+      scf::ForOp::create(builder, loc, zero, nEnd, nStep, ValueRange{},
+                         [&](OpBuilder &body, Location, Value col, ValueRange) {
+                           tile(body, row, col, widthVal, rows, nr);
+                           scf::YieldOp::create(body, loc);
+                         });
+      Value remaining =
+          arith::SubIOp::create(builder, loc, bounds[*nDim], nEnd);
+      tile(builder, row, nEnd, remaining, rows, 1);
+    };
+    auto rows = [&](OpBuilder &builder) {
+      scf::ForOp::create(builder, loc, zero, mEnd, mStep, ValueRange{},
+                         [&](OpBuilder &body, Location, Value row, ValueRange) {
+                           columns(body, row, mr);
+                           scf::YieldOp::create(body, loc);
+                         });
+      if (knownM >= 0) {
+        if (int tail = knownM % mr)
+          columns(builder, mEnd, tail);
+      } else if (mr > 1) {
+        scf::ForOp::create(
+            builder, loc, mEnd, bounds[*mDim], one, ValueRange{},
+            [&](OpBuilder &body, Location, Value row, ValueRange) {
+              columns(body, row, 1);
+              scf::YieldOp::create(body, loc);
+            });
+      }
+    };
+    if (bDim) {
+      scf::ForOp::create(
+          rewriter, loc, zero, bounds[*bDim], one, ValueRange{},
+          [&](OpBuilder &body, Location, Value batch, ValueRange) {
+            ivs[*bDim] = batch;
+            rows(body);
+            scf::YieldOp::create(body, loc);
+          });
+    } else {
+      rows(rewriter);
+    }
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+  int bits, regs;
+  bool scalable;
+};
+
 struct LinalgMatmulToVIRPattern : public RewritePattern {
   LinalgMatmulToVIRPattern(MLIRContext *ctx)
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/2, ctx) {}
@@ -2903,6 +3295,20 @@ public:
   LinalgToVIRPass() = default;
   LinalgToVIRPass(const LinalgToVIRPass &other) : PassWrapper(other) {}
 
+  Option<int> targetVectorBits{
+      *this, "target-vector-bits",
+      llvm::cl::desc("Vector register width in bits for matmul blocking"),
+      llvm::cl::init(0)};
+  Option<int> targetVectorRegs{
+      *this, "target-vector-regs",
+      llvm::cl::desc("Vector register count for matmul blocking"),
+      llvm::cl::init(0)};
+  Option<bool> useScalable{
+      *this, "use-scalable",
+      llvm::cl::desc(
+          "Use runtime vscale to size matmul tiles for an RVV target"),
+      llvm::cl::init(false)};
+
   Option<bool> expOnly{
       *this, "exp-only",
       llvm::cl::desc("Only vectorize parallel generic kernels containing exp"),
@@ -2921,6 +3327,20 @@ public:
       patterns.add<LinalgReduceToVIRPattern>(ctx);
       patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
       patterns.add<LinalgConvToVIRPattern>(ctx);
+      bool hasRegisterBudget = targetVectorBits.getNumOccurrences() > 0 ||
+                               targetVectorRegs.getNumOccurrences() > 0;
+      if ((hasRegisterBudget &&
+           (targetVectorBits < (useScalable ? 64 : 8) ||
+            !llvm::isPowerOf2_32(targetVectorBits) || targetVectorRegs <= 0)) ||
+          (useScalable && !hasRegisterBudget)) {
+        getOperation().emitError(
+            "matmul blocking requires a power-of-two target-vector-bits "
+            "and a positive target-vector-regs");
+        return signalPassFailure();
+      }
+      if (hasRegisterBudget)
+        patterns.add<LinalgTiledMatmulToVIRPattern>(
+            ctx, targetVectorBits, targetVectorRegs, useScalable);
       patterns.add<LinalgMatmulToVIRPattern>(ctx);
     }
     patterns.add<LinalgGenericToVIRPattern>(ctx, expOnly);
