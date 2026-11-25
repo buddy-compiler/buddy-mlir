@@ -18,12 +18,15 @@
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
@@ -177,6 +180,96 @@ public:
     if (kernelShape[1] != kernelShape[2])
       return failure();
     ArrayRef<int64_t> outputShape = outputType.getShape();
+    // An INT32 output with no more pixels than terms: the transposed product
+    // out^T = kernel x columns^T, which reads the FHWC weight as it is stored.
+    // The im2col writes its columns transposed; the output is transposed in
+    // and out, 2 x pixels x F elements in two-deep loops against F x depth in
+    // the four-deep loop of the weight copy.
+    int64_t pixels = outputShape[0] * outputShape[1] * outputShape[2];
+    int64_t depth = kernelShape[1] * kernelShape[2] * kernelShape[3];
+    if (outputElemType.isInteger(32) && pixels <= depth) {
+      auto constant = [&](int64_t value) {
+        return arith::ConstantIndexOp::create(rewriter, loc, value);
+      };
+      auto mul = [&](Value a, Value b) {
+        return arith::MulIOp::create(rewriter, loc, a, b);
+      };
+      auto add = [&](Value a, Value b) {
+        return arith::AddIOp::create(rewriter, loc, a, b);
+      };
+      auto nest = [&](ArrayRef<int64_t> bounds, SmallVector<Value> &ivs) {
+        Operation *outer = nullptr;
+        for (int64_t bound : bounds) {
+          auto loop = scf::ForOp::create(rewriter, loc, constant(0),
+                                         constant(bound), constant(1));
+          ivs.push_back(loop.getInductionVar());
+          if (!outer)
+            outer = loop.getOperation();
+          rewriter.setInsertionPointToStart(loop.getBody());
+        }
+        return outer;
+      };
+      SmallVector<ReassociationIndices> kernelGroups = {{0}, {1, 2, 3}};
+      Value kernelMat =
+          memref::CollapseShapeOp::create(rewriter, loc, kernel, kernelGroups);
+      // columns^T[(kh*KW + kw)*C + c, (n*OH + oh)*OW + ow] =
+      //     input[n, oh*stride + kh*dilation, ow*stride + kw*dilation, c]
+      Value columns = memref::AllocOp::create(
+          rewriter, loc, MemRefType::get({depth, pixels}, kernelElemType));
+      SmallVector<Value> ivs;
+      Operation *columnsLoop =
+          nest({outputShape[0], outputShape[1], outputShape[2], kernelShape[1],
+                kernelShape[2], kernelShape[3]},
+               ivs);
+      Value row = add(mul(add(mul(ivs[0], constant(outputShape[1])), ivs[1]),
+                          constant(outputShape[2])),
+                      ivs[2]);
+      Value column = add(mul(add(mul(ivs[3], constant(kernelShape[2])), ivs[4]),
+                             constant(kernelShape[3])),
+                         ivs[5]);
+      Value inputRow =
+          add(mul(ivs[1], constant(strides)), mul(ivs[3], constant(dilations)));
+      Value inputColumn =
+          add(mul(ivs[2], constant(strides)), mul(ivs[4], constant(dilations)));
+      Value value = memref::LoadOp::create(
+          rewriter, loc, input,
+          ValueRange{ivs[0], inputRow, inputColumn, ivs[5]});
+      memref::StoreOp::create(rewriter, loc, value, columns,
+                              ValueRange{column, row});
+      rewriter.setInsertionPointAfter(columnsLoop);
+      // The initial output (the bias) in, the result out, transposed.
+      SmallVector<ReassociationIndices> outputGroups = {{0, 1, 2}, {3}};
+      Value result =
+          memref::CollapseShapeOp::create(rewriter, loc, output, outputGroups);
+      Value transposed = memref::AllocOp::create(
+          rewriter, loc,
+          MemRefType::get({kernelShape[0], pixels}, outputElemType));
+      SmallVector<Value> in;
+      Operation *inLoop = nest({pixels, kernelShape[0]}, in);
+      memref::StoreOp::create(rewriter, loc,
+                              memref::LoadOp::create(rewriter, loc, result,
+                                                     ValueRange{in[0], in[1]}),
+                              transposed, ValueRange{in[1], in[0]});
+      rewriter.setInsertionPointAfter(inLoop);
+      llvm::APFloat one((float)1.0);
+      llvm::APFloat zero((float)0.0);
+      auto tiled = gemmini::TileMatMulOp::create(
+          rewriter, loc, kernelMat, columns, transposed, transposed, one, one,
+          one, /*act=*/0, one, zero);
+      tiled.setFullCAttr(rewriter.getBoolAttr(true));
+      SmallVector<Value> out;
+      Operation *outLoop = nest({pixels, kernelShape[0]}, out);
+      memref::StoreOp::create(
+          rewriter, loc,
+          memref::LoadOp::create(rewriter, loc, transposed,
+                                 ValueRange{out[1], out[0]}),
+          result, ValueRange{out[0], out[1]});
+      rewriter.setInsertionPointAfter(outLoop);
+      memref::DeallocOp::create(rewriter, loc, columns);
+      memref::DeallocOp::create(rewriter, loc, transposed);
+      rewriter.eraseOp(convOp);
+      return success();
+    }
     // Create kernelMat(hwc, f) and outputMat(nhw, c).
     SmallVector<int64_t> kernelMatShape = {
         kernelShape[1] * kernelShape[2] * kernelShape[3], kernelShape[0]};
@@ -500,6 +593,90 @@ private:
   std::string accType;
 };
 
+/// An INT8 depthwise convolution into INT32 runs on the host: Gemmini's
+/// convolution writes scaled INT8 only, and a channel at a time is a matrix
+/// product of one column. Every output keeps its sum in a register over the
+/// taps, the input and weight read as they are stored (NHWC, HWC1).
+class DepthwiseConv2DNhwcHwcmLowering
+    : public OpRewritePattern<linalg::DepthwiseConv2DNhwcHwcmOp> {
+public:
+  using OpRewritePattern<linalg::DepthwiseConv2DNhwcHwcmOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::DepthwiseConv2DNhwcHwcmOp convOp,
+                                PatternRewriter &rewriter) const override {
+    Value input = convOp.getInputs()[0];
+    Value kernel = convOp.getInputs()[1];
+    Value output = convOp.getOutputs()[0];
+    Location loc = convOp.getLoc();
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    auto kernelType = dyn_cast<MemRefType>(kernel.getType());
+    auto outputType = dyn_cast<MemRefType>(output.getType());
+    if (!inputType || !kernelType || !outputType ||
+        !inputType.getElementType().isInteger(8) ||
+        !kernelType.getElementType().isInteger(8) ||
+        !outputType.getElementType().isInteger(32))
+      return failure();
+    ArrayRef<int64_t> kernelShape = kernelType.getShape();
+    ArrayRef<int64_t> outputShape = outputType.getShape();
+    if (kernelShape[3] != 1 || outputShape.size() != 5)
+      return failure();
+    auto first = [](DenseIntElementsAttr attr) -> int64_t {
+      return attr ? (*attr.begin()).getLimitedValue() : 1;
+    };
+    int64_t stride = first(convOp.getStridesAttr());
+    int64_t dilation = first(convOp.getDilationsAttr());
+    auto constant = [&](int64_t value) {
+      return arith::ConstantIndexOp::create(rewriter, loc, value);
+    };
+    Type i32 = rewriter.getI32Type();
+    SmallVector<Value> ivs;
+    Operation *outer = nullptr;
+    // n, oh, ow, c; the output [N, OH, OW, C, 1].
+    for (int64_t bound :
+         {outputShape[0], outputShape[1], outputShape[2], outputShape[3]}) {
+      auto loop = scf::ForOp::create(rewriter, loc, constant(0),
+                                     constant(bound), constant(1));
+      ivs.push_back(loop.getInductionVar());
+      if (!outer)
+        outer = loop.getOperation();
+      rewriter.setInsertionPointToStart(loop.getBody());
+    }
+    SmallVector<Value> at = {ivs[0], ivs[1], ivs[2], ivs[3], constant(0)};
+    Value initial = memref::LoadOp::create(rewriter, loc, output, at);
+    auto rows =
+        scf::ForOp::create(rewriter, loc, constant(0), constant(kernelShape[0]),
+                           constant(1), ValueRange{initial});
+    rewriter.setInsertionPointToStart(rows.getBody());
+    Value kh = rows.getInductionVar();
+    auto position = [&](Value out, Value tap) {
+      return arith::AddIOp::create(
+          rewriter, loc,
+          arith::MulIOp::create(rewriter, loc, out, constant(stride)),
+          arith::MulIOp::create(rewriter, loc, tap, constant(dilation)));
+    };
+    // The taps of a kernel row, unrolled: no loop counter or branch a tap.
+    Value sum = rows.getRegionIterArgs()[0];
+    for (int64_t tap = 0; tap < kernelShape[1]; ++tap) {
+      Value kw = constant(tap);
+      Value x =
+          memref::LoadOp::create(rewriter, loc, input,
+                                 ValueRange{ivs[0], position(ivs[1], kh),
+                                            position(ivs[2], kw), ivs[3]});
+      Value w = memref::LoadOp::create(rewriter, loc, kernel,
+                                       ValueRange{kh, kw, ivs[3], constant(0)});
+      Value product = arith::MulIOp::create(
+          rewriter, loc, arith::ExtSIOp::create(rewriter, loc, i32, x),
+          arith::ExtSIOp::create(rewriter, loc, i32, w));
+      sum = arith::AddIOp::create(rewriter, loc, sum, product);
+    }
+    scf::YieldOp::create(rewriter, loc, sum);
+    rewriter.setInsertionPointAfter(rows);
+    memref::StoreOp::create(rewriter, loc, rows.getResult(0), output, at);
+    rewriter.setInsertionPointAfter(outer);
+    rewriter.eraseOp(convOp);
+    return success();
+  }
+};
+
 class Conv2DNhwcHwcfLowering
     : public OpRewritePattern<linalg::Conv2DNhwcHwcfOp> {
 public:
@@ -796,6 +973,7 @@ void populateLowerLinalgToGemminiConversionPatterns(RewritePatternSet &patterns,
   patterns.add<Conv2DNhwcFhwcLowering>(patterns.getContext(), accType);
   patterns.add<Conv2DNchwFchwLowering>(patterns.getContext(), accType);
   patterns.add<Conv2DNhwcHwcfLowering>(patterns.getContext(), accType);
+  patterns.add<DepthwiseConv2DNhwcHwcmLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
 }
 
@@ -839,10 +1017,45 @@ void LowerLinalgToGemminiPass::runOnOperation() {
     signalPassFailure();
 }
 
+/// Elementwise fusion for the host side of Gemmini: the FP32 work around the
+/// products (quantization, dequantization, normalization, activations) runs on
+/// the CPU, one loop over memory per operation unless fused. A producer is
+/// fused into its only consumer when the consumer has no reduction loop
+/// (fusing into a contraction would turn the product Gemmini runs into a
+/// generic the CPU runs) and reads it without broadcast (a per-channel value
+/// would be recomputed for every pixel).
+class FuseElementwiseForGemminiPass
+    : public PassWrapper<FuseElementwiseForGemminiPass,
+                         OperationPass<func::FuncOp>> {
+public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(FuseElementwiseForGemminiPass);
+  StringRef getArgument() const final { return "gemmini-fuse-elementwise"; }
+  StringRef getDescription() const final {
+    return "fuse the host's elementwise operations, not into contractions";
+  }
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<linalg::LinalgDialect>();
+  }
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    linalg::ControlFusionFn control = [](OpOperand *operand) {
+      Operation *producer = operand->get().getDefiningOp();
+      auto consumer = dyn_cast<linalg::LinalgOp>(operand->getOwner());
+      return producer && producer->hasOneUse() && consumer &&
+             consumer.getNumReductionLoops() == 0 &&
+             consumer.getMatchingIndexingMap(operand).isPermutation();
+    };
+    linalg::populateElementwiseOpsFusionPatterns(patterns, control);
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns))))
+      signalPassFailure();
+  }
+};
+
 namespace mlir {
 namespace buddy {
 void registerLowerLinalgToGemminiPass() {
   PassRegistration<LowerLinalgToGemminiPass>();
+  PassRegistration<FuseElementwiseForGemminiPass>();
 }
 } // namespace buddy
 } // namespace mlir

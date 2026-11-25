@@ -2946,6 +2946,27 @@ def slice_op(node: SliceOp, symbol_table):
         input_tensor = tosa.ReshapeOp(input_tensor, shape_operand).result
         sizes = expanded_shape
 
+    if is_symbolic(start_idx):
+        # A symbolic start (the last positions of a dynamic axis): the
+        # sizes of the result in the graph, from the offset of the start.
+        offsets = [0] * len(sizes)
+        offsets[dim] = ir.ShapedType.get_dynamic_stride_or_offset()
+        strides = [1] * len(sizes)
+        strides[dim] = step
+        result_type = ir.RankedTensorType.get(
+            mlir_shape(output_shape), mlir_dtype
+        )
+        return tensor.ExtractSliceOp(
+            result_type,
+            input_tensor,
+            [size_value(start_idx, symbol_table)],
+            dynamic_sizes(output_shape, symbol_table),
+            [],
+            ir._denseI64ArrayAttr(offsets, None),
+            ir._denseI64ArrayAttr(mlir_shape(output_shape), None),
+            ir._denseI64ArrayAttr(strides, None),
+        )
+
     if any(is_symbolic(d) for d in output_shape):
         # Dynamic sizes: those of the result in the graph, from a static
         # start.
@@ -3752,6 +3773,15 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     else:
         in_channels = list(weight_shape)[1] * groups
         out_channels = list(weight_shape)[0]
+    # A weight already in the layout TOSA convolves in: [F, H, W, C], or
+    # [H, W, C, M] for a depthwise convolution. It is not transposed.
+    if node._layout.endswith("_FHWC"):
+        in_channels = list(weight_shape)[3] * groups
+        is_depthwise = False
+    if node._layout.endswith("_HWCM"):
+        in_channels = list(weight_shape)[2]
+        out_channels = in_channels * list(weight_shape)[3]
+        is_depthwise = True
 
     # Prepare bias tensor.
     if len(node._parents) == 2:
@@ -3783,6 +3813,12 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         dy, dx = int(dilation[0]), int(dilation[1])
         kernel_h = int(list(weight_shape)[2])
         kernel_w = int(list(weight_shape)[3])
+        if node._layout.endswith("_FHWC"):
+            kernel_h = int(list(weight_shape)[1])
+            kernel_w = int(list(weight_shape)[2])
+        if node._layout.endswith("_HWCM"):
+            kernel_h = int(list(weight_shape)[0])
+            kernel_w = int(list(weight_shape)[1])
 
         extra_out_h = 0
         extra_out_w = 0

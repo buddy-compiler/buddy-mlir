@@ -280,6 +280,7 @@ int main(int argc, char **argv) {
   std::string audioPath;
   std::string imagePath;
   std::string inputPath;
+  std::string referencePath;
   std::string datasetPath;
   std::string outputPath;
   std::string lastImagePath;
@@ -350,6 +351,11 @@ int main(int argc, char **argv) {
       ->group("Inference");
   app.add_option("--input", inputPath, "Preprocessed tensor input")
       ->check(CLI::ExistingFile)
+      ->group("Inference");
+  app.add_option("--reference", referencePath,
+                 "Reference output of --input; the runner checks against it")
+      ->check(CLI::ExistingFile)
+      ->needs("--input")
       ->group("Inference");
   app.add_option("--dataset", datasetPath, "Dataset directory for evaluation")
       ->check(CLI::ExistingDirectory)
@@ -544,6 +550,7 @@ int main(int argc, char **argv) {
   cfg.promptLength = promptLength;
   cfg.imagePath = imagePath;
   cfg.inputPath = inputPath;
+  cfg.referencePath = referencePath;
   cfg.datasetPath = datasetPath;
   cfg.outputPath = outputPath;
   cfg.lastImagePath = lastImagePath;

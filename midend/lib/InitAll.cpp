@@ -27,6 +27,7 @@
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
 #include "Dialect/IME/IMEDialect.h"
+#include "Dialect/Magia/MagiaDialect.h"
 #include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
@@ -44,6 +45,8 @@ void registerLowerDIPPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToBOSCAMEPass();
 void registerLowerLinalgToGemminiPass();
+void registerLowerLinalgToMagiaPass();
+void registerLowerMagiaPass();
 void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerRVVPass();
@@ -76,6 +79,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::dap::DAPDialect>();
   registry.insert<::buddy::dip::DIPDialect>();
   registry.insert<::buddy::gemmini::GemminiDialect>();
+  registry.insert<::buddy::magia::MagiaDialect>();
   registry.insert<::buddy::ime::IMEDialect>();
   registry.insert<::buddy::rhal::RHALDialect>();
   registry.insert<::buddy::rvv::RVVDialect>();
@@ -93,6 +97,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToBOSCAMEPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
+  mlir::buddy::registerLowerLinalgToMagiaPass();
+  mlir::buddy::registerLowerMagiaPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerRVVPass();

@@ -27,6 +27,8 @@ set(LinkedLibs
   LowerGemminiPass
   LowerLinalgToBOSCAMEPass
   LowerLinalgToGemminiPass
+  LowerLinalgToMagiaPass
+  LowerMagiaPass
   LowerLinalgToIMEPass
   LowerIMEPass
   LowerRVVPass

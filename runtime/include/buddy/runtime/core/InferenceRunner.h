@@ -116,6 +116,9 @@ struct RunConfig {
   int inferenceSteps = 30;
   /// Preprocessed tensor input in the runner's model-specific layout.
   std::string inputPath;
+  /// Reference output for the run on inputPath, in the runner's layout:
+  /// the runner checks its output against it and fails when they differ.
+  std::string referencePath;
 };
 
 /// Abstract base class for model inference runners.

@@ -53,6 +53,7 @@
 #include "Gemmini/GemminiOps.h"
 #include "IME/IMEDialect.h"
 #include "IME/IMEOps.h"
+#include "Magia/MagiaDialect.h"
 #include "RVV/RVVDialect.h"
 #include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
@@ -101,6 +102,8 @@ void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToBOSCAMEPass();
 void registerLowerLinalgToGemminiPass();
+void registerLowerLinalgToMagiaPass();
+void registerLowerMagiaPass();
 void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerAMEPass();
@@ -168,6 +171,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToBOSCAMEPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
+  mlir::buddy::registerLowerLinalgToMagiaPass();
+  mlir::buddy::registerLowerMagiaPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerAMEPass();
@@ -231,6 +236,7 @@ int main(int argc, char **argv) {
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
+                  buddy::magia::MagiaDialect,
                   buddy::boscame::BOSCAMEDialect,
                   buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,

@@ -40,6 +40,9 @@ target_link_libraries(buddy-opt
   LowerGemminiPass
   LowerLinalgToBOSCAMEPass
   LowerLinalgToGemminiPass
+  BuddyMagia
+  LowerLinalgToMagiaPass
+  LowerMagiaPass
   LowerLinalgToIMEPass
   BuddyIME
   BuddyIMETransforms
