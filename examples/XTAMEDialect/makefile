@@ -91,6 +91,7 @@ ame-th-mmaccu-w-b-asm:
 	        -convert-scf-to-cf \
 	        -convert-cf-to-llvm \
 			-expand-strided-metadata \
+			-lower-affine \
 	        -convert-arith-to-llvm \
 	        -convert-math-to-llvm \
 	        -convert-func-to-llvm \
