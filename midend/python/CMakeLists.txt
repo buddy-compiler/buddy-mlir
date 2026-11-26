@@ -76,6 +76,14 @@ declare_mlir_dialect_python_bindings(
     dialects/vir.py
   DIALECT_NAME vir)
 
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
+  TD_FILE dialects/XSAIAMEBinding.td
+  SOURCES
+    dialects/xsai_ame.py
+  DIALECT_NAME xsai_ame)
+
 ################################################################################
 # Python extensions.
 # The sources for these are all in lib/python/Bindings, but since they have to
@@ -107,6 +115,18 @@ declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.vir.Extension
   ADD_TO_PARENT BuddyMLIRPythonSources
   SOURCES
     DialectVIR.cpp
+  EMBED_CAPI_LINK_LIBS
+    BuddyMLIRCAPI
+    MLIRCAPIIR
+)
+
+# The TileType and SyncType classes of the xsai_ame dialect.
+declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.xsai_ame.Extension
+  MODULE_NAME _buddyDialectsXSAIAME
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
+  ADD_TO_PARENT BuddyMLIRPythonSources
+  SOURCES
+    DialectXSAIAME.cpp
   EMBED_CAPI_LINK_LIBS
     BuddyMLIRCAPI
     MLIRCAPIIR

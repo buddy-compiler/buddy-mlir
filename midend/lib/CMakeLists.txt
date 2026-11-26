@@ -20,6 +20,7 @@ set(LinkedLibs
   BuddyXTAMETransforms
   BuddyAME
   BuddyAMETransforms
+  BuddyXSAIAME
   BuddyRHAL
   BuddyTile
   VIR

@@ -1,6 +1,7 @@
 add_subdirectory(BOSCAME)
 add_subdirectory(XTAME)
 add_subdirectory(AME)
+add_subdirectory(XSAIAME)
 add_subdirectory(Bud)
 add_subdirectory(DAP)
 add_subdirectory(DIP)
