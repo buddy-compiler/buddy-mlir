@@ -4,6 +4,9 @@
 *.s
 *.ll
 
+# Linked executables
+linalg-matmul
+
 # Lowered intermediate files
 *-lowered.mlir
 

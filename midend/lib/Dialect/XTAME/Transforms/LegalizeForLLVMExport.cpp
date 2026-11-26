@@ -71,10 +71,17 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
   auto *ctx = rewriter.getContext();
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
   auto i64Type = IntegerType::get(ctx, 64);
+  auto metadata =
+      memref::ExtractStridedMetadataOp::create(rewriter, loc, memref);
   Value idx =
       memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
   Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
-  return LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
+  Value base = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
+  Value offset =
+      arith::IndexCastOp::create(rewriter, loc, i64Type, metadata.getOffset());
+  Type elementType = cast<MemRefType>(memref.getType()).getElementType();
+  return LLVM::GEPOp::create(rewriter, loc, ptrType, elementType, base,
+                             ValueRange{offset});
 }
 
 template <typename OpTy>
