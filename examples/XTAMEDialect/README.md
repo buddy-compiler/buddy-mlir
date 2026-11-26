@@ -17,6 +17,7 @@ The XTAMEDialect example folder contains the following key files:
 **MLIR Source Files:**
 
 - **`ame-th-mmacc-w-b.mlir`**: Minimal MLIR files demonstrating each basic AME operation. Use these to verify assembly code generation.
+- **`linalg-matmul.mlir`**: A `linalg.matmul` on 8x20 and 20x8 `i8` operands with an `i32` result, lowered by `--lower-linalg-to-xtame` instead of written by hand. The program checks its own output and returns the number of mismatching elements, so it runs under QEMU without printing helpers. See [docs/XTAMELinalgLowering.md](../../docs/XTAMELinalgLowering.md) for the supported shapes and the structure of the generated code.
 - **`run-ame-th-mmacc-w-b.c`**: Extended test .c file with additional code for printing matrix results on hardware. Use these files for joint assembly to generate an executable for visible hardware verification.
 
 **Build Files:**
@@ -130,7 +131,25 @@ This generates `.s` containing RISC-V assembly. You can inspect this file to ver
 make clean
 ```
 
-#### Option B: Build Hardware Test Executables (Full Test)
+#### Option B: Lower `linalg.matmul` to AME instructions
+
+`linalg-matmul.mlir` runs the `--lower-linalg-to-xtame` pass, so the AME instructions in the output are produced by the compiler rather than written by hand.
+
+```bash
+make linalg-matmul-lower    # MLIR after --lower-linalg-to-xtame
+make linalg-matmul-asm      # full pipeline down to RISC-V assembly
+make linalg-matmul-run      # assemble, link and run under QEMU
+```
+
+`make linalg-matmul-run` needs `ld.lld` and a RISC-V QEMU that implements the XuanTie matrix extension; both are variables of the makefile:
+
+```bash
+make linalg-matmul-run QEMU_RISCV64=/path/to/qemu-riscv64 QEMU_CPU=xt-c9501fdvmt
+```
+
+The executable prints `matmul self-check passed` and exits with status 0 when every output element matches the expected value.
+
+#### Option C: Build Hardware Test Executables (Full Test)
 
 An executable will be generated that can run on XuanTie-gcc hardware with print outputs for verification. Cross-compile the combined assembly file .s and the print file .c to generate an executable file.
 
