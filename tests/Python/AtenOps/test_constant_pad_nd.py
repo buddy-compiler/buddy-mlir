@@ -1,10 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x):
@@ -26,5 +25,7 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-# CHECK: tosa.pad
+# CHECK: linalg.generic
+# CHECK: scf.if
+# CHECK: tensor.extract
 # CHECK: return

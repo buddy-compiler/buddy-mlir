@@ -1077,6 +1077,9 @@ void Text<T, N>::loadVocab(const std::string &vocab) {
   size_t index = 0;
 
   while (getline(fin, token)) {
+    // Accept either LF or CRLF vocabulary files without changing token IDs.
+    if (!token.empty() && token.back() == '\r')
+      token.pop_back();
     tokenToIdMap[token] = index++;
     idToTokenVec.push_back(token);
   }
