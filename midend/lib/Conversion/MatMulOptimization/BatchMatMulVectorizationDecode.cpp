@@ -53,6 +53,11 @@ using namespace affine;
 
 namespace {
 
+static bool hasDefaultBatchMatmulIndexingMaps(linalg::BatchMatmulOp op) {
+  return linalg::BatchMatmulOp::isDefaultIndexingMaps(
+      op->getAttr("indexing_maps"));
+}
+
 class BatchMatMulVectorizationDecodePattern : public ConversionPattern {
 public:
   explicit BatchMatMulVectorizationDecodePattern(MLIRContext *context,
@@ -69,6 +74,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto ctx = op->getContext();
+
+    if (!hasDefaultBatchMatmulIndexingMaps(cast<linalg::BatchMatmulOp>(op)))
+      return failure();
 
     // Retrieve input tensors A, B, and C.
     Value A = op->getOperand(0);
@@ -225,6 +233,10 @@ void BatchMatMulVectorizationDecodePass::runOnOperation() {
                        scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
+  target.addDynamicallyLegalOp<linalg::BatchMatmulOp>(
+      [](linalg::BatchMatmulOp op) {
+        return !hasDefaultBatchMatmulIndexingMaps(op);
+      });
 
   RewritePatternSet patterns(context);
   bool isScalable = (vectorType == "scalable");
