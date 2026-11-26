@@ -24,6 +24,12 @@ func.func @corr_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : mem
   return
 }
 
+func.func @corr_2d_nchw_fchw_constant_padding(%inputImage : memref<?x?x?x?xf32>, %kernel : memref<?x?x?x?xf32>, %outputImage : memref<?x?x?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) attributes{llvm.emit_c_interface}
+{
+  dip.corr_2d_nchw_fchw <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, index, index, f32
+  return
+}
+
 func.func @corr_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.corr_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %centerX, %centerY , %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
