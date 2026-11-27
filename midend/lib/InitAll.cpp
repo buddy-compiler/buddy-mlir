@@ -54,6 +54,7 @@ void registerLowerLinalgToBOSCAMEPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
+void registerLowerXSAIAMEPass();
 void registerLowerRVVPass();
 void registerLowerVectorExpPass();
 void registerLinalgToVIRPass();
@@ -138,6 +139,7 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
+  mlir::buddy::registerLowerXSAIAMEPass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLinalgToVIRPass();

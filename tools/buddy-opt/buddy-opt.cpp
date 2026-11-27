@@ -67,6 +67,7 @@
 #include "VIR/VIRTypes.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
+#include "XSAIAME/Transform.h"
 #include "XSAIAME/XSAIAMEDialect.h"
 #include "XSAIAME/XSAIAMEOps.h"
 #include "XTAME/Transform.h"
@@ -121,6 +122,7 @@ void registerLowerLinalgToBOSCAMEPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
+void registerLowerXSAIAMEPass();
 void registerLowerAMEPass();
 void registerLowerXTAMEPass();
 void registerLowerBOSCAMEPass();
@@ -197,6 +199,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerAMEPass();
+  mlir::buddy::registerLowerXSAIAMEPass();
   mlir::buddy::registerLowerXTAMEPass();
   mlir::buddy::registerLowerBOSCAMEPass();
   mlir::buddy::registerLowerBOSCAMETilePass();
