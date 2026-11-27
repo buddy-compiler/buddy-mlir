@@ -209,7 +209,11 @@ print("moe residual: bit-identical", numpy.array_equal(yr, h + y))
 
 def rope(x, pos, inv_freq):
     """HF rotate_half RoPE of x [..., rows, d] at positions pos [rows]."""
-    ang = pos[:, None].astype(numpy.float64) * inv_freq[None, :]
+    # The kernel rounds the angle to f32 before sin/cos. At large positions
+    # preserving extra bits here rotates the reference key by a different angle.
+    ang = (pos[:, None].astype(numpy.float32) * inv_freq[None, :]).astype(
+        numpy.float64
+    )
     cos = numpy.concatenate([numpy.cos(ang)] * 2, axis=1)
     sin = numpy.concatenate([numpy.sin(ang)] * 2, axis=1)
     half = x.shape[-1] // 2
@@ -257,13 +261,15 @@ def ref_attention(q, k, v, kc, vc, start, inv_freq, scale, ime=False):
     return out.transpose(1, 0, 2).reshape(m, -1), kc, vc
 
 
-H, KVH, D, EPS = 4, 2, 128, 1e-6
+D, EPS = 128, 1e-6
 inv_freq = (5e6 ** (-numpy.arange(0, D, 2) / D)).astype(numpy.float32)
-for m, start, ctx, ime in (
-    (1, 0, 96, False),
-    (1, 70, 96, False),
-    (32, 41, 96, False),
-    (64, 41, 128, True),
+for m, start, ctx, ime, H, KVH in (
+    (1, 0, 96, False, 4, 2),
+    (1, 70, 96, False, 4, 2),
+    (32, 41, 96, False, 4, 2),
+    (64, 41, 128, True, 4, 2),
+    (1, 383, 1024, False, 32, 4),
+    (1, 384, 1024, False, 32, 4),
 ):
     spec = {
         "name": f"k3_attn_m{m}_s{start}_qkn",
@@ -276,6 +282,8 @@ for m, start, ctx, ime in (
         "ctx": ctx,
         "qk_norm_eps": EPS,
     }
+    if ctx == 1024:
+        spec["threads"] = 8
     if ime:
         spec.update(name=spec["name"] + "_ime", ime=True)
     ee = jit([spec], emulate_ime=ime)
@@ -325,4 +333,10 @@ for m, start, ctx, ime in (
 # CHECK-NEXT: attention qk_norm m32 start 41: (32, 512) error ok
 # CHECK-NEXT: k cache: True
 # CHECK-NEXT: attention qk_norm m64 start 41 ime: (64, 512) error ok
+# CHECK-NEXT: k cache: True
+
+
+# CHECK: attention qk_norm m1 start 383: (1, 4096) error ok
+# CHECK-NEXT: k cache: True
+# CHECK: attention qk_norm m1 start 384: (1, 4096) error ok
 # CHECK-NEXT: k cache: True

@@ -518,3 +518,22 @@ for start in (0, 37):
     print(f"vir decode qk_norm start {start}: same bits {same}")
 # CHECK: vir decode qk_norm start 0: same bits True
 # CHECK-NEXT: vir decode qk_norm start 37: same bits True
+
+# Only the fixed-VLEN, one-row 30B vocabulary projection uses whole banks.
+head = {
+    "name": "test_head",
+    "kind": "plain",
+    "m": 1,
+    "ns": [151936],
+    "k": 2048,
+    "bias": False,
+    "threads": 8,
+    "ime": False,
+}
+assert "vl4re8.v" in k3_w4.gen_kernels([head], fixed_vlen=True)
+assert "vl4re8.v" not in k3_w4.gen_kernels([head])
+assert "vl4re8.v" not in k3_w4.gen_kernels(
+    [dict(head, ns=[2048])], fixed_vlen=True
+)
+print("fixed VLEN head selection passed")
+# CHECK: fixed VLEN head selection passed
