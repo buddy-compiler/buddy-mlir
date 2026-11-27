@@ -41,6 +41,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -467,6 +468,43 @@ def _resolve_tool(name: str, buddy_opt: str, llvm_dir: str) -> str:
     return os.path.join(llvm_dir, name)
 
 
+def elide_final_workshare_barriers(source: str) -> str:
+    """Add `nowait` to the final bare `omp.wsloop` of a single-block
+    `omp.parallel` region; the enclosing parallel join already synchronizes
+    workers, so a trailing `__kmpc_barrier` is redundant."""
+    if "omp.wsloop" not in source:
+        return source
+    try:
+        from buddy_mlir import ir
+    except ModuleNotFoundError as exc:
+        if exc.name != "buddy_mlir":
+            raise
+        return source
+    with ir.Context() as context:
+        context.allow_unregistered_dialects = True
+        module = ir.Module.parse(source)
+
+        def visit(op):
+            if op.name == "omp.parallel" and len(op.regions[0].blocks) == 1:
+                ops = list(op.regions[0].blocks[0].operations)
+                if len(ops) >= 2 and ops[-1].operation.name == "omp.terminator":
+                    ws = ops[-2].operation
+                    if (
+                        ws.name == "omp.wsloop"
+                        and not len(ws.operands)
+                        and all(
+                            str(a) == "operandSegmentSizes"
+                            for a in ws.attributes
+                        )
+                    ):
+                        ws.attributes["nowait"] = ir.UnitAttr.get()
+            return ir.WalkResult.ADVANCE
+
+        module.operation.walk(visit)
+        module.operation.verify()
+        return str(module)
+
+
 def run_pipeline(
     stages: list,
     input_file: str,
@@ -481,6 +519,34 @@ def run_pipeline(
         tool = _resolve_tool(tool_name, buddy_opt, llvm_dir)
         is_first = i == 0
         is_last = i == len(stages) - 1
+
+        # Elide redundant trailing workshare barriers right before translating
+        # OpenMP/LLVM MLIR to LLVM IR. Use a seekable temp file so large MLIR
+        # modules never deadlock on pipe buffer capacity before downstream stages
+        # are spawned.
+        if (
+            not is_first
+            and tool_name in ("mlir-translate", "buddy-translate")
+            and procs[-1].stdout is not None
+        ):
+            prev_out = procs[-1].stdout.read().decode("utf-8")
+            procs[-1].stdout.close()
+            prev_out = elide_final_workshare_barriers(prev_out)
+            tmp = tempfile.TemporaryFile()
+            tmp.write(prev_out.encode("utf-8"))
+            tmp.seek(0)
+            cmd = [tool, *args]
+            if is_last:
+                cmd.extend(["-o", output_file])
+            p = subprocess.Popen(
+                cmd,
+                stdin=tmp,
+                stdout=None if is_last else subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            tmp.close()
+            procs.append(p)
+            continue
 
         cmd = [tool]
         if is_first:

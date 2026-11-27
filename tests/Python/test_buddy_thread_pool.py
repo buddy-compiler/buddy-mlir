@@ -431,3 +431,67 @@ subprocess.run(
 out, prof = profile([path("concurrent2"), str(cpus)])
 print("2 slots:", prof)
 # CHECK: 2 slots: 1 summary, region calls [2, 2000, 2000], span = regions + gaps True, other 1, warning 1
+
+
+# Final bare omp.wsloop inside omp.parallel is synchronized by the parallel
+# region join, so elide_final_workshare_barriers marks only the last workshare
+# `nowait` and keeps any earlier producer barrier intact.
+WORKSHARE = """
+omp.wsloop {
+  omp.loop_nest (%i) : i64 = (%lo) to (%hi) step (%step) {
+    omp.yield
+  }
+}
+"""
+elided = compile_pipeline.elide_final_workshare_barriers(
+    "module { func.func @test(%lo: i64, %hi: i64, %step: i64) {"
+    "omp.parallel {" + WORKSHARE * 2 + "omp.terminator } return } }"
+)
+assert elided.count("omp.wsloop nowait") == 1, elided
+assert elided.index("omp.wsloop {") < elided.index("omp.wsloop nowait"), elided
+lowered_nowait = compile_pipeline.elide_final_workshare_barriers(
+    subprocess.run(
+        [sys.argv[1], *passes],
+        input=MLIR,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+)
+llvm_nowait = subprocess.run(
+    [shutil.which("mlir-translate"), "-mlir-to-llvmir"],
+    input=lowered_nowait,
+    capture_output=True,
+    text=True,
+    check=True,
+).stdout
+assert "@__kmpc_barrier" not in llvm_nowait, "unexpected trailing barrier in IR"
+with open(path("f_nowait.ll"), "w") as f:
+    f.write(llvm_nowait)
+subprocess.run(
+    [shutil.which("llc"), "-filetype=obj", "-relocation-model=pic"]
+    + llc_target_args()
+    + [path("f_nowait.ll"), "-o", path("f_nowait.o")],
+    check=True,
+)
+subprocess.run(
+    [
+        cc,
+        "-O2",
+        path("driver.c"),
+        path("f_nowait.o"),
+        os.path.join(SRC, "runtime", "threadpool", "BuddyThreadPool.c"),
+        "-lpthread",
+        "-ldl",
+        "-o",
+        path("run_nowait"),
+    ],
+    check=True,
+)
+nowait_out = subprocess.run(
+    [path("run_nowait")], capture_output=True, text=True, check=True
+).stdout
+assert "squares: right 1, each iteration once per call 1" in nowait_out
+assert "nested: right 1" in nowait_out
+print("elided final workshare barrier: ok")
+# CHECK: elided final workshare barrier: ok
