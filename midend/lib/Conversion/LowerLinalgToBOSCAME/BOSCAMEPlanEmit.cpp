@@ -764,14 +764,17 @@ LogicalResult buddy::boscame::emitBOSCAMEPlan(ModuleOp module) {
     for (StringAttr name : consumed)
       op->removeAttr(name);
   });
-  for (auto &[function, ids] : expected)
+  for (auto &[function, ids] : expected) {
+    const auto plannedFunction = function;
     if (actual[function].size() != ids.size() ||
-        llvm::any_of(
-            ids, [&](int64_t id) { return !actual[function].contains(id); })) {
+        llvm::any_of(ids, [&, plannedFunction](int64_t id) {
+          return !actual[plannedFunction].contains(id);
+        })) {
       function->emitError(
           "planned task completion IDs were lost during emission");
       invalid = true;
     }
+  }
   if (invalid)
     return failure();
   return verify(module);

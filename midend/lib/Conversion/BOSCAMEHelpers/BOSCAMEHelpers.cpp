@@ -154,9 +154,9 @@ FailureOr<Value> Workspace::allocate(OpBuilder &builder, Operation *anchor,
         "BOSCAME workspace needs a static contiguous buffer in a function");
     return failure();
   }
-  auto [entry, inserted] =
-      used.try_emplace(function, std::array<int64_t, 2>{0, 0});
-  if (inserted)
+  auto insertion = used.try_emplace(function, std::array<int64_t, 2>{0, 0});
+  auto entry = insertion.first;
+  if (insertion.second)
     function.walk([&](SpmViewOp view) {
       auto bytes =
           getContiguousZeroOffsetByteSize(cast<MemRefType>(view.getType()));

@@ -1007,14 +1007,16 @@ LogicalResult Planner::placeLegacyBlock(Block &block,
     bool shareArms = false;
     if (auto branch = dyn_cast<scf::IfOp>(op)) {
       SmallVector<Value> arms[2];
-      for (auto [index, region] : llvm::enumerate(branch->getRegions()))
-        region.walk([&](Operation *nested) {
+      for (auto [index, region] : llvm::enumerate(branch->getRegions())) {
+        const auto armIndex = index;
+        region.walk([&, armIndex](Operation *nested) {
           if (isa<memref::AllocOp, memref::AllocaOp>(nested)) {
             auto type = dyn_cast<MemRefType>(nested->getResult(0).getType());
             if (type && type.getRank() != 0)
-              arms[index].push_back(nested->getResult(0));
+              arms[armIndex].push_back(nested->getResult(0));
           }
         });
+      }
       shareArms = llvm::all_of(arms[0], [&](Value first) {
         return llvm::all_of(arms[1], [&](Value second) {
           return canShareExclusiveSPMWindow(first, second);
@@ -1113,14 +1115,16 @@ LogicalResult Planner::placeBlock(Block &block, std::array<int64_t, 2> cursors,
     bool shareArms = false;
     if (auto branch = dyn_cast<scf::IfOp>(op)) {
       SmallVector<Value> arms[2];
-      for (auto [index, region] : llvm::enumerate(branch->getRegions()))
-        region.walk([&](Operation *nested) {
+      for (auto [index, region] : llvm::enumerate(branch->getRegions())) {
+        const auto armIndex = index;
+        region.walk([&, armIndex](Operation *nested) {
           if (isa<memref::AllocOp, memref::AllocaOp>(nested)) {
             auto type = dyn_cast<MemRefType>(nested->getResult(0).getType());
             if (type && type.getRank() != 0)
-              arms[index].push_back(nested->getResult(0));
+              arms[armIndex].push_back(nested->getResult(0));
           }
         });
+      }
       shareArms = llvm::all_of(arms[0], [&](Value first) {
         return llvm::all_of(arms[1], [&](Value second) {
           return canShareExclusiveSPMWindow(first, second);
