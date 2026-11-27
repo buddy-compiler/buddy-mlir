@@ -263,10 +263,10 @@ struct IMEPackBF16Lowering : public ConvertOpToLLVMPattern<PackBF16Op> {
           "A100 panel packing requires positive K divisible by 8");
     auto sourceType = cast<MemRefType>(op.getSource().getType());
     if (!sourceType.hasStaticShape() || sourceType.getDimSize(0) != k ||
-        sourceType.getDimSize(1) <= 0 || sourceType.getDimSize(1) % 32 ||
+        sourceType.getDimSize(1) < 32 ||
         !contiguousBuffer(op.getPacked(), k * 32))
-      return op.emitError(
-          "A100 packing requires KxN source and contiguous Kx32 scratch");
+      return op.emitError("A100 packing requires KxN source (N>=32) and "
+                          "contiguous Kx32 scratch");
     Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
     Value two = arith::ConstantIndexOp::create(rewriter, loc, 2);
     auto metadata =
@@ -286,25 +286,36 @@ struct IMEPackBF16Lowering : public ConvertOpToLLVMPattern<PackBF16Op> {
         getF16Pointer(rewriter, loc, op.getPacked(), zero),
         getF16Pointer(rewriter, loc, op.getSource(), offset), rowBytes,
         colBytes, blocks};
-    std::string assembly = "mv t1, $1\n\tmv t2, $0\n\tmv t3, $4\n\t"
-                           "slli t0, $2, 3\n\t"
-                           "li t4, 2\n\tbne $3, t4, 3f\n\t"
-                           "li t4, 32\n\tvsetvli zero, t4, e16, m1, ta, ma\n\t"
-                           "1:\n\tmv t5, t1\n\t";
+    std::string assembly =
+        "mv t1, $1\n\tmv t2, $0\n\tmv t3, $4\n\t"
+        "slli t0, $2, 3\n\t"
+        "li t4, 2\n\tbeq $3, t4, 1f\n\t"
+        "beq $2, t4, 6f\n\tj 3f\n\t"
+        "1:\n\tli t4, 32\n\tvsetvli zero, t4, e16, m1, ta, ma\n\t"
+        "2:\n\tmv t5, t1\n\t";
     for (int reg = 8; reg < 16; ++reg)
       assembly +=
           "vle16.v v" + std::to_string(reg) + ", (t5)\n\tadd t5, t5, $2\n\t";
-    assembly += "vsseg8e16.v v8, (t2)\n\t"
-                "add t1, t1, t0\n\taddi t2, t2, 512\n\t"
-                "addi t3, t3, -1\n\tbnez t3, 1b\n\tj 5f\n\t"
-                // Non-unit column strides retain the same packed layout.
-                "3:\n\tvsetivli zero, 8, e16, m1, ta, ma\n\t"
-                "mv t5, t1\n\tmv t6, t2\n\tli t4, 32\n\t"
-                "4:\n\tvlse16.v v8, (t5), $2\n\tvse16.v v8, (t6)\n\t"
-                "add t5, t5, $3\n\taddi t6, t6, 16\n\t"
-                "addi t4, t4, -1\n\tbnez t4, 4b\n\t"
-                "add t1, t1, t0\n\taddi t2, t2, 512\n\t"
-                "addi t3, t3, -1\n\tbnez t3, 3b\n\t5:";
+    assembly +=
+        "vsseg8e16.v v8, (t2)\n\t"
+        "add t1, t1, t0\n\taddi t2, t2, 512\n\t"
+        "addi t3, t3, -1\n\tbnez t3, 2b\n\tj 5f\n\t"
+        // Contiguous K-major [N, K] transposed view: unit-stride vle16.v.
+        "6:\n\tvsetivli zero, 8, e16, m1, ta, ma\n\t"
+        "7:\n\tmv t5, t1\n\tmv t6, t2\n\tli t4, 32\n\t"
+        "8:\n\tvle16.v v8, (t5)\n\tvse16.v v8, (t6)\n\t"
+        "add t5, t5, $3\n\taddi t6, t6, 16\n\t"
+        "addi t4, t4, -1\n\tbnez t4, 8b\n\t"
+        "addi t1, t1, 16\n\taddi t2, t2, 512\n\t"
+        "addi t3, t3, -1\n\tbnez t3, 7b\n\tj 5f\n\t"
+        // Non-unit column and row strides retain the same packed layout.
+        "3:\n\tvsetivli zero, 8, e16, m1, ta, ma\n\t"
+        "mv t5, t1\n\tmv t6, t2\n\tli t4, 32\n\t"
+        "4:\n\tvlse16.v v8, (t5), $2\n\tvse16.v v8, (t6)\n\t"
+        "add t5, t5, $3\n\taddi t6, t6, 16\n\t"
+        "addi t4, t4, -1\n\tbnez t4, 4b\n\t"
+        "add t1, t1, t0\n\taddi t2, t2, 512\n\t"
+        "addi t3, t3, -1\n\tbnez t3, 3b\n\t5:";
     LLVM::InlineAsmOp::create(
         rewriter, loc, Type{}, operands, assembly,
         "r,r,r,r,r,~{t0},~{t1},~{t2},~{t3},~{t4},~{t5},~{t6},"
@@ -324,16 +335,18 @@ struct IMEGemmF16Lowering : public ConvertOpToLLVMPattern<GemmF16Op> {
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     int64_t k = op.getKAttr().getInt(), n = op.getNAttr().getInt();
-    if (k <= 0 || k % 8 || n <= 0 || n % 32)
-      return op.emitError("A100 GEMM requires K%8=0 and N%32=0");
+    if (k <= 0 || k % 8 || n < 32)
+      return op.emitError("A100 GEMM requires K%8=0 and N>=32");
     auto outputType = cast<MemRefType>(op.getVd().getType());
     SmallVector<int64_t> strides;
     int64_t offset;
-    if (!outputType.hasStaticShape() || outputType.getDimSize(0) <= 0 ||
-        outputType.getDimSize(0) % 8 || outputType.getDimSize(1) != n ||
+    int64_t tiledM = (outputType.getDimSize(0) / 8) * 8;
+    if (!outputType.hasStaticShape() || outputType.getDimSize(0) < 8 ||
+        outputType.getDimSize(1) != n ||
         failed(outputType.getStridesAndOffset(strides, offset)) ||
         strides != SmallVector<int64_t>{n, 1} ||
-        !contiguousBuffer(op.getVs1(), outputType.getDimSize(0) * k) ||
+        (!contiguousBuffer(op.getVs1(), tiledM * k) &&
+         !contiguousBuffer(op.getVs1(), 8 * k)) ||
         !contiguousBuffer(op.getVs2(), k * 32))
       return op.emitError(
           "A100 GEMM requires row-major C and matching packed A/B buffers");

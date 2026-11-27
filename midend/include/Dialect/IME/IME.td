@@ -126,7 +126,7 @@ def GemmF16Op : IME_Op<"gemm_f16"> {
     Computes an 8x32 block of C += A*B. A is packed as [M/8][K/8][8][8],
     B is a single [K/8][4][8][8] panel, and C is contiguous row-major F16.
     Four 8x8 FP32 accumulators remain in registers across the K reduction.
-    Requires A100 VLEN=1024, M%8=0, K%8=0 and N%32=0.
+    Requires A100 VLEN=1024, K%8=0 and N>=32.
   }];
   let arguments = (ins MemRefRankOf<[F16], [2]>:$vd,
                        MemRefRankOf<[F16], [1]>:$vs1,

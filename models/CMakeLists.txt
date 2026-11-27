@@ -30,6 +30,10 @@ if(BUDDY_BUILD_PROTEINGLM_MODEL)
   add_subdirectory(proteinglm)
 endif()
 
+if(BUDDY_BUILD_PADDLEOCR_MODEL)
+  add_subdirectory(paddleocr)
+endif()
+
 if(BUDDY_BUILD_YOLOV8_MODEL)
   add_subdirectory(yolov8)
 endif()

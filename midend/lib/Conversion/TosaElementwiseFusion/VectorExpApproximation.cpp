@@ -48,7 +48,16 @@ public:
         patterns, [](OpOperand *operand) {
           auto producer = operand->get().getDefiningOp<linalg::GenericOp>();
           auto consumer = dyn_cast<linalg::GenericOp>(operand->getOwner());
-          if (!producer || !consumer || !producer->hasOneUse())
+          if (!producer || !consumer || !producer->hasOneUse() ||
+              producer->getNumResults() != 1 || consumer->getNumResults() != 1)
+            return false;
+          auto prodType =
+              dyn_cast<ShapedType>(producer->getResult(0).getType());
+          auto consType =
+              dyn_cast<ShapedType>(consumer->getResult(0).getType());
+          if (!prodType || !consType ||
+              prodType.getShape() != consType.getShape() ||
+              !consumer.getMatchingIndexingMap(operand).isPermutation())
             return false;
           auto parallel = [](linalg::GenericOp op) {
             return llvm::none_of(op.getIteratorTypesArray(),
