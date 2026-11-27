@@ -124,6 +124,9 @@ def RHAL_CodeobjOp : RHAL_Op<"codeobj", [SymbolName, SymbolVisibility, Symbol]> 
     - `kind`:    "host_shared_lib" — dlopen-able shared library
     - `backend`: "cpu", "cuda", etc.
     - `uri`:     "file:X" → X resolved relative to the .rax file
+    - `entry_symbol`: optional public library entry (e.g. a kernel query).
+    - `kernel_attrs`: optional string-valued metadata dictionary. The
+      `optional` key accepts "true" or "false"; omitted means mandatory.
   }];
 
   let arguments = (ins
@@ -132,8 +135,12 @@ def RHAL_CodeobjOp : RHAL_Op<"codeobj", [SymbolName, SymbolVisibility, Symbol]> 
     I32Attr:$id,
     StrAttr:$kind,
     StrAttr:$backend,
-    StrAttr:$uri
+    StrAttr:$uri,
+    OptionalAttr<StrAttr>:$entry_symbol,
+    OptionalAttr<DictionaryAttr>:$kernel_attrs
   );
+
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     $sym_name attr-dict
@@ -153,14 +160,20 @@ def RHAL_BufferOp : RHAL_Op<"buffer", [SymbolName, SymbolVisibility, Symbol]> {
     Declares a named buffer used by the model functions.
     - `space`: "host" (CPU-visible), "dram" (device memory)
     - `type`:  shape and element type of the buffer
+    - `layout`: optional "any", "row_major", "col_major", "tiled", "opaque".
+    - `strides`: optional dense i64 array of element strides, one per dimension.
   }];
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     OptionalAttr<StrAttr>:$sym_visibility,
     StrAttr:$space,
-    TypeAttr:$type
+    TypeAttr:$type,
+    OptionalAttr<StrAttr>:$layout,
+    OptionalAttr<DenseI64ArrayAttr>:$strides
   );
+
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     $sym_name attr-dict
@@ -185,6 +198,8 @@ def RHAL_FuncOp : RHAL_Op<"func", [SymbolName, SymbolVisibility, Symbol]> {
     - `dispatch`: name of the code object that provides this function
     - `args`:     all buffer names passed as arguments to the kernel,
                   in ABI order (inputs + state + outputs)
+    - `scalars`:  i64 scalar arguments appended after the buffer args,
+                  in ABI order (e.g. the softmax axis)
   }];
 
   let arguments = (ins
@@ -193,7 +208,8 @@ def RHAL_FuncOp : RHAL_Op<"func", [SymbolName, SymbolVisibility, Symbol]> {
     ArrayAttr:$inputs,
     ArrayAttr:$outputs,
     StrAttr:$dispatch,
-    ArrayAttr:$args
+    ArrayAttr:$args,
+    OptionalAttr<DenseI64ArrayAttr>:$scalars
   );
 
   let assemblyFormat = [{

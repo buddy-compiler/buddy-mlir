@@ -98,6 +98,32 @@ identifier `RAX0`. The module contains:
 All files, including those with an appended payload, begin with this
 FlatBuffer. The payload is not represented by a table in `rax.fbs`.
 
+`rhal.codeobj` supports an optional `entry_symbol` string and a
+`kernel_attrs` dictionary. The writer stores the dictionary in
+`CodeObject.attrs`; every value must be a string. `kernel_attrs.optional`
+accepts only `"true"` or `"false"`. `kernel_attrs.required_isa` is a list
+of feature tokens separated by commas, semicolons, or whitespace. Runtime
+compares tokens without regard to case, order, or whitespace; see the
+[kernel interface RFC](TritonKernelInterface.md), section 3. The loader
+retains optional resources in `ModelManifest::codeObjects` with
+`ResolvedCodeObject::optional` set, but excludes them from the mandatory
+`soPath` and `dependentSoPaths`. Omitting the optional attribute preserves
+the existing mandatory behavior. Duplicate or malformed code-object
+metadata is rejected.
+
+`rhal.buffer` also supports `layout` (`"any"`, `"row_major"`, `"col_major"`,
+`"tiled"`, `"opaque"`) and `strides = array<i64: ...>`. Strides are measured
+in elements, one per tensor dimension. Without these attributes, the writer
+preserves the old `Layout_Any` and absent-stride behavior. `rax-inspect`
+prints buffer dtype/shape/layout/strides and code-object backend, entry, and
+metadata. The `inputs`/`outputs`, `dispatch`, `args`, and i64 `scalars` of
+`rhal.func` are written to Function/DispatchOp. Scalars follow buffer
+arguments. The Softmax profile validates count, order, references, and
+host-wrapper grid instead of silently discarding unknown operands or ops.
+An executable payload cache hit is compared with package bytes before reuse;
+equal file size alone is insufficient. The existing cache policy for weights
+and other non-code resources remains unchanged.
+
 ## Packaging modes
 
 ### Manifest-only RAX
@@ -278,8 +304,8 @@ views of the resolved data:
 | Output | Source |
 | --- | --- |
 | `codeObjects` | All code objects with original URI and resolved path. |
-| `soPath` | First `HostSharedLib` code object. |
-| `dependentSoPaths` | Remaining `HostSharedLib` code objects. |
+| `soPath` | First mandatory `HostSharedLib` code object. |
+| `dependentSoPaths` | Remaining mandatory `HostSharedLib` code objects. |
 | `constants` | All constants with original URI and resolved path. |
 | `weightPaths` | Resolved paths for external constants. |
 | `vocabPath` | Resolved `vocab_uri`. |

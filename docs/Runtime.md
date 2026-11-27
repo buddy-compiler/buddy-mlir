@@ -1,5 +1,11 @@
 # Runtime
 
+The experimental Triton-RISCV kernel interface and Softmax proof of concept
+are described in the [interface RFC](TritonKernelInterface.md). All target
+components are cross-compiled. The [RISC-V correctness results](TritonKernelHostPreparationResults.md)
+cover real Buddy fallback and negative cases; the [overhead report](TritonKernelHostPreparationOverhead.md)
+includes the slower-than-Buddy result for the small specialization.
+
 Buddy Runtime is the inference runtime layer of buddy-mlir. It wraps MLIR compilation outputs into dynamically loadable models and runs them through the generic `buddy-cli` tool.
 
 ## End-to-end pipeline
