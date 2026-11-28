@@ -3,3 +3,8 @@
 set(BUDDY_BINARY_DIR "${PACKAGE_PREFIX_DIR}/bin")
 set(BUDDY_MLIR_INTERFACE_DIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@/buddy-mlir")
 set(BUDDY_MLIR_LIB_DIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@")
+
+# Runtime-only installations can use find_package(BuddyExternalKernel) directly.
+# A full Buddy installation exposes the same target through its main package.
+include("${CMAKE_CURRENT_LIST_DIR}/../BuddyExternalKernel/BuddyExternalKernelTargets.cmake"
+        OPTIONAL)

@@ -1,0 +1,4 @@
+{
+  global: buddy_external_kernel_query_v1;
+  local: *;
+};

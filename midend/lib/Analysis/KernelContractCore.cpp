@@ -2092,15 +2092,17 @@ LogicalResult FunctionContract::finish() {
     }
   }
   for (auto [id, preds] : predecessors) {
+    const auto consumerId = id;
     for (int64_t pred : preds) {
       if (taskScopes[pred] == taskScopes[id])
         continue;
-      bool legal = llvm::any_of(loops, [&](const LoopSummary &loop) {
-        return (llvm::is_contained(loop.initProducers, pred) &&
-                llvm::is_contained(loop.iterConsumers, id)) ||
-               (llvm::is_contained(loop.backedgeProducers, pred) &&
-                llvm::is_contained(loop.exitConsumers, id));
-      });
+      bool legal =
+          llvm::any_of(loops, [&, consumerId](const LoopSummary &loop) {
+            return (llvm::is_contained(loop.initProducers, pred) &&
+                    llvm::is_contained(loop.iterConsumers, consumerId)) ||
+                   (llvm::is_contained(loop.backedgeProducers, pred) &&
+                    llvm::is_contained(loop.exitConsumers, consumerId));
+          });
       if (!legal)
         return fail(taskOps[id], "V19",
                     "cross-scope edge is not a registered loop init/exit edge");

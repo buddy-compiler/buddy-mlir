@@ -671,8 +671,9 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   using LiveRange = std::tuple<Value, Operation *, Operation *>;
   DenseMap<Block *, SmallVector<LiveRange>> liveRanges;
   auto liveRangesIn = [&](Block *block) -> ArrayRef<LiveRange> {
-    auto [it, inserted] = liveRanges.try_emplace(block);
-    if (!inserted)
+    auto insertion = liveRanges.try_emplace(block);
+    auto it = insertion.first;
+    if (!insertion.second)
       return it->second;
     const LivenessBlockInfo *info = liveness.getLiveness(block);
     auto add = [&](Value v) {

@@ -274,6 +274,20 @@ static CodeObjectKind parseCodeKind(llvm::StringRef s) {
   return CodeObjectKind_Unknown;
 }
 
+static Layout parseLayout(llvm::StringRef s) {
+  if (s == "any")
+    return Layout_Any;
+  if (s == "row_major")
+    return Layout_RowMajor;
+  if (s == "col_major")
+    return Layout_ColMajor;
+  if (s == "tiled")
+    return Layout_Tiled;
+  if (s == "opaque")
+    return Layout_Opaque;
+  throw std::runtime_error("unsupported tensor layout: " + s.str());
+}
+
 static void parseVersion(llvm::StringRef v, uint16_t &maj, uint16_t &min,
                          uint16_t &pat) {
   maj = 0;
@@ -304,10 +318,17 @@ static flatbuffers::Offset<Shape> buildShape(flatbuffers::FlatBufferBuilder &b,
 }
 
 static flatbuffers::Offset<TensorType>
-buildTensorType(flatbuffers::FlatBufferBuilder &b, mlir::RankedTensorType tt) {
+buildTensorType(flatbuffers::FlatBufferBuilder &b, mlir::RankedTensorType tt,
+                Layout layout = Layout_Any,
+                mlir::DenseI64ArrayAttr strides = {}) {
   auto shape = buildShape(b, tt);
   auto dtype = getDType(tt.getElementType());
-  return CreateTensorType(b, dtype, shape, Layout_Any, 0);
+  flatbuffers::Offset<flatbuffers::Vector<int64_t>> fbStrides;
+  if (strides) {
+    auto values = strides.asArrayRef();
+    fbStrides = b.CreateVector(values.data(), values.size());
+  }
+  return CreateTensorType(b, dtype, shape, layout, fbStrides);
 }
 
 //===----------------------------------------------------------------------===//
@@ -416,6 +437,8 @@ int main(int argc, char **argv) {
       std::string name;
       mlir::RankedTensorType tt;
       MemorySpace space;
+      Layout layout = Layout_Any;
+      mlir::DenseI64ArrayAttr strides;
     };
     struct ConstRec {
       uint32_t id;
@@ -430,6 +453,8 @@ int main(int argc, char **argv) {
       CodeObjectKind kind;
       std::string backend;
       std::string uri;
+      std::string entrySymbol;
+      mlir::DictionaryAttr kernelAttrs;
     };
     struct FuncRec {
       std::string name;
@@ -437,6 +462,7 @@ int main(int argc, char **argv) {
       std::vector<std::string> outputs;
       std::string dispatch;
       std::vector<std::string> args;
+      std::vector<int64_t> scalars;
     };
 
     std::vector<BufRec> buffers;
@@ -467,6 +493,9 @@ int main(int argc, char **argv) {
         r.kind = parseCodeKind(co.getKind());
         r.backend = co.getBackend().str();
         r.uri = co.getUri().str();
+        if (auto entry = co.getEntrySymbol())
+          r.entrySymbol = entry->str();
+        r.kernelAttrs = co.getKernelAttrsAttr();
         codeobjs.push_back(std::move(r));
 
       } else if (auto bo = mlir::dyn_cast<buddy::rhal::BufferOp>(&op)) {
@@ -476,6 +505,9 @@ int main(int argc, char **argv) {
         auto tt = mlir::cast<mlir::RankedTensorType>(bo.getType());
         r.tt = tt;
         r.space = parseSpace(bo.getSpace());
+        if (auto layout = bo.getLayout())
+          r.layout = parseLayout(*layout);
+        r.strides = bo.getStridesAttr();
         bufNameToId[r.name] = r.id;
         buffers.push_back(std::move(r));
 
@@ -489,6 +521,9 @@ int main(int argc, char **argv) {
           r.outputs.push_back(mlir::cast<mlir::StringAttr>(a).getValue().str());
         for (auto a : fo.getArgs())
           r.args.push_back(mlir::cast<mlir::StringAttr>(a).getValue().str());
+        if (auto scalars = fo.getScalars())
+          for (int64_t scalar : *scalars)
+            r.scalars.push_back(scalar);
         funcs.push_back(std::move(r));
       }
     }
@@ -585,7 +620,7 @@ int main(int argc, char **argv) {
     // Buffers
     std::vector<flatbuffers::Offset<BufferBinding>> fbBufs;
     for (auto &r : buffers) {
-      auto ttype = buildTensorType(b, r.tt);
+      auto ttype = buildTensorType(b, r.tt, r.layout, r.strides);
       fbBufs.push_back(CreateBufferBinding(b, r.id, b.CreateString(r.name),
                                            ttype, r.space, 0));
     }
@@ -607,12 +642,22 @@ int main(int argc, char **argv) {
     std::unordered_map<std::string, uint32_t> codeNameToId;
     for (auto &r : codeobjs) {
       codeNameToId[r.name] = r.id;
-      fbCodes.push_back(CreateCodeObject(b, r.id, b.CreateString(r.name),
-                                         r.kind,
-                                         0, // inline data
-                                         b.CreateString(r.uri),
-                                         b.CreateString(""), // entry
-                                         b.CreateString(r.backend), 0));
+      std::vector<flatbuffers::Offset<KV>> attrs;
+      if (r.kernelAttrs) {
+        for (auto attr : r.kernelAttrs) {
+          attrs.push_back(CreateKV(
+              b, b.CreateString(attr.getName().strref().str()),
+              b.CreateString(mlir::cast<mlir::StringAttr>(attr.getValue())
+                                 .getValue()
+                                 .str())));
+        }
+      }
+      fbCodes.push_back(
+          CreateCodeObject(b, r.id, b.CreateString(r.name), r.kind,
+                           0, // inline data
+                           b.CreateString(r.uri), b.CreateString(r.entrySymbol),
+                           b.CreateString(r.backend),
+                           attrs.empty() ? 0 : b.CreateVector(attrs)));
     }
 
     // Functions
@@ -625,7 +670,7 @@ int main(int argc, char **argv) {
                                  "'");
       uint32_t codeId = codeIt->second;
 
-      // Build dispatch arg list (buffer name → id)
+      // Build dispatch arg list (buffer name → id), then appended scalars.
       std::vector<flatbuffers::Offset<Arg>> dispArgs;
       for (auto &name : fr.args) {
         auto it = bufNameToId.find(name);
@@ -634,6 +679,9 @@ int main(int argc, char **argv) {
                                    ": unknown buffer '" + name + "' in args");
         dispArgs.push_back(CreateArg(b, it->second, 0, 0, 0));
       }
+      for (int64_t scalar : fr.scalars)
+        dispArgs.push_back(
+            CreateArg(b, 0, 0, CreateScalar(b, scalar, 0.0, 0), 0));
 
       // grid/block: (1,1,1) for CPU kernels
       std::vector<uint32_t> g{1, 1, 1}, blk{1, 1, 1};

@@ -213,6 +213,28 @@ int main(int argc, char **argv) {
 
     std::cout << "buffers: " << (m->buffers() ? m->buffers()->size() : 0)
               << "\n";
+    if (m->buffers()) {
+      for (auto buffer : *m->buffers()) {
+        std::cout << "  [" << buffer->id() << "] @"
+                  << (buffer->name() ? buffer->name()->c_str() : "?");
+        if (auto type = buffer->type()) {
+          std::cout << "  dtype=" << rhal::rax::EnumNameDType(type->dtype())
+                    << "  shape=[";
+          if (type->shape() && type->shape()->dims()) {
+            for (uint32_t i = 0; i < type->shape()->dims()->size(); ++i)
+              std::cout << (i ? "," : "") << type->shape()->dims()->Get(i);
+          }
+          std::cout << "]  layout=" << rhal::rax::EnumNameLayout(type->layout())
+                    << "  strides=[";
+          if (type->strides()) {
+            for (uint32_t i = 0; i < type->strides()->size(); ++i)
+              std::cout << (i ? "," : "") << type->strides()->Get(i);
+          }
+          std::cout << "]";
+        }
+        std::cout << "\n";
+      }
+    }
 
     // Constants detail
     const auto nConst = m->constants() ? m->constants()->size() : 0;
@@ -234,6 +256,19 @@ int main(int argc, char **argv) {
                 << (co->name() ? co->name()->c_str() : "?")
                 << "  kind=" << rhal::rax::EnumNameCodeObjectKind(co->kind())
                 << "  uri=" << (co->uri() ? co->uri()->c_str() : "") << "\n";
+      std::cout << "    backend="
+                << (co->backend() ? co->backend()->c_str() : "")
+                << "  entry_symbol="
+                << (co->entry_symbol() ? co->entry_symbol()->c_str() : "")
+                << "\n";
+      if (co->attrs()) {
+        for (auto kv : *co->attrs()) {
+          if (!kv || !kv->key() || !kv->value())
+            throw std::runtime_error("invalid code object metadata");
+          std::cout << "    " << kv->key()->str() << " = " << kv->value()->str()
+                    << "\n";
+        }
+      }
     }
 
     // Functions

@@ -19,9 +19,10 @@
 //
 // encodes:
 //   constants[0]              → External weights URI  (e.g. "file:arg0.data")
-//   code_objects[0]           → primary HostSharedLib URI (e.g.
-//   "file:model.so") code_objects[1..]         → optional dependent
-//   HostSharedLib URIs module_attrs["vocab_uri"] → vocab file URI         (e.g.
+//   mandatory code_objects   → primary HostSharedLib URI (e.g.
+//   "file:model.so"), then required dependencies. Code objects explicitly
+//   marked optional stay in codeObjects for their consumer to select/load.
+//   module_attrs["vocab_uri"] → vocab file URI         (e.g.
 //   "file:vocab.txt") module_attrs["runner_library"] → runner plugin URI
 //   module_attrs["model_library"] → server model plugin URI
 //   module_attrs["model_name"]→ model identifier      (e.g.
@@ -37,6 +38,7 @@
 #ifndef BUDDY_RUNTIME_CORE_MODELMANIFEST_H
 #define BUDDY_RUNTIME_CORE_MODELMANIFEST_H
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -47,6 +49,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 // FlatBuffers + generated RAX schema (provided by buddy_rax INTERFACE target)
@@ -84,6 +87,9 @@ struct ModelManifest {
     std::string path;
     std::string entrySymbol;
     std::unordered_map<std::string, std::string> attrs;
+    // Optional code objects stay discoverable but are never mandatory dlopen
+    // dependencies. Their consumer decides whether to load or use a fallback.
+    bool optional = false;
   };
 
   struct ResolvedConstant {
@@ -95,11 +101,45 @@ struct ModelManifest {
     std::unordered_map<std::string, std::string> attrs;
   };
 
+  struct ResolvedBuffer {
+    uint32_t id = 0;
+    std::string name;
+    rhal::rax::DType dtype = rhal::rax::DType_Invalid;
+    rhal::rax::Layout layout = rhal::rax::Layout_Any;
+    rhal::rax::MemorySpace space = rhal::rax::MemorySpace_Any;
+    std::vector<int64_t> shape;
+    std::vector<int64_t> strides;
+  };
+
+  // One DispatchOp: which code object to run, with which args and launch dims.
+  struct ResolvedDispatch {
+    uint32_t codeObjectId = 0;
+    // This convenience view groups tensors then i64 scalars. Consumers must
+    // reject programs it cannot faithfully represent instead of dropping args.
+    bool supportedArguments = true;
+    // Buffer ids in ABI order (tensor arguments).
+    std::vector<uint32_t> bufferArgs;
+    // Scalar arguments (i64) appended after the buffer args.
+    std::vector<int64_t> scalars;
+    std::vector<uint32_t> grid;
+    std::vector<uint32_t> block;
+  };
+
+  struct ResolvedFunction {
+    std::string name;
+    bool hasUnsupportedOps = false;
+    std::vector<uint32_t> inputs;
+    std::vector<uint32_t> outputs;
+    // Dispatch ops (kind == Dispatch) in declaration order; barriers and
+    // memory ops are not exposed in this MVP view.
+    std::vector<ResolvedDispatch> dispatches;
+  };
+
   // from module_attrs["model_name"] (e.g. "deepseek_r1_fp32")
   std::string modelName;
   // absolute path to the kernel .so  (dlopen)
   std::string soPath;
-  // additional HostSharedLib entries from the manifest, resolved to absolute
+  // additional mandatory HostSharedLib entries, resolved to absolute
   // paths (typically runtime deps like libomp/libmlir_c_runner_utils).
   std::vector<std::string> dependentSoPaths;
   // absolute paths to weight files, in manifest order (supports multi-weight
@@ -118,6 +158,10 @@ struct ModelManifest {
   // flatbuffers.
   std::vector<ResolvedCodeObject> codeObjects;
   std::vector<ResolvedConstant> constants;
+  // Descriptive metadata only; storage is allocated and owned by the consumer.
+  std::vector<ResolvedBuffer> buffers;
+  // Dispatch program: function entry points and their kernel dispatch ops.
+  std::vector<ResolvedFunction> functions;
 
   // Load and resolve from a .rax manifest file.
   // Throws std::runtime_error on any parse / missing-field error.
@@ -393,9 +437,32 @@ struct ModelManifest {
         const fs::path outPath = extractRoot / name;
 
         std::error_code ec;
-        const bool reuse = fs::exists(outPath, ec) && !ec &&
-                           fs::is_regular_file(outPath, ec) && !ec &&
-                           fs::file_size(outPath, ec) == entry.fileSize;
+        bool reuse = fs::exists(outPath, ec) && !ec &&
+                     fs::is_regular_file(outPath, ec) && !ec &&
+                     fs::file_size(outPath, ec) == entry.fileSize;
+        // Size/mtime are only a cache lookup hint. Verify against the package
+        // bytes before reusing executable payloads, including same-size edits.
+        const bool executablePayload =
+            std::strcmp(field, "code_object.uri") == 0 ||
+            hasSuffix(std::string(field), "_library");
+        if (reuse && executablePayload) {
+          std::ifstream cached(outPath, std::ios::binary);
+          std::ifstream packed(raxFs, std::ios::binary);
+          packed.seekg(static_cast<std::streamoff>(entry.fileOffset));
+          std::array<char, 16384> cachedBytes{}, packedBytes{};
+          uint64_t remaining = entry.fileSize;
+          reuse = bool(cached) && bool(packed);
+          while (reuse && remaining) {
+            const auto count = static_cast<std::streamsize>(
+                std::min<uint64_t>(remaining, cachedBytes.size()));
+            cached.read(cachedBytes.data(), count);
+            packed.read(packedBytes.data(), count);
+            reuse = cached.gcount() == count && packed.gcount() == count &&
+                    std::memcmp(cachedBytes.data(), packedBytes.data(),
+                                static_cast<size_t>(count)) == 0;
+            remaining -= static_cast<uint64_t>(count);
+          }
+        }
 
         if (!reuse) {
           fs::create_directories(outPath.parent_path());
@@ -482,13 +549,36 @@ struct ModelManifest {
       return out;
     };
 
+    if (mod->buffers()) {
+      for (auto buffer : *mod->buffers()) {
+        if (!buffer)
+          throw std::runtime_error("ModelManifest: null buffer binding");
+        ResolvedBuffer rec;
+        rec.id = buffer->id();
+        if (buffer->name())
+          rec.name = buffer->name()->str();
+        rec.space = buffer->space();
+        if (auto type = buffer->type()) {
+          rec.dtype = type->dtype();
+          rec.layout = type->layout();
+          if (type->shape() && type->shape()->dims())
+            rec.shape.assign(type->shape()->dims()->begin(),
+                             type->shape()->dims()->end());
+          if (type->strides())
+            rec.strides.assign(type->strides()->begin(),
+                               type->strides()->end());
+        }
+        out.buffers.push_back(std::move(rec));
+      }
+    }
+
     // --- Code objects -> generic list + legacy soPath fields ---------------
     if (!mod->code_objects() || mod->code_objects()->size() == 0)
       throw std::runtime_error("ModelManifest: no code_objects in " +
                                raxFs.string());
     for (auto co : *mod->code_objects()) {
       if (!co)
-        continue;
+        throw std::runtime_error("ModelManifest: null code object");
 
       ResolvedCodeObject rec;
       rec.id = co->id();
@@ -503,14 +593,113 @@ struct ModelManifest {
       }
       if (co->entry_symbol())
         rec.entrySymbol = co->entry_symbol()->str();
-      rec.attrs = attrsToMap(co->attrs());
+      if (co->attrs()) {
+        for (auto kv : *co->attrs()) {
+          if (!kv || !kv->key() || !kv->value())
+            throw std::runtime_error(
+                "ModelManifest: invalid code object metadata");
+          if (!rec.attrs.emplace(kv->key()->str(), kv->value()->str()).second)
+            throw std::runtime_error(
+                "ModelManifest: duplicate code object metadata key");
+        }
+      }
+      auto optional = rec.attrs.find("optional");
+      if (optional != rec.attrs.end()) {
+        if (optional->second != "true" && optional->second != "false")
+          throw std::runtime_error(
+              "ModelManifest: optional must be 'true' or 'false'");
+        rec.optional = optional->second == "true";
+      }
       out.codeObjects.push_back(rec);
 
-      if (co->kind() == rhal::rax::CodeObjectKind_HostSharedLib) {
+      if (co->kind() == rhal::rax::CodeObjectKind_HostSharedLib &&
+          !rec.optional) {
         if (out.soPath.empty())
           out.soPath = rec.path;
         else
           out.dependentSoPaths.push_back(rec.path);
+      }
+    }
+
+    // --- Functions -> dispatch metadata -------------------------------------
+    if (mod->functions()) {
+      for (auto fn : *mod->functions()) {
+        if (!fn)
+          throw std::runtime_error("ModelManifest: null function");
+        ResolvedFunction rec;
+        if (fn->name())
+          rec.name = fn->name()->str();
+        if (fn->inputs())
+          rec.inputs.assign(fn->inputs()->begin(), fn->inputs()->end());
+        if (fn->outputs())
+          rec.outputs.assign(fn->outputs()->begin(), fn->outputs()->end());
+        if (fn->ops()) {
+          bool sawTrailingBarrier = false;
+          for (auto op : *fn->ops()) {
+            // rax-pack appends a plain global barrier to a CPU dispatch. A
+            // synchronous host call already completes it; other ops, barrier
+            // scopes or program orders must not be silently dropped.
+            if (op && op->kind() == rhal::rax::OpKind_Barrier &&
+                op->barrier() && !op->dispatch() && !op->memcpy() &&
+                !op->fill() && (!op->attrs() || op->attrs()->size() == 0) &&
+                (!op->barrier()->attrs() ||
+                 op->barrier()->attrs()->size() == 0) &&
+                rec.dispatches.size() == 1 && !sawTrailingBarrier) {
+              sawTrailingBarrier = true;
+              continue;
+            }
+            if (!op || op->kind() != rhal::rax::OpKind_Dispatch ||
+                sawTrailingBarrier || op->barrier() || op->memcpy() ||
+                op->fill()) {
+              rec.hasUnsupportedOps = true;
+              continue;
+            }
+            const auto *dispatch = op->dispatch();
+            if (!dispatch) {
+              rec.hasUnsupportedOps = true;
+              continue;
+            }
+            ResolvedDispatch rd;
+            rd.codeObjectId = dispatch->code_object_id();
+            if (dispatch->args()) {
+              bool sawScalar = false;
+              for (auto arg : *dispatch->args()) {
+                if (!arg) {
+                  rd.supportedArguments = false;
+                  continue;
+                }
+                const unsigned alternatives =
+                    unsigned(arg->buffer_id() != 0) +
+                    unsigned(arg->constant_id() != 0) +
+                    unsigned(arg->scalar() != nullptr);
+                if (alternatives != 1)
+                  rd.supportedArguments = false;
+                if (arg->buffer_id()) {
+                  if (sawScalar)
+                    rd.supportedArguments = false;
+                  rd.bufferArgs.push_back(arg->buffer_id());
+                } else if (arg->scalar()) {
+                  sawScalar = true;
+                  if (arg->scalar()->f64() != 0.0 || arg->scalar()->s())
+                    rd.supportedArguments = false;
+                  rd.scalars.push_back(arg->scalar()->i64());
+                } else {
+                  rd.supportedArguments = false;
+                }
+              }
+            }
+            if (dispatch->dims()) {
+              if (dispatch->dims()->grid())
+                rd.grid.assign(dispatch->dims()->grid()->begin(),
+                               dispatch->dims()->grid()->end());
+              if (dispatch->dims()->block())
+                rd.block.assign(dispatch->dims()->block()->begin(),
+                                dispatch->dims()->block()->end());
+            }
+            rec.dispatches.push_back(std::move(rd));
+          }
+        }
+        out.functions.push_back(std::move(rec));
       }
     }
 

@@ -21,3 +21,33 @@
 
 #define GET_OP_CLASSES
 #include "RHAL/RHALOps.cpp.inc"
+
+mlir::LogicalResult buddy::rhal::CodeobjOp::verify() {
+  if (auto attrs = getKernelAttrsAttr()) {
+    for (auto attr : attrs) {
+      auto value = mlir::dyn_cast<mlir::StringAttr>(attr.getValue());
+      if (!value)
+        return emitOpError("kernel_attrs values must be strings");
+      if (attr.getName().strref() == "optional" && value.getValue() != "true" &&
+          value.getValue() != "false")
+        return emitOpError("kernel_attrs.optional must be 'true' or 'false'");
+    }
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult buddy::rhal::BufferOp::verify() {
+  if (auto layout = getLayoutAttr()) {
+    auto value = layout.getValue();
+    if (value != "any" && value != "row_major" && value != "col_major" &&
+        value != "tiled" && value != "opaque")
+      return emitOpError("unsupported layout '") << value << "'";
+  }
+  if (auto strides = getStridesAttr()) {
+    auto type = mlir::dyn_cast<mlir::RankedTensorType>(getType());
+    if (!type || strides.size() != type.getRank())
+      return emitOpError(
+          "strides must contain one element stride per dimension");
+  }
+  return mlir::success();
+}

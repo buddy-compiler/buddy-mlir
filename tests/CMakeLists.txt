@@ -23,6 +23,11 @@ set(BUDDY_TEST_DEPENDS
   buddy-audio-container-test
   buddy-text-container-test
   buddy-rax-dependencies-test
+  buddy-external-kernel-test
+  buddy-rax-kernel-metadata-test
+  rax-pack
+  rax-inspect
+  split-file
   buddy-sampler-test
   buddy-perplexity-test
   buddy-text-generation-test

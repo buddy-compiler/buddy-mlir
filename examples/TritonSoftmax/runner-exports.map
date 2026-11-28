@@ -1,0 +1,4 @@
+{
+  global: buddy_create_inference_runner_v1; buddy_destroy_inference_runner_v1;
+  local: *;
+};

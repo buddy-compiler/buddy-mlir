@@ -7,6 +7,29 @@ add_subdirectory(external_kernels)
 # and the model-agnostic runtime core).
 add_subdirectory(rax)
 
+# Optional AOT host kernels, with a Buddy-generated fallback at the call site.
+add_library(buddy_runtime_external_kernel STATIC core/ExternalKernel.cpp)
+add_library(BuddyMLIR::buddy_runtime_external_kernel ALIAS
+            buddy_runtime_external_kernel)
+set_target_properties(buddy_runtime_external_kernel PROPERTIES
+  POSITION_INDEPENDENT_CODE ON)
+target_include_directories(buddy_runtime_external_kernel PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/buddy-mlir>)
+target_link_libraries(buddy_runtime_external_kernel PRIVATE ${CMAKE_DL_LIBS})
+target_compile_features(buddy_runtime_external_kernel PUBLIC cxx_std_17)
+install(TARGETS buddy_runtime_external_kernel EXPORT BuddyExternalKernelTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT buddy_runtime)
+install(EXPORT BuddyExternalKernelTargets
+        FILE BuddyExternalKernelTargets.cmake
+        NAMESPACE BuddyMLIR::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/BuddyExternalKernel
+        COMPONENT buddy_runtime)
+install(FILES cmake/BuddyExternalKernelConfig.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/BuddyExternalKernel
+        COMPONENT buddy_runtime)
+
 # RAX runtime dependencies must remain loaded while a runner or server model is
 # alive. Keep the dlopen lifecycle in a shared module used by both frontends.
 add_library(buddy_runtime_rax_dependencies STATIC
