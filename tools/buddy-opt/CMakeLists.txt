@@ -60,6 +60,7 @@ target_link_libraries(buddy-opt
   BuddyAME
   BuddyAMETransforms
   BuddyXSAIAME
+  BuddyXSAIAMETransforms
   BuddyXTAME
   BuddyXTAMETransforms
   BuddyBOSCAME
