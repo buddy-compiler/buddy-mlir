@@ -1,0 +1,8 @@
+a
+b
+ab
+Ġ
+Ġab
+!
+ab
+aba

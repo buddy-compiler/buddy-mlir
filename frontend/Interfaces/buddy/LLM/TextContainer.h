@@ -24,10 +24,11 @@
 #define FRONTEND_INTERFACES_BUDDY_LLM_TEXTCONTAINER
 
 #include "buddy/Core/Container.h"
+#include <algorithm>
+#include <array>
 #include <cctype>
 #include <fstream>
 #include <iostream>
-#include <stdexcept>
 #include <unordered_map>
 
 namespace buddy {
@@ -79,8 +80,7 @@ public:
   // models.
   void tokenizeStableDiffusion(const std::string &vocab, size_t length);
   // DeepSeekR1 Tokenizer
-  // Encode text without adding a conversation template.
-  // Throws std::length_error if the token sequence exceeds length.
+  // This function is designed for tokenizing input text for DeepSeekR1 models.
   void tokenizeDeepSeekR1(const std::string &vocab, size_t length);
   // Qwen3 Tokenizer
   // This function is designed for tokenizing input text for Qwen3 models.
@@ -214,6 +214,11 @@ private:
   // Since the map is only used for quick lookups and not iterating through it
   // in a specific order, using `std::unordered_map` for faster lookups.
   std::unordered_map<std::string, size_t> tokenToIdMap;
+  // Upper bounds on token byte length by leading byte(s), populated in
+  // loadVocab(), to avoid O(L^3) substring scanning in DP tokenization.
+  size_t maxTokenLen = 0;
+  std::array<size_t, 256> maxTokenLenByFirstByte{};
+  std::array<size_t, 256> maxTokenLenAfterG{};
   // ID-Token vector holds the given vocabulary.
   // It is faster to find elements by index.
   std::vector<std::string> idToTokenVec;
@@ -454,18 +459,26 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   this->bos = 151646;
   this->eos = 151643;
   this->pad = 151643;
+  const int userToken = 151644;
+  const int assistantToken = 151645;
+  const int thinkToken = 151648;
+
   tokenCnt = 0;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = userToken;
 
   // Load Vocab
   loadVocab(vocab);
 
   // Replace space with Ġ.
   std::string strWithoutSpace;
+  strWithoutSpace.reserve(str.size() * 2);
   std::string replace = "Ġ";
   for (int i = 0; i < (int)str.size(); i++) {
     if (str[i] != ' ')
       strWithoutSpace.push_back(str[i]);
-    if (str[i] == ' ' && str[i - 1] != ' ')
+    if (str[i] == ' ' && (i == 0 || str[i - 1] != ' '))
       strWithoutSpace.append(replace);
   }
 
@@ -478,12 +491,23 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
 
   // Forward pass
   // Use dynamic programming as the main algorithm to adapt the longest
-  // charactors.
+  // characters, bounded by exact per-prefix max token lengths from vocab.
+  std::string sub;
+  sub.reserve(maxTokenLen > 0 ? maxTokenLen : 64);
   for (int i = 0; i < len; i++) {
-    for (int sub_len = 1; sub_len <= len - i; sub_len++) {
-      auto iter_start = strWithoutSpace.begin() + i;
-      auto iter_end = iter_start + sub_len;
-      auto token = tokenToIdMap.find(std::string(iter_start, iter_end));
+    unsigned char b0 = static_cast<unsigned char>(strWithoutSpace[i]);
+    size_t maxSub = maxTokenLenByFirstByte[b0];
+    if (maxSub == 0)
+      continue;
+    if (b0 == 0xc4 && i + 2 < len &&
+        static_cast<unsigned char>(strWithoutSpace[i + 1]) == 0xa0) {
+      unsigned char b2 = static_cast<unsigned char>(strWithoutSpace[i + 2]);
+      maxSub = std::max<size_t>(2, maxTokenLenAfterG[b2]);
+    }
+    int limit = std::min<int>(static_cast<int>(maxSub), len - i);
+    for (int sub_len = 1; sub_len <= limit; sub_len++) {
+      sub.assign(strWithoutSpace.data() + i, static_cast<size_t>(sub_len));
+      auto token = tokenToIdMap.find(sub);
       if (token != tokenToIdMap.end()) {
         int token_score = sub_len * sub_len;
         int local_score = score[i] + token_score;
@@ -503,13 +527,14 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
     i -= idToTokenVec[token_id].length();
   }
 
-  if (res.size() > length)
-    throw std::length_error("DeepSeek R1 text exceeds token capacity");
-
   // Directly fill this->aligned in reverse order.
   for (auto it = res.rbegin(); it != res.rend(); ++it) {
     this->aligned[tokenCnt++] = *it;
   }
+
+  this->aligned[tokenCnt++] = assistantToken;
+  this->aligned[tokenCnt++] = thinkToken;
+  this->aligned[tokenCnt++] = 198;
 
   for (size_t i = tokenCnt; i < length; i++) {
     this->aligned[i] = pad;
@@ -1073,12 +1098,35 @@ void Text<T, N>::loadVocab(const std::string &vocab) {
     throw std::runtime_error("Failed to open vocab file: " + vocab);
   }
 
+  // Pre-size containers to avoid repeated rehashes on large (~150k) vocabs.
+  tokenToIdMap.clear();
+  idToTokenVec.clear();
+  maxTokenLen = 0;
+  maxTokenLenByFirstByte.fill(0);
+  maxTokenLenAfterG.fill(0);
+  tokenToIdMap.reserve(163840);
+  idToTokenVec.reserve(163840);
+
   std::string token;
   size_t index = 0;
 
   while (getline(fin, token)) {
+    size_t tlen = token.size();
+    if (tlen > maxTokenLen)
+      maxTokenLen = tlen;
+    if (tlen > 0) {
+      unsigned char b0 = static_cast<unsigned char>(token[0]);
+      if (tlen > maxTokenLenByFirstByte[b0])
+        maxTokenLenByFirstByte[b0] = tlen;
+      if (tlen >= 3 && b0 == 0xc4 &&
+          static_cast<unsigned char>(token[1]) == 0xa0) {
+        unsigned char b2 = static_cast<unsigned char>(token[2]);
+        if (tlen > maxTokenLenAfterG[b2])
+          maxTokenLenAfterG[b2] = tlen;
+      }
+    }
     tokenToIdMap[token] = index++;
-    idToTokenVec.push_back(token);
+    idToTokenVec.push_back(std::move(token));
   }
   fin.close();
 }
