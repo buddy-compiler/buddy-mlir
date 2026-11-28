@@ -246,7 +246,9 @@ static void *worker(void *arg) {
     }
     // Every worker reports, so that the next region does not rewrite job
     // while a worker that sat this one out still reads it.
-    atomic_fetch_add_explicit(&finished, 1, memory_order_release);
+    // Chain all completions before the caller acquires the final count so
+    // barrier-elided workshares remain ordered on weakly-ordered architectures.
+    atomic_fetch_add_explicit(&finished, 1, memory_order_acq_rel);
   }
 }
 
@@ -309,13 +311,22 @@ static void growPool(int n) {
 // code is unmapped.
 __attribute__((destructor)) static void stopPool(void) {
   profReport();
-  if (poolSize < 2)
+  if (poolSize == 0)
     return;
-  atomic_store_explicit(&quitting, 1, memory_order_relaxed);
-  atomic_fetch_add_explicit(&jobGeneration, 1, memory_order_release);
-  for (int i = 1; i < poolSize; i++)
-    pthread_join(poolThreads[i], NULL);
+  if (poolSize >= 2) {
+    atomic_store_explicit(&quitting, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&jobGeneration, 1, memory_order_release);
+    for (int i = 1; i < poolSize; i++)
+      pthread_join(poolThreads[i], NULL);
+  }
+  free(poolThreads);
+  free(poolStart);
+  free(poolCpus);
+  poolThreads = NULL;
+  poolStart = NULL;
+  poolCpus = NULL;
   poolSize = 0;
+  poolLimit = 0;
 }
 
 API int32_t __kmpc_global_thread_num(ident_t *loc) {
