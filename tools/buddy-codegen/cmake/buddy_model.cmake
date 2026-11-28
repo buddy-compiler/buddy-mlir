@@ -204,11 +204,17 @@ endfunction()
 #                                           single_forward, or
 #                                           qwen3_vl_multimodal
 #   [IMPORT_SCRIPT <path>]                  custom importer for single_forward
+#   [IMPORT_EXTRA_DEPS <file>...]           extra files read by the importer
+#   [IMPORT_EXTRA_BYPRODUCTS <file>...]     single_forward: extra files written
+#                                           by the importer
 #   [LOWER_SCRIPT <path>]                   single_forward: lowers subgraph0.mlir
 #                                           to subgraph0.o (lower_to_obj.sh
 #                                           arguments, PYTHON in the
 #                                           environment) instead of the
 #                                           default pipeline
+#   [LOWER_EXTRA_DEPS <file>...]            extra files read by LOWER_SCRIPT
+#   [LOWER_LINKER <path>]                   linker exported to LOWER_SCRIPT as
+#                                           BUDDY_MODEL_OBJECT_LINKER
 #   [MANIFEST_SCRIPT <path>]                custom RHAL manifest generator
 #   [LOCAL_MODEL_ENV <name>]                env var used for LOCAL_MODEL in importer
 #   [MODEL_SO_NAME <name>]                  output model shared library basename
@@ -381,8 +387,8 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
-    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;MODEL_PLUGIN_SRC;MODEL_PLUGIN_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;LOWER_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;LOWER_LINKER"
+    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS;IMPORT_EXTRA_DEPS;IMPORT_EXTRA_BYPRODUCTS;LOWER_EXTRA_DEPS" # multi-value
     ${ARGN}
   )
 
@@ -1128,13 +1134,13 @@ function(buddy_add_model)
 
     add_custom_command(
       OUTPUT "${IMPORT_STAMP}"
-      BYPRODUCTS ${_SINGLE_FORWARD_BYPRODUCTS}
+      BYPRODUCTS ${_SINGLE_FORWARD_BYPRODUCTS} ${MDL_IMPORT_EXTRA_BYPRODUCTS}
       COMMAND ${_IMPORT_ENV}
               "${Python3_EXECUTABLE}" "${MDL_IMPORT_SCRIPT}"
               --spec "${GEN_CONFIG}" --output-dir "${BIN}"
               ${_SINGLE_FORWARD_IMPORT_ARGS}
       COMMAND "${CMAKE_COMMAND}" -E touch "${IMPORT_STAMP}"
-      DEPENDS ${IMPORT_DEPS}
+      DEPENDS ${IMPORT_DEPS} ${MDL_IMPORT_EXTRA_DEPS}
       COMMENT "[${MDL_NAME}] Stage 1: importing single-forward model -> MLIR + weights"
       VERBATIM
     )
@@ -1171,16 +1177,23 @@ function(buddy_add_model)
         LLC_ATTRS ${MDL_LLC_ATTRS_LIST}
       )
     elseif(MDL_LOWER_SCRIPT)
+      set(_MDL_LOWER_ENV)
+      if(MDL_LOWER_LINKER)
+        list(APPEND _MDL_LOWER_ENV
+          "BUDDY_MODEL_OBJECT_LINKER=${MDL_LOWER_LINKER}")
+      endif()
       add_custom_command(
         OUTPUT "${BIN}/subgraph0.o"
-        COMMAND ${CMAKE_COMMAND} -E env "PYTHON=${Python3_EXECUTABLE}"
+        COMMAND ${CMAKE_COMMAND} -E env
+                "PYTHON=${Python3_EXECUTABLE}"
+                ${_MDL_LOWER_ENV}
                 bash "${MDL_LOWER_SCRIPT}"
                 "${BUDDY_BINARY_DIR}/buddy-opt" "${LLVM_TOOLS_BINARY_DIR}"
                 "${BIN}/subgraph0.mlir" "${BIN}/subgraph0.o"
                 "${MDL_NUM_THREADS}" ${MDL_LLC_ATTRS_LIST}
         DEPENDS "${IMPORT_STAMP}" "${MDL_LOWER_SCRIPT}"
           "${BUDDY_CODEGEN_DIR}/compile_pipeline.py" buddy-opt buddy-translate
-          ${LLVM_TOOLS_BINARY_DIR}/llc
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${MDL_LOWER_EXTRA_DEPS}
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o (${MDL_LOWER_SCRIPT})"
         VERBATIM)
     else()

@@ -94,7 +94,9 @@ def main() -> int:
         help="Local HuggingFace-format model directory for PyTorch import. "
         "For deepseek_r1, this sets BUDDY_DSR1_LOCAL_MODEL and may provide "
         "config.json. For qwen3_vl and bge_m3, this is required and sets "
-        "BUDDY_QWEN3_VL_MODEL_PATH / BUDDY_BGE_M3_MODEL_PATH.",
+        "BUDDY_QWEN3_VL_MODEL_PATH / BUDDY_BGE_M3_MODEL_PATH. "
+        "For embeddinggemma, this is required when configuring and sets "
+        "BUDDY_EMBEDDINGGEMMA_MODEL_PATH.",
     )
     ap.add_argument(
         "--no-configure",
@@ -198,13 +200,14 @@ def main() -> int:
         "qwen3_vl",
         "qwen3_vl_moe",
         "bge_m3",
+        "embeddinggemma",
         "proteinglm",
         "yolov8",
     }:
         print(
             "error: unsupported model_family in spec: "
             f"{model_family!r} (supported: deepseek_r1, qwen3, whisper, qwen3_vl, "
-            "qwen3_vl_moe, bge_m3, proteinglm, yolov8)",
+            "qwen3_vl_moe, bge_m3, embeddinggemma, proteinglm, yolov8)",
             file=sys.stderr,
         )
         return 1
@@ -394,6 +397,29 @@ def main() -> int:
         if args.hf_config is not None:
             print(
                 "warning: --hf-config is ignored for model_family=bge_m3",
+                file=sys.stderr,
+            )
+    elif model_family == "embeddinggemma":
+        if local_model is None and not args.no_configure:
+            print(
+                "error: model_family=embeddinggemma requires --local-model "
+                "(local Hugging Face EmbeddingGemma snapshot)",
+                file=sys.stderr,
+            )
+            return 1
+        cmake_args.extend(
+            [
+                f"-DBUDDY_EMBEDDINGGEMMA_SPEC={spec}",
+                "-DBUDDY_BUILD_EMBEDDINGGEMMA_MODEL=ON",
+            ]
+        )
+        if local_model is not None:
+            cmake_args.append(
+                f"-DBUDDY_EMBEDDINGGEMMA_MODEL_PATH={local_model}"
+            )
+        if args.hf_config is not None:
+            print(
+                "warning: --hf-config is ignored for model_family=embeddinggemma",
                 file=sys.stderr,
             )
     elif model_family == "proteinglm":
