@@ -6,7 +6,6 @@ add_mlir_dialect_library(BuddyXSAIAMETransforms
   MLIRArithDialect
   MLIRControlFlowDialect
   MLIRFuncDialect
-  MLIRFuncTransforms
   MLIRIR
   MLIRLLVMCommonConversion
   MLIRLLVMDialect

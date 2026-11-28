@@ -16,11 +16,13 @@ class LLVMTypeConverter;
 class Pass;
 class RewritePatternSet;
 
-/// Add native XSAIAME type/intrinsic and func/CF/SCF structural conversions.
-/// Function-valued types are converted recursively; other conversions remain
-/// under the caller's control. Patterns always emit safe configuration setters.
+/// Add the native XSAIAME type and intrinsic conversions and the SCF structural
+/// conversions that carry tiles and sync handles through SCF regions. Patterns
+/// always emit safe configuration setters.
 void populateXSAIAMELegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
                                                   RewritePatternSet &patterns);
+/// Mark XSAIAME illegal. A func or cf operation that carries a tile or sync
+/// handle stays illegal: the native target has no calling convention for them.
 void configureXSAIAMELegalizeForExportTarget(
     LLVMConversionTarget &target, const LLVMTypeConverter &converter);
 
@@ -30,9 +32,9 @@ void registerLowerXSAIAMEPass();
 } // namespace mlir
 
 namespace buddy::xsaiame {
-/// Lower XSAIAME, retaining non-XSAIAME types and func/CF/SCF structure, then
-/// deterministically deduplicate configuration within each block.
-/// Native cross-function tile/sync calling conventions are not supplied.
+/// Lower XSAIAME, retaining non-XSAIAME types, then deterministically
+/// deduplicate configuration within each block. Tiles and sync handles may flow
+/// through SCF regions but not across functions or cf branches.
 std::unique_ptr<mlir::Pass> createLegalizeForLLVMExportPass();
 } // namespace buddy::xsaiame
 

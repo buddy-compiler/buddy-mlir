@@ -27,7 +27,10 @@ func.func @unsupported_c_role(%view: memref<128x128xf16>) {
 // -----
 
 // CHECK: lower-xsai-ame does not support mma element combination i8 x i8 -> fp16
-func.func @unsupported_accumulator(%a: !xsai_ame.tile<a, 128x64, i8>, %b: !xsai_ame.tile<b, 128x64, i8>, %c: !xsai_ame.tile<c, 128x128, fp16>) {
+func.func @unsupported_accumulator() {
+  %a = xsai_ame.mzero : !xsai_ame.tile<a, 128x64, i8>
+  %b = xsai_ame.mzero : !xsai_ame.tile<b, 128x64, i8>
+  %c = xsai_ame.mzero : !xsai_ame.tile<c, 128x128, fp16>
   %r = xsai_ame.mma %a, %b, %c : !xsai_ame.tile<a, 128x64, i8>, !xsai_ame.tile<b, 128x64, i8>, !xsai_ame.tile<c, 128x128, fp16>
   return
 }
@@ -36,7 +39,10 @@ func.func @unsupported_accumulator(%a: !xsai_ame.tile<a, 128x64, i8>, %b: !xsai_
 
 // Integer inputs require an integer accumulator before explicit conversion.
 // CHECK: lower-xsai-ame does not support mma element combination i8 x i8 -> fp32
-func.func @unsupported_i8_fp32(%a: !xsai_ame.tile<a, 128x64, i8>, %b: !xsai_ame.tile<b, 128x64, i8>, %c: !xsai_ame.tile<c, 128x128, fp32>) {
+func.func @unsupported_i8_fp32() {
+  %a = xsai_ame.mzero : !xsai_ame.tile<a, 128x64, i8>
+  %b = xsai_ame.mzero : !xsai_ame.tile<b, 128x64, i8>
+  %c = xsai_ame.mzero : !xsai_ame.tile<c, 128x128, fp32>
   %r = xsai_ame.mma %a, %b, %c : !xsai_ame.tile<a, 128x64, i8>, !xsai_ame.tile<b, 128x64, i8>, !xsai_ame.tile<c, 128x128, fp32>
   return
 }
@@ -44,7 +50,10 @@ func.func @unsupported_i8_fp32(%a: !xsai_ame.tile<a, 128x64, i8>, %b: !xsai_ame.
 // -----
 
 // CHECK: lower-xsai-ame does not support mma element combination fp8e4m3 x fp8e5m2 -> fp32
-func.func @unsupported_mixed_input(%a: !xsai_ame.tile<a, 128x64, fp8e4m3>, %b: !xsai_ame.tile<b, 128x64, fp8e5m2>, %c: !xsai_ame.tile<c, 128x128, fp32>) {
+func.func @unsupported_mixed_input() {
+  %a = xsai_ame.mzero : !xsai_ame.tile<a, 128x64, fp8e4m3>
+  %b = xsai_ame.mzero : !xsai_ame.tile<b, 128x64, fp8e5m2>
+  %c = xsai_ame.mzero : !xsai_ame.tile<c, 128x128, fp32>
   %r = xsai_ame.mma %a, %b, %c : !xsai_ame.tile<a, 128x64, fp8e4m3>, !xsai_ame.tile<b, 128x64, fp8e5m2>, !xsai_ame.tile<c, 128x128, fp32>
   return
 }
@@ -142,7 +151,10 @@ func.func @dynamic_store(%view: memref<?x?xi8>, %m: i64) {
 // -----
 
 // CHECK: lower-xsai-ame requires a complete a tile 128x64 for element i8, got '!xsai_ame.tile<a, ?x?, i8>'
-func.func @dynamic_mma(%a: !xsai_ame.tile<a, ?x?, i8>, %b: !xsai_ame.tile<b, ?x?, i8>, %c: !xsai_ame.tile<c, ?x?, i32>, %m: i64, %n: i64, %k: i64) {
+func.func @dynamic_mma(%m: i64, %n: i64, %k: i64) {
+  %a = xsai_ame.mzero[%m, %k] : !xsai_ame.tile<a, ?x?, i8>
+  %b = xsai_ame.mzero[%n, %k] : !xsai_ame.tile<b, ?x?, i8>
+  %c = xsai_ame.mzero[%m, %n] : !xsai_ame.tile<c, ?x?, i32>
   %r = xsai_ame.mma %a, %b, %c[%m, %n, %k] : !xsai_ame.tile<a, ?x?, i8>, !xsai_ame.tile<b, ?x?, i8>, !xsai_ame.tile<c, ?x?, i32>
   return
 }
@@ -150,7 +162,27 @@ func.func @dynamic_mma(%a: !xsai_ame.tile<a, ?x?, i8>, %b: !xsai_ame.tile<b, ?x?
 // -----
 
 // CHECK: lower-xsai-ame requires a complete b tile 128x32 for element fp16, got '!xsai_ame.tile<b, ?x32, fp16>'
-func.func @mixed_mma(%a: !xsai_ame.tile<a, 128x32, fp16>, %b: !xsai_ame.tile<b, ?x32, fp16>, %c: !xsai_ame.tile<c, 128x?, fp32>, %n: i64) {
+func.func @mixed_mma(%n: i64) {
+  %a = xsai_ame.mzero : !xsai_ame.tile<a, 128x32, fp16>
+  %b = xsai_ame.mzero[%n] : !xsai_ame.tile<b, ?x32, fp16>
+  %c = xsai_ame.mzero[%n] : !xsai_ame.tile<c, 128x?, fp32>
   %r = xsai_ame.mma %a, %b, %c[%n] : !xsai_ame.tile<a, 128x32, fp16>, !xsai_ame.tile<b, ?x32, fp16>, !xsai_ame.tile<c, 128x?, fp32>
+  return
+}
+
+// -----
+
+// The native target has no calling convention for tiles or sync handles.
+// CHECK: failed to legalize operation 'func.func'
+func.func private @tile_argument(!xsai_ame.tile<c, 128x128, i32>)
+
+// -----
+
+// Producers carry tiles through SCF; a cf block argument is not converted.
+// CHECK: failed to legalize operation 'func.func'
+func.func @tile_block_argument() {
+  %c = xsai_ame.mzero : !xsai_ame.tile<c, 128x128, i32>
+  cf.br ^next(%c : !xsai_ame.tile<c, 128x128, i32>)
+^next(%t: !xsai_ame.tile<c, 128x128, i32>):
   return
 }

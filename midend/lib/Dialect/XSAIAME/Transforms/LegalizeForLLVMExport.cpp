@@ -15,14 +15,12 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/CallInterfaces.h"
-#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -368,65 +366,6 @@ struct FenceLowering : ConvertOpToLLVMPattern<MfenceOp> {
   }
 };
 
-/// The generic function-signature pattern converts only the entry block in
-/// LLVM24. Non-entry CFG arguments must also change, even when the public
-/// signature itself is unchanged (for example a local sync-token diamond).
-struct FunctionLowering : OpConversionPattern<func::FuncOp> {
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(func::FuncOp op, OpAdaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    FunctionType type = op.getFunctionType();
-    TypeConverter::SignatureConversion signature(type.getNumInputs());
-    SmallVector<Type> results;
-    const TypeConverter &converter = *getTypeConverter();
-    if (failed(converter.convertSignatureArgs(type.getInputs(), signature)) ||
-        failed(converter.convertTypes(type.getResults(), results)))
-      return failure();
-    if (failed(
-            rewriter.convertRegionTypes(&op.getBody(), converter, &signature)))
-      return failure();
-    FunctionType converted = FunctionType::get(
-        op.getContext(), signature.getConvertedTypes(), results);
-    rewriter.modifyOpInPlace(op, [&] { op.setType(converted); });
-    return success();
-  }
-};
-
-struct FunctionConstantLowering : OpConversionPattern<func::ConstantOp> {
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(func::ConstantOp op, OpAdaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Type converted = getTypeConverter()->convertType(op.getResult().getType());
-    if (!isa_and_nonnull<FunctionType>(converted))
-      return failure();
-    auto constant = func::ConstantOp::create(rewriter, op.getLoc(), converted,
-                                             op.getValueAttr());
-    constant->setDiscardableAttrs(op->getDiscardableAttrDictionary());
-    rewriter.replaceOp(op, constant.getResult());
-    return success();
-  }
-};
-
-struct IndirectCallLowering : OpConversionPattern<func::CallIndirectOp> {
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(func::CallIndirectOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (!isa<FunctionType>(adaptor.getCallee().getType()))
-      return failure();
-    auto call =
-        func::CallIndirectOp::create(rewriter, op.getLoc(), adaptor.getCallee(),
-                                     adaptor.getCalleeOperands());
-    call.setArgAttrsAttr(op.getArgAttrsAttr());
-    call.setResAttrsAttr(op.getResAttrsAttr());
-    call->setDiscardableAttrs(op->getDiscardableAttrDictionary());
-    rewriter.replaceOp(op, call.getResults());
-    return success();
-  }
-};
-
 /// Conversion visitation is not execution order. Every pattern emits safe
 /// setters; only this subsequent ordered, block-local scan removes redundancy.
 static void deduplicateConfiguration(Region &region) {
@@ -555,23 +494,19 @@ public:
 
   StringRef getArgument() const final { return "lower-xsai-ame"; }
   StringRef getDescription() const final {
-    return "Lower XSAIAME to native LLVM intrinsics with structural SSA "
-           "conversion";
+    return "Lower XSAIAME to native LLVM intrinsics";
   }
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<XSAIAMEDialect, LLVM::LLVMDialect, arith::ArithDialect,
-                    memref::MemRefDialect, func::FuncDialect,
-                    cf::ControlFlowDialect, scf::SCFDialect>();
+                    memref::MemRefDialect, scf::SCFDialect>();
   }
   void runOnOperation() override {
     MLIRContext &context = getContext();
     if (synchronous)
       serializeMatrixMemory(getOperation().getBodyRegion());
     LLVMTypeConverter converter(&context);
-    // This pass does not lower memref descriptors or scalar/structured
-    // dialects. Preserve their types so standalone func/CF/SCF conversion
-    // changes only tile/sync carriers. Export clients can instead supply a full
-    // converter.
+    // Only tiles and sync handles are converted. Every other type is kept for
+    // the standard memref/arith/func lowering that follows.
     converter.addConversion([](Type type) { return type; });
     RewritePatternSet patterns(&context);
     populateXSAIAMELegalizeForLLVMExportPatterns(converter, patterns);
@@ -594,22 +529,9 @@ void mlir::populateXSAIAMELegalizeForLLVMExportPatterns(
       [](TileType tile) -> Type { return convertTileType(tile); });
   converter.addConversion(
       [](SyncType sync) -> Type { return convertSyncType(sync); });
-  converter.addConversion([&converter](FunctionType type) -> Type {
-    SmallVector<Type> inputs, results;
-    if (failed(converter.convertTypes(type.getInputs(), inputs)) ||
-        failed(converter.convertTypes(type.getResults(), results)))
-      return {};
-    return FunctionType::get(type.getContext(), inputs, results);
-  });
-  patterns
-      .add<FunctionLowering, FunctionConstantLowering, IndirectCallLowering>(
-          converter, patterns.getContext());
   patterns.add<LoadLowering, StoreLowering, MmaLowering, MzeroLowering,
                ResetLowering, ReleaseLowering, AcquireLowering, FenceLowering>(
       converter);
-  populateCallOpTypeConversionPattern(patterns, converter);
-  populateReturnOpTypeConversionPattern(patterns, converter);
-  populateBranchOpInterfaceTypeConversionPattern(patterns, converter);
   scf::populateSCFStructuralTypeConversions(converter, patterns);
 }
 
@@ -617,19 +539,18 @@ void mlir::configureXSAIAMELegalizeForExportTarget(
     LLVMConversionTarget &target, const LLVMTypeConverter &converter) {
   target.addLegalDialect<LLVM::LLVMDialect, arith::ArithDialect,
                          memref::MemRefDialect>();
+  // The RISC-V backend has no calling convention for tiles or sync handles,
+  // and producers carry them only through SCF. A func or cf operation that
+  // carries one stays illegal, so the conversion fails here rather than in llc.
   target.addDynamicallyLegalOp<func::FuncOp>([&converter](func::FuncOp op) {
     return converter.isSignatureLegal(op.getFunctionType()) &&
            converter.isLegal(&op.getBody());
   });
   target.addDynamicallyLegalOp<func::CallOp, func::CallIndirectOp,
-                               func::ConstantOp, func::ReturnOp>(
+                               func::ReturnOp>(
       [&converter](Operation *op) { return converter.isLegal(op); });
-  target.addDynamicallyLegalDialect<cf::ControlFlowDialect>([&converter](
-                                                                Operation *op) {
-    if (isa<BranchOpInterface>(op))
-      return isLegalForBranchOpInterfaceTypeConversionPattern(op, converter);
-    return converter.isLegal(op);
-  });
+  target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(
+      [&converter](Operation *op) { return converter.isLegal(op); });
   scf::populateSCFStructuralTypeConversionTarget(converter, target);
   target.addDynamicallyLegalOp<scf::ForOp, scf::IfOp, scf::IndexSwitchOp,
                                scf::ExecuteRegionOp, scf::WhileOp>(
