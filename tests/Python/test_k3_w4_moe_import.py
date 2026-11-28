@@ -148,7 +148,7 @@ with open(os.path.join(work, "k3_kernels-w4g32.mlir")) as f:
 for name in sorted(re.findall(r"func\.func @(k3_moe\w+)\(", kernels)):
     print(name)
 # CHECK: k3_moe_m1_k256_i128_e8_t2_rms_res{{$}}
-# CHECK-NEXT: k3_moe_m32_k256_i128_e8_t2_rms{{$}}
+# CHECK-NEXT: k3_moe_m32_k256_i128_e8_t2_rms_res{{$}}
 
 buckets = import_model.extract_k3_weights(prefill[0], config)
 print({k: len(v) for k, v in buckets.items()})
@@ -234,17 +234,15 @@ for name, graph in graphs:
     rows = 1 if name == "decode" else CHUNK
     base = k3_w4.moe_spec(rows, 256, 128, 8, 2, THREADS)
     spec = dict(base, name=base["name"] + "_rms", norm_eps=hf.rms_norm_eps)
-    if rows == 1:
-        spec = dict(spec, name=spec["name"] + "_res", residual=True)
+    spec = dict(spec, name=spec["name"] + "_res", residual=True)
     ee = jit([spec])
     for layer, c in enumerate(moe_calls(graph)):
         assert c.call_func_name == spec["name"], c.call_func_name
         weights = [p[str(a)].detach().contiguous().numpy() for a in c.args[1:5]]
         x = (3 * rng.standard_normal((rows, 256))).astype(numpy.float32)
         h = rng.standard_normal((rows, 256)).astype(numpy.float32)
-        y = run(ee, spec["name"], x, *weights, *([h] if rows == 1 else []))
-        if rows == 1:
-            y = y - h
+        y = run(ee, spec["name"], x, *weights, h)
+        y = y - h
         block = model.model.layers[layer]
         with torch.no_grad():
             xn = block.post_attention_layernorm(torch.from_numpy(x)[None])

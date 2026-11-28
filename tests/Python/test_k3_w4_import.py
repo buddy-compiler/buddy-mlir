@@ -141,8 +141,8 @@ for name in sorted(re.findall(r"func\.func @(\w+)\(", kernels)):
 # CHECK-NEXT: k3_q4_plain_m1_k256_n384_prefill_logits{{$}}
 # CHECK-NEXT: k3_q4_plain_m1_k256_n384_rms{{$}}
 # CHECK-NEXT: k3_q4_plain_m1_k512_n256_res{{$}}
-# CHECK-NEXT: k3_q4_plain_m32_k256_n256{{$}}
-# CHECK-NEXT: k3_q4_plain_m32_k512_n256{{$}}
+# CHECK-NEXT: k3_q4_plain_m32_k256_n256_res{{$}}
+# CHECK-NEXT: k3_q4_plain_m32_k512_n256_res{{$}}
 
 buckets = import_model.extract_k3_weights(prefill[0], config)
 print({k: (len(v), str(v.dtype)) for k, v in buckets.items()})
@@ -184,8 +184,8 @@ for name in ("k3_kernels-w4g32.mlir", "k3_kernels_ime-w4g32.mlir"):
     print(
         name + ":", ", ".join(d for d in defined if "_m64_" in d or "ime" in d)
     )
-# CHECK: k3_kernels-w4g32.mlir: k3_attn_m64_h4_kv2_d64_c64_ime, k3_q4_glu_m64_k256_n512_ime_rms, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms, k3_q4_plain_m64_k256_n256_ime, k3_q4_plain_m64_k512_n256_ime
-# CHECK-NEXT: k3_kernels_ime-w4g32.mlir: k3_attn_ime_pv, k3_attn_ime_qk, k3_ime_hp_step, k3_q4_glu_m64_k256_n512_ime_rms__tile, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms__tile, k3_q4_plain_m64_k256_n256_ime__tile, k3_q4_plain_m64_k512_n256_ime__tile
+# CHECK: k3_kernels-w4g32.mlir: k3_attn_m64_h4_kv2_d64_c64_ime, k3_q4_glu_m64_k256_n512_ime_rms, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms, k3_q4_plain_m64_k256_n256_ime_res, k3_q4_plain_m64_k512_n256_ime_res
+# CHECK-NEXT: k3_kernels_ime-w4g32.mlir: k3_attn_ime_pv, k3_attn_ime_qk, k3_ime_hp_step, k3_q4_glu_m64_k256_n512_ime_rms__tile, k3_q4_multi_m64_k256_n256_128_128_b_ime_rms__tile, k3_q4_plain_m64_k256_n256_ime_res__tile, k3_q4_plain_m64_k512_n256_ime_res__tile
 buckets = import_model.extract_k3_weights(prefill[0], ime_config)
 print("ime weights:", {k: len(v) for k, v in buckets.items()})
 # CHECK: ime weights: {'f32_params': 100640, 'i8_params': 1382400}
