@@ -6,4 +6,5 @@ add_mlir_library(LowerLinalgToMagiaPass
 
   LINK_LIBS PUBLIC
   BuddyMagia
+  MLIRMathTransforms
 )

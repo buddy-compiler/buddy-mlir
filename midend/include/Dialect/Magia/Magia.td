@@ -51,7 +51,10 @@ def GemmOp : Magia_Op<"gemm"> {
   let summary = "General matrix product on the mesh";
   let description = [{
     Z = Z + X * W in FP16, as RedMulE computes it: X is M x N, W is N x K and
-    Z, which holds Y going in, is M x K. The tiles share the columns of W.
+    Z, which holds Y going in, is M x K. The tiles share the columns of W. A
+    batch of products has a leading batch dimension on all three, each matrix
+    after the one before: the tiles share the products, a launch of the mesh
+    for all of them.
 
     Example:
 
@@ -60,9 +63,9 @@ def GemmOp : Magia_Op<"gemm"> {
                           memref<32x768xf16>
     ```
   }];
-  let arguments = (ins Arg<MemRefRankOf<[F16], [2]>, "", [MemRead]>:$x,
-                       Arg<MemRefRankOf<[F16], [2]>, "", [MemRead]>:$w,
-                       Arg<MemRefRankOf<[F16], [2]>, "",
+  let arguments = (ins Arg<MemRefRankOf<[F16], [2, 3]>, "", [MemRead]>:$x,
+                       Arg<MemRefRankOf<[F16], [2, 3]>, "", [MemRead]>:$w,
+                       Arg<MemRefRankOf<[F16], [2, 3]>, "",
                            [MemRead, MemWrite]>:$z);
   let assemblyFormat = "$x $w $z attr-dict `:` type($x) type($w) type($z)";
 }
