@@ -217,9 +217,18 @@ def load_qwen3_moe(model_path: str, activation: str):
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def compile_graphs(model, config: dict):
+def compile_graphs(model, config: dict, *, hidden_input: bool = False):
     """Run DynamoCompiler to produce prefill and decode graphs."""
     max_token_len = config["shape"]["max_token_len"]
+
+    def trace_input(tokens):
+        if hidden_input:
+            return {
+                "inputs_embeds": torch.zeros(
+                    (1, tokens, model.config.hidden_size), dtype=model.dtype
+                )
+            }
+        return {"input_ids": torch.zeros((1, tokens), dtype=torch.int64)}
 
     prefill_compiler = DynamoCompiler(
         primary_registry=tosa.ops_registry,
@@ -237,21 +246,19 @@ def compile_graphs(model, config: dict):
             config=model.config, max_cache_len=max_token_len
         )
 
-        data_prefill = {
-            "input_ids": torch.zeros((1, max_token_len), dtype=torch.int64)
-        }
-        data_decode = {"input_ids": torch.zeros((1, 1), dtype=torch.int64)}
+        data_prefill = trace_input(max_token_len)
+        data_decode = trace_input(1)
         cache_position = decode_trace_position(max_token_len)
 
         graphs_prefill = prefill_compiler.importer(
             model,
-            input_ids=data_prefill["input_ids"],
+            **data_prefill,
             use_cache=True,
             cache_implementation="static",
         )
 
         model(
-            input_ids=data_decode["input_ids"],
+            **data_decode,
             past_key_values=past_kv_decode,
             use_cache=True,
             cache_implementation="static",
@@ -259,7 +266,7 @@ def compile_graphs(model, config: dict):
 
         graphs_decode = decode_compiler.importer(
             model,
-            input_ids=data_decode["input_ids"],
+            **data_decode,
             use_cache=True,
             cache_position=cache_position,
             past_key_values=past_kv_decode,
@@ -1209,25 +1216,29 @@ def export_plain_weights_direct(
         )
 
     path = os.path.join(output_dir, weight[file_key])
-    mm = numpy.memmap(path, dtype=dtype, mode="w+", shape=(total_elements,))
-    offset = 0
     activation = config["precision"]["activation_type"]
-    for p in params:
-        count = p.numel()
-        tensor = p.detach()
-        if activation == "bf16":
-            param_f32 = tensor.float().numpy().reshape([-1])
-            part = numpy.frombuffer(
-                param_f32.astype(numpy.float32).tobytes(), dtype=numpy.uint16
-            )[1::2]
-            mm[offset : offset + count] = part
-        elif activation == "f16":
-            mm[offset : offset + count] = tensor.numpy().reshape([-1])
-        else:
-            mm[offset : offset + count] = tensor.numpy().reshape([-1])
-        offset += count
-    mm.flush()
-    del mm
+    written_elements = 0
+    with open(path, "wb") as f:
+        for p in params:
+            count = p.numel()
+            tensor = p.detach().contiguous()
+            if activation == "bf16":
+                param_f32 = tensor.float().numpy().reshape([-1])
+                part = numpy.frombuffer(
+                    param_f32.astype(numpy.float32, copy=False).tobytes(),
+                    dtype=numpy.uint16,
+                )[1::2]
+                numpy.ascontiguousarray(part, dtype=dtype).tofile(f)
+            else:
+                numpy.ascontiguousarray(
+                    tensor.numpy().reshape([-1]), dtype=dtype
+                ).tofile(f)
+            written_elements += count
+    if written_elements != total_elements:
+        raise RuntimeError(
+            f"wrote {written_elements} elements to {path}, "
+            f"expected {total_elements}"
+        )
 
     size_mb = os.path.getsize(path) / (1024 * 1024)
     print(

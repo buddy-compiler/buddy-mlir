@@ -75,6 +75,7 @@ llvm_config.use_default_substitutions()
 config.excludes = [
     "Inputs",
     "Examples",
+    "Pipeline",
     "CMakeLists.txt",
     "README.txt",
     "LICENSE.txt",
