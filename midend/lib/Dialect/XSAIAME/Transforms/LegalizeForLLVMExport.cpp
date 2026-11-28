@@ -130,30 +130,30 @@ static LogicalResult checkMma(Location loc, TileType a, TileType b,
 static LLVM::CallIntrinsicOp intrinsic(ConversionPatternRewriter &rewriter,
                                        Location loc, StringRef name,
                                        TypeRange results, ValueRange operands) {
-  return rewriter.create<LLVM::CallIntrinsicOp>(
-      loc, results, rewriter.getStringAttr(name), operands,
+  return LLVM::CallIntrinsicOp::create(
+      rewriter, loc, results, rewriter.getStringAttr(name), operands,
       LLVM::FastmathFlagsAttr::get(rewriter.getContext(),
                                    LLVM::FastmathFlags::none));
 }
 
 static Value constantI64(ConversionPatternRewriter &rewriter, Location loc,
                          int64_t value) {
-  return rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(),
-                                           rewriter.getI64IntegerAttr(value));
+  return LLVM::ConstantOp::create(rewriter, loc, rewriter.getI64Type(),
+                                  rewriter.getI64IntegerAttr(value));
 }
 
 static Value castToI64(ConversionPatternRewriter &rewriter, Location loc,
                        Value value) {
   if (value.getType().isIndex())
-    return rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(),
-                                               value);
+    return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
+                                      value);
   auto type = dyn_cast<IntegerType>(value.getType());
   if (!type)
     return {};
   if (type.getWidth() < 64)
-    return rewriter.create<arith::ExtSIOp>(loc, rewriter.getI64Type(), value);
+    return arith::ExtSIOp::create(rewriter, loc, rewriter.getI64Type(), value);
   if (type.getWidth() > 64)
-    return rewriter.create<arith::TruncIOp>(loc, rewriter.getI64Type(), value);
+    return arith::TruncIOp::create(rewriter, loc, rewriter.getI64Type(), value);
   return value;
 }
 
@@ -186,18 +186,20 @@ viewAddress(ConversionPatternRewriter &rewriter, Location loc, Value view) {
         << "lower-xsai-ame requires an 8-, 16-, or 32-bit memory element";
     return failure();
   }
-  auto metadata = rewriter.create<memref::ExtractStridedMetadataOp>(loc, view);
-  Value base = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
-      loc, metadata.getBaseBuffer());
+  auto metadata = memref::ExtractStridedMetadataOp::create(rewriter, loc, view);
+  Value base = memref::ExtractAlignedPointerAsIndexOp::create(
+      rewriter, loc, metadata.getBaseBuffer());
   base = castToI64(rewriter, loc, base);
   Value byteWidth = constantI64(rewriter, loc, bits / 8);
-  Value byteOffset = rewriter.create<arith::MulIOp>(
-      loc, castToI64(rewriter, loc, metadata.getOffset()), byteWidth);
-  Value address = rewriter.create<arith::AddIOp>(loc, base, byteOffset);
-  Value pointer = rewriter.create<LLVM::IntToPtrOp>(
-      loc, LLVM::LLVMPointerType::get(rewriter.getContext()), address);
-  Value rowStride = rewriter.create<arith::MulIOp>(
-      loc, castToI64(rewriter, loc, metadata.getStrides()[0]), byteWidth);
+  Value byteOffset = arith::MulIOp::create(
+      rewriter, loc, castToI64(rewriter, loc, metadata.getOffset()), byteWidth);
+  Value address = arith::AddIOp::create(rewriter, loc, base, byteOffset);
+  Value pointer = LLVM::IntToPtrOp::create(
+      rewriter, loc, LLVM::LLVMPointerType::get(rewriter.getContext()),
+      address);
+  Value rowStride = arith::MulIOp::create(
+      rewriter, loc, castToI64(rewriter, loc, metadata.getStrides()[0]),
+      byteWidth);
   return std::make_pair(pointer, rowStride);
 }
 
@@ -399,8 +401,8 @@ struct FunctionConstantLowering : OpConversionPattern<func::ConstantOp> {
     Type converted = getTypeConverter()->convertType(op.getResult().getType());
     if (!isa_and_nonnull<FunctionType>(converted))
       return failure();
-    auto constant = rewriter.create<func::ConstantOp>(op.getLoc(), converted,
-                                                      op.getValueAttr());
+    auto constant = func::ConstantOp::create(rewriter, op.getLoc(), converted,
+                                             op.getValueAttr());
     constant->setDiscardableAttrs(op->getDiscardableAttrDictionary());
     rewriter.replaceOp(op, constant.getResult());
     return success();
@@ -414,8 +416,9 @@ struct IndirectCallLowering : OpConversionPattern<func::CallIndirectOp> {
                   ConversionPatternRewriter &rewriter) const override {
     if (!isa<FunctionType>(adaptor.getCallee().getType()))
       return failure();
-    auto call = rewriter.create<func::CallIndirectOp>(
-        op.getLoc(), adaptor.getCallee(), adaptor.getCalleeOperands());
+    auto call =
+        func::CallIndirectOp::create(rewriter, op.getLoc(), adaptor.getCallee(),
+                                     adaptor.getCalleeOperands());
     call.setArgAttrsAttr(op.getArgAttrsAttr());
     call.setResAttrsAttr(op.getResAttrsAttr());
     call->setDiscardableAttrs(op->getDiscardableAttrDictionary());
